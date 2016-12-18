@@ -1,0 +1,33 @@
+= jdeploy
+
+A tool to deploy Java applications using NPM
+
+== Usage
+
+In terminal, navigate to your Java project directory.  Then.
+
+Create an NPM module in the root directory of your Java project.
+
+----
+$ npm init
+----
+
+Follow the prompts
+
+Create necessary bootstrap using jdeploy
+
+----
+$ jdeploy init
+----
+
+Install app locally on your machine.
+
+----
+$ jdeploy install
+----
+
+Publish App to NPM
+
+----
+$ jdeploy publish
+----
