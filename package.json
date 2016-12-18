@@ -1,7 +1,8 @@
 {
   "name": "jdeploy",
   "version": "1.0.3",
-  "description": "POC for java app using npm",
+  "repository": "https://github.com/shannah/jdeploy",
+  "description": "Deploy java apps using NPM",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
