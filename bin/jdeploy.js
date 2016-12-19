@@ -14,8 +14,19 @@ var cmd = 'java';
 javaArgs.forEach(function(arg) {
     cmd += ' "'+arg+'"';
 });
-cmd += ' -jar "'+__dirname+'/HelloNPM.jar" ';
+cmd += ' -jar "'+__dirname+'/JDeploy.jar" ';
 programArgs.forEach(function(arg) {
     cmd += ' "'+arg+'"';
 });
-exec(cmd);
+var child = exec(cmd, {async: true});
+process.stdin.setEncoding('utf8');
+
+process.stdin.on('readable', () => {
+  var chunk = process.stdin.read();
+  try {
+    child.stdout.write(chunk);
+  } catch(e){}
+});
+child.on('close', function(code) {
+    process.exit(code);
+});
