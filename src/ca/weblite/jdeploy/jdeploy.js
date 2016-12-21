@@ -18,7 +18,7 @@ var cmd = 'java';
 javaArgs.forEach(function(arg) {
     cmd += ' "'+arg+'"';
 });
-if (jarName !== '{{JAR_NAME}}') {
+if (jarName !== '{'+'{JAR_NAME}}') {
     cmd += ' -jar "'+__dirname+'/'+jarName+'" ';
 } else {
     cmd += ' -cp "'+__dirname+':'+__dirname+"/"+classPath+'" '+mainClass+' ';

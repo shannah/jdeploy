@@ -1,6 +1,6 @@
 {
   "name": "jdeploy",
-  "version": "1.0.5",
+  "version": "1.0.8",
   "repository": "https://github.com/shannah/jdeploy",
   "description": "Deploy java apps using NPM",
   "main": "index.js",
@@ -15,5 +15,8 @@
   "license": "ISC",
   "dependencies": {
     "shelljs": "^0.7.5"
-  }
+  },
+  "files": [
+    "bin"
+  ]
 }
