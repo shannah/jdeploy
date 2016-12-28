@@ -800,24 +800,26 @@ public class JDeploy {
     public void bundleJetty() throws IOException {
         // Now we need to create the stub.
         File bin = new File(getBinDir());
-        File pkgPath = new File(bin, "ca"+File.separator+"weblite"+File.separator+"jdeploy");
-        pkgPath.mkdirs();
-        File stubFile = new File(pkgPath, "WarRunner.java");
-        InputStream warRunnerInput = getClass().getResourceAsStream("WarRunner.javas");
-        FileUtils.copyInputStreamToFile(warRunnerInput, stubFile);
+        //File pkgPath = new File(bin, "ca"+File.separator+"weblite"+File.separator+"jdeploy");
+        //pkgPath.mkdirs();
+        //File stubFile = new File(bin, "WarRunner.jar");
+        InputStream warRunnerInput = getClass().getResourceAsStream("WarRunner.jar");
+        //FileUtils.copyInputStreamToFile(warRunnerInput, stubFile);
 
-        String stubFileSrc = FileUtils.readFileToString(stubFile, "UTF-8");
+        //String stubFileSrc = FileUtils.readFileToString(stubFile, "UTF-8");
         
-        stubFileSrc = stubFileSrc.replace("{{PORT}}", String.valueOf(getPort(0)));
-        stubFileSrc = stubFileSrc.replace("{{WAR_PATH}}", new File(getWar(null)).getName());
-        FileUtils.writeStringToFile(stubFile, stubFileSrc, "UTF-8");
+        //stubFileSrc = stubFileSrc.replace("{{PORT}}", String.valueOf(getPort(0)));
+        //stubFileSrc = stubFileSrc.replace("{{WAR_PATH}}", new File(getWar(null)).getName());
+        //FileUtils.writeStringToFile(stubFile, stubFileSrc, "UTF-8");
 
         InputStream jettyRunnerJarInput = getClass().getResourceAsStream("jetty-runner.jar");
         File libDir = new File(bin, "lib");
         libDir.mkdir();
         File jettyRunnerDest = new File(libDir, "jetty-runner.jar");
+        File warRunnerDest = new File(libDir, "WarRunner.jar");
         FileUtils.copyInputStreamToFile(jettyRunnerJarInput, jettyRunnerDest);
-
+        FileUtils.copyInputStreamToFile(warRunnerInput, warRunnerDest);
+        /*
         ProcessBuilder javac = new ProcessBuilder();
         javac.inheritIO();
         javac.directory(bin);
@@ -833,10 +835,10 @@ public class JDeploy {
         if (javacResult != 0) {
             System.exit(javacResult);
         }
-        
+        */
         
         setMainClass("ca.weblite.jdeploy.WarRunner");
-        setClassPath("."+File.pathSeparator+"lib/jetty-runner.jar");
+        setClassPath("."+File.pathSeparator+"lib/jetty-runner.jar"+File.pathSeparator+"lib/WarRunner.jar");
         
         
     }
@@ -852,6 +854,12 @@ public class JDeploy {
     }
     
     public String processJdeployTemplate(String jdeployContents) {
+        jdeployContents = jdeployContents.replace("{{PORT}}", String.valueOf(getPort(0)));
+        if (getWar(null) != null) {
+            jdeployContents = jdeployContents.replace("{{WAR_PATH}}", new File(getWar(null)).getName());
+        } else {
+            jdeployContents = jdeployContents.replace("{{WAR_PATH}}", "");
+        }
         if (getJar(null) != null) {
             File jarFile = findJarFile();
             if (jarFile == null) {
@@ -1193,6 +1201,10 @@ public class JDeploy {
                 + "  install : Installs the app locally (links to PATH)\n"
                 + "  publish : Publishes to NPM\n", opts);
     }
+    
+    private void _run() {
+        System.out.println("run not implemented yet");
+    }
 
     /**
      * @param args the command line arguments
@@ -1223,6 +1235,8 @@ public class JDeploy {
                 prog.publish();
             } else if ("scan".equals(args[0])) {
                 prog.scan();
+            } else if ("run".equals(args[0])) {
+                prog._run();
             } else {
                 prog.help(opts);
                 System.exit(1);

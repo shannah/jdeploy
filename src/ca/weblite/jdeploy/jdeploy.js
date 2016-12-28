@@ -3,6 +3,8 @@ var path = require('path');
 var jarName = "{{JAR_NAME}}";
 var mainClass = "{{MAIN_CLASS}}";
 var classPath = "{{CLASSPATH}}";
+var port = "{{PORT}}";
+var warPath = "{{WAR_PATH}}";
 classPath = classPath.split(':');
 var classPathStr = '';
 var first = true;
@@ -16,6 +18,8 @@ var shell = require("shelljs/global");
 var userArgs = process.argv.slice(2);
 var javaArgs = [];
 javaArgs.push('-Djdeploy.base='+__dirname);
+javaArgs.push('-Djdeploy.port='+port);
+javaArgs.push('-Djdeploy.war.path='+warPath);
 var programArgs = [];
 userArgs.forEach(function(arg) {
     if (arg.startsWith('-D') || arg.startsWith('-X')) {

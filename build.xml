@@ -70,6 +70,12 @@
     nbproject/build-impl.xml file. 
 
     -->
+    <target name="-pre-jar">
+        <jar destfile="build/classes/ca/weblite/jdeploy/WarRunner.jar">
+            <fileset dir="build/classes" includes="ca/weblite/jdeploy/WarRunner.class"/>
+        </jar>
+    </target>
+    
     <target name="-post-jar">
         <copy todir="bin">
             <fileset dir="dist" includes="**"/>
