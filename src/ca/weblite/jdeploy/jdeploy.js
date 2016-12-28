@@ -1,7 +1,17 @@
 #! /usr/bin/env node
+var path = require('path');
 var jarName = "{{JAR_NAME}}";
 var mainClass = "{{MAIN_CLASS}}";
 var classPath = "{{CLASSPATH}}";
+classPath = classPath.split(':');
+var classPathStr = '';
+var first = true;
+classPath.forEach(function(part) {
+    if (!first) classPathStr += path.delimiter;
+    first = false;
+    classPathStr += __dirname + '/' + part;
+});
+classPath = classPathStr;
 var shell = require("shelljs/global");
 var userArgs = process.argv.slice(2);
 var javaArgs = [];
@@ -21,7 +31,7 @@ javaArgs.forEach(function(arg) {
 if (jarName !== '{'+'{JAR_NAME}}') {
     cmd += ' -jar "'+__dirname+'/'+jarName+'" ';
 } else {
-    cmd += ' -cp "'+__dirname+':'+__dirname+"/"+classPath+'" '+mainClass+' ';
+    cmd += ' -cp "'+classPath+'" '+mainClass+' ';
 }
 
 programArgs.forEach(function(arg) {

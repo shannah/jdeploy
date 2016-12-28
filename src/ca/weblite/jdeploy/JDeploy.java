@@ -21,9 +21,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.jar.Attributes;
@@ -31,6 +33,7 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -72,6 +75,7 @@ public class JDeploy {
         }
         
         public void copyTo(File destDirectory) throws IOException {
+            System.out.println("Executing copy rule "+this);
             final File srcDir = new File(dir);
             if (!srcDir.exists()) {
                 throw new IOException("Source directory of copy rule does not exist: "+srcDir);
@@ -85,14 +89,23 @@ public class JDeploy {
                 System.err.println("Copy rule has same srcDir and destDir.  Not copying: "+srcDir);
                 return;
             }
+            final Set<String> includedDirectories = new HashSet<String>();
             
             FileUtils.copyDirectory(srcDir, destDirectory, new FileFilter() {
 
                 @Override
                 public boolean accept(File pathname) {
+                    File parent = pathname.getParentFile();
+                    if (parent != null && includedDirectories.contains(parent.getPath())) {
+                        if (pathname.isDirectory()) {
+                            includedDirectories.add(pathname.getPath());
+                        }
+                        return true;
+                        
+                    }
                     if (excludes != null) {
                         for (String pattern : excludes) {
-                            PathMatcher matcher = srcDir.toPath().getFileSystem().getPathMatcher(dir+File.separator+pattern);
+                            PathMatcher matcher = srcDir.toPath().getFileSystem().getPathMatcher("glob:"+dir+File.separator+pattern);
                             if (matcher.matches(pathname.toPath())) {
                                 return false;
                             }
@@ -101,18 +114,21 @@ public class JDeploy {
                     
                     if (includes != null) {
                         for (String pattern : includes) {
-                            //System.out.println("Copying files that match "+dir+File.separator+pattern);
-                            File f = new File(dir, pattern);
-                            if (f.exists()) {
-                                return true;
-                            }
+                            
                             PathMatcher matcher = srcDir.toPath().getFileSystem().getPathMatcher("glob:"+dir+File.separator+pattern);
                             if (matcher.matches(pathname.toPath())) {
+                                if (pathname.isDirectory()) {
+                                    includedDirectories.add(pathname.getPath());
+                                }
                                 return true;
                             }
                         }
+                        System.out.println(pathname+" does not match any patterns.");
                         return false;
                     } else {
+                        if (pathname.isDirectory()) {
+                            includedDirectories.add(pathname.getPath());
+                        }
                         return true;
                     }
                 }
@@ -440,11 +456,13 @@ public class JDeploy {
         return null;
     }
     
+    
+    
     private String[] findClassPath(File jarFile) throws IOException {
         Manifest m = new JarFile(jarFile).getManifest();
-        System.out.println(m.getEntries());
+        //System.out.println(m.getEntries());
         String cp = m.getMainAttributes().getValue(Attributes.Name.CLASS_PATH);
-        System.out.println("Class path is "+cp);
+        //System.out.println("Class path is "+cp);
         if (cp != null) {
             return cp.split(" ");
         } else {
@@ -478,6 +496,8 @@ public class JDeploy {
     }
     
     public void loadDefaults() throws IOException {
+        // Not sure we need this at all... short circuiting for now.
+        if (true) return;
         boolean triedPom = false;
         boolean triedDist = false;
         boolean triedBuild = false;
@@ -544,6 +564,109 @@ public class JDeploy {
         }
     }
     
+    private File[] findJarCandidates() throws IOException {
+        File[] jars = findCandidates(directory.toPath().getFileSystem().getPathMatcher("glob:**/*.jar"));
+        List<File> out = new ArrayList<File>();
+        // We only want executable jars
+        for (File f : jars) {
+            Manifest m = new JarFile(f).getManifest();
+            //System.out.println(m.getEntries());
+            if (m != null) {
+                Attributes atts = m.getMainAttributes();
+                if (atts.containsKey(Attributes.Name.MAIN_CLASS)) {
+                    //executable jar
+                    out.add(f);
+                }
+            }
+        }
+        return out.toArray(new File[out.size()]);
+    }
+    
+    private File findBestCandidate() throws IOException{
+        File[] jars = findJarCandidates();
+        File[] wars = findWarCandidates();
+        File[] webApps = findWebAppCandidates();
+        List<File> combined = new ArrayList<File>();
+        combined.addAll(Arrays.asList(jars));
+        combined.addAll(Arrays.asList(wars));
+        combined.addAll(Arrays.asList(webApps));
+        return shallowest(combined.toArray(new File[combined.size()]));
+    }
+    
+    private File[] findWarCandidates() {
+        return findCandidates(directory.toPath().getFileSystem().getPathMatcher("glob:**.war"));
+    }
+    
+    private File[] findWebAppCandidates() {
+        List<File> out = new ArrayList<File>();
+        findWebAppCandidates(directory, out);
+        return out.toArray(new File[out.size()]);
+    }
+    
+    private void findWebAppCandidates(File root, List<File> matches) {
+        if (".".equals(root.getName()) && root.getParentFile() != null) {
+            root = root.getParentFile();
+        }
+        if ("WEB-INF".equals(root.getName()) && root.isDirectory() && root.getParentFile() != null) {
+            matches.add(root.getParentFile());
+        } else if (root.isDirectory()) {
+            if (root.getName().startsWith(".") || excludedDirectoriesForJarAndWarSearches.contains(root.getName())) {
+                return;
+            }
+            for (File f : root.listFiles()) {
+                findWebAppCandidates(f, matches);
+            }
+        }
+    }
+    
+    private File[] findCandidates(PathMatcher matcher) {
+        List<File> out = new ArrayList<File>();
+        //PathMatcher matcher = directory.toPath().getFileSystem().getPathMatcher("glob:**.jar");
+        findCandidates(directory, matcher, out);
+        return out.toArray(new File[out.size()]);
+    }
+    
+    private static final List<String> excludedDirectoriesForJarAndWarSearches = new ArrayList<String>();
+    static {
+        final String[] l = new String[]{
+            "src",
+            "jdeploy-bundle",
+            "node_modules"
+        };
+        excludedDirectoriesForJarAndWarSearches.addAll(Arrays.asList(l));
+    }
+    
+    private File shallowest(File[] files) {
+        File out = null;
+        int depth = -1;
+        for (File f : files) {
+            int fDepth = f.getPath().split(Pattern.quote(File.separator)).length;
+            if (out == null || fDepth < depth) {
+                depth = fDepth;
+                out = f;
+            }
+        }
+        return out;
+    }
+    
+    private void findCandidates(File root, PathMatcher matcher, List<File> matches) {
+        if (".".equals(root.getName()) && root.getParentFile() != null) {
+            root = root.getParentFile();
+        }
+        //System.out.println("Checking "+root+" for "+matcher);
+        if (matcher.matches(root.toPath())) {
+            matches.add(root);
+        }
+        if (root.isDirectory()) {
+            if (root.getName().startsWith(".") || excludedDirectoriesForJarAndWarSearches.contains(root.getName())) {
+                return;
+            }
+            for (File f : root.listFiles()) {
+                findCandidates(f, matcher, matches);
+            }
+        }
+    }
+    
     public void copyToBin() throws IOException {
         
         loadDefaults();
@@ -566,6 +689,7 @@ public class JDeploy {
         
         // Actually copy the files
         List<CopyRule> includes = getFiles();
+        /*
         if (includes.isEmpty()) {
             File distDir = new File("dist");
         
@@ -581,10 +705,26 @@ public class JDeploy {
             if (targetDir.exists()) {
                 includes.add(new CopyRule("target", "*.jar", null));
             }
-        }
+        }*/
         
         File bin = new File(getBinDir());
         bin.mkdir();
+        
+        if (getJar(null) == null && getWar(null) == null) {
+            // no jar or war explicitly specified... need to scan
+            System.out.println("No jar, war, or web app explicitly specified.  Scanning directory to find best candidate.");
+            
+            File best = findBestCandidate();
+            System.out.println("Found "+best);
+            System.out.println("To explicitly set the jar, war, or web app to build, use the \"war\" or \"jar\" property of the \"jdeploy\" section of the package.json file.");
+            if (best == null) {
+            } else if (best.getName().endsWith(".jar")) {
+                setJar(best.getPath());
+            } else {
+                setWar(best.getPath());
+            }
+            
+        }
         
         if (getJar(null) != null) {
             // We need to include the jar at least
@@ -593,21 +733,28 @@ public class JDeploy {
             if (jarFile == null) {
                 throw new IOException("Could not find jar file: "+getJar(null));
             }
-            
-            includes.add(new CopyRule(jarFile.getParentFile().getPath(), jarFile.getName(), null));
+            String parentPath = jarFile.getParentFile() != null ? jarFile.getParentFile().getPath() : ".";
+            includes.add(new CopyRule(parentPath, jarFile.getName(), null));
             
             for (String path : findClassPath(jarFile)) {
-                includes.add(new CopyRule(jarFile.getParentFile().getPath(), path, null));
+                includes.add(new CopyRule(parentPath, path, null));
             }
             
-        }
-        
-        if (getWar(null) != null) {
+        } else if (getWar(null) != null) {
             File warFile = findWarFile();
             if (warFile == null) {
                 throw new IOException("Could not find war file: "+getWar(null));
             }
-            includes.add(new CopyRule(warFile.getParentFile().getPath(), warFile.getName(), null));
+            String parentPath = warFile.getParentFile() != null ? warFile.getParentFile().getPath() : ".";
+            
+            includes.add(new CopyRule(parentPath, warFile.getName(), null));
+            //if (warFile.isDirectory()) {
+            //    includes.add(new CopyRule(parentPath, warFile.getName()+"/**", null));
+            //}
+        } else {
+            
+            throw new RuntimeException("No jar, war, or web app was found to build in this directory.");
+            
         }
         
         if (includes.isEmpty()) {
@@ -662,7 +809,7 @@ public class JDeploy {
         String stubFileSrc = FileUtils.readFileToString(stubFile, "UTF-8");
         
         stubFileSrc = stubFileSrc.replace("{{PORT}}", String.valueOf(getPort(0)));
-        stubFileSrc = stubFileSrc.replace("{{WAR_PATH}}", getWar(null));
+        stubFileSrc = stubFileSrc.replace("{{WAR_PATH}}", new File(getWar(null)).getName());
         FileUtils.writeStringToFile(stubFile, stubFileSrc, "UTF-8");
 
         InputStream jettyRunnerJarInput = getClass().getResourceAsStream("jetty-runner.jar");
@@ -737,9 +884,147 @@ public class JDeploy {
         }
     }
 
+    private String getRelativePath(File f) {
+
+        return directory.toURI().relativize(f.toURI()).getPath();
+    }
+    
+    private void updatePackageJson(String commandName) throws IOException {
+        File candidate = findBestCandidate();
+        if (commandName == null) {
+
+            if (candidate == null) {
+
+            } else if (candidate.getName().endsWith(".jar") || candidate.getName().endsWith(".war")) {
+                commandName = candidate.getName().substring(0, candidate.getName().lastIndexOf(".")).toLowerCase();
+            } else {
+                commandName = candidate.getName().toLowerCase();
+            }
+        }
+        File packageJson = new File(directory, "package.json");
+        System.err.println("A package.json file already exists.  Updating mandatory fields...");
+        JSONParser p = new JSONParser();
+        String str = FileUtils.readFileToString(packageJson, "UTF-8");
+        Map pj = (Map)p.parseJSON(new StringReader(str));
+        if (!pj.containsKey("bin")) {
+            pj.put("bin", new HashMap());
+        }
+        Map bin = (Map)pj.get("bin");
+        if (bin.isEmpty()) {
+            bin.put(commandName, getBinDir() + "/jdeploy.js");
+        }
+        
+        if (!pj.containsKey("dependencies")) {
+            pj.put("dependencies", new HashMap());
+        }
+        Map deps = (Map)pj.get("dependencies");
+        deps.put("shelljs", "^0.7.5");
+        
+        if (!pj.containsKey("jdeploy")) {
+            pj.put("jdeploy", new HashMap());
+        }
+        Map jdeploy = (Map)pj.get("jdeploy");
+        if (candidate != null && !jdeploy.containsKey("war") && !jdeploy.containsKey("jar")) {
+            if (candidate.getName().endsWith(".jar")) {
+                jdeploy.put("jar", getRelativePath(candidate));
+            } else {
+                jdeploy.put("war", getRelativePath(candidate));
+            }
+        }
+
+        String jsonStr = Result.fromContent(pj).toString();
+        System.out.println("Updating your package.json file as follows:\n ");
+        System.out.println(jsonStr);
+        System.out.println("");
+        System.out.print("Proceed? (y/N)");
+        Scanner reader = new Scanner(System.in);
+        String response = reader.next();
+        if ("y".equals(response.toLowerCase())) {
+            System.out.println("Writing package.json...");
+            FileUtils.writeStringToFile(packageJson, jsonStr, "UTF-8");
+            System.out.println("Complete!");
+        } else {
+            System.out.println("Cancelled");
+        }
+    }
     
     
     private void init(String commandName) throws IOException {
+        File packageJson = new File(directory, "package.json");
+        if (packageJson.exists()) {
+            updatePackageJson(commandName);
+        } else {
+            File candidate = findBestCandidate();
+            if (commandName == null) {
+
+                if (candidate == null) {
+
+                } else if (candidate.getName().endsWith(".jar") || candidate.getName().endsWith(".war")) {
+                    commandName = candidate.getName().substring(0, candidate.getName().lastIndexOf(".")).toLowerCase();
+                } else {
+                    commandName = candidate.getName().toLowerCase();
+                }
+            }
+
+            Map m = new HashMap(); // for package.json
+
+            m.put("name", commandName);
+            m.put("version", "1.0.0");
+            m.put("repository", "");
+            m.put("description", "");
+            m.put("main", "index.js");
+            Map bin = new HashMap();
+            bin.put(commandName, getBinDir()+"/jdeploy.js");
+            m.put("bin", bin);
+            m.put("preferGlobal", true);
+            m.put("author", "");
+
+            Map scripts = new HashMap();
+            scripts.put("test", "echo \"Error: no test specified\" && exit 1");
+
+
+            m.put("scripts", scripts);
+            m.put("license", "ISC");
+
+            Map dependencies = new HashMap();
+            dependencies.put("shelljs", "^0.7.5");
+            m.put("dependencies", dependencies);
+
+            List files = new ArrayList();
+            files.add("jdeploy-bundle");
+
+            m.put("files", files);
+
+            Map jdeploy = new HashMap();
+            if (candidate == null) {
+            } else if (candidate.getName().endsWith(".jar")) {
+                jdeploy.put("jar", getRelativePath(candidate));
+            } else {
+                jdeploy.put("war", getRelativePath(candidate));
+            }
+
+            m.put("jdeploy", jdeploy);
+
+            Result res = Result.fromContent(m);
+            String jsonStr = res.toString();
+            System.out.println("Creating your package.json file with following content:\n ");
+            System.out.println(jsonStr);
+            System.out.println("");
+            System.out.print("Proceed? (y/N)");
+            Scanner reader = new Scanner(System.in);
+            String response = reader.next();
+            if ("y".equals(response.toLowerCase().trim())) {
+                System.out.println("Writing package.json...");
+                FileUtils.writeStringToFile(packageJson, jsonStr, "UTF-8");
+                System.out.println("Complete!");
+            } else {
+                System.out.println("Cancelled");
+            }
+        }
+    }
+    
+    
+    private void init_old(String commandName) throws IOException {
         try {
             File packageJson = new File(directory, "package.json");
             if (!packageJson.exists()) {
@@ -875,6 +1160,28 @@ public class JDeploy {
             throw new RuntimeException(ex);
         }
     }
+    
+    private void scan() throws IOException {
+        System.out.println("Scanning directory for executable jars, wars, and webapps...");
+        File[] jars = findJarCandidates();
+        System.out.println("Found "+jars.length+" jars: "+Arrays.toString(jars));
+        System.out.println("Best candidate: "+shallowest(jars));
+        
+        File[] wars = findWarCandidates();
+        System.out.println("Found "+wars.length+" wars: "+Arrays.toString(wars));
+        System.out.println("Best candidate: "+shallowest(jars));
+        
+        File[] webApps = findWebAppCandidates();
+        System.out.println("Found "+webApps.length+" web apps: "+Arrays.toString(webApps));
+        System.out.println("Best candidate: "+shallowest(jars));
+        
+        List<File> combined = new ArrayList<File>();
+        combined.addAll(Arrays.asList(jars));
+        combined.addAll(Arrays.asList(wars));
+        combined.addAll(Arrays.asList(webApps));
+        
+        System.out.println("If jdeploy were to run on this directory without specifying the jar or war in the package.json, it would choose " + shallowest(combined.toArray(new File[combined.size()])));
+    }
 
     private void help(Options opts) {
         HelpFormatter formatter = new HelpFormatter();
@@ -914,6 +1221,8 @@ public class JDeploy {
                 prog.install();
             } else if ("publish".equals(args[0])) {
                 prog.publish();
+            } else if ("scan".equals(args[0])) {
+                prog.scan();
             } else {
                 prog.help(opts);
                 System.exit(1);
