@@ -966,7 +966,10 @@ public class JDeploy {
             if (commandName == null) {
 
                 if (candidate == null) {
-
+                    commandName = directory.getAbsoluteFile().getName().toLowerCase();
+                    if (".".equals(commandName)) {
+                        commandName = directory.getAbsoluteFile().getParentFile().getName().toLowerCase();
+                    }
                 } else if (candidate.getName().endsWith(".jar") || candidate.getName().endsWith(".war")) {
                     commandName = candidate.getName().substring(0, candidate.getName().lastIndexOf(".")).toLowerCase();
                 } else {
@@ -975,7 +978,6 @@ public class JDeploy {
             }
 
             Map m = new HashMap(); // for package.json
-
             m.put("name", commandName);
             m.put("version", "1.0.0");
             m.put("repository", "");
