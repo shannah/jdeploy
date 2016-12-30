@@ -25,11 +25,13 @@ $ sudo npm install jdeploy -g
 
 ## Usage
 
-In terminal, navigate to your Java project directory.  Then.
+In terminal, navigate to a directory containing an executable .jar file or a .war file that you would like to publish.
 
 ~~~~
 $ jdeploy init
 ~~~~
+
+This will generate a package.json file with settings to allow you to publish the app to npm.
 
 **Install app locally on your machine.**
 
