@@ -41,9 +41,9 @@ $ jdeploy install
 
 **Publish App to NPM**
 
-----
+~~~~
 $ jdeploy publish
-----
+~~~~
 
 
 ## Documentation
