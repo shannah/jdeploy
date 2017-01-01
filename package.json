@@ -1,6 +1,6 @@
 {
   "name": "jdeploy",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "repository": "https://github.com/shannah/jdeploy",
   "description": "Deploy java apps using NPM",
   "main": "index.js",
