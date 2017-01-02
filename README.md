@@ -5,7 +5,7 @@ A tool to deploy Java applications using NPM
 ## Requirements
 
 * NodeJS
-* Java 8
+* Java 8 (Only required for publishing with jDeploy.  Installing/using deployed apps do not require Java to be installed.  The app will automatically install a JRE if java is not already installed).
 
 Runs on any platform that supports requirements including Mac, Windows, and Linux.
 
