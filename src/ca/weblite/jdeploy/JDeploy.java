@@ -900,7 +900,6 @@ public class JDeploy {
     private void updatePackageJson(String commandName) throws IOException {
         File candidate = findBestCandidate();
         if (commandName == null) {
-
             if (candidate == null) {
 
             } else if (candidate.getName().endsWith(".jar") || candidate.getName().endsWith(".war")) {
@@ -958,13 +957,18 @@ public class JDeploy {
     
     
     private void init(String commandName) throws IOException {
+        commandName = directory.getAbsoluteFile().getName().toLowerCase();
+        if (".".equals(commandName)) {
+            commandName = directory.getAbsoluteFile().getParentFile().getName().toLowerCase();
+        }
         File packageJson = new File(directory, "package.json");
         if (packageJson.exists()) {
             updatePackageJson(commandName);
         } else {
             File candidate = findBestCandidate();
             if (commandName == null) {
-
+                
+                /*
                 if (candidate == null) {
                     commandName = directory.getAbsoluteFile().getName().toLowerCase();
                     if (".".equals(commandName)) {
@@ -974,7 +978,7 @@ public class JDeploy {
                     commandName = candidate.getName().substring(0, candidate.getName().lastIndexOf(".")).toLowerCase();
                 } else {
                     commandName = candidate.getName().toLowerCase();
-                }
+                }*/
             }
 
             Map m = new HashMap(); // for package.json
