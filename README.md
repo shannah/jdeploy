@@ -50,7 +50,7 @@ $ jdeploy publish
 
 * Introduction to jDeploy (Screencast)
 * [Getting Started with jDeploy Tutorial](https://github.com/shannah/jdeploy/wiki/Getting-Started-with-JDeploy)
-* [package.json Reference](https://github.com/shannah/jdeploy/wiki/package-json-reference)
+* [package.json Reference](https://github.com/shannah/jdeploy/wiki/package.json-reference)
 
 ## License
 

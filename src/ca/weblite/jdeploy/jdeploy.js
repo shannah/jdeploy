@@ -91,6 +91,9 @@ userArgs.forEach(function(arg) {
 var cmd = 'java';
 
 env['PATH'] = getEmbeddedJavaDir() + path.delimiter + env['PATH'];
+if (env['JAVA_HOME']) {
+    env['PATH'] = env['JAVA_HOME'] + path.sep + 'bin' + path.delimiter + env['PATH'];
+}
 
 var javaVersion = getJavaVersion();
 if (javaVersion === false || javaVersion < 1.8 || env['JDEPLOY_USE_NODE_JRE']) {
@@ -125,7 +128,7 @@ if (javaVersion === false || javaVersion < 1.8 || env['JDEPLOY_USE_NODE_JRE']) {
     */
     
 }
-console.log("Java version is "+getJavaVersion());
+//console.log("Java version is "+getJavaVersion());
 
 javaArgs.forEach(function(arg) {
     cmd += ' "'+arg+'"';
