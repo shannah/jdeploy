@@ -9,6 +9,16 @@ A tool to deploy Java applications using NPM
 
 Runs on any platform that supports requirements including Mac, Windows, and Linux.
 
+## Features
+
+* **Jar files** - Publish Java executable jar files to npm
+* **War files** - Publish war files to npm
+* **Web Apps** - Publish web apps (exploded war files) to npm
+* **Self-contained web apps** - Web apps are wrapped in a self-contained app with embedded Jetty server.
+* **Simple Installation** - Apps deployed using jDeploy can be installed using a single command: `npm install -g <your-app>`
+* **No Java Dependencies** - Java not required to install and run apps that are deployed using jDeploy.  The app will automatically download a JRE at runtime if the system doesn't already have Java.
+* **Easy versioning and updates** - Deploying updates through NPM is trivial.
+
 ## Installation
 
 **Windows**
@@ -51,6 +61,7 @@ $ jdeploy publish
 * Introduction to jDeploy (Screencast) [Slides](https://docs.google.com/presentation/d/1ZOrUnbACtiEmZHBiq6wqW4afieUctulK-QyODJ5FuGY/pub?start=true&loop=false&delayms=5000)
 * [Getting Started with jDeploy Tutorial](https://github.com/shannah/jdeploy/wiki/Getting-Started-with-JDeploy)
 * [package.json Reference](https://github.com/shannah/jdeploy/wiki/package.json-reference)
+* [jDeploy Demo Projects](https://github.com/shannah/jdeploy-demos)
 
 ## License
 
