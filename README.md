@@ -1,4 +1,4 @@
-# jdeploy
+# jDeploy
 
 A tool to deploy Java applications using NPM
 
