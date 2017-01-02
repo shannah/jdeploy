@@ -2,6 +2,8 @@
 
 A tool to deploy Java applications using NPM
 
+![jDeploy flow](https://raw.githubusercontent.com/wiki/shannah/jdeploy/images/jdeploy-graphic.png)
+
 ## Requirements
 
 * NodeJS
