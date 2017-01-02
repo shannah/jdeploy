@@ -60,7 +60,7 @@ $ jdeploy publish
 
 ## Documentation
 
-* Introduction to jDeploy (Screencast) [Slides](https://docs.google.com/presentation/d/1ZOrUnbACtiEmZHBiq6wqW4afieUctulK-QyODJ5FuGY/pub?start=true&loop=false&delayms=5000)
+* [Introduction to jDeploy (Screencast)](https://youtu.be/j0qZ9akmcCQ) [Slides](https://docs.google.com/presentation/d/1ZOrUnbACtiEmZHBiq6wqW4afieUctulK-QyODJ5FuGY/pub?start=true&loop=false&delayms=5000)
 * [Getting Started with jDeploy Tutorial](https://github.com/shannah/jdeploy/wiki/Getting-Started-with-JDeploy)
 * [package.json Reference](https://github.com/shannah/jdeploy/wiki/package.json-reference)
 * [jDeploy Demo Projects](https://github.com/shannah/jdeploy-demos)
