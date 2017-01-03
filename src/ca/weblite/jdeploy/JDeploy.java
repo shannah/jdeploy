@@ -947,13 +947,18 @@ public class JDeploy {
         }
     }
     
-    
+    static boolean isWindows() {
+        return System.getProperty("os.name").toLowerCase().contains("win");
+    }
+
+    static String npm = isWindows() ? "npm.cmd" : "npm";
+
     private void init_old(String commandName) throws IOException {
         try {
             File packageJson = new File(directory, "package.json");
             if (!packageJson.exists()) {
                 ProcessBuilder pb = new ProcessBuilder();
-                pb.command("npm", "init");
+                pb.command(npm, "init");
                 pb.inheritIO();
                 final Process p = pb.start();
                 Timer t = new Timer();
@@ -984,7 +989,7 @@ public class JDeploy {
                 System.out.println("Installing shelljs");
                 ProcessBuilder pb = new ProcessBuilder();
                 pb.inheritIO();
-                pb.command("npm", "install", "shelljs", "--save");
+                pb.command(npm, "install", "shelljs", "--save");
                 Process p = pb.start();
                 int result = p.waitFor();
                 if (result != 0) {
@@ -999,7 +1004,7 @@ public class JDeploy {
                 System.out.println("Installing shelljs");
                 ProcessBuilder pb = new ProcessBuilder();
                 pb.inheritIO();
-                pb.command("npm", "install", "shelljs", "--save");
+                pb.command(npm, "install", "shelljs", "--save");
                 Process p = pb.start();
                 int result = p.waitFor();
                 if (result != 0) {
@@ -1052,7 +1057,7 @@ public class JDeploy {
         try {
             ProcessBuilder pb = new ProcessBuilder();
             pb.inheritIO();
-            pb.command("npm", "link");
+            pb.command(npm, "link");
             Process p = pb.start();
             int result = p.waitFor();
             if (result != 0) {
@@ -1073,7 +1078,7 @@ public class JDeploy {
         try {
             ProcessBuilder pb = new ProcessBuilder();
             pb.inheritIO();
-            pb.command("npm", "publish");
+            pb.command(npm, "publish");
             Process p = pb.start();
             int result = p.waitFor();
             if (result != 0) {
