@@ -105,7 +105,7 @@ public class JDeploy {
                     }
                     if (excludes != null) {
                         for (String pattern : excludes) {
-                            PathMatcher matcher = srcDir.toPath().getFileSystem().getPathMatcher("glob:"+dir+File.separator+pattern);
+                            PathMatcher matcher = srcDir.toPath().getFileSystem().getPathMatcher("glob:"+dir+"/"+pattern.replace("\\", "/"));
                             if (matcher.matches(pathname.toPath())) {
                                 return false;
                             }
@@ -115,7 +115,7 @@ public class JDeploy {
                     if (includes != null) {
                         for (String pattern : includes) {
                             
-                            PathMatcher matcher = srcDir.toPath().getFileSystem().getPathMatcher("glob:"+dir+File.separator+pattern);
+                            PathMatcher matcher = srcDir.toPath().getFileSystem().getPathMatcher("glob:"+dir+"/"+pattern.replace("\\", "/"));
                             if (matcher.matches(pathname.toPath())) {
                                 if (pathname.isDirectory()) {
                                     includedDirectories.add(pathname.getPath());
@@ -468,100 +468,10 @@ public class JDeploy {
         } else {
             return new String[0];
         }
-        /*
-       // System.out.println("Classpath is "+cp);
-        
-        System.out.println("Finding classpath for jar "+jarFile);
-        URLClassLoader cl = new URLClassLoader(new URL[]{jarFile.toURL()});
-        InputStream manifestInput = cl.getResourceAsStream("META-INF/MANIFEST.MF");
-
-        if (manifestInput != null) {
-            System.out.println("Found manifest");
-            //String manifestStr = convertStreamToString(manifestInput);
-            Scanner s = new Scanner(manifestInput).useDelimiter("\n");
-            while (s.hasNext()) {
-                String line = s.next();
-                System.out.println("Line: "+line);
-                if (line.indexOf("Class-Path:") == 0) {
-                    System.out.println("Found class path: "+line);
-                    String classPath = line.substring(line.indexOf(":") + 1);
-                    String[] classPaths = classPath.split(":");
-                    return classPaths;
-
-                }
-            }
-        }
-        return new String[0];
-        */
     }
     
     public void loadDefaults() throws IOException {
-        // Not sure we need this at all... short circuiting for now.
-        if (true) return;
-        boolean triedPom = false;
-        boolean triedDist = false;
-        boolean triedBuild = false;
-        while (getJar(null) == null &&  getWar(null) == null && getMainClass(null) == null) {
-            if (triedPom && triedDist && triedBuild) {
-                break;
-            }
-            // No settings yet.  Try to figure out where things are.
-            File pomFile = new File("pom.xml");
-            File buildXml = new File("build.xml");
-            File buildDir = new File("build");
-            File distDir = new File("dist");
-            
-            if (!triedPom && pomFile.exists()) {
-                triedPom = true;
-                // This is a maven project, so let's try to load some defaults from there.
-                String pomStr = FileUtils.readFileToString(pomFile, "UTF-8");
-                XMLParser p = new XMLParser();
-                Element pomRoot = p.parse(new StringReader(pomStr));
-                Result pomRes = Result.fromContent(pomRoot);
-                String artifactId = pomRes.getAsString("project/artifactId");
-                String version = pomRes.getAsString("project/version");
-                String packaging = pomRes.getAsString("project/packaging");
-                
-                if ("war".equals(packaging)) {
-                    File warFile = new File("target", artifactId+"-"+version);
-                    if (warFile.exists()) {
-                        setWar("target"+File.separator+warFile.getName());
-                    }
-                } else if ("jar".equals(packaging)){
-                    File jarFile = new File("target", artifactId+"-"+version+".jar");
-                    if (jarFile.exists()) {
-                        setJar("target"+File.separator+jarFile.getName());
-                    }
-                }
-                continue;
-            } else {
-                triedPom = true;
-            }
-            
-            if (!triedDist && distDir.exists()) {
-                triedDist = true;
-                File jarFile = null;
-                for (File f : distDir.listFiles()) {
-                    if (f.getName().endsWith(".jar")) {
-                        jarFile = f;
-                    }
-                }
-                if (jarFile != null) {
-                    setJar("dist" + File.separator + jarFile.getName());
-                }
-                continue;
-            } else {
-                triedDist = true;
-            }
-            
-            if (!triedBuild && buildDir.exists()) {
-                triedBuild = true;
-                
-            } else {
-                triedBuild = true;
-            }
-            
-        }
+       
     }
     
     private File[] findJarCandidates() throws IOException {
@@ -640,7 +550,7 @@ public class JDeploy {
         File out = null;
         int depth = -1;
         for (File f : files) {
-            int fDepth = f.getPath().split(Pattern.quote(File.separator)).length;
+            int fDepth = f.getPath().split(Pattern.quote("\\") + "|" + Pattern.quote("/")).length;
             if (out == null || fDepth < depth) {
                 depth = fDepth;
                 out = f;
