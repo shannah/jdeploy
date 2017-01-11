@@ -4,27 +4,32 @@ var fail = reason => {
     process.exit(1);
 };
 function getJavaVersion() {
-    var javaVersionProc = exec('java  -version', {silent:true});
-    if (javaVersionProc.code !== 0) {
+    try {
+        var javaVersionProc = exec('java  -version', {silent:true});
+        if (javaVersionProc.code !== 0) {
+            return false;
+        }
+        var stdout = javaVersionProc.stderr;
+        //console.log(javaVersionProc);
+        //console.log("stdout is "+stdout);
+        var regexp = /version "(.*?)"/;
+        var match = regexp.exec(stdout);
+        var parts = match[1].split('.');
+        var join = '.';
+        var versionStr = '';
+        parts.forEach(function(v) {
+            versionStr += v;
+            if (join !== null) {
+                versionStr += join;
+                join = null;
+            }
+        });
+        versionStr = versionStr.replace('_', '');
+        //console.log("Java version string "+versionStr)
+        return parseFloat(versionStr);
+    } catch (e) {
         return false;
     }
-    var stdout = javaVersionProc.stderr;
-    //console.log(javaVersionProc);
-    //console.log("stdout is "+stdout);
-    var regexp = /java version "(.*?)"/;
-    var match = regexp.exec(stdout);
-    var parts = match[1].split('.');
-    var join = '.';
-    var versionStr = '';
-    parts.forEach(function(v) {
-        versionStr += v;
-        if (join !== null) {
-            versionStr += join;
-            join = null;
-        }
-    });
-    versionStr = versionStr.replace('_', '');
-    return parseFloat(versionStr);
 }
 
 var getDirectories = dirPath => fs.readdirSync(dirPath).filter(
