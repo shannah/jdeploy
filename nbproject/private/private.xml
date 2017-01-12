@@ -13,5 +13,9 @@
         <group name="JDeploy Demo">
             <file>file:/Users/shannah/cn1_files/incubator/jdeploy/src/ca/weblite/jdeploy/JDeploy.java</file>
         </group>
+        <group name="CN1 Base">
+            <file>file:/Users/shannah/cn1_files/incubator/jdeploy/src/ca/weblite/jdeploy/jdeploy.js</file>
+            <file>file:/Users/shannah/cn1_files/incubator/jdeploy/src/ca/weblite/jdeploy/JDeploy.java</file>
+        </group>
     </open-files>
 </project-private>

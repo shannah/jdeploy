@@ -95,6 +95,13 @@ public class JDeploy {
 
                 @Override
                 public boolean accept(File pathname) {
+                    if (pathname.isDirectory()) {
+                        for (File child : pathname.listFiles()) {
+                            if (this.accept(child)) {
+                                return true;
+                            }
+                        }
+                    }
                     File parent = pathname.getParentFile();
                     if (parent != null && includedDirectories.contains(parent.getPath())) {
                         if (pathname.isDirectory()) {
