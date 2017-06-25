@@ -115,8 +115,8 @@ if (javaVersion === false || javaVersion < 1.8 || env['JDEPLOY_USE_NODE_JRE']) {
         console.log("Installing/Updating JRE in "+getJdeploySupportDir()+"...");
         exec('npm install node-jre --save');
         cd(currDir);
-        env['PATH'] = getEmbeddedJavaDir() + path.delimiter + env['PATH'];
     }
+    env['PATH'] = getEmbeddedJavaDir() + path.delimiter + env['PATH'];
     /*
     // System java either not on path or too old
     if (!test('-e', getEmbeddedJavaDir())) {
