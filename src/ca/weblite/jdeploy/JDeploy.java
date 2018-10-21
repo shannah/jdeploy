@@ -1081,7 +1081,6 @@ public class JDeploy {
     
 
     private void publish() throws IOException {
-        install();
         try {
             ProcessBuilder pb = new ProcessBuilder();
             pb.inheritIO();
