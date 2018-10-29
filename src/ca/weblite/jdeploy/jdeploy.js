@@ -46,9 +46,9 @@ function getEmbeddedJavaDir() {
       default:
         fail('unsupported platform: ' + _platform);
     }
-    
+
     var jreDir = getJdeploySupportDir() + path.sep + 'node_modules' + path.sep + 'node-jre' + path.sep + 'jre';
-    
+
     try {
         return jreDir + path.sep + getDirectories(jreDir)[0] + path.sep + _driver;
     } catch (e) {
@@ -123,7 +123,7 @@ if (javaVersion === false || javaVersion < 1.8 || env['JDEPLOY_USE_NODE_JRE']) {
         // Could not find embedded java dir
         // We need to install it.
         fail("Could not find embedded java at "+getEmbeddedJavaDir());
-        
+
     } else {
         // Found the embedded version.  Add it to the PATH
         env['PATH'] = getEmbeddedJavaDir() + path.delimiter + env['PATH']
@@ -131,7 +131,7 @@ if (javaVersion === false || javaVersion < 1.8 || env['JDEPLOY_USE_NODE_JRE']) {
         fail("Path is now "+env['PATH']);
     }
     */
-    
+
 }
 //console.log("Java version is "+getJavaVersion());
 
@@ -150,15 +150,13 @@ programArgs.forEach(function(arg) {
 var child = exec(cmd, {async: true});
 process.stdin.setEncoding('utf8');
 
-process.stdin.on('readable', () => {
-  var chunk = process.stdin.read();
-  if (chunk === null) {
-      
-      return;
+process.stdin.on('readable', function() {
+  var chunk = null;
+  while (null !== (chunk = process.stdin.read())) {
+    try {
+      child.stdin.write(chunk);
+    } catch(e){}
   }
-  try {
-    child.stdin.write(chunk);
-  } catch(e){}
 });
 child.on('close', function(code) {
     process.exit(code);
