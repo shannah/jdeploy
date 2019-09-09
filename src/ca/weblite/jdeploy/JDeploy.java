@@ -414,6 +414,9 @@ public class JDeploy {
     public File findJarFile() {
         if (getJar(null) != null) {
             File jarFile = new File(getJar(null));
+            if (!jarFile.exists() && jarFile.getParentFile() == null) {
+                return null;
+            }
             if (!jarFile.exists() && jarFile.getParentFile().exists()) {
                 // Jar file might be a glob
                 try {
@@ -431,8 +434,6 @@ public class JDeploy {
                 if (!jarFile.exists()) {
                     return null;
                 }
-                
-                
             }
             return jarFile;
         }
