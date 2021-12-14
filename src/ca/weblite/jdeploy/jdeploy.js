@@ -300,7 +300,7 @@ var getDirectories = dirPath => fs.readdirSync(dirPath).filter(
 
 function getEmbeddedJavaHome() {
     var _platform = os.platform();
-    var _driver;
+    var _driver = '';
     switch (_platform) {
       case 'darwin': _platform = 'macosx'; _driver = 'Contents' + path.sep + 'Home'; break;
       case 'win32': _platform = 'windows'; _driver = ''; break;
@@ -309,7 +309,7 @@ function getEmbeddedJavaHome() {
         fail('unsupported platform: ' + _platform);
     }
 
-    var jreDir = path.join(os.homedir(), '.jdeploy',  'jre', javaVersionString);
+    var jreDir = path.join(os.homedir(), '.jdeploy',  'jre', javaVersionString, 'jre');
 
     try {
         return jreDir + path.sep + getDirectories(jreDir)[0] + (_driver ? (path.sep + _driver) : '');

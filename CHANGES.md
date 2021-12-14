@@ -1,5 +1,11 @@
 ## Changes
 
+### Version 2.0.10
+
+December 14, 2021
+
+- Fixed issue with downloading JDK on each run
+
 ### Version 2.0.9
 
 December 14, 2021
