@@ -1,0 +1,14 @@
+<component name="libraryTable">
+  <library name="lib">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/bin/lib/commons-cli-1.3.1.jar!/" />
+      <root url="jar://$PROJECT_DIR$/bin/lib/commons-exec-1.3.jar!/" />
+      <root url="jar://$PROJECT_DIR$/bin/lib/jetty-runner.jar!/" />
+      <root url="jar://$PROJECT_DIR$/bin/lib/CN1-Compatlib.jar!/" />
+      <root url="jar://$PROJECT_DIR$/bin/lib/commons-cli-1.3.1-javadoc.jar!/" />
+      <root url="jar://$PROJECT_DIR$/bin/lib/commons-io-2.5.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

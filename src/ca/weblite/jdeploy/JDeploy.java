@@ -245,7 +245,9 @@ public class JDeploy {
         return getInt("port", defaultValue);
     }
     
-    
+    public int getJavaVersion(int defaultValue) {
+        return getInt("javaVersion", defaultValue);
+    }
     
     public void setPort(int port) {
         set("port", port);
@@ -772,6 +774,7 @@ public class JDeploy {
     }
     
     public String processJdeployTemplate(String jdeployContents) {
+        jdeployContents = jdeployContents.replace("{{JAVA_VERSION}}", String.valueOf(getJavaVersion(11)));
         jdeployContents = jdeployContents.replace("{{PORT}}", String.valueOf(getPort(0)));
         if (getWar(null) != null) {
             jdeployContents = jdeployContents.replace("{{WAR_PATH}}", new File(getWar(null)).getName());
@@ -844,6 +847,7 @@ public class JDeploy {
         }
         Map deps = (Map)pj.get("dependencies");
         deps.put("shelljs", "^0.7.5");
+        deps.put("njre", "^0.2.0");
         
         if (!pj.containsKey("jdeploy")) {
             pj.put("jdeploy", new HashMap());

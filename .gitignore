@@ -1,3 +1,7 @@
 dist
 bin/*.jar
 build
+/nbproject/private/
+node_modules
+out
+package-lock.json
