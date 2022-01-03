@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>ca.weblite.jdeploy</groupId>
+  <artifactId>jdeploy-installer-template-mac</artifactId>
+  <versioning>
+    <versions>
+      <version>1.0-SNAPSHOT</version>
+    </versions>
+    <lastUpdated>20220103204142</lastUpdated>
+  </versioning>
+</metadata>
