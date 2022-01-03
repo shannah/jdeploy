@@ -5,3 +5,5 @@ build
 node_modules
 out
 package-lock.json
+target
+.DS_Store
