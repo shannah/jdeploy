@@ -18,11 +18,11 @@ mkdir "$MAC_INSTALLER/.jdeploy-files"
 touch "$MAC_INSTALLER/.jdeploy-files/app.xml"
 cp src/main/resources/ca/weblite/jdeploy/installer/icon.png "$MAC_INSTALLER/.jdeploy-files/icon.png"
 cd $MAC_INSTALLER/..
-zip -r jdeploy-installer-mac.zip jdeploy-installer
+zip -r jdeploy-installer-mac-amd64.zip jdeploy-installer
 rm -rf jdeploy-installer
-jar cvf jdeploy-installer-mac.jar *.zip
+jar cvf jdeploy-installer-mac-amd64.jar *.zip
 mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
-                         -Dfile=jdeploy-installer-mac.jar -DgroupId=ca.weblite.jdeploy \
+                         -Dfile=jdeploy-installer-mac-amd64.jar -DgroupId=ca.weblite.jdeploy \
                          -DartifactId=jdeploy-installer-template-mac-amd64 -Dversion=1.0-SNAPSHOT \
                          -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository"
 cd "$SCRIPTPATH"
@@ -41,16 +41,20 @@ mkdir "$WIN_INSTALLER/.jdeploy-files"
 touch "$WIN_INSTALLER/.jdeploy-files/app.xml"
 cp src/main/resources/ca/weblite/jdeploy/installer/icon.png "$WIN_INSTALLER/.jdeploy-files/icon.png"
 cd $WIN_INSTALLER/..
-zip -r jdeploy-installer-win.zip jdeploy-installer
+zip -r jdeploy-installer-win-amd64.zip jdeploy-installer
 rm -rf jdeploy-installer
-jar cvf jdeploy-installer-win.jar *.zip
+jar cvf jdeploy-installer-win-amd64.jar *.zip
 mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
-                         -Dfile=jdeploy-installer-win.jar -DgroupId=ca.weblite.jdeploy \
+                         -Dfile=jdeploy-installer-win-amd64.jar -DgroupId=ca.weblite.jdeploy \
                          -DartifactId=jdeploy-installer-template-win-amd64 -Dversion=1.0-SNAPSHOT \
                          -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository"
 cd "$SCRIPTPATH"
 rm -rf "$WIN_INSTALLER"
 
+
+if [ -d "jdeploy/installers/linux" ]; then
+  rm -rf jdeploy/installers/linux
+fi
 mkdir jdeploy/installers/linux
 LINUX_INSTALLER=jdeploy/installers/linux/jdeploy-installer
 mkdir "$LINUX_INSTALLER"
@@ -60,11 +64,11 @@ mkdir "$LINUX_INSTALLER/.jdeploy-files"
 touch "$LINUX_INSTALLER/.jdeploy-files/app.xml"
 cp src/main/resources/ca/weblite/jdeploy/installer/icon.png "$LINUX_INSTALLER/.jdeploy-files/icon.png"
 cd $LINUX_INSTALLER/..
-zip -r jdeploy-installer-linux.zip jdeploy-installer
+zip -r jdeploy-installer-linux-amd64.zip jdeploy-installer
 rm -rf jdeploy-installer
-jar cvf jdeploy-installer-linux.jar *.zip
+jar cvf jdeploy-installer-linux-amd64.jar *.zip
 mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
-                         -Dfile=jdeploy-installer-linux.jar -DgroupId=ca.weblite.jdeploy \
+                         -Dfile=jdeploy-installer-linux-amd64.jar -DgroupId=ca.weblite.jdeploy \
                          -DartifactId=jdeploy-installer-template-linux-amd64 -Dversion=1.0-SNAPSHOT \
                          -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository"
 cd "$SCRIPTPATH"
