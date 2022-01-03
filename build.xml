@@ -70,13 +70,24 @@
     nbproject/build-impl.xml file. 
 
     -->
+
+    <target name="-post-compile">
+        <!-- Add the jar-runner class which will be embedded in deployed applications as a utility class
+            for the go launcher to run jar files -->
+        <ant dir="jar-runner" target="jar" usenativebasedir="true" inheritall="false"/>
+        <copy file="jar-runner/dist/jar-runner.jar" tofile="build/classes/ca/weblite/jdeploy/jar-runner.jar"/>
+    </target>
+
     <target name="-pre-jar">
         <jar destfile="build/classes/ca/weblite/jdeploy/WarRunner.jar">
             <fileset dir="build/classes" includes="ca/weblite/jdeploy/WarRunner.class"/>
         </jar>
+
+
     </target>
     
     <target name="-post-jar">
+
         <copy todir="bin">
             <fileset dir="dist" includes="**"/>
         </copy>

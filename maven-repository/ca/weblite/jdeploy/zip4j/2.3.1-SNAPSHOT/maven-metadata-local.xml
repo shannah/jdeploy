@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata modelVersion="1.1.0">
+  <groupId>ca.weblite.jdeploy</groupId>
+  <artifactId>zip4j</artifactId>
+  <version>2.3.1-SNAPSHOT</version>
+  <versioning>
+    <snapshot>
+      <localCopy>true</localCopy>
+    </snapshot>
+    <lastUpdated>20220103150239</lastUpdated>
+    <snapshotVersions>
+      <snapshotVersion>
+        <extension>jar</extension>
+        <value>2.3.1-SNAPSHOT</value>
+        <updated>20220103150239</updated>
+      </snapshotVersion>
+      <snapshotVersion>
+        <extension>pom</extension>
+        <value>2.3.1-SNAPSHOT</value>
+        <updated>20220103143331</updated>
+      </snapshotVersion>
+    </snapshotVersions>
+  </versioning>
+</metadata>

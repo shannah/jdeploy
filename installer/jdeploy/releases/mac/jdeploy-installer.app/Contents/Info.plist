@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<plist version='1.0'>
+    <dict>
+        <key>CFBundleName</key>
+        <string>jdeploy-installer</string>
+        <key>CFBundleDisplayName</key>
+        <string>jdeploy-installer</string>
+        <key>CFBundleGetInfoString</key>
+        <string>jdeploy-installer</string>
+        <key>CFBundleIdentifier</key>
+        <string>ca.weblite.jdeploy.installer.main</string>
+        <key>CFBundleVersion</key>
+        <string>10.2</string>
+        <key>CFBundleAllowMixedLocalizations</key>
+        <string>true</string>
+        <key>CFBundleExecutable</key>
+        <string>Client4JLauncher</string>
+        <key>CFBundleDevelopmentRegion</key>
+        <string>English</string>
+        <key>CFBundlePackageType</key>
+        <string>APPL</string>
+        <key>CFBundleSignature</key>
+        <string>????</string>
+        <key>CFBundleInfoDictionaryVersion</key>
+        <string>6.0</string>
+        <key>CFBundleIconFile</key>
+        <string>icon.icns</string>
+        <key>CFBundleInfoDictionaryVersion</key>
+        <string>6.0</string>
+        <key>CFBundleInfoDictionaryVersion</key>
+        <string>6.0</string>
+        <key>NSHighResolutionCapable</key>
+        <true/>
+        <key>LSUIElement</key>
+        <true/>
+    </dict>
+</plist>

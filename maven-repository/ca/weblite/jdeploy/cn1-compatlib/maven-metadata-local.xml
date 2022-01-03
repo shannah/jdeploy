@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>ca.weblite.jdeploy</groupId>
+  <artifactId>cn1-compatlib</artifactId>
+  <versioning>
+    <versions>
+      <version>1.0-SNAPSHOT</version>
+    </versions>
+    <lastUpdated>20220103150237</lastUpdated>
+  </versioning>
+</metadata>

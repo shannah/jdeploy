@@ -3,6 +3,8 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/jdeploy.iml" filepath="$PROJECT_DIR$/jdeploy.iml" />
+      <module fileurl="file://$PROJECT_DIR$/cli/jdeploy-cli.iml" filepath="$PROJECT_DIR$/cli/jdeploy-cli.iml" />
+      <module fileurl="file://$PROJECT_DIR$/installer/jdeploy-installer.iml" filepath="$PROJECT_DIR$/installer/jdeploy-installer.iml" />
     </modules>
   </component>
 </project>

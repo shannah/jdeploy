@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project name="JarRunner" default="jar" basedir=".">
+    <target name="clean">
+        <delete dir="dist"/>
+        <delete dir="build"/>
+    </target>
+    <target name="jar">
+        <mkdir dir="dist"/>
+        <mkdir dir="build"/>
+        <javac source="1.5" target="1.5" srcdir="src" destdir="build"/>
+        <jar basedir="build" destfile="dist/jar-runner.jar"/>
+    </target>
+</project>

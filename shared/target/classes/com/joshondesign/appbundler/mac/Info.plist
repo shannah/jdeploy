@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<plist version='1.0'>
+    <dict>
+    <key>CFBundleExecutable</key>
+	<string>Client4JLauncher</string>
+	<key>CFBundleIconFile</key>
+	<string>icon.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.swingset.swing</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>LSUIElement</key>
+	<true/>
+        <!--<key>CFBundleName</key>
+        <string>SwingSet</string>
+        <key>CFBundleDisplayName</key>
+        <string>SwingSet</string>
+        <key>CFBundleExecutable</key>
+        <string>SwingSet</string>
+        <key>CFBundleGetInfoString</key>
+        <string>SwingSet</string>
+        <key>CFBundleVersion</key>
+        <string>10.2</string>
+        <key>CFBundleAllowMixedLocalizations</key>
+        <string>true</string>
+        <key>CFBundleExecutable</key>
+        <string>Client4JLauncher</string>
+        <key>CFBundleDevelopmentRegion</key>
+        <string>English</string>
+        <key>CFBundlePackageType</key>
+        <string>APPL</string>
+        <key>CFBundleSignature</key>
+        <string>????</string>
+        <key>CFBundleInfoDictionaryVersion</key>
+        <string>6.0</string>
+        <key>CFBundleIconFile</key>
+        <string>icon.icns</string>
+        <key>CFBundleInfoDictionaryVersion</key>
+        <string>6.0</string>
+        <key>CFBundleInfoDictionaryVersion</key>
+        <string>6.0</string>
+-->
+
+    </dict>
+</plist>

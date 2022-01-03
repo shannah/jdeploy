@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>ca.weblite.jdeploy</groupId>
+  <artifactId>zip4j</artifactId>
+  <versioning>
+    <versions>
+      <version>2.3.1-SNAPSHOT</version>
+    </versions>
+    <lastUpdated>20220103150239</lastUpdated>
+  </versioning>
+</metadata>

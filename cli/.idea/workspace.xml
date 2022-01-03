@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="53e7ccd2-5a49-4d35-982d-8253198b34ff" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/../.idea/compiler.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/jarRepositories.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__ca_weblite_jdeploy_cn1_compatlib_1_0_SNAPSHOT.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__ca_weblite_jdeploy_jetty_runner_1_0_SNAPSHOT.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__ca_weblite_jdeploy_shared_1_0_SNAPSHOT.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__ca_weblite_jdeploy_xmllib_1_0_SNAPSHOT.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__ca_weblite_jdeploy_zip4j_2_3_1_SNAPSHOT.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__com_github_gino0631_clove_io_0_1.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__com_github_gino0631_icns_core_1_1.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__commons_cli_commons_cli_1_4.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__commons_io_commons_io_2_11_0.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__javax_jmdns_jmdns_3_4_1.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__net_coobird_thumbnailator_0_4_15.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__org_apache_commons_commons_compress_1_21.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__org_apache_commons_commons_exec_1_3.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__org_apache_commons_commons_lang3_3_12_0.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__org_apache_commons_commons_text_1_9.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__org_slf4j_slf4j_api_1_7_32.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__org_xeustechnologies_jtar_1_1.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/jdeploy-cli.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/resources/ca/weblite/jdeploy/jar-runner.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../installer/lib/XMLLib.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../installer/lib/clove-io-0.1.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../installer/lib/commons-compress-1.19.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../installer/lib/commons-lang3-3.9.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../installer/lib/icns-core-1.2-SNAPSHOT.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../installer/lib/jtar-1.1.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../installer/lib/thumbnailator-0.4.8.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../installer/lib/zip4j-2.3.1-SNAPSHOT.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../installer/pom.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../installer/src/main/java/ca/weblite/jdeploy/installer/Main.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../installer/src/main/java/com/izforge/izpack/util/os/ShellLink.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../installer/src/main/java/com/izforge/izpack/util/os/ShellLink_x64.dll" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../installer/src/main/resources/ca/weblite/jdeploy/installer/icon.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../jar-runner/build.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../jar-runner/src/JarRunner.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lib/XMLLib.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lib/clove-io-0.1.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lib/commons-compress-1.19.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lib/commons-lang3-3.9.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lib/commons-text-1.8.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lib/icns-core-1.2-SNAPSHOT.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lib/image4j-0.7.2.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lib/jtar-1.1.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lib/thumbnailator-0.4.8.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lib/zip4j-2.3.1-SNAPSHOT.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/.idea/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/.idea/compiler.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/.idea/misc.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/jdeploy/app/AppInfo.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/jdeploy/app/Workspace.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/jdeploy/appbundler/AppDescription.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/jdeploy/appbundler/Bundler.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/jdeploy/appbundler/BundlerResult.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/jdeploy/appbundler/C4JPublisherSettings.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/jdeploy/appbundler/Jar.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/jdeploy/appbundler/NativeLib.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/jdeploy/appbundler/Prop.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/jdeploy/appbundler/Util.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/event/DownloadProgressListener.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/event/TaskProgressListener.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/git/GitRemote.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/git/GitRemotes.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/git/GitUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/io/ArchiveUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/io/CollectionsUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/io/FileUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/io/HTTPUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/io/IOUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/io/ImageUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/io/JarUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/io/MD5.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/io/ProcessUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/io/URLUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/io/XMLUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/json/JSONParseCallback.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/json/JSONParser.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/json/JSONSanitizer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/platform/Platform.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/platform/Version.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/security/CertificateUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/xml/Element.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/xml/HTMLUtils.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/xml/ParserCallback.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/xml/XMLParser.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/xml/XMLWriter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/xml/package.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/AppRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/Artifact.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/ArtifactIndex.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/Client4J.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/CommonLibraries.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/CommonRuntimes.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/JCAXMLFile.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/JCAXMLFileType.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/JCAXMLParser.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/JCAXMLWriter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/JavaRuntime.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/Library.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/ResourceInfo.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/Settings.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/PermissionPattern.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/PermissionWarningLevel.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/PermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/PermissionsRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/PermissionsSet.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/PermissionsTool.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/AWTPermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/AudioPermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/ClipboardPermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/FilePermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/FullTrustPermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/LoadLibraryPermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/NetPermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/PreferencesPermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/PrintingPermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/PropertyPermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/ReadEnvironmentVariablesPermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/RuntimePermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/SecurityPermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/SocketPermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/permissions/groups/URLPermissionsGroup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/publisher/server/C4JRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/publisher/server/C4JResponse.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/publisher/server/Cleanable.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/publisher/server/SigningRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/publisher/server/SigningResponse.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/publisher/server/SigningService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/security/BlackListPermission.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/security/C4JPolicy.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/security/C4JSandboxPermission.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/security/PermissionTool.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/security/RuntimeGrantedPermission.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/security/RuntimeGrantedPermissionReader.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/security/RuntimeGrantedPermissionWriter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/security/RuntimeGrantedPermissions.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/security/XMLUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/security/net/PermissionClient.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/security/net/PermissionRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/java/com/client4j/security/net/PermissionResponse.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/LICENCE.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/README.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/customIcons.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/images/border1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/images/border2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/images/border3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/images/border4.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/images/border5.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/images/border6.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/images/border7.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/images/border8.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/images/core.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/images/xe.ico" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/images/xe.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/images/xwiki.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/install.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/packsLang.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/registrySpec.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/shortcutSpec_unix.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/izpack/shortcutSpec_windows.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/linux/Client4JLauncher" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/mac/Client4JLauncher" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/mac/Info.plist" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/mac/PkgInfo.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/win/Client4JLauncher.exe" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.idea/libraries/lib1.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../.idea/libraries/lib1.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../.idea/modules.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../bin/README.TXT" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../bin/jdeploy.js" beforeDir="false" afterPath="$PROJECT_DIR$/bin/jdeploy.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../bin/lib/CN1-Compatlib.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/lib/CN1-Compatlib.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../bin/lib/commons-cli-1.3.1-javadoc.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/lib/commons-cli-1.3.1-javadoc.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../bin/lib/commons-cli-1.3.1.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/lib/commons-cli-1.3.1.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../bin/lib/commons-exec-1.3.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/lib/commons-exec-1.3.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../bin/lib/commons-io-2.5.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/lib/commons-io-2.5.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../bin/lib/jetty-runner.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/lib/jetty-runner.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../bin/npm-debug.log" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../build.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../build.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../build/built-jar.properties" beforeDir="false" afterPath="$PROJECT_DIR$/../build/built-jar.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../nbproject/project.properties" beforeDir="false" afterPath="$PROJECT_DIR$/../nbproject/project.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../package.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/ca/weblite/jdeploy/JDeploy.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/ca/weblite/jdeploy/WarRunner.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/ca/weblite/jdeploy/impl/MavenDeploy.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/ca/weblite/jdeploy/jdeploy.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/ca/weblite/jdeploy/jetty-runner.jar" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="MavenImportPreferences">
+    <option name="generalSettings">
+      <MavenGeneralSettings>
+        <option name="useMavenConfig" value="true" />
+      </MavenGeneralSettings>
+    </option>
+  </component>
+  <component name="ProjectId" id="23C2bF2ZFIa13azt6LtX8pQaLHE" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/src/main/resources/ca/weblite/jdeploy" />
+    <property name="project.structure.last.edited" value="Project" />
+    <property name="project.structure.proportion" value="0.15" />
+    <property name="project.structure.side.proportion" value="0.14306152" />
+    <property name="settings.editor.selected.configurable" value="reference.settings.project.maven.repository.indices" />
+  </component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/main/resources/ca/weblite/jdeploy" />
+    </key>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="53e7ccd2-5a49-4d35-982d-8253198b34ff" name="Changes" comment="" />
+      <created>1641223818617</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1641223818617</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

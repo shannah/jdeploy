@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>ca.weblite.jdeploy</groupId>
+  <artifactId>image4j</artifactId>
+  <versioning>
+    <release>0.7.2</release>
+    <versions>
+      <version>0.7.2</version>
+    </versions>
+    <lastUpdated>20220103150243</lastUpdated>
+  </versioning>
+</metadata>

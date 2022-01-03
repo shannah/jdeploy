@@ -1,0 +1,26 @@
+{
+  "name": "jdeploy",
+  "version": "3.0.0",
+  "repository": {
+    "type" : "git",
+    "url" : "https://github.com/shannah/jdeploy.git",
+    "directory": "cli"
+  },
+  "description": "Deploy java apps using NPM",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "jdeploy": "bin/jdeploy.js"
+  },
+  "preferGlobal": true,
+  "author": "Steve Hannah",
+  "license": "ISC",
+  "dependencies": {
+    "shelljs": "^0.8.4"
+  },
+  "files": [
+    "bin"
+  ]
+}

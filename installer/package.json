@@ -1,0 +1,22 @@
+{
+  "bin": {"jdeploy-installer": "jdeploy-bundle/jdeploy.js"},
+  "author": "Steve Hannah",
+  "description": "Desktop installer for Java applications deployed using jDeploy",
+  "main": "index.js",
+  "preferGlobal": true,
+  "repository": {
+    "type" : "git",
+    "url" : "https://github.com/shannah/jdeploy.git",
+    "directory": "installer"
+  },
+  "version": "1.0.0",
+  "jdeploy": {
+      "jar": "target/jdeploy-installer-1.0-SNAPSHOT.jar",
+      "bundles" : ["mac", "win", "linux"]
+  },
+  "dependencies": {"shelljs": "^0.8.4"},
+  "license": "ISC",
+  "name": "jdeploy-installer",
+  "files": ["jdeploy-bundle"],
+  "scripts": {"test": "echo \"Error: no test specified\" && exit 1"}
+}
