@@ -6,7 +6,7 @@ if [ -f "$HOME/.jdeploy/release_profile" ]; then
   source "$HOME/.jdeploy/release_profile"
 fi
 
-JDEPLOY="$SCRIPTPATH/cli/target/jdeploy-cli-1.0-SNAPSHOT.jar"
+JDEPLOY="java -jar $SCRIPTPATH/cli/target/jdeploy-cli-1.0-SNAPSHOT.jar"
 
 #First build the shared library which is used by both cli and installer
 cd shared
