@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: net.lingala.zip4j:zip4j:2.9.1">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/net/lingala/zip4j/zip4j/2.9.1/zip4j-2.9.1.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$MAVEN_REPOSITORY$/net/lingala/zip4j/zip4j/2.9.1/zip4j-2.9.1-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$MAVEN_REPOSITORY$/net/lingala/zip4j/zip4j/2.9.1/zip4j-2.9.1-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
