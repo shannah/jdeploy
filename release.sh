@@ -41,13 +41,15 @@ cd ../cli
 
 mvn clean package
 CLI_VERSION=$(../json.php version)
-if [ "$GITHUB_REF_TYPE" == "tag" ] && [ "$GITHUB_REF_NAME" == "$CLI_VERSION" ]; then
+if [ "$GITHUB_REF_TYPE" == "tag" ]; then
+  npm version "$GITHUB_REF_NAME"
   npm publish
 fi
 
 cd ../installer
 INSTALLER_VERSION=$(../json.php version)
-if [ "$GITHUB_REF_TYPE" == "tag" ] && [ "$GITHUB_REF_NAME" == "$INSTALLER_VERSION" ]; then
+if [ "$GITHUB_REF_TYPE" == "tag" ]; then
+  npm version "$GITHUB_REF_NAME"
   java -jar "$JDEPLOY" publish
 fi
 
