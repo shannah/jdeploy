@@ -26,6 +26,10 @@ jobs:
         java-version: '11'
         distribution: 'adopt'
         cache: maven
+    - name: Set up Node
+      uses: actions/setup-node@v2
+      with:
+        node-version: '14'
     - name: Build
       env:
         APPLE_ID: ${{ secrets.APPLE_ID }}
