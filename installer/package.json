@@ -9,10 +9,13 @@
     "url" : "https://github.com/shannah/jdeploy.git",
     "directory": "installer"
   },
-  "version": "1.0.0",
+  "version": "1.0.5",
   "jdeploy": {
       "jar": "target/jdeploy-installer-1.0-SNAPSHOT.jar",
-      "bundles" : ["mac", "win", "linux"]
+      "bundles" : ["mac", "win", "linux"],
+      "macAppBundleId" : "HRNMHC7527.ca.weblite.jdeploy.installer",
+      "codesign" : true,
+      "notarize" : false
   },
   "dependencies": {"shelljs": "^0.8.4"},
   "license": "ISC",

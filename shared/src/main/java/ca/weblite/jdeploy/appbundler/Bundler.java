@@ -98,6 +98,7 @@ public class Bundler {
 
         
         AppDescription app = new AppDescription();
+
         app.setName(appInfo.getTitle());
         URL iconURL = URLUtil.url(appInfo.getAppURL(), "icon.png");
         app.setIconDataURI(toDataURI(iconURL));

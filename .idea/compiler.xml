@@ -6,12 +6,15 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
+        <module name="jdeploy-shared" />
         <module name="jdeploy-cli" />
+        <module name="jdeploy-installer" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
       <module name="jdeploy-cli" target="1.8" />
       <module name="jdeploy-installer" target="1.8" />
+      <module name="jdeploy-shared" target="1.8" />
     </bytecodeTargetLevel>
   </component>
 </project>

@@ -8,6 +8,7 @@ import ca.weblite.tools.io.IOUtil;
 import ca.weblite.tools.platform.Platform;
 import com.izforge.izpack.util.os.ShellLink;
 import net.coobird.thumbnailator.Thumbnails;
+import org.apache.commons.io.FileUtils;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
@@ -31,7 +32,8 @@ public class Main implements Runnable {
     private Document appXMLDocument;
     private AppInfo appInfo;
     private JFrame frame;
-    private boolean addToDesktop, addToPrograms, addToStartMenu, addToDock;
+    private boolean addToDesktop=true, addToPrograms=true, addToStartMenu=true, addToDock=true;
+    private boolean overwriteApp=true;
 
     private Document getAppXMLDocument() throws IOException {
         if (appXMLDocument == null) {
@@ -92,6 +94,11 @@ public class Main implements Runnable {
 
 
     private File findInstallFilesDir() {
+        if (System.getProperty("client4j.launcher.path") != null) {
+            System.out.println("Found client4.launcher.path property: "+System.getProperty("client4j.launcher.path"));
+            return findInstallFilesDir(new File(System.getProperty("client4j.launcher.path")));
+        }
+        System.out.println("User dir: "+new File(System.getProperty("user.dir")).getAbsolutePath());
         return findInstallFilesDir(new File(System.getProperty("user.dir")));
     }
 
@@ -158,7 +165,52 @@ public class Main implements Runnable {
         JPanel buttonsPanel = new JPanel();
         buttonsPanel.add(installButton);
 
-        frame.getContentPane().add(buttonsPanel, BorderLayout.SOUTH);
+        File filesDir = findInstallFilesDir();
+        File splash = new File(filesDir, "installsplash.png");
+        if (splash.exists()) {
+            try {
+                ImageIcon splashImage = new ImageIcon(splash.toURI().toURL());
+                frame.getContentPane().add(new JLabel(splashImage), BorderLayout.CENTER);
+            } catch (Exception ex) {
+
+            }
+        }
+        String desktopLabel = "Add Desktop Shortcut";
+        if (Platform.getSystemPlatform().isMac()) {
+            desktopLabel = "Add Desktop Alias";
+        }
+        JCheckBox desktopCheckbox = new JCheckBox(desktopLabel);
+        desktopCheckbox.setSelected(addToDesktop);
+        desktopCheckbox.addActionListener(evt->{
+            addToDesktop = desktopCheckbox.isSelected();
+        });
+
+
+        JCheckBox addToDockCheckBox = new JCheckBox("Add to Dock");
+        addToDockCheckBox.setSelected(addToDock);
+        addToDockCheckBox.addActionListener(evt->{
+            addToDock = addToDockCheckBox.isSelected();
+        });
+
+        JCheckBox addToStartMenuCheckBox = new JCheckBox("Add to Start Menu");
+        addToStartMenuCheckBox.setSelected(addToStartMenu);
+        addToStartMenuCheckBox.addActionListener(evt->{
+            addToStartMenu = addToStartMenuCheckBox.isSelected();
+        });
+
+        JPanel checkboxesPanel = new JPanel();
+        if (Platform.getSystemPlatform().isWindows()) {
+            checkboxesPanel.add(addToStartMenuCheckBox);
+        } else if (Platform.getSystemPlatform().isMac()) {
+            checkboxesPanel.add(addToDockCheckBox);
+        }
+        checkboxesPanel.add(desktopCheckbox);
+        JPanel southPanel = new JPanel();
+        southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
+        southPanel.add(checkboxesPanel);
+        southPanel.add(buttonsPanel);
+
+        frame.getContentPane().add(southPanel, BorderLayout.SOUTH);
 
     }
 
@@ -232,11 +284,16 @@ public class Main implements Runnable {
 
 
             File installAppPath = new File(jdeployAppsDir, appInfo.getTitle()+".app");
+            if (installAppPath.exists() && overwriteApp) {
+                FileUtils.deleteDirectory(installAppPath);
+            }
             File tmpAppPath = null;
             for (File candidateApp : new File(tmpBundles, "mac").listFiles()) {
-                System.out.println("Candidate app: "+candidateApp);
                 if (candidateApp.getName().endsWith(".app")) {
-                    Runtime.getRuntime().exec(new String[]{"mv", candidateApp.getAbsolutePath(), installAppPath.getAbsolutePath()});
+                    int result = Runtime.getRuntime().exec(new String[]{"mv", candidateApp.getAbsolutePath(), installAppPath.getAbsolutePath()}).waitFor();
+                    if (result != 0) {
+                        throw new RuntimeException("Failed to copy app to "+jdeployAppsDir);
+                    }
                     break;
                 }
             }
@@ -246,7 +303,13 @@ public class Main implements Runnable {
 
             if (addToDesktop) {
                 File desktopAlias = new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + appInfo.getTitle() + ".app");
-                Runtime.getRuntime().exec(new String[]{"ln", "-s", installAppPath.getAbsolutePath(), desktopAlias.getAbsolutePath()});
+                if (desktopAlias.exists()) {
+                    desktopAlias.delete();
+                }
+                int result = Runtime.getRuntime().exec(new String[]{"ln", "-s", installAppPath.getAbsolutePath(), desktopAlias.getAbsolutePath()}).waitFor();
+                if (result != 0) {
+                    throw new RuntimeException("Failed to make desktop alias.");
+                }
             }
 
             if (addToDock) {
@@ -257,15 +320,25 @@ public class Main implements Runnable {
                     osascript -e 'tell application "Dock" to quit'
                     osascript -e 'tell application "Dock" to activate'
                  */
+                String myapp = installAppPath.getAbsolutePath().replace('/', '#').replace("#", "//");
+                File shellScript = File.createTempFile("installondock", ".sh");
+                shellScript.deleteOnExit();
+
+                System.out.println("Adding to dock: "+myapp);
                 String[] commands = new String[]{
-                        "defaults write com.apple.dock persistent-apps -array-add \"<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>"+installAppPath.getAbsolutePath()+"</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>\"",
-                        "osascript -e 'tell application \"Dock\" to quit'",
-                        "osascript -e 'tell application \"Dock\" to activate'"
+                        "/usr/bin/defaults write com.apple.dock persistent-apps -array-add \"<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>"+myapp+"</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>\"",
+                        "/usr/bin/osascript -e 'tell application \"Dock\" to quit'",
+                        "/usr/bin/osascript -e 'tell application \"Dock\" to activate'"
 
                 };
-                for (String cmd : commands) {
-                    Runtime.getRuntime().exec(cmd);
+                try (PrintWriter printWriter = new PrintWriter(new FileOutputStream(shellScript))) {
+                    printWriter.println("#!/bin/bash");
+                    for (String cmd : commands) {
+                        printWriter.println(cmd);
+                    }
                 }
+                shellScript.setExecutable(true, false);
+                Runtime.getRuntime().exec(shellScript.getAbsolutePath());
             }
         } else if (Platform.getSystemPlatform().isLinux()) {
             File tmpExePath = null;

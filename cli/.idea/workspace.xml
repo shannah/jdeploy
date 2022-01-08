@@ -5,8 +5,95 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="53e7ccd2-5a49-4d35-982d-8253198b34ff" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/../installer/make_installer_templates.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__ca_weblite_jdeploy_image4j_0_7_2.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__ca_weblite_jdeploy_jdeploy_installer_template_linux_amd64_1_0_SNAPSHOT.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__ca_weblite_jdeploy_jdeploy_installer_template_mac_amd64_1_0_SNAPSHOT.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__ca_weblite_jdeploy_jdeploy_installer_template_win_amd64_1_0_SNAPSHOT.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/libraries/Maven__net_lingala_zip4j_zip4j_2_9_1.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ca/weblite/jdeploy/ZipUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../installer/jdeploy-installer.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../shared/jdeploy-shared.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../.idea/compiler.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.idea/jarRepositories.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../.idea/jarRepositories.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.idea/libraries/Maven__ca_weblite_jdeploy_shared_1_0_SNAPSHOT.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.idea/libraries/Maven__ca_weblite_jdeploy_zip4j_2_3_1_SNAPSHOT.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../.idea/modules.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bin/JDeploy.jar" beforeDir="false" afterPath="$PROJECT_DIR$/bin/JDeploy.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bin/libs/jdeploy-shared-1.0-SNAPSHOT.jar" beforeDir="false" afterPath="$PROJECT_DIR$/bin/libs/jdeploy-shared-1.0-SNAPSHOT.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdeploy-cli.iml" beforeDir="false" afterPath="$PROJECT_DIR$/jdeploy-cli.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ca/weblite/jdeploy/JDeploy.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ca/weblite/jdeploy/JDeploy.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/ca/weblite/jdeploy/JDeploy$CopyRule$1.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ca/weblite/jdeploy/JDeploy$CopyRule$1.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/ca/weblite/jdeploy/JDeploy$CopyRule.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ca/weblite/jdeploy/JDeploy$CopyRule.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/ca/weblite/jdeploy/JDeploy.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ca/weblite/jdeploy/JDeploy.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/jdeploy-cli-1.0-SNAPSHOT.jar" beforeDir="false" afterPath="$PROJECT_DIR$/target/jdeploy-cli-1.0-SNAPSHOT.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/libs/jdeploy-shared-1.0-SNAPSHOT.jar" beforeDir="false" afterPath="$PROJECT_DIR$/target/libs/jdeploy-shared-1.0-SNAPSHOT.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/libs/zip4j-2.3.1-SNAPSHOT.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/jdeploy-bundle/jdeploy-installer-1.0-SNAPSHOT.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/jdeploy-bundle/jdeploy-installer-1.0-SNAPSHOT.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/jdeploy-bundle/libs/jdeploy-shared-1.0-SNAPSHOT.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/jdeploy-bundle/libs/jdeploy-shared-1.0-SNAPSHOT.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/jdeploy/bundles/linux/jdeploy-installer" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/jdeploy/bundles/linux/jdeploy-installer" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/jdeploy/bundles/mac/jdeploy-installer.app/Contents/MacOS/Client4JLauncher" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/jdeploy/bundles/mac/jdeploy-installer.app/Contents/MacOS/Client4JLauncher" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/jdeploy/bundles/windows/jdeploy-installer.exe" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/jdeploy/bundles/windows/jdeploy-installer.exe" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/jdeploy/installers/linux/jdeploy-installer-linux-amd64.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/jdeploy/installers/linux/jdeploy-installer-linux-amd64.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/jdeploy/installers/linux/jdeploy-installer-linux-amd64.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/jdeploy/installers/mac/jdeploy-installer-mac-amd64.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/jdeploy/installers/mac/jdeploy-installer-mac-amd64.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/jdeploy/installers/mac/jdeploy-installer-mac-amd64.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/jdeploy/installers/windows/jdeploy-installer-win-amd64.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/jdeploy/installers/windows/jdeploy-installer-win-amd64.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/jdeploy/installers/windows/jdeploy-installer-win-amd64.zip" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/jdeploy/installers/windows/jdeploy-installer-win-amd64.zip" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/jdeploy/releases/linux/jdeploy-installer.tar.gz" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/jdeploy/releases/linux/jdeploy-installer.tar.gz" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/jdeploy/releases/mac/jdeploy-installer.tar.gz" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/jdeploy/releases/mac/jdeploy-installer.tar.gz" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/jdeploy/releases/windows/jdeploy-installer.exe.zip" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/jdeploy/releases/windows/jdeploy-installer.exe.zip" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/make_installer_templates.sh" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/make_installer_templates.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/src/main/java/ca/weblite/jdeploy/installer/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/src/main/java/ca/weblite/jdeploy/installer/Main.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/src/main/java/com/izforge/izpack/util/os/ShellLink_x64.dll" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/target/classes/ca/weblite/jdeploy/installer/Main$InvalidAppXMLFormatException.class" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/target/classes/ca/weblite/jdeploy/installer/Main$InvalidAppXMLFormatException.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/target/classes/ca/weblite/jdeploy/installer/Main.class" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/target/classes/ca/weblite/jdeploy/installer/Main.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/target/classes/com/izforge/izpack/util/os/ShellLink.class" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/target/classes/com/izforge/izpack/util/os/ShellLink.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/target/jdeploy-installer-1.0-SNAPSHOT.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/target/jdeploy-installer-1.0-SNAPSHOT.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/target/libs/jdeploy-shared-1.0-SNAPSHOT.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../installer/target/libs/jdeploy-shared-1.0-SNAPSHOT.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../installer/target/libs/zip4j-2.3.1-SNAPSHOT.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-linux-amd64/1.0-SNAPSHOT/jdeploy-installer-template-linux-amd64-1.0-SNAPSHOT.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-linux-amd64/1.0-SNAPSHOT/jdeploy-installer-template-linux-amd64-1.0-SNAPSHOT.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-linux-amd64/1.0-SNAPSHOT/maven-metadata-local.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-linux-amd64/1.0-SNAPSHOT/maven-metadata-local.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-linux-amd64/maven-metadata-local.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-linux-amd64/maven-metadata-local.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-mac-amd64/1.0-SNAPSHOT/jdeploy-installer-template-mac-amd64-1.0-SNAPSHOT.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-mac-amd64/1.0-SNAPSHOT/jdeploy-installer-template-mac-amd64-1.0-SNAPSHOT.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-mac-amd64/1.0-SNAPSHOT/maven-metadata-local.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-mac-amd64/1.0-SNAPSHOT/maven-metadata-local.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-mac-amd64/maven-metadata-local.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-mac-amd64/maven-metadata-local.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-win-amd64/1.0-SNAPSHOT/jdeploy-installer-template-win-amd64-1.0-SNAPSHOT.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-win-amd64/1.0-SNAPSHOT/jdeploy-installer-template-win-amd64-1.0-SNAPSHOT.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-win-amd64/1.0-SNAPSHOT/maven-metadata-local.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-win-amd64/1.0-SNAPSHOT/maven-metadata-local.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-win-amd64/maven-metadata-local.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../maven-repository/ca/weblite/jdeploy/jdeploy-installer-template-win-amd64/maven-metadata-local.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../shared/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/io/ArchiveUtil.java" beforeDir="false" afterPath="$PROJECT_DIR$/../shared/src/main/java/ca/weblite/tools/io/ArchiveUtil.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/linux/Client4JLauncher" beforeDir="false" afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/linux/Client4JLauncher" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/mac/Client4JLauncher" beforeDir="false" afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/mac/Client4JLauncher" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/win/Client4JLauncher.exe" beforeDir="false" afterPath="$PROJECT_DIR$/../shared/src/main/resources/com/joshondesign/appbundler/win/Client4JLauncher.exe" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/classes/ca/weblite/tools/io/ArchiveUtil.class" beforeDir="false" afterPath="$PROJECT_DIR$/../shared/target/classes/ca/weblite/tools/io/ArchiveUtil.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/classes/com/joshondesign/appbundler/linux/Client4JLauncher" beforeDir="false" afterPath="$PROJECT_DIR$/../shared/target/classes/com/joshondesign/appbundler/linux/Client4JLauncher" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/classes/com/joshondesign/appbundler/mac/Client4JLauncher" beforeDir="false" afterPath="$PROJECT_DIR$/../shared/target/classes/com/joshondesign/appbundler/mac/Client4JLauncher" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/classes/com/joshondesign/appbundler/win/Client4JLauncher.exe" beforeDir="false" afterPath="$PROJECT_DIR$/../shared/target/classes/com/joshondesign/appbundler/win/Client4JLauncher.exe" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/jdeploy-shared-1.0-SNAPSHOT.jar" beforeDir="false" afterPath="$PROJECT_DIR$/../shared/target/jdeploy-shared-1.0-SNAPSHOT.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/clove-io-0.1.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/cn1-compatlib-1.0-SNAPSHOT.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/commons-cli-1.4.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/commons-compress-1.21.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/commons-exec-1.3.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/commons-io-2.11.0.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/commons-lang3-3.12.0.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/commons-text-1.9.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/icns-core-1.1.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/jmdns-3.4.1.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/jtar-1.1.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/slf4j-api-1.7.32.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/thumbnailator-0.4.15.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/xmllib-1.0-SNAPSHOT.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/libs/zip4j-2.3.1-SNAPSHOT.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/maven-archiver/pom.properties" beforeDir="false" afterPath="$PROJECT_DIR$/../shared/target/maven-archiver/pom.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../shared/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/../shared/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

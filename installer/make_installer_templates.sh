@@ -18,13 +18,15 @@ mkdir "$MAC_INSTALLER/.jdeploy-files"
 touch "$MAC_INSTALLER/.jdeploy-files/app.xml"
 cp src/main/resources/ca/weblite/jdeploy/installer/icon.png "$MAC_INSTALLER/.jdeploy-files/icon.png"
 cd $MAC_INSTALLER/..
-zip -r jdeploy-installer-mac-amd64.zip jdeploy-installer
+tar -cvf jdeploy-installer-mac-amd64.tar jdeploy-installer
 rm -rf jdeploy-installer
-jar cvf jdeploy-installer-mac-amd64.jar *.zip
+jar cvf jdeploy-installer-mac-amd64.jar *.tar
 mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
                          -Dfile=jdeploy-installer-mac-amd64.jar -DgroupId=ca.weblite.jdeploy \
                          -DartifactId=jdeploy-installer-template-mac-amd64 -Dversion=1.0-SNAPSHOT \
                          -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository"
+
+
 cd "$SCRIPTPATH"
 rm -rf "$MAC_INSTALLER"
 
@@ -48,6 +50,8 @@ mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
                          -Dfile=jdeploy-installer-win-amd64.jar -DgroupId=ca.weblite.jdeploy \
                          -DartifactId=jdeploy-installer-template-win-amd64 -Dversion=1.0-SNAPSHOT \
                          -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository"
+
+
 cd "$SCRIPTPATH"
 rm -rf "$WIN_INSTALLER"
 
@@ -64,9 +68,9 @@ mkdir "$LINUX_INSTALLER/.jdeploy-files"
 touch "$LINUX_INSTALLER/.jdeploy-files/app.xml"
 cp src/main/resources/ca/weblite/jdeploy/installer/icon.png "$LINUX_INSTALLER/.jdeploy-files/icon.png"
 cd $LINUX_INSTALLER/..
-zip -r jdeploy-installer-linux-amd64.zip jdeploy-installer
+tar -cf jdeploy-installer-linux-amd64.tar jdeploy-installer
 rm -rf jdeploy-installer
-jar cvf jdeploy-installer-linux-amd64.jar *.zip
+jar cvf jdeploy-installer-linux-amd64.jar *.tar
 mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
                          -Dfile=jdeploy-installer-linux-amd64.jar -DgroupId=ca.weblite.jdeploy \
                          -DartifactId=jdeploy-installer-template-linux-amd64 -Dversion=1.0-SNAPSHOT \
@@ -74,6 +78,10 @@ mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
 cd "$SCRIPTPATH"
 rm -rf "$LINUX_INSTALLER"
 
-
+# We need to purge the local (.m2) repositories so that on the next build it will fetch from
+# our local (in-project) repository
+mvn dependency:purge-local-repository -DmanualInclude=ca.weblite.jdeploy:jdeploy-installer-template-win-amd64 -Dverbose
+mvn dependency:purge-local-repository -DmanualInclude=ca.weblite.jdeploy:jdeploy-installer-template-mac-amd64 -Dverbose
+mvn dependency:purge-local-repository -DmanualInclude=ca.weblite.jdeploy:jdeploy-installer-template-linux-amd64 -Dverbose
 
 

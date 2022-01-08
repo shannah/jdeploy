@@ -10,8 +10,7 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="Maven: ca.weblite:jdeploy-shared:1.0-SNAPSHOT" level="project" />
-    <orderEntry type="library" name="Maven: ca.weblite.jdeploy:zip4j:2.3.1-SNAPSHOT" level="project" />
+    <orderEntry type="module" module-name="jdeploy-shared" />
     <orderEntry type="library" name="Maven: org.slf4j:slf4j-api:1.7.32" level="project" />
     <orderEntry type="library" name="Maven: javax.jmdns:jmdns:3.4.1" level="project" />
     <orderEntry type="library" name="Maven: org.apache.commons:commons-text:1.9" level="project" />
@@ -27,5 +26,9 @@
     <orderEntry type="library" name="Maven: ca.weblite.jdeploy:cn1-compatlib:1.0-SNAPSHOT" level="project" />
     <orderEntry type="library" name="Maven: commons-cli:commons-cli:1.4" level="project" />
     <orderEntry type="library" name="Maven: commons-io:commons-io:2.11.0" level="project" />
+    <orderEntry type="library" name="Maven: ca.weblite.jdeploy:jdeploy-installer-template-win-amd64:1.0-SNAPSHOT" level="project" />
+    <orderEntry type="library" name="Maven: ca.weblite.jdeploy:jdeploy-installer-template-mac-amd64:1.0-SNAPSHOT" level="project" />
+    <orderEntry type="library" name="Maven: ca.weblite.jdeploy:jdeploy-installer-template-linux-amd64:1.0-SNAPSHOT" level="project" />
+    <orderEntry type="library" name="Maven: net.lingala.zip4j:zip4j:2.9.1" level="project" />
   </component>
 </module>

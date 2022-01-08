@@ -7,12 +7,26 @@ package ca.weblite.tools.io;
 
 import net.lingala.zip4j.ZipFile;
 import net.lingala.zip4j.exception.ZipException;
+import org.apache.commons.compress.archivers.ArchiveEntry;
+import org.apache.commons.compress.archivers.ArchiveOutputStream;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
+import org.apache.commons.compress.archivers.tar.TarFile;
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.arch.Processor;
 import org.xeustechnologies.jtar.TarEntry;
 import org.xeustechnologies.jtar.TarInputStream;
 
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.attribute.PosixFilePermission;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.zip.GZIPInputStream;
 
@@ -255,6 +269,126 @@ public class ArchiveUtil {
             throw new IOException("Failed to unzip file "+zipFile+" to "+destFolder+".  Exit code "+exitCode);
         }
     }
+
+
+
+    public static interface NameFilter {
+        public String filterName(String name);
+    }
+
+    public static class ArchiveFile {
+        private File file;
+        private String entryName;
+
+        public ArchiveFile(File file, String entryName) {
+            this.file = file;
+            this.entryName = entryName;
+        }
+    }
+
+    /**
+     * Applies a name filter to all files in the given tar file.
+     * @param tarFile The tar file to modify
+     * @param filter The filter to apply
+     * @throws IOException
+     */
+    public static void filterNamesInTarFile(File tarFile, NameFilter filter, Collection<ArchiveFile> filesToAdd) throws IOException {
+        File tmpOut = File.createTempFile(tarFile.getName(), ".tar");
+        Set<String> namesToAdd = new HashSet<String>();
+        for (ArchiveFile archiveFile : filesToAdd) {
+            namesToAdd.add(archiveFile.entryName);
+        }
+        try (TarArchiveOutputStream out = new TarArchiveOutputStream(new FileOutputStream(tmpOut))) {
+            try (TarArchiveInputStream tf = new TarArchiveInputStream(new FileInputStream(tarFile))) {
+                TarArchiveEntry entry;
+                while ((entry = tf.getNextTarEntry()) != null) {
+                    String oldName = entry.getName();
+                    String newName = filter.filterName(entry.getName());
+                    if (!newName.equals(entry.getName())) {
+                        entry.setName(newName);
+                    }
+                    if (!namesToAdd.contains(newName)) {
+                        out.putArchiveEntry(entry);
+                        IOUtils.copy(tf, out);
+
+
+                        out.closeArchiveEntry();
+                    }
+
+
+                }
+            }
+            if (filesToAdd != null && !filesToAdd.isEmpty()) {
+                addFilesToArchive(out, filesToAdd);
+            }
+            out.finish();
+
+        }
+        tarFile.delete();
+        FileUtils.moveFile(tmpOut, tarFile);
+
+    }
+
+    private static void addFilesToArchive(ArchiveOutputStream archiveOutputStream, Collection<ArchiveFile> files) throws IOException {
+        for (ArchiveFile f : files) {
+            ArchiveEntry e = archiveOutputStream.createArchiveEntry(f.file, f.entryName);
+            archiveOutputStream.putArchiveEntry(e);
+            if (f.file.isFile()) {
+                try (InputStream i = Files.newInputStream(f.file.toPath())) {
+                    IOUtils.copy(i, archiveOutputStream);
+                }
+            }
+            archiveOutputStream.closeArchiveEntry();
+        }
+    }
+
+    /**
+     * Applies a name filter to all files in the given zip file.
+     * @param zipFile The zip file to modify
+     * @param filter The filter to apply
+     * @throws IOException
+     */
+    public static void filterNamesInZipFile(File zipFile, NameFilter filter, Collection<ArchiveFile> filesToAdd) throws IOException {
+        File tmpOut = File.createTempFile(zipFile.getName(), ".zip");
+        Set<String> namesToAdd = new HashSet<String>();
+        for (ArchiveFile archiveFile : filesToAdd) {
+            namesToAdd.add(archiveFile.entryName);
+        }
+
+        try (ZipArchiveOutputStream out = new ZipArchiveOutputStream(new FileOutputStream(tmpOut))) {
+            try (ZipArchiveInputStream tf = new ZipArchiveInputStream(new FileInputStream(zipFile))) {
+                ZipArchiveEntry entry;
+                while ((entry = tf.getNextZipEntry()) != null) {
+                    String oldName = entry.getName();
+
+                    ZipArchiveEntry newEntry = new ZipArchiveEntry(entry) {
+                        @Override
+                        protected void setName(String name) {
+                            super.setName(filter.filterName(name));
+                        }
+                    };
+                    if (!namesToAdd.contains(newEntry.getName())) {
+                        out.putArchiveEntry(newEntry);
+                        IOUtils.copy(tf, out);
+
+
+                        out.closeArchiveEntry();
+                    }
+
+                }
+            }
+            if (filesToAdd != null && !filesToAdd.isEmpty()) {
+                addFilesToArchive(out, filesToAdd);
+            }
+
+            out.finish();
+        }
+        zipFile.delete();
+        FileUtils.moveFile(tmpOut, zipFile);
+
+    }
+
+
     
     
 }

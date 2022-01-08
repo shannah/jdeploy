@@ -20,12 +20,7 @@ import com.github.gino0631.icns.IcnsType;
 import com.joshondesign.xml.XMLWriter;
 import java.awt.image.BufferedImage;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -142,13 +137,31 @@ public class MacBundler {
         signingRequest.setBundleId(app.getMacBundleId());
         if (Platform.getSystemPlatform().isMac()) {
             try {
-                Runtime.getRuntime().exec("/usr/bin/SetFile -a B "+appDir);
+                System.out.println("Removing extended attributes from "+appDir);
+                File tmpRemoveAttributesScript = File.createTempFile("remove_atttrs", ".sh");
+                try (PrintWriter scriptOut = new PrintWriter(new FileOutputStream(tmpRemoveAttributesScript))) {
+                    scriptOut.println("#!/bin/bash");
+                    scriptOut.println("/usr/bin/xattr -cr '"+appDir.getAbsolutePath()+"'");
+                    scriptOut.println("/usr/bin/xattr -lr '"+appDir.getAbsolutePath()+"'");
+                }
+                tmpRemoveAttributesScript.setExecutable(true, false);
+                tmpRemoveAttributesScript.deleteOnExit();
+                Runtime.getRuntime().exec(tmpRemoveAttributesScript.getAbsolutePath()).waitFor();
+
+
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
+            // We don't do this anymore because codesign now fails if there is a resource fork.
+            //try {
+            //    Runtime.getRuntime().exec("/usr/bin/SetFile -a B "+appDir).waitFor();
+            //} catch (Exception ex) {
+            //    ex.printStackTrace();
+            //}
             if (/*codesignClient == null &&*/ app.isMacCodeSigningEnabled()) {
                 //codesign --deep --verbose=4 -f -s "$CERT" "$1"
-                ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign", "--deep", "--verbose=4", "-f", "-s", app.getMacCertificateName(), appDir.getAbsolutePath());
+                System.out.println("Signing "+appDir.getAbsolutePath());
+                ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign", "--deep", "--verbose=4", "-f", "--options", "runtime", "-s", app.getMacCertificateName(), appDir.getAbsolutePath());
                 pb.inheritIO();
                 Process p = pb.start();
                 int exitCode = p.waitFor();

@@ -8,9 +8,12 @@ package ca.weblite.jdeploy.appbundler;
 import ca.weblite.jdeploy.app.AppInfo;
 //import com.client4j.publisher.client.CodeSignServerDescriptor;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Observable;
+import java.util.Properties;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 
@@ -19,6 +22,9 @@ import java.util.prefs.Preferences;
  * @author shannah
  */
 public class C4JPublisherSettings {
+
+    private static Properties jDeployProperties;
+
     private static class ObservableImpl extends Observable {
 
         @Override
@@ -35,9 +41,26 @@ public class C4JPublisherSettings {
     private static final String MAC_APPS_NODE = "mac.apps";
     
     private static Preferences root;
+
+    static {
+        if (jDeployProperties == null) {
+            synchronized (observable) {
+                jDeployProperties = new Properties();
+                File jDeployPropertiesFile = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "private" + File.separator + "jdeploy_settings.properties");
+                if (jDeployPropertiesFile.exists()) {
+                    try (FileInputStream fis = new FileInputStream(jDeployPropertiesFile)) {
+                        jDeployProperties.load(fis);
+                    } catch (Exception ex) {
+                        System.err.println("Attempt to load properties file " + jDeployPropertiesFile + " failed.");
+                        ex.printStackTrace(System.err);
+                    }
+                }
+            }
+        }
+    }
     
     private C4JPublisherSettings() {
-        
+
     }
     
     public static Observable getObservable() {
@@ -69,12 +92,19 @@ public class C4JPublisherSettings {
     }
     
     public static String getMacDeveloperCertificateName() {
-        
-        return root().get(MAC_DEVELOPER_CERTIFICATE_NAME, "");
+        String certificateName = System.getenv("JDEPLOY_MAC_DEVELOPER_CERTIFICATE_NAME");
+        if (certificateName != null) {
+            return certificateName;
+        }
+        return jDeployProperties.getProperty(MAC_DEVELOPER_CERTIFICATE_NAME, root().get(MAC_DEVELOPER_CERTIFICATE_NAME, ""));
     }
     
     public static String getMacDeveloperID() {
-        return root().get(MAC_DEVELOPER_ID, "");
+        String developerId = System.getenv("JDEPLOY_MAC_DEVELOPER_ID");
+        if (developerId != null) {
+            return developerId;
+        }
+        return jDeployProperties.getProperty(MAC_DEVELOPER_ID, root().get(MAC_DEVELOPER_ID, ""));
     }
     
     public static void setMacDeveloperID(String developerID) {
@@ -85,8 +115,9 @@ public class C4JPublisherSettings {
     }
     
     public static String getMacNotarizationPassword() {
-        
-        return root().get(MAC_NOTORIZATION_PASSWORD, "");
+        String password = System.getenv("JDEPLOY_MAC_NOTARIZATION_PASSWORD");
+        if (password != null) return password;
+        return jDeployProperties.getProperty(MAC_NOTORIZATION_PASSWORD, root().get(MAC_NOTORIZATION_PASSWORD, ""));
     }
    
     private static boolean isEmpty(String str) {
@@ -108,12 +139,15 @@ public class C4JPublisherSettings {
     }
     
     public static String getMacDeveloperID(AppInfo appInfo) {
-        
+        String developerId = System.getenv("JDEPLOY_MAC_DEVELOPER_ID");
+        if (developerId != null) {
+            return developerId;
+        }
         Preferences node = getAppNode(appInfo);
         if (node == null) {
             return "";
         }
-        return node.get(MAC_DEVELOPER_ID, "");
+        return jDeployProperties.getProperty(appInfo.getNpmPackage()+"."+MAC_DEVELOPER_ID, node.get(MAC_DEVELOPER_ID, ""));
     }
     
     public static void setMacDeveloperID(AppInfo appInfo, String id) {
@@ -129,11 +163,15 @@ public class C4JPublisherSettings {
     }
     
     public static String getMacNotarizationPassword(AppInfo appInfo) {
+        String password = System.getenv("JDEPLOY_MAC_NOTARIZATION_PASSWORD");
+        if (password != null) {
+            return password;
+        }
         Preferences node = getAppNode(appInfo);
         if (node == null) {
             return "";
         }
-        return node.get(MAC_NOTORIZATION_PASSWORD, "");
+        return jDeployProperties.getProperty(appInfo.getNpmPackage()+"."+MAC_NOTORIZATION_PASSWORD, node.get(MAC_NOTORIZATION_PASSWORD, ""));
     }
     
     public static void setMacNotarizationPassword(AppInfo appInfo, String password) {
@@ -149,11 +187,13 @@ public class C4JPublisherSettings {
     }
     
     public static String getMacDeveloperCertificateName(AppInfo appInfo) {
+        String certificateName = System.getenv("JDEPLOY_MAC_DEVELOPER_CERTIFICATE_NAME");
+        if (certificateName != null) return certificateName;
         Preferences node = getAppNode(appInfo);
         if (node == null) {
             return "";
         }
-        return node.get(MAC_DEVELOPER_CERTIFICATE_NAME, "");
+        return jDeployProperties.getProperty(appInfo.getNpmPackage()+"."+MAC_DEVELOPER_CERTIFICATE_NAME, node.get(MAC_DEVELOPER_CERTIFICATE_NAME, ""));
     }
     
     public static void setMacDeveloperCertificateName(AppInfo appInfo, String name) {

@@ -7,18 +7,20 @@ package ca.weblite.jdeploy;
 
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.appbundler.Bundler;
+import ca.weblite.tools.io.ArchiveUtil;
+import ca.weblite.tools.io.XMLUtil;
+import com.client4j.JCAXMLFile;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
 import com.codename1.xml.Element;
 import com.codename1.xml.XMLParser;
-import java.io.File;
-import java.io.FileFilter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.StringReader;
+
+import java.io.*;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.file.PathMatcher;
+import java.nio.file.*;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -36,12 +38,22 @@ import java.util.jar.Manifest;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+
+
+import net.lingala.zip4j.ZipFile;
+import net.lingala.zip4j.io.inputstream.ZipInputStream;
+import net.lingala.zip4j.model.FileHeader;
+import net.lingala.zip4j.model.ZipParameters;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
+
+import org.apache.commons.compress.archivers.zip.ZipExtraField;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.w3c.dom.Document;
 
 /**
  *
@@ -199,6 +211,18 @@ public class JDeploy {
         if (m.containsKey("bundles")) {
             List bundlesList = (List) m.get("bundles");
             for (Object o : bundlesList) {
+                out.add((String)o);
+            }
+        }
+        return out;
+    }
+
+    private Set<String> installers() {
+        Map m = mj();
+        HashSet<String> out = new HashSet<String>();
+        if (m.containsKey("installers")) {
+            List installersList = (List) m.get("installers");
+            for (Object o : installersList) {
                 out.add((String)o);
             }
         }
@@ -1008,6 +1032,11 @@ public class JDeploy {
         appInfo.setNpmVersion(getString("version", "latest"));
         appInfo.setMacAppBundleId(getString("macAppBundleId", null));
         appInfo.setTitle(getString("displayName", appInfo.getNpmPackage()));
+        if (rj().getAsBoolean("codesign") && rj().getAsBoolean("notarize")) {
+            appInfo.setCodeSignSettings(AppInfo.CodeSignSettings.CodeSignAndNotarize);
+        } else if (rj().getAsBoolean("codesign")) {
+            appInfo.setCodeSignSettings(AppInfo.CodeSignSettings.CodeSign);
+        }
 
         String jarPath = getString("jar", null);
         if (jarPath != null) {
@@ -1042,6 +1071,11 @@ public class JDeploy {
     public void macBundle() throws Exception {
         bundle("mac");
     }
+
+    public void macInstaller() throws Exception {
+
+    }
+
     public void windowsBundle() throws Exception {
         bundle("win");
     }
@@ -1073,12 +1107,150 @@ public class JDeploy {
 
     }
 
+    public void allInstallers() throws Exception {
+        Set<String> installers = installers();
+        for (String target : installers) {
+            String version = "latest";
+            if (target.contains("@")) {
+                version = target.substring(target.indexOf("@")+1);
+                target = target.substring(0, target.indexOf("@"));
+            }
+            installer(target, version);
+        }
+
+
+    }
+
     public void bundle(String target) throws Exception {
         AppInfo appInfo = new AppInfo();
         loadAppInfo(appInfo);
 
         Bundler.runit(appInfo, appInfo.getAppURL().toString(), target, "jdeploy" + File.separator + "bundles", "jdeploy" + File.separator + "releases");
     }
+
+    public void installer(String target, String version) throws Exception {
+        AppInfo appInfo = new AppInfo();
+        loadAppInfo(appInfo);
+        appInfo.setNpmVersion(version);
+
+        File installerDir = new File("jdeploy" + File.separator + "installers");
+        installerDir.mkdirs();
+
+
+
+
+        File installerZip;
+        if (target.equals("mac")) {
+            installerZip = new File(installerDir, appInfo.getTitle()+" Installer-mac-amd64.tar");
+            FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-mac-amd64.tar"), installerZip);
+        } else if (target.equals("win")) {
+            installerZip = new File(installerDir, appInfo.getTitle()+" Installer-win-amd64.zip");
+            FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-win-amd64.zip"), installerZip);
+
+        } else if (target.equals("linux")) {
+            installerZip = new File(installerDir, appInfo.getTitle()+" Installer-linux-amd64.tar");
+            FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-linux-amd64.tar"), installerZip);
+
+        } else {
+            throw new IllegalArgumentException("Unsupported installer type: "+target+".  Only mac, win, and linux supported");
+        }
+
+        byte[] appXmlBytes;
+        File bundledAppXmlFile;
+        {
+            ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream("<?xml version='1.0'?>\n<app/>".getBytes("UTF-8"));
+
+            Document document = XMLUtil.parse(byteArrayInputStream);
+            org.w3c.dom.Element appElement = document.getDocumentElement();
+            appElement.setAttribute("title", appInfo.getTitle());
+            appElement.setAttribute("package", appInfo.getNpmPackage());
+            appElement.setAttribute("version", appInfo.getNpmVersion());
+            appElement.setAttribute("macAppBundleId", appInfo.getMacAppBundleId());
+
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            XMLUtil.write(document, baos);
+            appXmlBytes = baos.toByteArray();
+            bundledAppXmlFile = new File(getBinDir(), "app.xml");
+            FileUtils.writeByteArrayToFile(bundledAppXmlFile, appXmlBytes);
+        }
+        byte[] iconBytes;
+        File bundledIconFile;
+        {
+            File jarFile = new File(getString("jar", null));
+            File iconFile = new File(jarFile.getParentFile(), "icon.png");
+            if (!iconFile.exists()) {
+                FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("icon.png"), iconFile);
+            }
+            File bin = new File(getBinDir());
+
+            bundledIconFile = new File(bin, "icon.png");
+            if (!bundledIconFile.exists()) {
+                FileUtils.copyFile(iconFile, bundledIconFile);
+            }
+            iconBytes = FileUtils.readFileToByteArray(bundledIconFile);
+
+        }
+        byte[] installSplashBytes;
+        File bundledSplashFile;
+        {
+            File jarFile = new File(getString("jar", null));
+            File splashFile = new File(jarFile.getParentFile(), "installsplash.png");
+            if (!splashFile.exists()) {
+                FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("installsplash.png"), splashFile);
+            }
+            File bin = new File(getBinDir());
+
+            bundledSplashFile = new File(bin, "installsplash.png");
+            if (!bundledSplashFile.exists()) {
+                FileUtils.copyFile(splashFile, bundledSplashFile);
+            }
+            installSplashBytes = FileUtils.readFileToByteArray(bundledSplashFile);
+        }
+        String newName = appInfo.getTitle() + " Installer";
+        ArchiveUtil.NameFilter filter = new ArchiveUtil.NameFilter() {
+
+
+            @Override
+            public String filterName(String name) {
+
+                if ("mac".equals(target)) {
+                    name = name
+
+                            .replaceFirst("^jdeploy-installer/jdeploy-installer\\.app/(.*)", newName + "/" + newName + ".app/$1")
+                            .replaceFirst("^jdeploy-installer/\\._jdeploy-installer\\.app$", newName + "/._" + newName + ".app")
+                            .replaceFirst("^jdeploy-installer/(.*)", newName + "/$1");
+                } else if ("win".equals(target)) {
+                    name = name
+
+
+                            .replaceFirst("^jdeploy-installer/jdeploy-installer\\.exe$", newName + "/"+newName+".exe")
+                            .replaceFirst("^jdeploy-installer/(.*)", newName + "/$1");
+                } else {
+                    name = name
+
+                            .replaceFirst("^jdeploy-installer/jdeploy-installer", newName + "/"+newName)
+                            .replaceFirst("^jdeploy-installer/(.*)", newName + "/$1");
+                }
+
+                return name;
+            }
+        };
+        ArrayList<ArchiveUtil.ArchiveFile> filesToAdd = new ArrayList<ArchiveUtil.ArchiveFile>();
+        filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledAppXmlFile, newName + "/.jdeploy-files/app.xml"));
+        filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledSplashFile, newName+"/.jdeploy-files/installsplash.png"));
+        filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledIconFile, newName+"/.jdeploy-files/icon.png"));
+        if (target.equals("mac") || target.equals("linux")) {
+            // Mac and linux use tar file
+            ArchiveUtil.filterNamesInTarFile(installerZip, filter, filesToAdd);
+        }  else {
+            // Windows uses zip file
+            ArchiveUtil.filterNamesInZipFile(installerZip, filter, filesToAdd);
+        }
+
+    }
+
+
 
 
     
@@ -1091,6 +1263,15 @@ public class JDeploy {
                 throw (IOException)ex;
             } else {
                 throw new IOException("Failed to create bundles", ex);
+            }
+        }
+        try {
+            allInstallers();
+        } catch (Exception ex) {
+            if (ex instanceof IOException) {
+                throw (IOException)ex;
+            } else {
+                throw new IOException("Failed to create installers", ex);
             }
         }
     }
@@ -1184,6 +1365,27 @@ public class JDeploy {
                 prog.help(opts);
                 System.exit(1);
             }
+            if ("clean".equals(args[0])) {
+
+                File jDeployDir = new File("jdeploy");
+                if (jDeployDir.exists()) {
+                    System.out.println("Deleting "+jDeployDir);
+                    FileUtils.deleteDirectory(jDeployDir);
+                }
+                jDeployDir = new File("jdeploy-bundle");
+                if (jDeployDir.exists()) {
+                    System.out.println("Deleting "+jDeployDir);
+                    FileUtils.deleteDirectory(jDeployDir);
+                }
+                if (args.length > 0) {
+                    String[] args2 = new String[args.length-1];
+                    System.arraycopy(args, 1, args2, 0, args2.length);
+                    args = args2;
+                } else {
+                    System.exit(0);
+                }
+            }
+
             if ("package".equals(args[0])) {
                 prog._package();
             } else if ("init".equals(args[0])) {

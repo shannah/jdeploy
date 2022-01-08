@@ -7,3 +7,6 @@ out
 package-lock.json
 target
 .DS_Store
+installer/jdeploy
+installer/jdeploy-bundle
+cli/bin
