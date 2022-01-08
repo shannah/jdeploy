@@ -36,4 +36,6 @@ jobs:
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         APPLE_2FA_PASSWORD: ${{ secrets.APPLE_2FA_PASSWORD }}
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+        MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
       run: bash release.sh
