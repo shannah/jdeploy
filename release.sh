@@ -22,6 +22,9 @@ cd ../installer
 mvn clean package
 java -jar "$JDEPLOY" clean package
 
+# Make sure the codesign was successful
+codesign -vvvv jdeploy/bundles/mac/jdeploy-installer.app
+
 APP_PATH="jdeploy/bundles/mac/jdeploy-installer.app"
 ZIP_PATH="${APP_PATH}.zip"
 
