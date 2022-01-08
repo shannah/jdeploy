@@ -6,14 +6,21 @@ if [ -f "$HOME/.jdeploy/release_profile" ]; then
   source "$HOME/.jdeploy/release_profile"
 fi
 
+JDEPLOY="$SCRIPTPATH/cli/target/jdeploy-cli-1.0-SNAPSHOT.jar"
+
 #First build the shared library which is used by both cli and installer
 cd shared
 mvn clean install
 
+# Build and link jDeploy to use for building installer.
+# After installer is built - we'll circle back and rebuild jDeploy with new installer
+cd ../cli
+mvn clean package
+
 #Next build the installer because we need to sign it and bundle it
 cd ../installer
 mvn clean package
-jdeploy clean package
+"$JDEPLOY" clean package
 
 APP_PATH="jdeploy/bundles/mac/jdeploy-installer.app"
 ZIP_PATH="${APP_PATH}.zip"
@@ -41,7 +48,7 @@ fi
 cd ../installer
 INSTALLER_VERSION=$(../json.php version)
 if [ "$GITHUB_REF_TYPE" == "tag" ] && [ "$GITHUB_REF_NAME" == "$INSTALLER_VERSION" ]; then
-  jdeploy publish
+  "$JDEPLOY" publish
 fi
 
 
