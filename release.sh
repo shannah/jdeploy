@@ -38,7 +38,9 @@ fi
 
 xcrun notarytool store-credentials "AC_PASSWORD" --apple-id "$APPLE_ID" $TEAM_ID_FLAG --password "$APPLE_2FA_PASSWORD"
 xcrun notarytool submit "$ZIP_PATH" --keychain-profile "AC_PASSWORD" --wait
-codesign --test-requirement="=notarized" --verify --verbose "$APP_PATH"
+xcrun stapler staple "$APP_PATH"
+xcrun stapler validate "$APP_PATH"
+#codesign --test-requirement="=notarized" --verify --verbose "$APP_PATH"
 
 bash make_installer_templates.sh
 cd ../cli
