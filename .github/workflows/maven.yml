@@ -29,7 +29,10 @@ jobs:
     - name: Set up Node
       uses: actions/setup-node@v2
       with:
-        node-version: '14'
+        node-version: '16.x'
+        registry-url: 'https://registry.npmjs.org'
+      env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     - name: Install MacOS Certificates
       uses: apple-actions/import-codesign-certs@v1
       with: 
