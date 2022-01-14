@@ -249,6 +249,17 @@ public class Main implements Runnable {
     }
 
     public static void main(String[] args) {
+        File logFile = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "log" + File.separator + "jdeploy-installer.log");
+        logFile.getParentFile().mkdirs();
+        try {
+            PrintStream originalOut = System.out;
+            System.setOut(new PrintStream(new FileOutputStream(logFile)));
+            originalOut.println("Redirecting output to "+logFile);
+            System.setErr(System.out);
+        } catch (IOException ex) {
+            System.err.println("Failed to redirect output to "+logFile);
+            ex.printStackTrace(System.err);
+        }
 
         EventQueue.invokeLater(new Main());
     }
