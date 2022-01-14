@@ -266,30 +266,41 @@ public class Main implements Runnable {
 
 
     private File findInstallFilesDir() {
+        System.out.println("findInstallFilesDir():");
         if (System.getProperty("client4j.launcher.path") != null) {
             System.out.println("Found client4.launcher.path property: "+System.getProperty("client4j.launcher.path"));
             return findInstallFilesDir(new File(System.getProperty("client4j.launcher.path")));
+        } else {
+            System.out.println("client4j.launcher.path is not set");
         }
         System.out.println("User dir: "+new File(System.getProperty("user.dir")).getAbsolutePath());
         return findInstallFilesDir(new File(System.getProperty("user.dir")));
     }
 
     private File findInstallFilesDir(File startDir) {
+        System.out.println("findInstallFilesDir("+startDir+"):");
         if (startDir == null) return null;
         File candidate = new File(startDir, ".jdeploy-files");
+        System.out.println("Candidate: "+candidate);
         if (candidate.exists() && candidate.isDirectory()) return candidate;
+        System.out.println("Doesn't exist: "+candidate);
         return findInstallFilesDir(startDir.getParentFile());
     }
 
     private File findAppXmlFile() {
+        System.out.println("findAppXmlFile():");
         File installFilesDir = findInstallFilesDir();
         if (installFilesDir == null) {
+            System.out.println("installFilesDir: "+installFilesDir);
             return null;
         }
         File appXml =  new File(installFilesDir, "app.xml");
+        System.out.println("Think we found appXml: "+appXml);
         if (!appXml.exists()) {
+            System.out.println("appXml doesn't exist: "+appXml);
             return null;
         }
+        System.out.println("app.xml: "+appXml);
         return appXml;
 
 
