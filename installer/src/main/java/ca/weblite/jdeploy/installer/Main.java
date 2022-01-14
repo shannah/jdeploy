@@ -80,7 +80,7 @@ public class Main implements Runnable {
             try (FileInputStream fis = new FileInputStream(appXml)) {
                 appXMLDocument = parseXml(fis);
             } catch (Exception ex) {
-                throw new IOException("Failed tyo parse app.xml: "+ex.getMessage(), ex);
+                throw new IOException("Failed to parse app.xml: "+ex.getMessage(), ex);
             }
         }
         return appXMLDocument;

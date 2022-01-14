@@ -31,6 +31,7 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 import net.coobird.thumbnailator.Thumbnails;
+import org.apache.commons.io.FileUtils;
 
 /**
  * Created by IntelliJ IDEA.
@@ -161,7 +162,23 @@ public class MacBundler {
             if (/*codesignClient == null &&*/ app.isMacCodeSigningEnabled()) {
                 //codesign --deep --verbose=4 -f -s "$CERT" "$1"
                 System.out.println("Signing "+appDir.getAbsolutePath());
-                ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign", "--deep", "--verbose=4", "-f", "--options", "runtime", "-s", app.getMacCertificateName(), appDir.getAbsolutePath());
+
+                File entitlementsFile = new File("jdeploy.mac.bundle.entitlements");
+                if (!entitlementsFile.exists()) {
+                    entitlementsFile = File.createTempFile("jdeploy.mac.bundle", ".entitlements");
+                    entitlementsFile.deleteOnExit();
+                    FileUtils.copyInputStreamToFile(MacBundler.class.getResourceAsStream("mac.bundle.entitlements"), entitlementsFile);
+                }
+                ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign",
+                            "--deep",
+                            "--verbose=4",
+                            "-f",
+                            "--options", "runtime",
+                            "-s", app.getMacCertificateName(),
+                            "--entitlements", entitlementsFile.getAbsolutePath(),
+                            appDir.getAbsolutePath());
+
+
                 pb.inheritIO();
                 Process p = pb.start();
                 int exitCode = p.waitFor();
