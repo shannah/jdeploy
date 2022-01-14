@@ -42,6 +42,7 @@ public class AppInfo  {
     private String changes;
     private String npmPackage;
     private String npmVersion;
+    private boolean npmAllowPrerelease;
     
    
     
@@ -205,6 +206,14 @@ public class AppInfo  {
 
     public void setNpmVersion(String npmVersion) {
         this.npmVersion = npmVersion;
+    }
+
+    public boolean isNpmAllowPrerelease() {
+        return npmAllowPrerelease;
+    }
+
+    public void setNpmAllowPrerelease(boolean npmAllowPrerelease) {
+        this.npmAllowPrerelease = npmAllowPrerelease;
     }
 
 
@@ -1258,7 +1267,10 @@ public class AppInfo  {
             githubRepositoryUrl, o.githubRepositoryUrl,
             tagLine, o.tagLine,
             codeSignSettings, o.codeSignSettings,
-            macAppBundleId, o.macAppBundleId
+            macAppBundleId, o.macAppBundleId,
+                npmPackage, o.npmPackage,
+                npmVersion, o.npmVersion,
+                npmAllowPrerelease, o.npmAllowPrerelease
             
         });
     }

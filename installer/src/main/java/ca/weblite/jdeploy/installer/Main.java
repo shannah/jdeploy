@@ -3,6 +3,9 @@ package ca.weblite.jdeploy.installer;
 
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.appbundler.Bundler;
+import ca.weblite.jdeploy.installer.npm.NPMPackage;
+import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
+import ca.weblite.jdeploy.installer.npm.NPMRegistry;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.IOUtil;
 import ca.weblite.tools.platform.Platform;
@@ -18,10 +21,14 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.awt.*;
+import java.awt.event.ItemEvent;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.ResourceBundle;
+import java.util.TimerTask;
+
 import net.sf.image4j.codec.ico.ICOEncoder;
 
 import static ca.weblite.tools.io.IOUtil.copyResourceToFile;
@@ -32,8 +39,36 @@ public class Main implements Runnable {
     private Document appXMLDocument;
     private AppInfo appInfo;
     private JFrame frame;
-    private boolean addToDesktop=true, addToPrograms=true, addToStartMenu=true, addToDock=true;
+    private boolean addToDesktop=true, addToPrograms=true, addToStartMenu=true, addToDock=true, prerelease=false;
     private boolean overwriteApp=true;
+    private NPMPackageVersion npmPackageVersion;
+
+    private static ResourceBundle strings =  ResourceBundle.getBundle("ca.weblite.jdeploy.installer.Strings");
+
+
+    private static enum AutoUpdateSettings {
+        Stable,
+        MinorOnly,
+        PatchesOnly,
+        Off;
+
+        private String label;
+
+        public void setLabel(String label) {
+            this.label = label;
+        }
+
+
+        @Override
+        public String toString() {
+            if (label != null) return label;
+            return strings.getString(this.name());
+        }
+    };
+
+
+
+    private AutoUpdateSettings autoUpdate = AutoUpdateSettings.Stable;
 
     private Document getAppXMLDocument() throws IOException {
         if (appXMLDocument == null) {
@@ -49,6 +84,37 @@ public class Main implements Runnable {
             }
         }
         return appXMLDocument;
+    }
+
+    private void loadNPMPackageInfo() throws IOException {
+        if (npmPackageVersion == null) {
+            if (appInfo == null) {
+                throw new IllegalStateException("App Info must be loaded before loading the package info");
+            }
+            NPMPackage pkg = new NPMRegistry().loadPackage(appInfo.getNpmPackage());
+            if (pkg == null) {
+                throw new IOException("Cannot find NPMPackage named "+appInfo.getNpmPackage());
+            }
+            npmPackageVersion = pkg.getLatestVersion(prerelease, appInfo.getNpmVersion());
+            if (npmPackageVersion == null) {
+                throw new IOException("Cannot find version "+appInfo.getNpmVersion()+" for package "+appInfo.getNpmPackage());
+            }
+
+            // Update labels for the combobox with nice examples to show exactly which versions will be auto-updated
+            // to with the given setting.
+            AutoUpdateSettings.MinorOnly.setLabel(
+                    AutoUpdateSettings.MinorOnly.toString() +
+                            " [" +
+                            createUserReadableSemVerForVersion(npmPackageVersion.getVersion(), AutoUpdateSettings.MinorOnly) +
+                            "]");
+            AutoUpdateSettings.PatchesOnly.setLabel(
+                    AutoUpdateSettings.PatchesOnly.toString() +
+                            " [" +
+                            createUserReadableSemVerForVersion(npmPackageVersion.getVersion(), AutoUpdateSettings.PatchesOnly) +
+                            "]"
+                    );
+
+        }
     }
 
     private class InvalidAppXMLFormatException extends IOException {
@@ -71,12 +137,107 @@ public class Main implements Runnable {
         appInfo.setAppURL(appXml.toURI().toURL());
         appInfo.setTitle(ifEmpty(root.getAttribute("title"), root.getAttribute("package"), null));
         appInfo.setNpmPackage(ifEmpty(root.getAttribute("package"), null));
+
+        String installerVersion = ifEmpty(root.getAttribute("version"), "latest");
+
+        // First we set the version in appInfo according to the app.xml file
         appInfo.setNpmVersion(ifEmpty(root.getAttribute("version"), "latest"));
+        // Next we use that version to load the package info from the NPM registry.
+        loadNPMPackageInfo();
+
+
         appInfo.setMacAppBundleId(ifEmpty(root.getAttribute("macAppBundleId"), "ca.weblite.jdeploy.apps."+appInfo.getNpmPackage()));
 
         if (appInfo.getNpmPackage() == null) {
             throw new InvalidAppXMLFormatException("Missing package attribute");
         }
+    }
+
+    private static String createUserReadableSemVerForVersion(String version, AutoUpdateSettings updateSettings) {
+        switch (updateSettings) {
+            case Stable:
+                return "*";
+            case MinorOnly: {
+                StringBuilder sb = new StringBuilder();
+
+                int pos = version.indexOf("-");
+                if (pos > 0) version = version.substring(0, pos);
+                pos = version.indexOf(".");
+                if (pos < 0) {
+                    pos = version.length();
+                }
+
+                sb.append(version.substring(0, pos)).append(".*");
+                return sb.toString();
+            }
+            case PatchesOnly: {
+                StringBuilder sb = new StringBuilder();
+
+                int pos = version.indexOf("-");
+                if (pos > 0) version = version.substring(0, pos);
+                pos = version.indexOf(".");
+
+                if (pos < 0) {
+                    version += ".0.0";
+                    pos = version.indexOf(".");
+                }
+                int p1 = pos;
+                pos = version.indexOf(".", p1 + 1);
+                if (pos < 0) {
+                    version += ".0";
+                    pos = version.indexOf(".", p1 + 1);
+                }
+                sb.append(version.substring(0, pos)).append(".*");
+                return sb.toString();
+            }
+            case Off:
+            default:
+                return version;
+        }
+    }
+
+    private static String createSemVerForVersion(String version, AutoUpdateSettings updateSettings) {
+        switch (updateSettings) {
+            case Stable:
+                return "latest";
+            case MinorOnly: {
+                StringBuilder sb = new StringBuilder();
+                sb.append("^");
+                int pos = version.indexOf("-");
+                if (pos > 0) version = version.substring(0, pos);
+                pos = version.indexOf(".");
+                if (pos < 0) {
+                    pos = version.length();
+                }
+
+                sb.append(version.substring(0, pos));
+                return sb.toString();
+            }
+            case PatchesOnly: {
+                StringBuilder sb = new StringBuilder();
+                sb.append("~");
+                int pos = version.indexOf("-");
+                if (pos > 0) version = version.substring(0, pos);
+                pos = version.indexOf(".");
+
+                if (pos < 0) {
+                    version += ".0.0";
+                    pos = version.indexOf(".");
+                }
+                int p1 = pos;
+                pos = version.indexOf(".", p1 + 1);
+                if (pos < 0) {
+                    version += ".0";
+                    pos = version.indexOf(".", p1 + 1);
+                }
+                sb.append(version.substring(0, pos));
+                return sb.toString();
+            }
+            case Off:
+            default:
+                return version;
+        }
+
     }
 
     private static String ifEmpty(String... value) {
@@ -139,7 +300,7 @@ public class Main implements Runnable {
     }
 
     private void buildUI() {
-        frame = new JFrame("Install "+appInfo.getTitle());
+        frame = new JFrame("Install "+appInfo.getTitle()+" "+npmPackageVersion.getVersion());
 
         JButton installButton = new JButton("Install");
         installButton.addActionListener(evt->{
@@ -147,7 +308,96 @@ public class Main implements Runnable {
                try {
                    install();
                    EventQueue.invokeLater(()->{
-                       JOptionPane.showMessageDialog(frame, "Installation was completed successfully", "Insallation Complete", JOptionPane.INFORMATION_MESSAGE);
+                       String[] options = new String[]{
+                            "Open "+appInfo.getTitle(),
+                            "Reveal app in "+(Platform.getSystemPlatform().isMac()?"Finder":"Explorer"),
+                            "Close"
+                       };
+
+                       int choice = JOptionPane.showOptionDialog(frame,
+                               "Installation was completed successfully",
+                               "Insallation Complete",
+                               JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE,
+                               null, options, options[0]);
+                       switch (choice) {
+                           case 0: {
+                               if (Platform.getSystemPlatform().isMac()) {
+                                   try {
+                                       Runtime.getRuntime().exec(new String[]{"open", installedApp.getAbsolutePath()});
+                                       java.util.Timer timer = new java.util.Timer();
+                                       TimerTask tt = new TimerTask() {
+
+                                           @Override
+                                           public void run() {
+                                               System.exit(0);
+                                           }
+                                       };
+                                       timer.schedule(tt, 2000);
+
+
+                                   } catch (Exception ex) {
+                                       ex.printStackTrace(System.err);
+                                       JOptionPane.showMessageDialog(frame, "Failed to open app: "+ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                                   }
+
+                               } else {
+                                   try {
+                                       Runtime.getRuntime().exec(new String[]{installedApp.getAbsolutePath()});
+                                       java.util.Timer timer = new java.util.Timer();
+                                       TimerTask tt = new TimerTask() {
+
+                                           @Override
+                                           public void run() {
+                                               System.exit(0);
+                                           }
+                                       };
+                                       timer.schedule(tt, 2000);
+                                   } catch (Exception ex) {
+                                       ex.printStackTrace(System.err);
+                                       JOptionPane.showMessageDialog(frame, "Failed to open app: "+ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                                   }
+                               }
+                               break;
+                           }
+                           case 1: {
+
+                               if (Desktop.isDesktopSupported()) {
+                                   try {
+                                       Desktop.getDesktop().open(installedApp.getParentFile());
+                                       java.util.Timer timer = new java.util.Timer();
+                                       TimerTask tt = new TimerTask() {
+
+                                           @Override
+                                           public void run() {
+                                               System.exit(0);
+                                           }
+                                       };
+                                       timer.schedule(tt, 2000);
+                                   } catch (Exception ex) {
+                                       ex.printStackTrace(System.err);
+                                       JOptionPane.showMessageDialog(frame, "Failed to open directory: "+ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+
+                                   }
+                               } else {
+                                   JOptionPane.showMessageDialog(frame, "Reveal in explorer is not supported on this platform.", "Not supported", JOptionPane.ERROR_MESSAGE);
+                               }
+                               break;
+
+                           }
+                           default: {
+                               java.util.Timer timer = new java.util.Timer();
+                               TimerTask tt = new TimerTask() {
+
+                                   @Override
+                                   public void run() {
+                                       System.exit(0);
+                                   }
+                               };
+                               timer.schedule(tt, 2000);
+                           }
+
+
+                       }
                    });
                } catch (Exception ex) {
                    ex.printStackTrace(System.err);
@@ -207,7 +457,32 @@ public class Main implements Runnable {
         checkboxesPanel.add(desktopCheckbox);
         JPanel southPanel = new JPanel();
         southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
+
+
+        JComboBox<AutoUpdateSettings> autoUpdateSettingsJComboBox = new JComboBox<>(AutoUpdateSettings.values());
+        autoUpdateSettingsJComboBox.setSelectedIndex(0);
+        autoUpdateSettingsJComboBox.addItemListener(evt->{
+            if (evt.getStateChange() == ItemEvent.SELECTED) {
+                autoUpdate = (AutoUpdateSettings) evt.getItem();
+            }
+        });
+
+        JCheckBox prereleaseCheckBox = new JCheckBox("Prereleases");
+        prereleaseCheckBox.setToolTipText("Check this box to automatically update to pre-releases.  Warning: This not recommended unless you are a developer or beta tester of the application as prereleases may be unstable.");
+        prereleaseCheckBox.setSelected(prerelease);
+        prereleaseCheckBox.addActionListener(evt->{
+            prerelease = prereleaseCheckBox.isSelected();
+        });
+
+
         southPanel.add(checkboxesPanel);
+
+        JPanel updatesPanel = new JPanel();
+        updatesPanel.add(new JLabel("Auto Update Settings:"));
+        updatesPanel.add(autoUpdateSettingsJComboBox);
+        updatesPanel.add(prereleaseCheckBox);
+        southPanel.add(updatesPanel);
+
         southPanel.add(buttonsPanel);
 
         frame.getContentPane().add(southPanel, BorderLayout.SOUTH);
@@ -217,13 +492,22 @@ public class Main implements Runnable {
     private void run0() throws Exception {
         loadAppInfo();
         buildUI();
-        frame.setLocationRelativeTo(null);
+
         frame.setMinimumSize(new Dimension(640, 480));
         frame.pack();
+        frame.setLocationRelativeTo(null);
         frame.setVisible(true);
     }
 
+    private File installedApp;
+
     private void install() throws Exception {
+
+        // Based on the user's settings, let's update the version in the appInfo
+        // to correspond with the auto-update settings.
+        appInfo.setNpmVersion(createSemVerForVersion(npmPackageVersion.getVersion(), autoUpdate));
+        appInfo.setNpmAllowPrerelease(prerelease);
+
         File tmpDest = File.createTempFile("jdeploy-installer-"+appInfo.getNpmPackage(), "");
         tmpDest.delete();
         tmpDest.mkdir();
@@ -275,6 +559,7 @@ public class Main implements Runnable {
                 FileUtil.copy(bundleIcon, iconPath);
             }
             installWindowsLinks(exePath);
+            installedApp = exePath;
 
         } else if (Platform.getSystemPlatform().isMac()) {
             File jdeployAppsDir = new File(System.getProperty("user.home") + File.separator + "Applications" + File.separator + "jDeploy Apps");
@@ -300,6 +585,7 @@ public class Main implements Runnable {
             if (!installAppPath.exists()) {
                 throw new RuntimeException("Failed to copy app to "+jdeployAppsDir);
             }
+            installedApp = installAppPath;
 
             if (addToDesktop) {
                 File desktopAlias = new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + appInfo.getTitle() + ".app");
@@ -363,6 +649,7 @@ public class Main implements Runnable {
                 FileUtil.copy(bundleIcon, iconPath);
             }
             installLinuxLinks(exePath);
+            installedApp = exePath;
 
         }
 
