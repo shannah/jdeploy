@@ -20,7 +20,15 @@ mvn clean package
 #Next build the installer because we need to sign it and bundle it
 cd ../installer
 mvn clean package
-java -jar "$JDEPLOY" clean package
+if [ "$GITHUB_REF_TYPE" != "tag" ] || ! [[ "$GITHUB_REF_NAME" =~ "-alpha" ]]; then
+  # IF this is not a tag, or it is a tagged prerelease, then we'll mark the installer as
+  # a prerelease installer so that it gets the latest installer - even prerelease.
+  JDEPLOY_BUNDLE_PRERELEASE=true java -jar "$JDEPLOY" clean package
+else
+  # Otherwise, we just build normally - in which case the installer will only use the latest
+  # stable version.
+  java -jar "$JDEPLOY" clean package
+fi
 
 # Make sure the codesign was successful
 codesign -vvvv jdeploy/bundles/mac/jdeploy-installer.app

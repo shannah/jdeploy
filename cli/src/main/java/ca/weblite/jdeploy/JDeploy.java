@@ -1024,7 +1024,11 @@ public class JDeploy {
 
     static String npm = isWindows() ? "npm.cmd" : "npm";
 
-
+    private static String getenv(String key, String defaultValue) {
+        String value = System.getenv(key);
+        if (value == null) return defaultValue;
+        return value;
+    }
 
     private void loadAppInfo(AppInfo appInfo) throws IOException {
 
@@ -1032,6 +1036,7 @@ public class JDeploy {
         appInfo.setNpmVersion(getString("version", "latest"));
         appInfo.setMacAppBundleId(getString("macAppBundleId", null));
         appInfo.setTitle(getString("displayName", appInfo.getNpmPackage()));
+        appInfo.setNpmAllowPrerelease("true".equals(getenv("JDEPLOY_BUNDLE_PRERELEASE", getString("prerelease", "false"))));
         if (rj().getAsBoolean("codesign") && rj().getAsBoolean("notarize")) {
             appInfo.setCodeSignSettings(AppInfo.CodeSignSettings.CodeSignAndNotarize);
         } else if (rj().getAsBoolean("codesign")) {

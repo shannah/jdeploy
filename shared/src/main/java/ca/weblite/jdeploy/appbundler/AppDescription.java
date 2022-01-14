@@ -15,6 +15,7 @@ public class AppDescription {
     private String iconDataURI;
     private String npmPackage;
     private String npmVersion;
+    private boolean npmPrerelease;
     private String url;
     private List<Jar> jars;
     private String name;
@@ -217,5 +218,13 @@ public class AppDescription {
 
     public void setIconDataURI(String iconDataURI) {
         this.iconDataURI = iconDataURI;
+    }
+
+    public boolean isNpmPrerelease() {
+        return npmPrerelease;
+    }
+
+    public void setNpmPrerelease(boolean npmPrerelease) {
+        this.npmPrerelease = npmPrerelease;
     }
 }

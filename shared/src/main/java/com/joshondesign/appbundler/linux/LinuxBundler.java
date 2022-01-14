@@ -92,7 +92,13 @@ public class LinuxBundler {
 
         if (app.getNpmPackage() != null && app.getNpmVersion() != null) {
 
-            out.start("app", "name", app.getName(), "package", app.getNpmPackage(), "version", app.getNpmVersion(), "icon", app.getIconDataURI()).end();
+            out.start("app",
+                    "name", app.getName(),
+                    "package", app.getNpmPackage(),
+                    "version", app.getNpmVersion(),
+                    "icon", app.getIconDataURI(),
+                    "prerelease", app.isNpmPrerelease()+""
+            ).end();
         } else {
             out.start("app", "name", app.getName(), "url", app.getUrl(), "icon", app.getIconDataURI()).end();
         }
