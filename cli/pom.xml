@@ -66,8 +66,10 @@
                                 <mkdir dir="bin"/>
                                 <copy todir="bin">
                                     <fileset dir="target" includes="jdeploy-cli-${project.version}.jar,libs/*.jar"/>
+                                    <fileset dir="src/main/javascript"/>
                                 </copy>
                                 <move file="bin/jdeploy-cli-${project.version}.jar" tofile="bin/JDeploy.jar"/>
+
                             </target>
                         </configuration>
                         <goals>
@@ -128,7 +130,12 @@
             <artifactId>zip4j</artifactId>
             <version>2.9.1</version>
         </dependency>
-
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20211205</version>
+            <scope>compile</scope>
+        </dependency>
 
 
     </dependencies>

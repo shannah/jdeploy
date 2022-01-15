@@ -43,6 +43,7 @@ public class URLUtil {
             return url.openStream();
         }
         HttpURLConnection conn = (HttpURLConnection)url.openConnection();
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0");
         conn.setInstanceFollowRedirects(true);
         return conn.getInputStream();
     }

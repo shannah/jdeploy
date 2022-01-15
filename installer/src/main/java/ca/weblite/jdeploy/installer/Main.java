@@ -6,8 +6,10 @@ import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.installer.npm.NPMPackage;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.installer.npm.NPMRegistry;
+import ca.weblite.tools.io.ArchiveUtil;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.IOUtil;
+import ca.weblite.tools.io.URLUtil;
 import ca.weblite.tools.platform.Platform;
 import com.izforge.izpack.util.os.ShellLink;
 import net.coobird.thumbnailator.Thumbnails;
@@ -24,10 +26,15 @@ import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ResourceBundle;
 import java.util.TimerTask;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import net.sf.image4j.codec.ico.ICOEncoder;
 
@@ -36,6 +43,18 @@ import static ca.weblite.tools.io.IOUtil.copyResourceToFile;
 
 public class Main implements Runnable {
 
+    public static String JDEPLOY_REGISTRY = "https://www.jdeploy.com/";
+    static {
+        if (System.getenv("JDEPLOY_REGISTRY_URL") != null) {
+            JDEPLOY_REGISTRY = System.getenv("JDEPLOY_REGISTRY_URL");
+            if (!JDEPLOY_REGISTRY.startsWith("http://") && !JDEPLOY_REGISTRY.startsWith("https://")) {
+                throw new RuntimeException("INVALID_JDEPLOY_REGISTRY_URL environment variable.  Expecting URL but found "+JDEPLOY_REGISTRY);
+            }
+            if (!JDEPLOY_REGISTRY.endsWith("/")) {
+                JDEPLOY_REGISTRY += "/";
+            }
+        }
+    }
     private Document appXMLDocument;
     private AppInfo appInfo;
     private JFrame frame;
@@ -277,9 +296,127 @@ public class Main implements Runnable {
         return findInstallFilesDir(new File(System.getProperty("user.dir")));
     }
 
+    private File findAppBundle() {
+        File start = new File(System.getProperty("client4j.launcher.path"));
+        while (start != null && !start.getName().endsWith(".app")) {
+            start = start.getParentFile();
+        }
+        return start;
+    }
+
+    private static String extractVersionFromFileName(String fileName) {
+        int pos = fileName.lastIndexOf("_");
+        if (pos < 0) return null;
+
+        fileName = fileName.substring(0, pos);
+        Pattern p = Pattern.compile("\\-(\\d.*)$");
+        Matcher m = p.matcher(fileName);
+        if (m.matches()) {
+            return m.group(1);
+        }
+        return null;
+
+    }
+
+
+    private static String extractJDeployBundleCodeFromFileName(String fileName) {
+        int pos = fileName.lastIndexOf("_");
+        if (pos < 0) return null;
+        StringBuilder out = new StringBuilder();
+        char[] chars = fileName.substring(pos+1).toCharArray();
+        for (int i=0; i<chars.length; i++) {
+            char c = chars[i];
+            if (('0' <= c && '9' <= c) || ('A' <= c && 'Z' >= c)) {
+                out.append(c);
+            } else {
+                break;
+            }
+        }
+        if (out.length() == 0) return null;
+        return out.toString();
+
+    }
+
+    private static URL getJDeployBundleURLForCode(String code, String version) {
+        try {
+            return new URL(JDEPLOY_REGISTRY + "download.php?code=" + URLEncoder.encode(code, "UTF-8")+"&version="+URLEncoder.encode(version, "UTF-8"));
+        } catch (UnsupportedEncodingException ex) {
+            throw new RuntimeException("UTF-8 Encoding doesn't seem to be supported on this platform.", ex);
+        } catch (MalformedURLException e) {
+            throw new RuntimeException("Programming error.  Malformed URL for bundle. ", e);
+        }
+    }
+
+    private static File findDirectoryByNameRecursive(File startDirectory, String name) {
+        if (startDirectory.isDirectory()) {
+            if (startDirectory.getName().equals(name)) return startDirectory;
+            for (File child : startDirectory.listFiles()) {
+                File result = findDirectoryByNameRecursive(child, name);
+                if (result != null) return result;
+            }
+        }
+        return null;
+    }
+
+    private static File downloadJDeployBundleForCode(String code, String version) throws IOException {
+        File destDirectory = File.createTempFile("jdeploy-files-download", ".tmp");
+        destDirectory.delete();
+        Runtime.getRuntime().addShutdownHook(new Thread(()->{
+            try {
+                FileUtils.deleteDirectory(destDirectory);
+            } catch (Exception ex){}
+        }));
+        File destFile = new File(destDirectory, "jdeploy-files.zip");
+        try (InputStream inputStream = URLUtil.openStream(getJDeployBundleURLForCode(code, version))) {
+            FileUtils.copyInputStreamToFile(inputStream, destFile);
+        }
+
+        ArchiveUtil.extract(destFile, destDirectory, "");
+        return findDirectoryByNameRecursive(destDirectory, ".jdeploy-files");
+    }
+
+
+
     private File findInstallFilesDir(File startDir) {
+
+
+
         System.out.println("findInstallFilesDir("+startDir+"):");
         if (startDir == null) return null;
+
+        if (Platform.getSystemPlatform().isMac() && "AppTranslocation".equals(startDir.getName())) {
+            System.out.println("Detected that we are running inside Gatekeeper so we can't retrieve bundle info");
+            System.out.println("Attempting to download bundle info from network");
+            // Gatekeeper is running the app from a random location, so we won't be able to find the
+            // app.xml file the normal way.
+            // We need to be creative.
+            // Using the name of the installer,
+            // we can extract the package name and version
+            File appBundle = findAppBundle();
+            if (appBundle == null) {
+                System.err.println("Failed to find app bundle");
+                return null;
+            }
+            String code = extractJDeployBundleCodeFromFileName(appBundle.getName());
+            if (code == null) {
+                System.err.println("Cannot download bundle info from the network because no code was found in the app name: "+appBundle.getName());
+                return null;
+            }
+            String version = extractVersionFromFileName(appBundle.getName());
+            if (version == null) {
+                System.err.println("Cannot download bundle info from network because the version string was not found in the app name: "+appBundle.getName());
+            }
+            try {
+                return downloadJDeployBundleForCode(code, version);
+            } catch (IOException ex) {
+                System.err.println("Failed to download bundle from the network for code "+code+".");
+                ex.printStackTrace(System.err);
+                return null;
+            }
+
+
+        }
+
         File candidate = new File(startDir, ".jdeploy-files");
         System.out.println("Candidate: "+candidate);
         if (candidate.exists() && candidate.isDirectory()) return candidate;
@@ -303,8 +440,9 @@ public class Main implements Runnable {
         System.out.println("app.xml: "+appXml);
         return appXml;
 
-
     }
+
+
 
     @Override
     public void run() {

@@ -299,6 +299,7 @@ public class ArchiveUtil {
             namesToAdd.add(archiveFile.entryName);
         }
         try (TarArchiveOutputStream out = new TarArchiveOutputStream(new FileOutputStream(tmpOut))) {
+            out.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
             try (TarArchiveInputStream tf = new TarArchiveInputStream(new FileInputStream(tarFile))) {
                 TarArchiveEntry entry;
                 while ((entry = tf.getNextTarEntry()) != null) {

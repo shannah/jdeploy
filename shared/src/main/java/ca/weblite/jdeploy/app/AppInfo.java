@@ -43,6 +43,7 @@ public class AppInfo  {
     private String npmPackage;
     private String npmVersion;
     private boolean npmAllowPrerelease;
+    private String jdeployBundleCode;
     
    
     
@@ -214,6 +215,14 @@ public class AppInfo  {
 
     public void setNpmAllowPrerelease(boolean npmAllowPrerelease) {
         this.npmAllowPrerelease = npmAllowPrerelease;
+    }
+
+    public String getJdeployBundleCode() {
+        return jdeployBundleCode;
+    }
+
+    public void setJdeployBundleCode(String jdeployBundleCode) {
+        this.jdeployBundleCode = jdeployBundleCode;
     }
 
 

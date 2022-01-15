@@ -8,6 +8,8 @@ package ca.weblite.jdeploy;
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.tools.io.ArchiveUtil;
+import ca.weblite.tools.io.IOUtil;
+import ca.weblite.tools.io.URLUtil;
 import ca.weblite.tools.io.XMLUtil;
 import com.client4j.JCAXMLFile;
 import com.codename1.io.JSONParser;
@@ -19,6 +21,7 @@ import java.io.*;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.net.URLEncoder;
 import java.nio.file.*;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
@@ -53,6 +56,7 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.compress.archivers.zip.ZipExtraField;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+import org.json.JSONObject;
 import org.w3c.dom.Document;
 
 /**
@@ -65,6 +69,19 @@ public class JDeploy {
     private File packageJsonFile;
     private Map packageJsonMap;
     private Result packageJsonResult;
+
+    public static String JDEPLOY_REGISTRY = "https://www.jdeploy.com/";
+    static {
+        if (System.getenv("JDEPLOY_REGISTRY_URL") != null) {
+            JDEPLOY_REGISTRY = System.getenv("JDEPLOY_REGISTRY_URL");
+            if (!JDEPLOY_REGISTRY.startsWith("http://") && !JDEPLOY_REGISTRY.startsWith("https://")) {
+                throw new RuntimeException("INVALID_JDEPLOY_REGISTRY_URL environment variable.  Expecting URL but found "+JDEPLOY_REGISTRY);
+            }
+            if (!JDEPLOY_REGISTRY.endsWith("/")) {
+                JDEPLOY_REGISTRY += "/";
+            }
+        }
+    }
     
     public class CopyRule {
         String dir;
@@ -1030,10 +1047,31 @@ public class JDeploy {
         return value;
     }
 
-    private void loadAppInfo(AppInfo appInfo) throws IOException {
 
+
+    private String fetchJdeployBundleCode(AppInfo appInfo) throws IOException {
+        if (appInfo.getNpmPackage() == null) {
+            throw new IllegalArgumentException("Cannot fetch jdeploy bundle code without package and version");
+        }
+        String url = JDEPLOY_REGISTRY+"register.php?package=" +
+                URLEncoder.encode(appInfo.getNpmPackage(), "UTF-8");
+
+        System.out.println("Connecting to "+url);
+        try (InputStream inputStream = URLUtil.openStream(new URL(url))) {
+            JSONObject jsonResponse = new JSONObject(IOUtil.readToString(inputStream));
+            return jsonResponse.getString("code");
+        } catch (Exception ex) {
+            System.err.println("Failed to connect to "+url);
+            throw ex;
+        }
+    }
+
+    private void loadAppInfo(AppInfo appInfo) throws IOException {
         appInfo.setNpmPackage((String)m().get("name"));
         appInfo.setNpmVersion(getString("version", "latest"));
+        if (appInfo.getNpmVersion() != null && appInfo.getNpmPackage() != null) {
+            appInfo.setJdeployBundleCode(fetchJdeployBundleCode(appInfo));
+        }
         appInfo.setMacAppBundleId(getString("macAppBundleId", null));
         appInfo.setTitle(getString("displayName", appInfo.getNpmPackage()));
         appInfo.setNpmAllowPrerelease("true".equals(getenv("JDEPLOY_BUNDLE_PRERELEASE", getString("prerelease", "false"))));
@@ -1136,7 +1174,11 @@ public class JDeploy {
     public void installer(String target, String version) throws Exception {
         AppInfo appInfo = new AppInfo();
         loadAppInfo(appInfo);
+        String packageJSONVersion = (String)m().get("version");
         appInfo.setNpmVersion(version);
+        if (packageJSONVersion != null) {
+            appInfo.setNpmVersion(packageJSONVersion);
+        }
 
         File installerDir = new File("jdeploy" + File.separator + "installers");
         installerDir.mkdirs();
@@ -1212,7 +1254,11 @@ public class JDeploy {
             }
             installSplashBytes = FileUtils.readFileToByteArray(bundledSplashFile);
         }
-        String newName = appInfo.getTitle() + " Installer";
+        String _newName = appInfo.getTitle() + " Installer";
+        if (appInfo.getJdeployBundleCode() != null) {
+            _newName += "-"+appInfo.getNpmVersion()+"_"+appInfo.getJdeployBundleCode();
+        }
+        final String newName = _newName;
         ArchiveUtil.NameFilter filter = new ArchiveUtil.NameFilter() {
 
 
