@@ -309,7 +309,7 @@ public class Main implements Runnable {
         if (pos < 0) return null;
 
         fileName = fileName.substring(0, pos);
-        Pattern p = Pattern.compile("\\-(\\d.*)$");
+        Pattern p = Pattern.compile("^.*?-(\\d.*)$");
         Matcher m = p.matcher(fileName);
         if (m.matches()) {
             return m.group(1);
@@ -405,6 +405,7 @@ public class Main implements Runnable {
             String version = extractVersionFromFileName(appBundle.getName());
             if (version == null) {
                 System.err.println("Cannot download bundle info from network because the version string was not found in the app name: "+appBundle.getName());
+                return null;
             }
             try {
                 return downloadJDeployBundleForCode(code, version);
