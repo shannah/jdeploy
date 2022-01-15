@@ -280,8 +280,9 @@ public class Main implements Runnable {
         EventQueue.invokeLater(new Main());
     }
 
-
+    private File cachedInstallFilesDir;
     private File findInstallFilesDir() {
+        if (cachedInstallFilesDir != null && cachedInstallFilesDir.exists()) return cachedInstallFilesDir;
         System.out.println("findInstallFilesDir():");
         if (System.getProperty("client4j.launcher.path") != null) {
             System.out.println("Found client4.launcher.path property: "+System.getProperty("client4j.launcher.path"));
@@ -290,7 +291,8 @@ public class Main implements Runnable {
             System.out.println("client4j.launcher.path is not set");
         }
         System.out.println("User dir: "+new File(System.getProperty("user.dir")).getAbsolutePath());
-        return findInstallFilesDir(new File(System.getProperty("user.dir")));
+        cachedInstallFilesDir = findInstallFilesDir(new File(System.getProperty("user.dir")));
+        return cachedInstallFilesDir;
     }
 
     private File findAppBundle() {
