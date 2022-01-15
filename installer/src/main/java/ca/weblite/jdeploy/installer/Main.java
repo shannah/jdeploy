@@ -6,10 +6,7 @@ import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.installer.npm.NPMPackage;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.installer.npm.NPMRegistry;
-import ca.weblite.tools.io.ArchiveUtil;
-import ca.weblite.tools.io.FileUtil;
-import ca.weblite.tools.io.IOUtil;
-import ca.weblite.tools.io.URLUtil;
+import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
 import com.izforge.izpack.util.os.ShellLink;
 import net.coobird.thumbnailator.Thumbnails;
@@ -304,6 +301,23 @@ public class Main implements Runnable {
         return start;
     }
 
+    private static File findBundleAppXml(File appBundle) {
+        return new File(appBundle, "Contents" + File.separator + "app.xml");
+    }
+
+    private static boolean isPrerelease(File appBundle)  {
+        if (!findBundleAppXml(appBundle).exists()) {
+            return false;
+        }
+        try (InputStream inputStream = new FileInputStream(findBundleAppXml(appBundle))) {
+            Document doc = XMLUtil.parse(inputStream);
+            return "true".equals(doc.getDocumentElement().getAttribute("prerelease"));
+        } catch (Exception ex) {
+            return false;
+        }
+
+    }
+
     private static String extractVersionFromFileName(String fileName) {
         int pos = fileName.lastIndexOf("_");
         if (pos < 0) return null;
@@ -337,9 +351,15 @@ public class Main implements Runnable {
 
     }
 
-    private static URL getJDeployBundleURLForCode(String code, String version) {
+    private static URL getJDeployBundleURLForCode(String code, String version, File appBundle) {
         try {
-            return new URL(JDEPLOY_REGISTRY + "download.php?code=" + URLEncoder.encode(code, "UTF-8")+"&version="+URLEncoder.encode(version, "UTF-8"));
+            String prerelease = isPrerelease(appBundle) ? "&prerelease=true" : "";
+            return new URL(JDEPLOY_REGISTRY + "download.php?code=" +
+                    URLEncoder.encode(code, "UTF-8") +
+                    "&version="+URLEncoder.encode(version, "UTF-8") +
+                    "&jdeploy_files=true&platform=*" +
+                    prerelease
+            );
         } catch (UnsupportedEncodingException ex) {
             throw new RuntimeException("UTF-8 Encoding doesn't seem to be supported on this platform.", ex);
         } catch (MalformedURLException e) {
@@ -358,7 +378,7 @@ public class Main implements Runnable {
         return null;
     }
 
-    private static File downloadJDeployBundleForCode(String code, String version) throws IOException {
+    private static File downloadJDeployBundleForCode(String code, String version, File appBundle) throws IOException {
         File destDirectory = File.createTempFile("jdeploy-files-download", ".tmp");
         destDirectory.delete();
         Runtime.getRuntime().addShutdownHook(new Thread(()->{
@@ -367,7 +387,7 @@ public class Main implements Runnable {
             } catch (Exception ex){}
         }));
         File destFile = new File(destDirectory, "jdeploy-files.zip");
-        try (InputStream inputStream = URLUtil.openStream(getJDeployBundleURLForCode(code, version))) {
+        try (InputStream inputStream = URLUtil.openStream(getJDeployBundleURLForCode(code, version, appBundle))) {
             FileUtils.copyInputStreamToFile(inputStream, destFile);
         }
 
@@ -408,7 +428,7 @@ public class Main implements Runnable {
                 return null;
             }
             try {
-                return downloadJDeployBundleForCode(code, version);
+                return downloadJDeployBundleForCode(code, version, appBundle);
             } catch (IOException ex) {
                 System.err.println("Failed to download bundle from the network for code "+code+".");
                 ex.printStackTrace(System.err);
