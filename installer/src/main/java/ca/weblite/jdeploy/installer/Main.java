@@ -720,7 +720,7 @@ public class Main implements Runnable {
 
         if (Platform.getSystemPlatform().isWindows()) {
             File tmpExePath = null;
-            for (File exeCandidate : new File(tmpBundles, "win").listFiles()) {
+            for (File exeCandidate : new File(tmpBundles, "windows").listFiles()) {
                 if (exeCandidate.getName().endsWith(".exe")) {
                     tmpExePath = exeCandidate;
                 }
@@ -914,7 +914,14 @@ public class Main implements Runnable {
     }
 
     private void writeLinuxDesktopFile(File dest, String appTitle, File appIcon, File launcher) throws IOException {
-        String contents = IOUtil.readToString(Main.class.getResourceAsStream("LinuxDesktopFileTemplate.desktop"));
+        String contents = "[Desktop Entry]\n" +
+                "Version=1.0\n" +
+                "Type=Application\n" +
+                "Name={{APP_TITLE}}\n" +
+                "Icon={{APP_ICON}}\n" +
+                "Exec=\"{{LAUNCHER_PATH}}\" %f\n" +
+                "Comment=Launch {{APP_TITLE}}\n" +
+                "Terminal=false";
         contents = contents
                 .replace("{{APP_TITLE}}", appTitle)
                 .replace("{{APP_ICON}}", appIcon.getAbsolutePath())
