@@ -286,7 +286,8 @@ public class Main implements Runnable {
         System.out.println("findInstallFilesDir():");
         if (System.getProperty("client4j.launcher.path") != null) {
             System.out.println("Found client4.launcher.path property: "+System.getProperty("client4j.launcher.path"));
-            return findInstallFilesDir(new File(System.getProperty("client4j.launcher.path")));
+            cachedInstallFilesDir = findInstallFilesDir(new File(System.getProperty("client4j.launcher.path")));
+            return cachedInstallFilesDir;
         } else {
             System.out.println("client4j.launcher.path is not set");
         }
