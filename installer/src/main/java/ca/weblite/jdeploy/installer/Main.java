@@ -326,7 +326,7 @@ public class Main implements Runnable {
         char[] chars = fileName.substring(pos+1).toCharArray();
         for (int i=0; i<chars.length; i++) {
             char c = chars[i];
-            if (('0' <= c && '9' <= c) || ('A' <= c && 'Z' >= c)) {
+            if (('0' <= c && '9' >= c) || ('A' <= c && 'Z' >= c)) {
                 out.append(c);
             } else {
                 break;
