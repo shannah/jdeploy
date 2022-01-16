@@ -226,6 +226,7 @@ function njreWrap() {
       if (!options.arch) {
         if (/^ppc64|s390x|x32|x64$/g.test(process.arch)) options.arch = process.arch
         else if (process.arch === 'ia32') options.arch = 'x32'
+        else if (process.arch === 'arm64') options.arch = 'aarch64'
         else return Promise.reject(new Error('Unsupported architecture'))
       }
 
