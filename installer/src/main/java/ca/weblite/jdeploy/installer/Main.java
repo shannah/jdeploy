@@ -285,8 +285,24 @@ public class Main implements Runnable {
         if (cachedInstallFilesDir != null && cachedInstallFilesDir.exists()) return cachedInstallFilesDir;
         System.out.println("findInstallFilesDir():");
         if (System.getProperty("client4j.launcher.path") != null) {
-            System.out.println("Found client4.launcher.path property: "+System.getProperty("client4j.launcher.path"));
-            cachedInstallFilesDir = findInstallFilesDir(new File(System.getProperty("client4j.launcher.path")));
+            String launcherPath = System.getProperty("client4j.launcher.path");
+            if (!Platform.getSystemPlatform().isMac()) {
+                // On linux and mac we'll just extract the code and version from the installer executable
+                // name, and use that to download the rest of the install information from the network.
+                String code = extractJDeployBundleCodeFromFileName(launcherPath);
+                String version = extractVersionFromFileName(launcherPath);
+                if (code != null && version != null) {
+                    try {
+                        cachedInstallFilesDir = downloadJDeployBundleForCode(code, version, new File(launcherPath));
+                        return cachedInstallFilesDir;
+                    } catch (IOException ex) {
+                        System.err.println("Failed to download install files bundle: "+ex.getMessage());
+                        ex.printStackTrace(System.err);
+                    }
+                }
+            }
+            System.out.println("Found client4.launcher.path property: "+launcherPath);
+            cachedInstallFilesDir = findInstallFilesDir(new File(launcherPath));
             return cachedInstallFilesDir;
         } else {
             System.out.println("client4j.launcher.path is not set");

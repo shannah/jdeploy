@@ -34,23 +34,17 @@ if [ -d "jdeploy/installers/windows" ]; then
   rm -rf jdeploy/installers/windows
 fi
 
-mkdir jdeploy/installers/windows
-WIN_INSTALLER=jdeploy/installers/windows/jdeploy-installer
+WIN_INSTALLER=jdeploy/installers/windows
 mkdir "$WIN_INSTALLER"
 
-cp -rp jdeploy/bundles/windows/jdeploy-installer.exe "$WIN_INSTALLER/jdeploy-installer.exe"
-mkdir "$WIN_INSTALLER/.jdeploy-files"
-touch "$WIN_INSTALLER/.jdeploy-files/app.xml"
-cp src/main/resources/ca/weblite/jdeploy/installer/icon.png "$WIN_INSTALLER/.jdeploy-files/icon.png"
-cd $WIN_INSTALLER/..
-zip -r jdeploy-installer-win-amd64.zip jdeploy-installer
-rm -rf jdeploy-installer
-jar cvf jdeploy-installer-win-amd64.jar *.zip
+cp -rp jdeploy/bundles/windows/jdeploy-installer.exe "$WIN_INSTALLER/jdeploy-installer-win-amd64.exe"
+
+cd "$WIN_INSTALLER"
+jar cvf jdeploy-installer-win-amd64.jar *.exe
 mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
                          -Dfile=jdeploy-installer-win-amd64.jar -DgroupId=ca.weblite.jdeploy \
                          -DartifactId=jdeploy-installer-template-win-amd64 -Dversion=1.0-SNAPSHOT \
                          -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository"
-
 
 cd "$SCRIPTPATH"
 rm -rf "$WIN_INSTALLER"
@@ -59,18 +53,14 @@ rm -rf "$WIN_INSTALLER"
 if [ -d "jdeploy/installers/linux" ]; then
   rm -rf jdeploy/installers/linux
 fi
-mkdir jdeploy/installers/linux
-LINUX_INSTALLER=jdeploy/installers/linux/jdeploy-installer
+
+LINUX_INSTALLER=jdeploy/installers/linux
 mkdir "$LINUX_INSTALLER"
 
-cp -rp jdeploy/bundles/linux/jdeploy-installer "$LINUX_INSTALLER/jdeploy-installer"
-mkdir "$LINUX_INSTALLER/.jdeploy-files"
-touch "$LINUX_INSTALLER/.jdeploy-files/app.xml"
-cp src/main/resources/ca/weblite/jdeploy/installer/icon.png "$LINUX_INSTALLER/.jdeploy-files/icon.png"
-cd $LINUX_INSTALLER/..
-tar -cf jdeploy-installer-linux-amd64.tar jdeploy-installer
-rm -rf jdeploy-installer
-jar cvf jdeploy-installer-linux-amd64.jar *.tar
+cp -rp jdeploy/bundles/linux/jdeploy-installer "$LINUX_INSTALLER/jdeploy-installer-linux-amd64"
+
+cd "$LINUX_INSTALLER"
+jar cvf jdeploy-installer-linux-amd64.jar *
 mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
                          -Dfile=jdeploy-installer-linux-amd64.jar -DgroupId=ca.weblite.jdeploy \
                          -DartifactId=jdeploy-installer-template-linux-amd64 -Dversion=1.0-SNAPSHOT \

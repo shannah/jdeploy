@@ -1183,7 +1183,11 @@ public class JDeploy {
         File installerDir = new File("jdeploy" + File.separator + "installers");
         installerDir.mkdirs();
 
-
+        String _newName = appInfo.getTitle() + " Installer";
+        if (appInfo.getJdeployBundleCode() != null) {
+            _newName += "-"+appInfo.getNpmVersion()+"_"+appInfo.getJdeployBundleCode();
+        }
+        final String newName = _newName;
 
 
         File installerZip;
@@ -1191,12 +1195,16 @@ public class JDeploy {
             installerZip = new File(installerDir, appInfo.getTitle()+" Installer-mac-amd64.tar");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-mac-amd64.tar"), installerZip);
         } else if (target.equals("win")) {
-            installerZip = new File(installerDir, appInfo.getTitle()+" Installer-win-amd64.zip");
-            FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-win-amd64.zip"), installerZip);
+            installerZip = new File(installerDir, newName+".exe");
+            FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-win-amd64.exe"), installerZip);
+            installerZip.setExecutable(true, false);
+            return;
 
         } else if (target.equals("linux")) {
-            installerZip = new File(installerDir, appInfo.getTitle()+" Installer-linux-amd64.tar");
-            FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-linux-amd64.tar"), installerZip);
+            installerZip = new File(installerDir, newName);
+            FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-linux-amd64"), installerZip);
+            installerZip.setExecutable(true, false);
+            return;
 
         } else {
             throw new IllegalArgumentException("Unsupported installer type: "+target+".  Only mac, win, and linux supported");
@@ -1254,11 +1262,7 @@ public class JDeploy {
             }
             installSplashBytes = FileUtils.readFileToByteArray(bundledSplashFile);
         }
-        String _newName = appInfo.getTitle() + " Installer";
-        if (appInfo.getJdeployBundleCode() != null) {
-            _newName += "-"+appInfo.getNpmVersion()+"_"+appInfo.getJdeployBundleCode();
-        }
-        final String newName = _newName;
+
         ArchiveUtil.NameFilter filter = new ArchiveUtil.NameFilter() {
 
 
