@@ -325,6 +325,12 @@ public class Main implements Runnable {
     }
 
     private static boolean isPrerelease(File appBundle)  {
+        if ("true".equals(System.getProperty("jdeploy.prerelease", "false"))) {
+            // This property is passed in by the launcher if the app.xml contained the prerelease
+            // attribute set to true.  This is useful so that the installer knows whether it is a
+            // prerelease - in which case it will be obtaining bundles for prerelease builds.
+            return true;
+        }
         if (!findBundleAppXml(appBundle).exists()) {
             return false;
         }
