@@ -754,6 +754,7 @@ public class JDeploy {
         bundleJdeploy();
         bundleJarRunner();
         bundleIcon();
+        bundleSplash();
         
         if (getPostCopyScript(null) != null) {
             int code = 0;
@@ -841,12 +842,52 @@ public class JDeploy {
         File jarFile = new File(getString("jar", null));
         File iconFile = new File(jarFile.getParentFile(), "icon.png");
         if (!iconFile.exists()) {
+            File _iconFile = new File(directory, "icon.png");
+            if (_iconFile.exists()) {
+                FileUtils.copyFile(_iconFile, iconFile);
+            }
+        }
+        if (!iconFile.exists()) {
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("icon.png"), iconFile);
         }
         File bin = new File(getBinDir());
 
         File bundledIconFile = new File(bin, "icon.png");
         FileUtils.copyFile(iconFile, bundledIconFile);
+    }
+
+
+
+    public void bundleSplash() throws IOException {
+        File jarFile = new File(getString("jar", null));
+
+        File splashFile = new File(jarFile.getParentFile(), "splash.png");
+        if (!splashFile.exists() && jarFile.getParentFile().isDirectory()) {
+            for (File child : jarFile.getParentFile().listFiles()) {
+                if (child.getName().equals("splash.jpg") || child.getName().equals("splash.gif")) {
+                    splashFile = child;
+
+                }
+            }
+
+        }
+        if (!splashFile.exists() && directory.isDirectory()) {
+            for (File child : directory.listFiles()) {
+                if (child.getName().equals("splash.jpg") || child.getName().equals("splash.gif") || child.getName().equals("splash.png")) {
+                    File _splashFile = child;
+                    splashFile = new File(jarFile.getParentFile(), _splashFile.getName());
+                    FileUtils.copyFile(_splashFile, splashFile);
+                }
+            }
+        }
+        if (!splashFile.exists()) {
+
+            return;
+        }
+        File bin = new File(getBinDir());
+
+        File bundledSplashFile = new File(bin, splashFile.getName());
+        FileUtils.copyFile(splashFile, bundledSplashFile);
     }
     
     public String processJdeployTemplate(String jdeployContents) {
