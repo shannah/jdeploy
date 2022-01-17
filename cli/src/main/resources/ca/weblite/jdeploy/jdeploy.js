@@ -6,6 +6,7 @@ var classPath = "{{CLASSPATH}}";
 var port = "{{PORT}}";
 var warPath = "{{WAR_PATH}}";
 var javaVersionString = "{{JAVA_VERSION}}";
+var tryJavaHomeFirst = false;
 
 
 function njreWrap() {
@@ -224,10 +225,12 @@ function njreWrap() {
         }
       }
       if (!options.arch) {
-        if (/^ppc64|s390x|x32|x64$/g.test(process.arch)) options.arch = process.arch
-        else if (process.arch === 'ia32') options.arch = 'x32'
-        else if (process.arch === 'arm64') options.arch = 'aarch64'
-        else return Promise.reject(new Error('Unsupported architecture'))
+          if (options.os == 'mac') {
+              // For now, for compatibility reasons use x64 always
+              options.arch = 'x64';
+          } else if (/^ppc64|s390x|x32|x64$/g.test(process.arch)) options.arch = process.arch
+            else if (process.arch === 'ia32') options.arch = 'x32'
+            else return Promise.reject(new Error('Unsupported architecture'))
       }
 
       Object.keys(options).forEach(key => { url += key + '=' + options[key] + '&' })
@@ -272,8 +275,6 @@ function getJavaVersion(binPath) {
             return false;
         }
         var stdout = javaVersionProc.stderr;
-        //console.log(javaVersionProc);
-        //console.log("stdout is "+stdout);
         var regexp = /version "(.*?)"/;
         var match = regexp.exec(stdout);
         var parts = match[1].split('.');
@@ -287,7 +288,6 @@ function getJavaVersion(binPath) {
             }
         });
         versionStr = versionStr.replace('_', '');
-        //console.log("Java version string "+versionStr)
         return parseFloat(versionStr);
     } catch (e) {
         return false;
@@ -311,12 +311,11 @@ function getEmbeddedJavaHome() {
     }
 
     var jreDir = path.join(os.homedir(), '.jdeploy',  'jre', javaVersionString, 'jre');
-
     try {
-        return jreDir + path.sep + getDirectories(jreDir)[0] + (_driver ? (path.sep + _driver) : '');
+        var out = jreDir + path.sep + getDirectories(jreDir)[0] + (_driver ? (path.sep + _driver) : '');
+        return out;
     } catch (e) {
-        //console.log(e);
-        return jreDir;
+        return null;
     }
 }
 
@@ -340,35 +339,40 @@ function javaVersionMatch(v1, v2) {
 }
 
 var done = false;
-if (env['JAVA_HOME']) {
-    var javaHomeVersion = getJavaVersion(path.join(env['JAVA_HOME'], 'bin'));
-    if (javaVersionMatch(javaHomeVersion, targetJavaVersion)) {
-        done = true;
-        env['PATH'] = path.join(env['JAVA_HOME'], 'bin') + path.delimiter + env['PATH'];
-        run(env['JAVA_HOME']);
+if (tryJavaHomeFirst) {
+    if (env['JAVA_HOME']) {
+        var javaHomeVersion = getJavaVersion(path.join(env['JAVA_HOME'], 'bin'));
+        if (javaVersionMatch(javaHomeVersion, targetJavaVersion)) {
+            done = true;
+            env['PATH'] = path.join(env['JAVA_HOME'], 'bin') + path.delimiter + env['PATH'];
+            run(env['JAVA_HOME']);
 
+        }
+    }
+
+    if (!done) {
+        var javaVersion = getJavaVersion();
+        if (javaVersionMatch(javaVersion, targetJavaVersion)) {
+            done = true;
+            run();
+        }
     }
 }
 
-if (!done) {
-    var javaVersion = getJavaVersion();
-    if (javaVersionMatch(javaVersion, targetJavaVersion)) {
-        done = true;
-        run();
-    }
-}
 
 if (!done) {
 
     var _javaHome = getEmbeddedJavaHome();
-    var javaVersion = getJavaVersion(path.join(_javaHome, 'bin'));
-    if (javaVersionMatch(javaVersion, targetJavaVersion)) {
-
-        env['PATH'] = path.join(_javaHome, 'bin') + path.delimiter + env['PATH'];
-        env['JAVA_HOME'] = _javaHome;
-        done = true;
-        run(_javaHome);
+    if (_javaHome && fs.existsSync(_javaHome)) {
+        var javaVersion = getJavaVersion(path.join(_javaHome, 'bin'));
+        if (javaVersionMatch(javaVersion, targetJavaVersion)) {
+            env['PATH'] = path.join(_javaHome, 'bin') + path.delimiter + env['PATH'];
+            env['JAVA_HOME'] = _javaHome;
+            done = true;
+            run(_javaHome);
+        }
     }
+
 }
 
 if (!done) {
@@ -429,12 +433,10 @@ function run(_javaHome) {
             env['PATH'] = env['JAVA_HOME'] + path.sep + 'bin' + path.delimiter + env['PATH'];
         }
 
+    } else {
+        env['JAVA_HOME'] = _javaHome;
+        cmd = _javaHome + path.sep + 'bin' + path.sep + 'java';
     }
-
-
-    var javaVersion = getJavaVersion();
-
-    //console.log("Java version is "+getJavaVersion());
 
     javaArgs.forEach(function(arg) {
         cmd += ' "'+arg+'"';
