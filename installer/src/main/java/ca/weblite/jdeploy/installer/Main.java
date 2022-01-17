@@ -348,7 +348,7 @@ public class Main implements Runnable {
         if (pos < 0) return null;
 
         fileName = fileName.substring(0, pos);
-        Pattern p = Pattern.compile("^.*?-(\\d.*)$");
+        Pattern p = Pattern.compile("^.*?-(\\d[a-zA-Z0-9\\.\\-_]*)$");
         Matcher m = p.matcher(fileName);
         if (m.matches()) {
             return m.group(1);
