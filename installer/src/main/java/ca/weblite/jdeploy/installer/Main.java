@@ -153,6 +153,7 @@ public class Main implements Runnable {
         appInfo.setAppURL(appXml.toURI().toURL());
         appInfo.setTitle(ifEmpty(root.getAttribute("title"), root.getAttribute("package"), null));
         appInfo.setNpmPackage(ifEmpty(root.getAttribute("package"), null));
+        appInfo.setFork(false);
 
         String installerVersion = ifEmpty(root.getAttribute("version"), "latest");
 

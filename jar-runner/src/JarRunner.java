@@ -53,7 +53,7 @@ public class JarRunner {
         //URLClassLoader classPathLoader = new URLClassLoader(classURLs.toArray(new URL[classURLs.size()]));
         //Thread.currentThread().setContextClassLoader(classPathLoader);
 
-        Class clsMain = JarRunner.class.getClassLoader().loadClass(mainClass);
+        Class clsMain = Thread.currentThread().getContextClassLoader().loadClass(mainClass);
         Method mainMethod = clsMain.getMethod("main", String[].class);
         mainMethod.invoke(null, (Object)args);
     }

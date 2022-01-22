@@ -16,6 +16,7 @@ public class AppDescription {
     private String npmPackage;
     private String npmVersion;
     private boolean npmPrerelease;
+    private boolean fork;
     private String url;
     private List<Jar> jars;
     private String name;
@@ -226,5 +227,13 @@ public class AppDescription {
 
     public void setNpmPrerelease(boolean npmPrerelease) {
         this.npmPrerelease = npmPrerelease;
+    }
+
+    public boolean isFork() {
+        return fork;
+    }
+
+    public void setFork(boolean fork) {
+        this.fork = fork;
     }
 }

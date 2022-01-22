@@ -97,7 +97,8 @@ public class LinuxBundler {
                     "package", app.getNpmPackage(),
                     "version", app.getNpmVersion(),
                     "icon", app.getIconDataURI(),
-                    "prerelease", app.isNpmPrerelease()+""
+                    "prerelease", app.isNpmPrerelease()+"",
+                    "fork", ""+app.isFork()
             ).end();
         } else {
             out.start("app", "name", app.getName(), "url", app.getUrl(), "icon", app.getIconDataURI()).end();

@@ -1116,6 +1116,8 @@ public class JDeploy {
         appInfo.setMacAppBundleId(getString("macAppBundleId", null));
         appInfo.setTitle(getString("displayName", appInfo.getNpmPackage()));
         appInfo.setNpmAllowPrerelease("true".equals(getenv("JDEPLOY_BUNDLE_PRERELEASE", getString("prerelease", "false"))));
+        appInfo.setFork("true".equals(getString("fork", "false")));
+
         if (rj().getAsBoolean("codesign") && rj().getAsBoolean("notarize")) {
             appInfo.setCodeSignSettings(AppInfo.CodeSignSettings.CodeSignAndNotarize);
         } else if (rj().getAsBoolean("codesign")) {

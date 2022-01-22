@@ -15,7 +15,8 @@
       "bundles" : ["mac", "win", "linux"],
       "macAppBundleId" : "HRNMHC7527.ca.weblite.jdeploy.installer",
       "codesign" : true,
-      "notarize" : false
+      "notarize" : false,
+      "fork" : true
   },
   "dependencies": {"shelljs": "^0.8.4"},
   "license": "ISC",

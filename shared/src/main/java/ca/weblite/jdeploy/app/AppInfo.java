@@ -44,6 +44,7 @@ public class AppInfo  {
     private String npmVersion;
     private boolean npmAllowPrerelease;
     private String jdeployBundleCode;
+    private boolean fork;
     
    
     
@@ -223,6 +224,14 @@ public class AppInfo  {
 
     public void setJdeployBundleCode(String jdeployBundleCode) {
         this.jdeployBundleCode = jdeployBundleCode;
+    }
+
+    public boolean isFork() {
+        return fork;
+    }
+
+    public void setFork(boolean fork) {
+        this.fork = fork;
     }
 
 
