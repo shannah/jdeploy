@@ -169,7 +169,28 @@ public class MacBundler {
                     entitlementsFile.deleteOnExit();
                     FileUtils.copyInputStreamToFile(MacBundler.class.getResourceAsStream("mac.bundle.entitlements"), entitlementsFile);
                 }
-                ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign",
+
+                {
+                    ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign",
+
+                            "--verbose=4",
+                            "-f",
+                            "--options", "runtime",
+                            "-s", app.getMacCertificateName(),
+                            "--entitlements", entitlementsFile.getAbsolutePath(),
+                            new File(appDir, "Contents/app.xml").getAbsolutePath());
+
+
+                    pb.inheritIO();
+                    Process p = pb.start();
+                    int exitCode = p.waitFor();
+                    if (exitCode != 0) {
+                        throw new RuntimeException("Codesign failed with exit code " + exitCode);
+                    }
+                }
+
+                {
+                    ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign",
                             "--deep",
                             "--verbose=4",
                             "-f",
@@ -179,13 +200,13 @@ public class MacBundler {
                             appDir.getAbsolutePath());
 
 
-                pb.inheritIO();
-                Process p = pb.start();
-                int exitCode = p.waitFor();
-                if (exitCode != 0) {
-                    throw new RuntimeException("Codesign failed with exit code "+exitCode);
+                    pb.inheritIO();
+                    Process p = pb.start();
+                    int exitCode = p.waitFor();
+                    if (exitCode != 0) {
+                        throw new RuntimeException("Codesign failed with exit code " + exitCode);
+                    }
                 }
-                
                 
             }
         }
