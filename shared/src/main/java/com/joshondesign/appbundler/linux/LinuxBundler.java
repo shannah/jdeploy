@@ -34,13 +34,13 @@ public class LinuxBundler {
         File winDir = new File(destDir, "linux");
         winDir.mkdirs();
         
-        File winReleaseDir = new File(releaseDir, "linux");
-        winReleaseDir.mkdirs();
+        File linuxReleaseDir = new File(releaseDir, "linux");
+        linuxReleaseDir.mkdirs();
         
         String appName = installer ? app.getName() + " Installer.jci" : app.getName();
         File destFile = new File(winDir, appName);
         String releaseFileName = appName.replaceAll("\\s+", ".")+".tar.gz";
-        File releaseFile = new File(winReleaseDir, releaseFileName);
+        File releaseFile = new File(linuxReleaseDir, releaseFileName);
         out.setOutputFile(destFile);
         new LinuxBundler().writeLauncher(app, destFile);
         Util.compressAsTarGz(releaseFile, destFile);
@@ -76,7 +76,7 @@ public class LinuxBundler {
             // Then read the position string, convert it to a long,
             // and then we can read the data file from that position 
             // in the exe
-           
+
             fos.write(bytes.length);
         }
         destFile.setExecutable(true, false);
