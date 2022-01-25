@@ -14,9 +14,9 @@ MAC_INSTALLER=jdeploy/installers/mac/jdeploy-installer
 mkdir "$MAC_INSTALLER"
 
 cp -rp jdeploy/bundles/mac/jdeploy-installer.app "$MAC_INSTALLER/jdeploy-installer.app"
-mkdir "$MAC_INSTALLER/.jdeploy-files"
-touch "$MAC_INSTALLER/.jdeploy-files/app.xml"
-cp src/main/resources/ca/weblite/jdeploy/installer/icon.png "$MAC_INSTALLER/.jdeploy-files/icon.png"
+#mkdir "$MAC_INSTALLER/.jdeploy-files"
+#touch "$MAC_INSTALLER/.jdeploy-files/app.xml"
+#cp src/main/resources/ca/weblite/jdeploy/installer/icon.png "$MAC_INSTALLER/.jdeploy-files/icon.png"
 cd $MAC_INSTALLER/..
 tar -cvf jdeploy-installer-mac-amd64.tar jdeploy-installer
 rm -rf jdeploy-installer

@@ -1237,6 +1237,7 @@ public class JDeploy {
         if (target.equals("mac")) {
             installerZip = new File(installerDir, appInfo.getTitle()+" Installer-mac-amd64.tar");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-mac-amd64.tar"), installerZip);
+
         } else if (target.equals("win")) {
             installerZip = new File(installerDir, newName+".exe");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-win-amd64.exe"), installerZip);
@@ -1253,57 +1254,68 @@ public class JDeploy {
             throw new IllegalArgumentException("Unsupported installer type: "+target+".  Only mac, win, and linux supported");
         }
 
-        byte[] appXmlBytes;
-        File bundledAppXmlFile;
-        {
-            ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream("<?xml version='1.0'?>\n<app/>".getBytes("UTF-8"));
 
-            Document document = XMLUtil.parse(byteArrayInputStream);
-            org.w3c.dom.Element appElement = document.getDocumentElement();
-            appElement.setAttribute("title", appInfo.getTitle());
-            appElement.setAttribute("package", appInfo.getNpmPackage());
-            appElement.setAttribute("version", appInfo.getNpmVersion());
-            appElement.setAttribute("macAppBundleId", appInfo.getMacAppBundleId());
+        // We are no longer embedding jdeploy files at all because
+        // Gatekeeper runs the installer in a random directory anyways, so we can't locate them.
+        // Instead we now use a code in the installer app name.
+        boolean embedJdeployFiles = false;
+        File bundledAppXmlFile = null;
+        File bundledSplashFile = null;
+        File bundledIconFile = null;
+        if (embedJdeployFiles) {
+            byte[] appXmlBytes;
+
+            {
+                ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream("<?xml version='1.0'?>\n<app/>".getBytes("UTF-8"));
+
+                Document document = XMLUtil.parse(byteArrayInputStream);
+                org.w3c.dom.Element appElement = document.getDocumentElement();
+                appElement.setAttribute("title", appInfo.getTitle());
+                appElement.setAttribute("package", appInfo.getNpmPackage());
+                appElement.setAttribute("version", appInfo.getNpmVersion());
+                appElement.setAttribute("macAppBundleId", appInfo.getMacAppBundleId());
 
 
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            XMLUtil.write(document, baos);
-            appXmlBytes = baos.toByteArray();
-            bundledAppXmlFile = new File(getBinDir(), "app.xml");
-            FileUtils.writeByteArrayToFile(bundledAppXmlFile, appXmlBytes);
-        }
-        byte[] iconBytes;
-        File bundledIconFile;
-        {
-            File jarFile = new File(getString("jar", null));
-            File iconFile = new File(jarFile.getParentFile(), "icon.png");
-            if (!iconFile.exists()) {
-                FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("icon.png"), iconFile);
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                XMLUtil.write(document, baos);
+                appXmlBytes = baos.toByteArray();
+                bundledAppXmlFile = new File(getBinDir(), "app.xml");
+                FileUtils.writeByteArrayToFile(bundledAppXmlFile, appXmlBytes);
             }
-            File bin = new File(getBinDir());
+            byte[] iconBytes;
 
-            bundledIconFile = new File(bin, "icon.png");
-            if (!bundledIconFile.exists()) {
-                FileUtils.copyFile(iconFile, bundledIconFile);
-            }
-            iconBytes = FileUtils.readFileToByteArray(bundledIconFile);
+            {
+                File jarFile = new File(getString("jar", null));
+                File iconFile = new File(jarFile.getParentFile(), "icon.png");
+                if (!iconFile.exists()) {
+                    FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("icon.png"), iconFile);
+                }
+                File bin = new File(getBinDir());
 
-        }
-        byte[] installSplashBytes;
-        File bundledSplashFile;
-        {
-            File jarFile = new File(getString("jar", null));
-            File splashFile = new File(jarFile.getParentFile(), "installsplash.png");
-            if (!splashFile.exists()) {
-                FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("installsplash.png"), splashFile);
-            }
-            File bin = new File(getBinDir());
+                bundledIconFile = new File(bin, "icon.png");
+                if (!bundledIconFile.exists()) {
+                    FileUtils.copyFile(iconFile, bundledIconFile);
+                }
+                iconBytes = FileUtils.readFileToByteArray(bundledIconFile);
 
-            bundledSplashFile = new File(bin, "installsplash.png");
-            if (!bundledSplashFile.exists()) {
-                FileUtils.copyFile(splashFile, bundledSplashFile);
             }
-            installSplashBytes = FileUtils.readFileToByteArray(bundledSplashFile);
+            byte[] installSplashBytes;
+
+
+            {
+                File jarFile = new File(getString("jar", null));
+                File splashFile = new File(jarFile.getParentFile(), "installsplash.png");
+                if (!splashFile.exists()) {
+                    FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("installsplash.png"), splashFile);
+                }
+                File bin = new File(getBinDir());
+
+                bundledSplashFile = new File(bin, "installsplash.png");
+                if (!bundledSplashFile.exists()) {
+                    FileUtils.copyFile(splashFile, bundledSplashFile);
+                }
+                installSplashBytes = FileUtils.readFileToByteArray(bundledSplashFile);
+            }
         }
 
         ArchiveUtil.NameFilter filter = new ArchiveUtil.NameFilter() {
@@ -1334,10 +1346,13 @@ public class JDeploy {
                 return name;
             }
         };
+
         ArrayList<ArchiveUtil.ArchiveFile> filesToAdd = new ArrayList<ArchiveUtil.ArchiveFile>();
-        filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledAppXmlFile, newName + "/.jdeploy-files/app.xml"));
-        filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledSplashFile, newName+"/.jdeploy-files/installsplash.png"));
-        filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledIconFile, newName+"/.jdeploy-files/icon.png"));
+        if (embedJdeployFiles) {
+            filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledAppXmlFile, newName + "/.jdeploy-files/app.xml"));
+            filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledSplashFile, newName + "/.jdeploy-files/installsplash.png"));
+            filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledIconFile, newName + "/.jdeploy-files/icon.png"));
+        }
         if (target.equals("mac") || target.equals("linux")) {
             // Mac and linux use tar file
             ArchiveUtil.filterNamesInTarFile(installerZip, filter, filesToAdd);
