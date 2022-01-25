@@ -542,7 +542,7 @@ public class MacBundler {
         out.start("key").text("CFBundleInfoDictionaryVersion").end().start("string").text("6.0").end();
         out.start("key").text("CFBundleInfoDictionaryVersion").end().start("string").text("6.0").end();
         out.start("key").text("NSHighResolutionCapable").end().start("true").end();
-        out.start("key").text("LSUIElement").end().start("true").end();
+        //out.start("key").text("LSUIElement").end().start("true").end();
         //LSMinimumSystemVersion
         //LSMultipleInstancesProhibited
 
