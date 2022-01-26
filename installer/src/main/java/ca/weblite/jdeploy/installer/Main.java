@@ -116,6 +116,14 @@ public class Main implements Runnable {
                 throw new IOException("Cannot find version "+appInfo.getNpmVersion()+" for package "+appInfo.getNpmPackage());
             }
 
+            if (appInfo.getDescription() == null || appInfo.getDescription().isEmpty()) {
+                appInfo.setDescription(pkg.getDescription());
+            }
+
+            if (appInfo.getDescription() == null || appInfo.getDescription().isEmpty()) {
+                appInfo.setDescription("Desktop application");
+            }
+
             // Update labels for the combobox with nice examples to show exactly which versions will be auto-updated
             // to with the given setting.
             AutoUpdateSettings.MinorOnly.setLabel(
@@ -888,7 +896,12 @@ public class Main implements Runnable {
         ShellLink link = new ShellLink(type, appInfo.getTitle());
         //ShellLink link = new ShellLink(exePath.getAbsolutePath(), ShellLink.CURRENT_USER);
         //link.setLinkName(appTitle);
-        link.setDescription(appInfo.getDescription());
+        if (appInfo.getDescription() == null) {
+            link.setDescription("Windows application");
+        } else {
+            link.setDescription(appInfo.getDescription());
+        }
+
         link.setIconLocation(iconPath.getAbsolutePath(), 0);
         link.setTargetPath(exePath.getAbsolutePath());
         link.setUserType(ShellLink.CURRENT_USER);
