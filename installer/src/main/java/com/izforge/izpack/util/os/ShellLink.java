@@ -518,6 +518,8 @@ public class ShellLink
     
     /*--------------------------------------------------------------------------*/
 
+    private static boolean libraryLoaded;
+
     /**
      * Initializes COM and gets an instance of the IShellLink interface.
      *
@@ -525,24 +527,24 @@ public class ShellLink
      */
     private void initialize() throws Exception
     {
-        try
-        {
-            //librarian.loadLibrary("ShellLink", this);
-            File jarFile = new File(ShellLink.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-            File dllFile = new File(jarFile.getParentFile(), "ShellLink_x64.dll");
-            if (!dllFile.exists()) {
-                try (InputStream input = ShellLink.class.getResourceAsStream("ShellLink_x64.dll")) {
-                    try (OutputStream output = new FileOutputStream(dllFile)) {
-                        copy(input, output);
+        if (!libraryLoaded) {
+            try {
+                //librarian.loadLibrary("ShellLink", this);
+                File jarFile = new File(ShellLink.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+                File dllFile = new File(jarFile.getParentFile(), "ShellLink_x64.dll");
+                if (!dllFile.exists()) {
+                    try (InputStream input = ShellLink.class.getResourceAsStream("ShellLink_x64.dll")) {
+                        try (OutputStream output = new FileOutputStream(dllFile)) {
+                            copy(input, output);
+                        }
                     }
                 }
+                System.load(dllFile.getAbsolutePath());
+                libraryLoaded = true;
+
+            } catch (UnsatisfiedLinkError exception) {
+                throw new Exception("Could not locate native library", exception);
             }
-            System.load(dllFile.getAbsolutePath());
-            
-        }
-        catch (UnsatisfiedLinkError exception)
-        {
-            throw new Exception("Could not locate native library", exception);
         }
 
         try
