@@ -526,11 +526,13 @@ public class MacBundler {
         out.start("key").text("CFBundleName").end().start("string").text(app.getName()).end();
         out.start("key").text("CFBundleDisplayName").end().start("string").text(app.getName()).end();
         //out.start("key").text("CFBundleExecutable").end().start("string").text(app.getName()).end();
-        out.start("key").text("CFBundleGetInfoString").end().start("string").text(app.getName()).end();
+        out.start("key").text("NSHumanReadableCopyright").end().start("string").text(app.getName()).end();
+
         if (app.getMacBundleId() != null && !app.getMacBundleId().isEmpty()) {
             out.start("key").text("CFBundleIdentifier").end().start("string").text(app.getMacBundleId()).end();
         }
-        out.start("key").text("CFBundleVersion").end().start("string").text("10.2").end();
+        out.start("key").text("CFBundleVersion").end().start("string").text("1.0.0").end();
+        out.start("key").text("CFBundleShortVersionString").end().start("string").text("1.0.0").end();
         out.start("key").text("CFBundleAllowMixedLocalizations").end().start("string").text("true").end();
         out.start("key").text("CFBundleExecutable").end().start("string").text("Client4JLauncher").end();
         out.start("key").text("CFBundleDevelopmentRegion").end().start("string").text("English").end();
@@ -539,9 +541,8 @@ public class MacBundler {
         out.start("key").text("CFBundleInfoDictionaryVersion").end().start("string").text("6.0").end();
         out.start("key").text("CFBundleIconFile").end().start("string").text("icon.icns").end();
 
-        out.start("key").text("CFBundleInfoDictionaryVersion").end().start("string").text("6.0").end();
-        out.start("key").text("CFBundleInfoDictionaryVersion").end().start("string").text("6.0").end();
         out.start("key").text("NSHighResolutionCapable").end().start("true").end();
+
         //out.start("key").text("LSUIElement").end().start("true").end();
         //LSMinimumSystemVersion
         //LSMultipleInstancesProhibited
