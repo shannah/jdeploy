@@ -106,7 +106,7 @@ public class JDeploy {
         }
         
         public void copyTo(File destDirectory) throws IOException {
-            System.out.println("Executing copy rule "+this);
+            //System.out.println("Executing copy rule "+this);
             final File srcDir = new File(dir);
             if (!srcDir.exists()) {
                 throw new IOException("Source directory of copy rule does not exist: "+srcDir);
@@ -161,7 +161,7 @@ public class JDeploy {
                                 return true;
                             }
                         }
-                        System.out.println(pathname+" does not match any patterns.");
+                        //System.out.println(pathname+" does not match any patterns.");
                         return false;
                     } else {
                         if (pathname.isDirectory()) {
@@ -664,23 +664,7 @@ public class JDeploy {
         
         // Actually copy the files
         List<CopyRule> includes = getFiles();
-        /*
-        if (includes.isEmpty()) {
-            File distDir = new File("dist");
-        
-            if (distDir.exists()) {
-                
-                File distLib = new File(distDir, "lib");
-                includes.add(new CopyRule("dist", "*.jar", null));
-                if (distLib.exists()) {
-                    includes.add(new CopyRule("dist", "lib/*.jar", null));
-                }
-            }
-            File targetDir = new File("target");
-            if (targetDir.exists()) {
-                includes.add(new CopyRule("target", "*.jar", null));
-            }
-        }*/
+
         
         File bin = new File(getBinDir());
         bin.mkdir();
@@ -709,10 +693,18 @@ public class JDeploy {
                 throw new IOException("Could not find jar file: "+getJar(null));
             }
             String parentPath = jarFile.getParentFile() != null ? jarFile.getParentFile().getPath() : ".";
+            String excludes = null;
+
             includes.add(new CopyRule(parentPath, jarFile.getName(), null));
-            
+
+            boolean serverProvidedJavaFX = "true".equals(getString("javafx", "false"));
+
             for (String path : findClassPath(jarFile)) {
-                includes.add(new CopyRule(parentPath, path, null));
+                File f = new File(path);
+                if (serverProvidedJavaFX && f.getName().startsWith("javafx-") && f.getName().endsWith(".jar")) {
+                    continue;
+                }
+                includes.add(new CopyRule(parentPath, path, excludes));
             }
             
         } else if (getWar(null) != null) {
@@ -897,6 +889,13 @@ public class JDeploy {
             jdeployContents = jdeployContents.replace("{{WAR_PATH}}", new File(getWar(null)).getName());
         } else {
             jdeployContents = jdeployContents.replace("{{WAR_PATH}}", "");
+        }
+
+        if ("true".equals(getString("javafx", "false")) ) {
+            jdeployContents = jdeployContents.replace("{{JAVAFX}}", "true");
+        }
+        if ("true".equals(getString("jdk", "false"))) {
+            jdeployContents = jdeployContents.replace("{{JDK}}", "true");
         }
         if (getJar(null) != null) {
             File jarFile = findJarFile();
@@ -1088,19 +1087,27 @@ public class JDeploy {
         return value;
     }
 
-
+    private Map<String,String> bundleCodeCache = new HashMap<String,String>();
 
     private String fetchJdeployBundleCode(AppInfo appInfo) throws IOException {
         if (appInfo.getNpmPackage() == null) {
             throw new IllegalArgumentException("Cannot fetch jdeploy bundle code without package and version");
         }
+
+        if (bundleCodeCache.containsKey(appInfo.getNpmPackage())) {
+            return bundleCodeCache.get(appInfo.getNpmPackage());
+        }
         String url = JDEPLOY_REGISTRY+"register.php?package=" +
                 URLEncoder.encode(appInfo.getNpmPackage(), "UTF-8");
 
-        System.out.println("Connecting to "+url);
+        //System.out.println("Connecting to "+url);
         try (InputStream inputStream = URLUtil.openStream(new URL(url))) {
             JSONObject jsonResponse = new JSONObject(IOUtil.readToString(inputStream));
-            return jsonResponse.getString("code");
+            String code =  jsonResponse.getString("code");
+            if (code != null && !code.isEmpty()) {
+                bundleCodeCache.put(appInfo.getNpmPackage(), code);
+            }
+            return code;
         } catch (Exception ex) {
             System.err.println("Failed to connect to "+url);
             throw ex;
@@ -1428,7 +1435,7 @@ public class JDeploy {
     }
     
     private void scan() throws IOException {
-        System.out.println("Scanning directory for executable jars, wars, and webapps...");
+        //System.out.println("Scanning directory for executable jars, wars, and webapps...");
         File[] jars = findJarCandidates();
         System.out.println("Found "+jars.length+" jars: "+Arrays.toString(jars));
         System.out.println("Best candidate: "+shallowest(jars));
