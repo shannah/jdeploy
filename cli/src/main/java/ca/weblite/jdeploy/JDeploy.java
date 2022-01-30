@@ -1040,6 +1040,7 @@ public class JDeploy {
 
             Map dependencies = new HashMap();
             dependencies.put("shelljs", "^0.8.4");
+            dependencies.put("njre", "^0.2.0");
             m.put("dependencies", dependencies);
 
             List files = new ArrayList();
