@@ -279,7 +279,7 @@ function njreWrap() {
 
             java_version: version,
             ext: 'zip',
-            bundleType: type,
+            bundle_type: type,
             javafx: ''+javafx,
             arch: 'x86',
             hw_bitness: '64',
@@ -291,15 +291,15 @@ function njreWrap() {
              switch (process.platform) {
 
                case 'darwin':
-                 q.OS = 'macos'
+                 q.os = 'macos'
                  break
                case 'linux':
-                 q.OS = 'linux'
+                 q.os = 'linux'
                  break
 
                case 'win32':
                case 'win64':
-                 q.OS = 'windows'
+                 q.os = 'windows'
                  break
                default:
                  return Promise.reject(new Error('Unsupported operating system'))
