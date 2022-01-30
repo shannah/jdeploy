@@ -460,7 +460,6 @@ public class ShellLink
      * @param group     The program group (directory) of this link. If the link is not part of a program
      *                  group, pass an empty string or null for this parameter. (...\\Desktop\\group).
      * @param name      The file name of this link. Do not include a file extension.
-     * @param librarian the librarian
      * @throws IllegalArgumentException if any of the call parameters are incorrect
      * @throws Exception                if problems are encountered in initializing the native interface
      * @see #CURRENT_USER

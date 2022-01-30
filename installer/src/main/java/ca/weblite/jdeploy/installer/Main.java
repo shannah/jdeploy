@@ -26,6 +26,7 @@ import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ResourceBundle;
@@ -770,7 +771,8 @@ public class Main implements Runnable {
             // Copy the icon.png if it is present
             File bundleIcon = new File(findAppXmlFile().getParentFile(), "icon.png");
             File iconPath = new File(exePath.getParentFile(), "icon.png");
-            if (bundleIcon.exists()) {
+            //if (bundleIcon.exists()) {
+            if (Files.exists(bundleIcon.toPath())) {
                 FileUtil.copy(bundleIcon, iconPath);
             }
             installWindowsLinks(exePath);
@@ -893,6 +895,7 @@ public class Main implements Runnable {
     }
 
     private void installWindowsLink(int type, File exePath, File iconPath) throws Exception {
+        System.out.println("Installing windows link type "+type+" for exe "+exePath+" and icon "+iconPath);
         ShellLink link = new ShellLink(type, appInfo.getTitle());
         //ShellLink link = new ShellLink(exePath.getAbsolutePath(), ShellLink.CURRENT_USER);
         //link.setLinkName(appTitle);
@@ -902,24 +905,32 @@ public class Main implements Runnable {
             link.setDescription(appInfo.getDescription());
         }
 
-        link.setIconLocation(iconPath.getAbsolutePath(), 0);
-        link.setTargetPath(exePath.getAbsolutePath());
+        link.setIconLocation(iconPath.getCanonicalFile().getAbsolutePath(), 0);
+        link.setTargetPath(exePath.getCanonicalFile().getAbsolutePath());
         link.setUserType(ShellLink.CURRENT_USER);
-
 
         link.save();
     }
 
     private void installWindowsLinks(File exePath) throws Exception {
+        System.out.println("Installing Windows links for exe "+exePath);
         File pngIconPath = new File(exePath.getParentFile(), "icon.png");
-        File icoPath = new File(exePath.getParentFile(), "icon.ico");
-        if (!icoPath.exists()) {
+        File icoPath = new File(exePath.getParentFile().getCanonicalFile(), "icon.ico");
 
-            if (!pngIconPath.exists()) {
+        //if (!Files.exists(icoPath.toPath())) {
+            //System.out.println("Icon "+icoPath+" doesn't exist yet... need to create it");
+            if (!Files.exists(pngIconPath.toPath())) {
+                System.out.println("PNG igon "+pngIconPath+" doesn't exist yet.... loading default from resources.");
                 copyResourceToFile(Main.class, "icon.png", pngIconPath);
             }
-            convertWindowsIcon(pngIconPath, icoPath);
-        }
+            if (!Files.exists(pngIconPath.toPath())) {
+                System.out.println("After creating "+pngIconPath+" icon file, it still doesn't exist.  What gives.");
+                throw new IOException("Failed to create the .ico file for some reason. "+icoPath);
+            }
+            convertWindowsIcon(pngIconPath.getCanonicalFile(), icoPath);
+       // } else {
+        //    System.out.println("icon file already existed at "+icoPath+" without having to create it");
+        //}
 
         if (addToDesktop) {
             try {
