@@ -296,21 +296,28 @@ public class Main implements Runnable {
         System.out.println("findInstallFilesDir():");
         if (System.getProperty("client4j.launcher.path") != null) {
             String launcherPath = System.getProperty("client4j.launcher.path");
-            if (!Platform.getSystemPlatform().isMac()) {
-                // On linux and mac we'll just extract the code and version from the installer executable
-                // name, and use that to download the rest of the install information from the network.
-                String code = extractJDeployBundleCodeFromFileName(launcherPath);
-                String version = extractVersionFromFileName(launcherPath);
-                if (code != null && version != null) {
-                    try {
-                        cachedInstallFilesDir = downloadJDeployBundleForCode(code, version, new File(launcherPath));
-                        return cachedInstallFilesDir;
-                    } catch (IOException ex) {
-                        System.err.println("Failed to download install files bundle: "+ex.getMessage());
-                        ex.printStackTrace(System.err);
-                    }
+            String launcherFileName = launcherPath;
+            boolean isMac = Platform.getSystemPlatform().isMac();
+            File appBundle = findAppBundle();
+            File tmpBundleFile = new File(launcherPath);
+            if (isMac && appBundle != null && appBundle.exists()) {
+                launcherFileName = appBundle.getName();
+                tmpBundleFile = appBundle;
+
+            }
+
+            String code = extractJDeployBundleCodeFromFileName(launcherFileName);
+            String version = extractVersionFromFileName(launcherFileName);
+            if (code != null && version != null) {
+                try {
+                    cachedInstallFilesDir = downloadJDeployBundleForCode(code, version, tmpBundleFile);
+                    return cachedInstallFilesDir;
+                } catch (IOException ex) {
+                    System.err.println("Failed to download install files bundle: "+ex.getMessage());
+                    ex.printStackTrace(System.err);
                 }
             }
+
             System.out.println("Found client4.launcher.path property: "+launcherPath);
             cachedInstallFilesDir = findInstallFilesDir(new File(launcherPath));
             return cachedInstallFilesDir;
