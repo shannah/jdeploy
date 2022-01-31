@@ -774,6 +774,7 @@ public class Main implements Runnable {
             appDir.mkdirs();
             File exePath = new File(appDir, tmpExePath.getName());
             FileUtil.copy(tmpExePath, exePath);
+            exePath.setExecutable(true, false);
 
             // Copy the icon.png if it is present
             File bundleIcon = new File(findAppXmlFile().getParentFile(), "icon.png");
