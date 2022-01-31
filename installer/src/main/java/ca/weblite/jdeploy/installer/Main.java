@@ -56,7 +56,7 @@ public class Main implements Runnable {
     private Document appXMLDocument;
     private AppInfo appInfo;
     private JFrame frame;
-    private boolean addToDesktop=true, addToPrograms=true, addToStartMenu=true, addToDock=true, prerelease=false;
+    private boolean addToDesktop=true, addToPrograms=true, addToStartMenu=false, addToDock=true, prerelease=false;
     private boolean overwriteApp=true;
     private NPMPackageVersion npmPackageVersion;
 
@@ -298,7 +298,7 @@ public class Main implements Runnable {
             String launcherPath = System.getProperty("client4j.launcher.path");
             String launcherFileName = launcherPath;
             boolean isMac = Platform.getSystemPlatform().isMac();
-            File appBundle = findAppBundle();
+            File appBundle = isMac ? findAppBundle() : null;
             File tmpBundleFile = new File(launcherPath);
             if (isMac && appBundle != null && appBundle.exists()) {
                 launcherFileName = appBundle.getName();
@@ -673,7 +673,9 @@ public class Main implements Runnable {
 
         JPanel checkboxesPanel = new JPanel();
         if (Platform.getSystemPlatform().isWindows()) {
-            checkboxesPanel.add(addToStartMenuCheckBox);
+            if (!Platform.getSystemPlatform().isWindows10OrHigher()) {
+                checkboxesPanel.add(addToStartMenuCheckBox);
+            }
         } else if (Platform.getSystemPlatform().isMac()) {
             checkboxesPanel.add(addToDockCheckBox);
         }

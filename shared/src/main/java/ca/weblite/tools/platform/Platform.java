@@ -92,6 +92,66 @@ public class Platform {
         hash = 89 * hash + Objects.hashCode(this.arch);
         return hash;
     }
+
+    private String getVersionString() {
+        int lastSpacePos = os.lastIndexOf(' ');
+        if (lastSpacePos > 0) {
+            return os.substring(lastSpacePos+1);
+        }
+        return "";
+    }
+
+    /**
+     * Returns a version int for the OS.
+     * This takes into account major and minor version, with major multiplied by 1000.
+     * So 8.1 = 8100
+     *
+     * @return
+     */
+    private int getVersionInt() {
+        String versionString = getVersionString();
+        StringBuilder leadingDigits = new StringBuilder();
+        char[] chars = versionString.toCharArray();
+        int versionInt = 0;
+        int multiplier = 1000;
+        for (int i=0; i<chars.length; i++) {
+            char c = chars[i];
+            if (Character.isDigit(c)) {
+                leadingDigits.append(c);
+            } else if (c == '.') {
+                if (leadingDigits.length() > 0) {
+                    versionInt += multiplier * Integer.parseInt(leadingDigits.toString());
+                    leadingDigits.setLength(0);
+                } else {
+                    return versionInt;
+                }
+                if (multiplier >= 1000) {
+                    multiplier /= 1000;
+                } else {
+                    return versionInt;
+                }
+            } else {
+                break;
+            }
+        }
+        if (leadingDigits.length() > 0) {
+            versionInt += multiplier *  Integer.parseInt(leadingDigits.toString());
+        }
+        return versionInt;
+    }
+
+    /**
+     *  Returns true if system is Windows 10 or higher.
+     *
+     * @return
+     */
+    public boolean isWindows10OrHigher() {
+        if (isWindows()) {
+            // Reportedly some versions of Java report 8.1 for windows 10 version.
+            return getVersionInt() >= 8100;
+        }
+        return false;
+    }
     
     
 }

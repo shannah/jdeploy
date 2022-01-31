@@ -16,7 +16,7 @@
       "macAppBundleId" : "HRNMHC7527.ca.weblite.jdeploy.installer",
       "codesign" : true,
       "notarize" : false,
-      "fork" : true
+      "fork" : false
   },
   "dependencies": {"shelljs": "^0.8.4"},
   "license": "ISC",
