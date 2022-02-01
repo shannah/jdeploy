@@ -152,6 +152,14 @@ public class Platform {
         }
         return false;
     }
+
+    public boolean isWindows8OrHigher() {
+        if (isWindows()) {
+            // Reportedly some versions of Java report 8.1 for windows 10 version.
+            return getVersionInt() >= 8000;
+        }
+        return false;
+    }
     
     
 }

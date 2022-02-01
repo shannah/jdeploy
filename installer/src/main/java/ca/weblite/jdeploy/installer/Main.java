@@ -27,10 +27,8 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.file.Files;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
-import java.util.ResourceBundle;
-import java.util.TimerTask;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -56,7 +54,7 @@ public class Main implements Runnable {
     private Document appXMLDocument;
     private AppInfo appInfo;
     private JFrame frame;
-    private boolean addToDesktop=true, addToPrograms=true, addToStartMenu=false, addToDock=true, prerelease=false;
+    private boolean addToDesktop=true, addToPrograms=true, addToStartMenu=true, addToDock=true, prerelease=false;
     private boolean overwriteApp=true;
     private NPMPackageVersion npmPackageVersion;
 
@@ -673,9 +671,7 @@ public class Main implements Runnable {
 
         JPanel checkboxesPanel = new JPanel();
         if (Platform.getSystemPlatform().isWindows()) {
-            if (!Platform.getSystemPlatform().isWindows10OrHigher()) {
-                checkboxesPanel.add(addToStartMenuCheckBox);
-            }
+            checkboxesPanel.add(addToStartMenuCheckBox);
         } else if (Platform.getSystemPlatform().isMac()) {
             checkboxesPanel.add(addToDockCheckBox);
         }
@@ -886,10 +882,23 @@ public class Main implements Runnable {
 
     private void convertWindowsIcon(File srcPng, File destIco) throws IOException, SAXException {
         List<BufferedImage> images = new ArrayList<>();
-        for (int i : new int[]{16, 24, 32, 48, 256}) {
-            images.add(Thumbnails.of(srcPng).size(i, i).asBufferedImage());
+        List<Integer> bppList = new ArrayList<>();
+        for (int i : new int[]{16, 24, 32, 48, 64, 128, 256}) {
+            BufferedImage img = Thumbnails.of(srcPng).size(i, i).asBufferedImage();
+            images.add(img);
+            bppList.add(32);
+            if (i <= 48) {
+                images.add(img);
+                bppList.add(8);
+                images.add(img);
+                bppList.add(4);
+            }
         }
-        ICOEncoder.write(images, destIco);
+        int[] bppArray = bppList.stream().mapToInt(i->i).toArray();
+        try (FileOutputStream fileOutputStream = new FileOutputStream(destIco)) {
+            ICOEncoder.write(images,bppArray, fileOutputStream);
+        }
+
 
     }
 
@@ -905,8 +914,13 @@ public class Main implements Runnable {
     }
 
     private void installWindowsLink(int type, File exePath, File iconPath) throws Exception {
+
+
         System.out.println("Installing windows link type "+type+" for exe "+exePath+" and icon "+iconPath);
         ShellLink link = new ShellLink(type, appInfo.getTitle());
+        System.out.println("current user link path: "+link.getcurrentUserLinkPath());
+
+        link.setUserType(ShellLink.CURRENT_USER);
         //ShellLink link = new ShellLink(exePath.getAbsolutePath(), ShellLink.CURRENT_USER);
         //link.setLinkName(appTitle);
         if (appInfo.getDescription() == null) {
@@ -914,12 +928,42 @@ public class Main implements Runnable {
         } else {
             link.setDescription(appInfo.getDescription());
         }
+        String iconPathString = iconPath.getCanonicalFile().getAbsolutePath();
+        File homeDir = new File(System.getProperty("user.home")).getCanonicalFile();
 
-        link.setIconLocation(iconPath.getCanonicalFile().getAbsolutePath(), 0);
-        link.setTargetPath(exePath.getCanonicalFile().getAbsolutePath());
-        link.setUserType(ShellLink.CURRENT_USER);
+
+        int homePathPos = iconPathString.indexOf(homeDir.getAbsolutePath());
+        /*
+        if (homePathPos == 0) {
+            String pathFromHome = iconPathString.substring(homeDir.getAbsolutePath().length());
+            if (pathFromHome.charAt(0) != '\\') {
+                pathFromHome = "\\" + pathFromHome;
+            }
+            iconPathString = "%USERPROFILE%" + pathFromHome;
+        }
+        */
+        System.out.println("Setting icon path in link "+iconPathString);
+        link.setIconLocation(iconPathString, 0);
+
+        String exePathString = exePath.getCanonicalFile().getAbsolutePath();
+        /*
+        homePathPos = exePathString.indexOf(homeDir.getAbsolutePath());
+        if (homePathPos == 0) {
+            String pathFromHome = exePathString.substring(homeDir.getAbsolutePath().length());
+            if (pathFromHome.charAt(0) != '\\') {
+                pathFromHome = "\\" + pathFromHome;
+            }
+            exePathString = "%USERPROFILE%" + pathFromHome;
+        }
+        */
+
+        System.out.println("Setting exePathString: "+exePathString);
+        link.setTargetPath(exePathString);
+
 
         link.save();
+
+
     }
 
     private void installWindowsLinks(File exePath) throws Exception {

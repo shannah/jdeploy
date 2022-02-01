@@ -364,7 +364,6 @@ public class ShellLink
      *                  </ul>
      * @param name      The name that the link should display on a menu or on the desktop. Do not include
      *                  a file extension.
-     * @param librarian the librarian
      * @throws IllegalArgumentException if any of the call parameters are incorrect, or if no
      *                                  linkPaths are returned.
      * @throws Exception                if problems are encountered in initializing the native interface
@@ -611,7 +610,6 @@ public class ShellLink
      *
      * @param name the name of the library to free. Use only the name and extension but not the
      *             path.
-     * @see com.izforge.izpack.util.NativeLibraryClient#freeLibrary
      */
     public void freeLibrary(String name)
     {
