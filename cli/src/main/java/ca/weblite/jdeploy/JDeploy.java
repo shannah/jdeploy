@@ -992,7 +992,26 @@ public class JDeploy {
             System.out.println("Cancelled");
         }
     }
-    
+
+    private static String toTitleCase(String str) {
+        StringBuilder out = new StringBuilder();
+        char[] chars = str.toCharArray();
+        boolean nextUpper = true;
+        for (int i=0; i<chars.length; i++) {
+            char c = chars[i];
+            if (c == '_' || c == '-') {
+                out.append(" ");
+                nextUpper = true;
+            } else if (nextUpper) {
+                out.append(Character.toUpperCase(c));
+                nextUpper = false;
+            } else {
+                out.append(c);
+                nextUpper = false;
+            }
+        }
+        return out.toString();
+    }
     
     private void init(String commandName) throws IOException {
         commandName = directory.getAbsoluteFile().getName().toLowerCase();
@@ -1017,6 +1036,13 @@ public class JDeploy {
                 } else {
                     commandName = candidate.getName().toLowerCase();
                 }*/
+            }
+            if (candidate != null) {
+                commandName = candidate.getName();
+                if (commandName.endsWith(".jar") || commandName.endsWith(".war")) {
+                    commandName = commandName.substring(0, commandName.lastIndexOf("."));
+                }
+                commandName = commandName.replaceAll("[^a-zA-Z0-9_\\-]", "-");
             }
 
             Map m = new HashMap(); // for package.json
@@ -1055,6 +1081,17 @@ public class JDeploy {
             } else {
                 jdeploy.put("war", getRelativePath(candidate));
             }
+
+            jdeploy.put("javaVersion", "11");
+            jdeploy.put("javafx", false);
+            jdeploy.put("jdk", false);
+
+
+
+            String title = toTitleCase(commandName);
+
+
+            jdeploy.put("title", title);
 
             m.put("jdeploy", jdeploy);
 
