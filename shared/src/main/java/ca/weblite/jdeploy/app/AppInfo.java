@@ -45,8 +45,66 @@ public class AppInfo  {
     private boolean npmAllowPrerelease;
     private String jdeployBundleCode;
     private boolean fork;
+
+    private Map<String, String> documentMimetypes;
+
+    private Map<String, String> documentTypeIcons;
+
+    private Set<String> documentTypeEditor;
     
-   
+
+    private Map<String, String> documentMimetypes() {
+        if (documentMimetypes == null) documentMimetypes = new HashMap<>();
+        return documentMimetypes;
+    }
+
+    private Map<String, String> documentTypeIcons() {
+        if (documentTypeIcons == null) documentTypeIcons = new HashMap<>();
+        return documentTypeIcons;
+    }
+
+    public void addDocumentMimetype(String extension, String mimetype) {
+        documentMimetypes().put(extension, mimetype);
+    }
+
+    public void addDocumentTypeIcon(String extension, String iconPath) {
+        documentTypeIcons().put(extension, iconPath);
+    }
+
+    public void setDocumentTypeEditor(String extension) {
+        if (documentTypeEditor == null) documentTypeEditor = new HashSet<>();
+        documentTypeEditor.add(extension);
+    }
+
+    public boolean isDocumentTypeEditor(String extension) {
+        return documentTypeEditor != null && documentTypeEditor.contains(extension);
+    }
+
+    public boolean hasDocumentTypes() {
+        return documentMimetypes != null && !documentMimetypes.isEmpty();
+    }
+
+    public Iterable<String> getExtensions() {
+        if (documentMimetypes == null || documentMimetypes.isEmpty()) return new ArrayList<>();
+        return documentMimetypes.keySet();
+    }
+
+    public String getMimetype(String extension) {
+        if (documentMimetypes != null && documentMimetypes.containsKey(extension)) {
+            return documentMimetypes.get(extension);
+        }
+        return null;
+    }
+
+    public String getDocumentTypeIconPath(String extension) {
+        if (documentTypeIcons != null && documentTypeIcons.containsKey(extension)) {
+            return documentTypeIcons.get(extension);
+        }
+        return null;
+    }
+
+
+
     
     
     /**

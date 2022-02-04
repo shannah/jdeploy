@@ -92,10 +92,13 @@ public class MacBundler {
                 File ifile = new File(exticon);
                 System.out.println("copying over icon " + ifile.getAbsolutePath());
                 if(ifile.exists()) {
+                    /*
                     File outIcon = new File(resourcesDir,ifile.getName());
                     Bundler.copyStream(new FileInputStream(ifile), new FileOutputStream(outIcon));
                     p("copied: " + ifile.getAbsolutePath());
                     p("   to:  " + outIcon.getAbsolutePath());
+                    */
+                    processIcon(app, contentsDir, ext, ifile);
                 }
                 
             }
@@ -436,15 +439,29 @@ public class MacBundler {
             }
         }
     }
-    
+
+
     private static void processIcon(AppDescription app, File contentsDir) throws Exception {
-        URL iconUrl = URLUtil.url(new URL(app.getUrl()), "icon.png");
-        File iconFile = new File(contentsDir, "icon.png");
+        processIcon(app, contentsDir, null, null);
+    }
+    
+    private static void processIcon(AppDescription app, File contentsDir, String ext, File iconFile) throws Exception {
+        URL iconUrl;
+        if (iconFile == null) {
+            iconFile = ext != null ?
+                    new File(contentsDir, "icon." + ext + ".png") :
+                    new File(contentsDir, "icon.png");
+            iconUrl = ext != null ?
+                    URLUtil.url(new URL(app.getUrl()), "icon."+ext+".png") :
+                    URLUtil.url(new URL(app.getUrl()), "icon.png");
+        } else {
+            iconUrl = iconFile.toURI().toURL();
+        }
+
         try (InputStream in = URLUtil.openStream(iconUrl)) {
             try (OutputStream fos = new FileOutputStream(iconFile)) {
                 IOUtil.copy(in, fos);
             }
-           
         }
         Icon icn = new Icon();
         icn.set(iconFile.getAbsolutePath());
@@ -481,7 +498,10 @@ public class MacBundler {
             //builder.add("ic08", getThumbnail(contentsDir, 256));
             builder.add(osType, new FileInputStream(iconFile));
             //builder.add("ic10", getThumbnail(contentsDir, 1024));
-            try (FileOutputStream out = new FileOutputStream(new File(contentsDir, "Resources/icon.icns"))) {
+            File icnsFile = ext != null ?
+                    new File(contentsDir, "Resources/icon."+ext+".icns") :
+                    new File(contentsDir, "Resources/icon.icns");
+            try (FileOutputStream out = new FileOutputStream(icnsFile)) {
                 builder.build().writeTo(out);
             }
             
@@ -502,6 +522,10 @@ public class MacBundler {
 
         for(String ext : app.getExtensions()) {
             //file extensions
+            String role = "Viewer";
+            if (app.isEditableExtension(ext)) {
+                role = "Editor";
+            }
             out.start("key").text("CFBundleDocumentTypes").end();
             out.start("array").start("dict");
                 out.start("key").text("CFBundleTypeExtensions").end();
@@ -511,8 +535,9 @@ public class MacBundler {
                 out.start("key").text("CFBundleTypeMIMETypes").end();
                 out.start("array").start("string").text(app.getExtensionMimetype(ext)).end().end();
                 out.start("key").text("CFBundleTypeRole").end();
-                out.start("string").text("Editor").end();
+                out.start("string").text(role).end();
                 String icon = app.getExtensionIcon(ext);
+
                 if(icon != null) {
                     out.start("key").text("CFBundleTypeIconFile").end();
                     File ifile = new File(icon);

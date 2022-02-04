@@ -104,6 +104,7 @@ public class Bundler {
         URL iconURL = URLUtil.url(appInfo.getAppURL(), "icon.png");
         app.setIconDataURI(toDataURI(iconURL));
 
+
         if (url == null) throw new IllegalArgumentException("URL is required. It can be a file: url");
 
         if (url.startsWith("file:") || url.startsWith("http:") || url.startsWith("https:")) {
@@ -178,6 +179,15 @@ public class Bundler {
         verifyApp(app);
         
         verifyNativeLibs(app);
+
+        if (appInfo.hasDocumentTypes()) {
+            for (String extension : appInfo.getExtensions()) {
+                app.addExtension(extension, appInfo.getMimetype(extension), appInfo.getDocumentTypeIconPath(extension));
+                if (appInfo.isDocumentTypeEditor(extension)) {
+                    app.addEditableExtension(extension);
+                }
+            }
+        }
 
         if("mac".equals(target)) {
             return MacBundler.start(app,DEST_DIR, RELEASE_DIR);

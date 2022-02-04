@@ -22,6 +22,7 @@ public class AppDescription {
     private String name;
     private Map<String,String> extensions;
     private Map<String,String> icons;
+    private Set<String> editableExtensions;
     private final ArrayList<String> appIcons;
     private List<NativeLib> natives;
     private List<Prop> props;
@@ -31,6 +32,7 @@ public class AppDescription {
     private String macCertificateName;
     private String macDeveloperID;
     private String macNotarizationPassword;
+
 
     public AppDescription() {
 
@@ -80,11 +82,20 @@ public class AppDescription {
         throw new Exception("Error! Couldn't find a main class for the app");
     }
 
-    void addExtension(String fileExtension, String mimeType, String icon) {
+    public void addExtension(String fileExtension, String mimeType, String icon) {
         extensions.put(fileExtension,mimeType);
         if(icon != null) {
             icons.put(fileExtension,icon);
         }
+    }
+
+    public void addEditableExtension(String extension) {
+        if (editableExtensions == null) editableExtensions = new HashSet<>();
+        editableExtensions.add(extension);
+    }
+
+    public boolean isEditableExtension(String extension) {
+        return editableExtensions != null && editableExtensions.contains(extension);
     }
     public Collection<String> getExtensions() {
         return extensions.keySet();

@@ -116,11 +116,26 @@ public class Main implements Runnable {
             }
 
             if (appInfo.getDescription() == null || appInfo.getDescription().isEmpty()) {
-                appInfo.setDescription(pkg.getDescription());
+                appInfo.setDescription(npmPackageVersion.getDescription());
             }
 
             if (appInfo.getDescription() == null || appInfo.getDescription().isEmpty()) {
                 appInfo.setDescription("Desktop application");
+            }
+
+            for (NPMPackageVersion.DocumentTypeAssociation documentTypeAssociation : npmPackageVersion.getDocumentTypeAssociations()) {
+                appInfo.addDocumentMimetype(documentTypeAssociation.getExtension(), documentTypeAssociation.getMimetype());
+                if (documentTypeAssociation.getIconPath() != null) {
+                    appInfo.addDocumentTypeIcon(documentTypeAssociation.getExtension(), documentTypeAssociation.getIconPath());
+                } else {
+                    File iconPath = new File(findAppXmlFile().getParentFile(), "icon."+documentTypeAssociation.getExtension()+".png");
+                    if (iconPath.exists()) {
+                        appInfo.addDocumentTypeIcon(documentTypeAssociation.getExtension(), iconPath.getAbsolutePath());
+                    }
+                }
+                if (documentTypeAssociation.isEditor()) {
+                    appInfo.setDocumentTypeEditor(documentTypeAssociation.getExtension());
+                }
             }
 
             // Update labels for the combobox with nice examples to show exactly which versions will be auto-updated

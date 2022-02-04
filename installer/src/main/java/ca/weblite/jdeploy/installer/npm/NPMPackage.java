@@ -18,9 +18,7 @@ public class NPMPackage {
         return packageInfo.getString("name");
     }
 
-    public String getDescription() {
-        return packageInfo.getString("description");
-    }
+
 
     private static boolean isPrerelease(String version) {
         if (!version.contains("-")) return false;
@@ -102,7 +100,7 @@ public class NPMPackage {
         if (versionNumber == null) {
             return null;
         }
-        return new NPMPackageVersion(this, versionNumber);
+        return new NPMPackageVersion(this, versionNumber, packageInfo.getJSONObject("versions").getJSONObject(versionNumber));
     }
 
 
