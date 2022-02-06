@@ -1142,7 +1142,7 @@ public class Main implements Runnable {
                 "Type=Application\n" +
                 "Name={{APP_TITLE}}\n" +
                 "Icon={{APP_ICON}}\n" +
-                "Exec=\"{{LAUNCHER_PATH}}\" %f\n" +
+                "Exec=\"{{LAUNCHER_PATH}}\" %U\n" +
                 "Comment=Launch {{APP_TITLE}}\n" +
                 "Terminal=false\n";
 
