@@ -3,9 +3,11 @@ package ca.weblite.jdeploy.installer;
 
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.appbundler.Bundler;
+import ca.weblite.jdeploy.installer.linux.MimeTypeHelper;
 import ca.weblite.jdeploy.installer.npm.NPMPackage;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.installer.npm.NPMRegistry;
+import ca.weblite.jdeploy.installer.win.WinRegistry;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
 import com.izforge.izpack.util.os.ShellLink;
@@ -102,6 +104,7 @@ public class Main implements Runnable {
     }
 
     private void loadNPMPackageInfo() throws IOException {
+        //System.out.println("Loading NPMPackageInfo");
         if (npmPackageVersion == null) {
             if (appInfo == null) {
                 throw new IllegalStateException("App Info must be loaded before loading the package info");
@@ -136,6 +139,11 @@ public class Main implements Runnable {
                 if (documentTypeAssociation.isEditor()) {
                     appInfo.setDocumentTypeEditor(documentTypeAssociation.getExtension());
                 }
+            }
+            //System.out.println("Checking npm package for URL schemes: ");
+            for (String scheme : npmPackageVersion.getUrlSchemes()) {
+                //System.out.println("Found scheme "+scheme);
+                appInfo.addUrlScheme(scheme);
             }
 
             // Update labels for the combobox with nice examples to show exactly which versions will be auto-updated
@@ -797,6 +805,10 @@ public class Main implements Runnable {
                 FileUtil.copy(bundleIcon, iconPath);
             }
             installWindowsLinks(exePath);
+
+            installWindowsFileAssociations(exePath);
+
+
             installedApp = exePath;
 
         } else if (Platform.getSystemPlatform().isMac()) {
@@ -886,6 +898,7 @@ public class Main implements Runnable {
             if (bundleIcon.exists()) {
                 FileUtil.copy(bundleIcon, iconPath);
             }
+            installLinuxMimetypes();
             installLinuxLinks(exePath);
             installedApp = exePath;
 
@@ -981,25 +994,70 @@ public class Main implements Runnable {
 
     }
 
+    private void installWindowsFileAssociations(File exePath) throws IOException {
+        if (!appInfo.hasDocumentTypes()) {
+            return;
+        }
+
+
+        WinRegistry registry = new WinRegistry();
+        String progIdBase = "jdeploy."+appInfo.getNpmPackage();
+        boolean requiresRefresh = false;
+        for (String extension : appInfo.getExtensions()) {
+            String mimetype = appInfo.getMimetype(extension);
+            File icoPath = null;
+
+            File pngIconPath = new File(exePath.getParentFile(), "icon."+extension+".png");
+            if (pngIconPath.exists()) {
+                icoPath = new File(exePath.getParentFile().getCanonicalFile(), "icon." + extension + ".ico");
+                try {
+                    convertWindowsIcon(pngIconPath.getCanonicalFile(), icoPath);
+                } catch (Exception ex) {
+                    System.err.println("Failed to convert file icon "+pngIconPath+" to .ico file");
+                    ex.printStackTrace(System.err);
+                    icoPath = null;
+                }
+            } else {
+                if (new File(exePath.getParentFile(), "icon.ico").exists()) {
+                    icoPath = new File(exePath.getParentFile(), "icon.ico");
+                }
+            }
+
+            registry.addFileAssociation(
+                    extension,
+                    progIdBase,
+                    appInfo.getTitle(),
+                    mimetype,
+                    exePath,
+                    icoPath,
+                    null,
+                    null
+                    );
+
+            requiresRefresh = true;
+        }
+        if (requiresRefresh) {
+            registry.notifyFileAssociationsChanged();
+        }
+
+
+    }
+
     private void installWindowsLinks(File exePath) throws Exception {
         System.out.println("Installing Windows links for exe "+exePath);
         File pngIconPath = new File(exePath.getParentFile(), "icon.png");
         File icoPath = new File(exePath.getParentFile().getCanonicalFile(), "icon.ico");
 
-        //if (!Files.exists(icoPath.toPath())) {
-            //System.out.println("Icon "+icoPath+" doesn't exist yet... need to create it");
-            if (!Files.exists(pngIconPath.toPath())) {
-                System.out.println("PNG igon "+pngIconPath+" doesn't exist yet.... loading default from resources.");
-                copyResourceToFile(Main.class, "icon.png", pngIconPath);
-            }
-            if (!Files.exists(pngIconPath.toPath())) {
-                System.out.println("After creating "+pngIconPath+" icon file, it still doesn't exist.  What gives.");
-                throw new IOException("Failed to create the .ico file for some reason. "+icoPath);
-            }
-            convertWindowsIcon(pngIconPath.getCanonicalFile(), icoPath);
-       // } else {
-        //    System.out.println("icon file already existed at "+icoPath+" without having to create it");
-        //}
+        if (!Files.exists(pngIconPath.toPath())) {
+            System.out.println("PNG igon "+pngIconPath+" doesn't exist yet.... loading default from resources.");
+            copyResourceToFile(Main.class, "icon.png", pngIconPath);
+        }
+        if (!Files.exists(pngIconPath.toPath())) {
+            System.out.println("After creating "+pngIconPath+" icon file, it still doesn't exist.  What gives.");
+            throw new IOException("Failed to create the .ico file for some reason. "+icoPath);
+        }
+        convertWindowsIcon(pngIconPath.getCanonicalFile(), icoPath);
+
 
         if (addToDesktop) {
             try {
@@ -1029,6 +1087,55 @@ public class Main implements Runnable {
 
     }
 
+    private void installLinuxMimetypes() throws IOException {
+        if (appInfo.hasDocumentTypes()) {
+            MimeTypeHelper helper = new MimeTypeHelper();
+            class MimeInfo {
+                private String mimetype;
+                private Set<String> extensions;
+
+                private void addExtension(String extension) {
+                    if (extensions == null) extensions = new HashSet<String>();
+                    extensions.add(extension);
+                }
+
+                private void install() throws IOException {
+                    MimeTypeHelper helper = new MimeTypeHelper();
+                    helper.install(mimetype, appInfo.getTitle(), extensions.toArray(new String[extensions.size()]));
+                }
+            }
+            class MimeInfos {
+                private Map<String,MimeInfo> mimeInfos = new HashMap<>();
+
+                private void add(String mimetype, String extension) {
+                    if (!mimeInfos.containsKey(mimetype)) {
+                        MimeInfo mimeInfo = new MimeInfo();
+                        mimeInfo.mimetype = mimetype;
+                        mimeInfos.put(mimetype, mimeInfo);
+                    }
+                    MimeInfo m = mimeInfos.get(mimetype);
+                    m.addExtension(extension);
+
+                }
+
+                private void install() throws IOException {
+                    for (MimeInfo info : mimeInfos.values()) {
+                        info.install();
+                    }
+                }
+            }
+            MimeInfos mimeInfos = new MimeInfos();
+            for (String extension : appInfo.getExtensions()) {
+                String mimetype = appInfo.getMimetype(extension);
+                if (!helper.isInstalled(mimetype)) {
+                    mimeInfos.add(mimetype, extension);
+                }
+            }
+            mimeInfos.install();
+
+        }
+    }
+
     private void writeLinuxDesktopFile(File dest, String appTitle, File appIcon, File launcher) throws IOException {
         String contents = "[Desktop Entry]\n" +
                 "Version=1.0\n" +
@@ -1037,7 +1144,33 @@ public class Main implements Runnable {
                 "Icon={{APP_ICON}}\n" +
                 "Exec=\"{{LAUNCHER_PATH}}\" %f\n" +
                 "Comment=Launch {{APP_TITLE}}\n" +
-                "Terminal=false";
+                "Terminal=false\n";
+
+        if (appInfo.hasDocumentTypes() || appInfo.hasUrlSchemes()) {
+            StringBuilder mimetypes = new StringBuilder();
+            if (appInfo.hasDocumentTypes()) {
+                for (String extension : appInfo.getExtensions()) {
+                    String mimetype = appInfo.getMimetype(extension);
+                    if (mimetypes.length() > 0) {
+                        mimetypes.append(";");
+                    }
+                    mimetypes.append(mimetype);
+                }
+            }
+            if (appInfo.hasUrlSchemes()) {
+                for (String scheme : appInfo.getUrlSchemes()) {
+                    if (mimetypes.length() > 0) {
+                        mimetypes.append(";");
+                    }
+                    mimetypes.append("x-scheme-handler/").append(scheme);
+                }
+            }
+            contents += "MimeType="+mimetypes+"\n";
+        }
+
+
+
+
         contents = contents
                 .replace("{{APP_TITLE}}", appTitle)
                 .replace("{{APP_ICON}}", appIcon.getAbsolutePath())

@@ -188,6 +188,11 @@ public class Bundler {
                 }
             }
         }
+        if (appInfo.hasUrlSchemes()) {
+            for (String scheme : appInfo.getUrlSchemes()) {
+                app.addUrlScheme(scheme);
+            }
+        }
 
         if("mac".equals(target)) {
             return MacBundler.start(app,DEST_DIR, RELEASE_DIR);

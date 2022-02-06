@@ -32,6 +32,7 @@ public class AppDescription {
     private String macCertificateName;
     private String macDeveloperID;
     private String macNotarizationPassword;
+    private List<String> urlSchemes;
 
 
     public AppDescription() {
@@ -42,6 +43,25 @@ public class AppDescription {
         appIcons = new ArrayList<String>();
         natives = new ArrayList<NativeLib>();
         props = new ArrayList<Prop>();
+    }
+
+    public boolean hasUrlSchemes() {
+        return urlSchemes != null && !urlSchemes.isEmpty();
+    }
+
+    public Iterable<String> getUrlSchemes() {
+        ArrayList<String> out = new ArrayList<>();
+        if (hasUrlSchemes()) {
+            for (String scheme : urlSchemes) {
+                out.add(scheme);
+            }
+        }
+        return out;
+    }
+
+    public void addUrlScheme(String scheme) {
+        if (urlSchemes == null) urlSchemes = new ArrayList<>();
+        urlSchemes.add(scheme);
     }
 
     public void setUrl(String url) {

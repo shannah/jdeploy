@@ -51,6 +51,25 @@ public class AppInfo  {
     private Map<String, String> documentTypeIcons;
 
     private Set<String> documentTypeEditor;
+
+    private Set<String> urlSchemes;
+
+
+    public void addUrlScheme(String scheme) {
+        if (urlSchemes == null) urlSchemes = new HashSet<>();
+        urlSchemes.add(scheme);
+    }
+
+    public boolean hasUrlSchemes() {
+        return urlSchemes != null && !urlSchemes.isEmpty();
+    }
+
+    public Iterable<String> getUrlSchemes() {
+        if (urlSchemes == null) {
+            urlSchemes = new HashSet<>();
+        }
+        return urlSchemes;
+    }
     
 
     private Map<String, String> documentMimetypes() {

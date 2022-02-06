@@ -548,6 +548,25 @@ public class MacBundler {
             out.end().end();
         }
 
+        if (app.hasUrlSchemes()) {
+            out.start("key").text("CFBundleURLTypes").end();
+            out.start("array");
+            for (String scheme : app.getUrlSchemes()) {
+                out.start("dict")
+                        .start("key").text("CFBundleTypeRole").end()
+                        .start("string").text("Viewer").end()
+                        .start("key").text("CFBundleURLName").end()
+                        .start("string").text(app.getMacBundleId()+"."+scheme).end()
+                        .start("key").text("CFBundleURLSchemes").end()
+                        .start("array")
+                        .start("string").text(scheme).end()
+                        .end() // array
+                        .end(); // dict
+
+            }
+            out.end(); // array
+        }
+
         out.start("key").text("CFBundleName").end().start("string").text(app.getName()).end();
         out.start("key").text("CFBundleDisplayName").end().start("string").text(app.getName()).end();
         //out.start("key").text("CFBundleExecutable").end().start("string").text(app.getName()).end();

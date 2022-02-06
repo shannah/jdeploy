@@ -86,6 +86,19 @@ public class NPMPackageVersion {
         return out;
     }
 
+    public Iterable<String> getUrlSchemes() {
+        ArrayList<String> out = new ArrayList<>();
+        if (jdeploy().has("urlSchemes")) {
+            JSONArray schemes = jdeploy().getJSONArray("urlSchemes");
+            int len = schemes.length();
+            for (int i=0; i<len; i++) {
+                String scheme = schemes.getString(i);
+                out.add(scheme);
+            }
+        }
+        return out;
+    }
+
 
 
 
