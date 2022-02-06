@@ -64,7 +64,7 @@ import org.w3c.dom.Document;
  * @author shannah
  */
 public class JDeploy {
-    
+    private boolean alwaysPackageOnPublish = !Boolean.getBoolean("jdeploy.doNotPackage");
     private final File directory;
     private File packageJsonFile;
     private Map packageJsonMap;
@@ -1457,6 +1457,10 @@ public class JDeploy {
     
 
     private void publish() throws IOException {
+        if (alwaysPackageOnPublish) {
+
+            _package();
+        }
         try {
             ProcessBuilder pb = new ProcessBuilder();
             pb.inheritIO();
