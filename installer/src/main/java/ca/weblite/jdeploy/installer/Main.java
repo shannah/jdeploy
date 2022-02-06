@@ -1228,7 +1228,17 @@ public class Main implements Runnable {
             File applicationsDir = new File(homeDir, ".local"+File.separator+"share"+File.separator+"applications");
             applicationsDir.mkdirs();
             addLinuxDesktopFile(applicationsDir, appInfo.getTitle(), appInfo.getTitle(), pngIcon, launcherFile);
+
+            // We need to run update desktop database before file type associations and url schemes will be
+            // recognized.
+            Process p = Runtime.getRuntime().exec(new String[]{"update-desktop-database", applicationsDir.getAbsolutePath()});
+            int result = p.waitFor();
+            if (result != 0) {
+                throw new IOException("Failed to update desktop database.  Exit code "+result);
+            }
         }
+
+
     }
 
 }
