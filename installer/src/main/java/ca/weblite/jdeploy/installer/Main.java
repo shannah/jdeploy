@@ -807,6 +807,7 @@ public class Main implements Runnable {
             installWindowsLinks(exePath);
 
             installWindowsFileAssociations(exePath);
+            installWindowsURLSchemes(exePath);
 
 
             installedApp = exePath;
@@ -990,6 +991,34 @@ public class Main implements Runnable {
 
 
         link.save();
+
+
+    }
+
+    private void installWindowsURLSchemes(File exePath) throws IOException {
+        if (!appInfo.hasUrlSchemes()) {
+            return;
+        }
+
+
+        WinRegistry registry = new WinRegistry();
+        String progIdBase = "jdeploy."+appInfo.getNpmPackage();
+        boolean requiresRefresh = false;
+        for (String scheme : appInfo.getUrlSchemes()) {
+            File icoPath = null;
+            if (new File(exePath.getParentFile(), "icon.ico").exists()) {
+                icoPath = new File(exePath.getParentFile(), "icon.ico");
+            }
+
+
+            registry.addURLScheme(scheme, exePath, icoPath);
+
+
+            requiresRefresh = true;
+        }
+        if (requiresRefresh) {
+            registry.notifyFileAssociationsChanged();
+        }
 
 
     }

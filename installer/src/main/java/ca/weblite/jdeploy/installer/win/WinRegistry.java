@@ -8,6 +8,34 @@ import static com.sun.jna.platform.win32.WinReg.HKEY_LOCAL_MACHINE;
 public class WinRegistry {
 
 
+    public void addURLScheme(String scheme, File exe, File icon) {
+        String key = "Software\\Classes\\" + scheme;
+
+        if (!registryKeyExists(HKEY_CURRENT_USER, key)) {
+            registryCreateKey(HKEY_CURRENT_USER, key);
+        }
+        registrySetStringValue(HKEY_CURRENT_USER, key, "URL Protocol", "");
+        key = key + "\\shell";
+        if (!registryKeyExists(HKEY_CURRENT_USER, key)) {
+            registryCreateKey(HKEY_CURRENT_USER, key);
+        }
+        key = key + "\\open";
+        if (!registryKeyExists(HKEY_CURRENT_USER, key)) {
+            registryCreateKey(HKEY_CURRENT_USER, key);
+        }
+
+        if (icon != null && icon.exists()) {
+            registrySetStringValue(HKEY_CURRENT_USER, key, "Icon", icon.getAbsolutePath());
+        }
+
+        key = key + "\\command";
+        if (!registryKeyExists(HKEY_CURRENT_USER, key)) {
+            registryCreateKey(HKEY_CURRENT_USER, key);
+        }
+
+        registrySetStringValue(HKEY_CURRENT_USER, key, null, "\""+exe.getAbsolutePath()+"\" \"%1\"");
+    }
+
 
     public void addFileAssociation(String ext, String progIdBase, String progName, String mimetype, File exe, File icon, String verb, String humanReadableFileType) {
         String defaultKey = null;
