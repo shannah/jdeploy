@@ -471,6 +471,7 @@ public class JDeploy {
     public File findJarFile() {
         if (getJar(null) != null) {
             File jarFile = new File(getJar(null));
+
             if (!jarFile.exists() && jarFile.getParentFile() == null) {
                 return null;
             }
@@ -500,6 +501,9 @@ public class JDeploy {
     public File findWarFile() {
         if (getWar(null) != null) {
             File warFile = new File(getWar(null));
+            if (!warFile.exists() || warFile.getParentFile() == null) {
+                return null;
+            }
             if (!warFile.exists() && warFile.getParentFile().exists()) {
                 // Jar file might be a glob
                 PathMatcher matcher = warFile.getParentFile().toPath().getFileSystem().getPathMatcher(warFile.getName());
@@ -832,7 +836,8 @@ public class JDeploy {
 
     public void bundleIcon() throws IOException {
         File jarFile = new File(getString("jar", null));
-        File iconFile = new File(jarFile.getParentFile(), "icon.png");
+
+        File iconFile = new File(jarFile.getAbsoluteFile().getParentFile(), "icon.png");
         if (!iconFile.exists()) {
             File _iconFile = new File(directory, "icon.png");
             if (_iconFile.exists()) {
@@ -849,13 +854,12 @@ public class JDeploy {
     }
 
 
-
     public void bundleSplash() throws IOException {
         File jarFile = new File(getString("jar", null));
-
-        File splashFile = new File(jarFile.getParentFile(), "splash.png");
-        if (!splashFile.exists() && jarFile.getParentFile().isDirectory()) {
-            for (File child : jarFile.getParentFile().listFiles()) {
+        File absoluteParent = jarFile.getAbsoluteFile().getParentFile();
+        File splashFile = new File(absoluteParent, "splash.png");
+        if (!splashFile.exists() && absoluteParent.isDirectory()) {
+            for (File child : absoluteParent.listFiles()) {
                 if (child.getName().equals("splash.jpg") || child.getName().equals("splash.gif")) {
                     splashFile = child;
 
@@ -867,7 +871,7 @@ public class JDeploy {
             for (File child : directory.listFiles()) {
                 if (child.getName().equals("splash.jpg") || child.getName().equals("splash.gif") || child.getName().equals("splash.png")) {
                     File _splashFile = child;
-                    splashFile = new File(jarFile.getParentFile(), _splashFile.getName());
+                    splashFile = new File(absoluteParent, _splashFile.getName());
                     FileUtils.copyFile(_splashFile, splashFile);
                 }
             }
@@ -1024,18 +1028,7 @@ public class JDeploy {
         } else {
             File candidate = findBestCandidate();
             if (commandName == null) {
-                
-                /*
-                if (candidate == null) {
-                    commandName = directory.getAbsoluteFile().getName().toLowerCase();
-                    if (".".equals(commandName)) {
-                        commandName = directory.getAbsoluteFile().getParentFile().getName().toLowerCase();
-                    }
-                } else if (candidate.getName().endsWith(".jar") || candidate.getName().endsWith(".war")) {
-                    commandName = candidate.getName().substring(0, candidate.getName().lastIndexOf(".")).toLowerCase();
-                } else {
-                    commandName = candidate.getName().toLowerCase();
-                }*/
+
             }
             if (candidate != null) {
                 commandName = candidate.getName();
@@ -1182,8 +1175,8 @@ public class JDeploy {
         }
 
         File jarFile = new File(jarPath);
-
-        File iconFile = new File(jarFile.getParentFile(), "icon.png");
+        File absoluteParent = jarFile.getAbsoluteFile().getParentFile();
+        File iconFile = new File(absoluteParent, "icon.png");
         if (!iconFile.exists()) {
             File projectIcon = new File("icon.png");
 
@@ -1331,7 +1324,8 @@ public class JDeploy {
 
             {
                 File jarFile = new File(getString("jar", null));
-                File iconFile = new File(jarFile.getParentFile(), "icon.png");
+                File absoluteParent = jarFile.getAbsoluteFile().getParentFile();
+                File iconFile = new File(absoluteParent, "icon.png");
                 if (!iconFile.exists()) {
                     FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("icon.png"), iconFile);
                 }
@@ -1349,7 +1343,8 @@ public class JDeploy {
 
             {
                 File jarFile = new File(getString("jar", null));
-                File splashFile = new File(jarFile.getParentFile(), "installsplash.png");
+                File absoluteParent = jarFile.getAbsoluteFile().getParentFile();
+                File splashFile = new File(absoluteParent, "installsplash.png");
                 if (!splashFile.exists()) {
                     FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("installsplash.png"), splashFile);
                 }
