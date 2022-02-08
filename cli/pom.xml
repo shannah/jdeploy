@@ -136,7 +136,19 @@
             <version>20211205</version>
             <scope>compile</scope>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/io.codeworth/PanelMatic -->
+        <dependency>
+            <groupId>ca.weblite</groupId>
+            <artifactId>PanelMatic</artifactId>
+            <version>0.9.9</version>
+        </dependency>
 
+        <!-- https://mvnrepository.com/artifact/org.apache.httpcomponents/httpclient -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.5.13</version>
+        </dependency>
 
     </dependencies>
     <repositories>

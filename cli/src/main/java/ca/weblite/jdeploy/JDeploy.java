@@ -7,34 +7,21 @@ package ca.weblite.jdeploy;
 
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.appbundler.Bundler;
-import ca.weblite.tools.io.ArchiveUtil;
-import ca.weblite.tools.io.IOUtil;
-import ca.weblite.tools.io.URLUtil;
-import ca.weblite.tools.io.XMLUtil;
+import ca.weblite.jdeploy.gui.JDeployMainMenu;
+import ca.weblite.tools.io.*;
 import com.client4j.JCAXMLFile;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
 import com.codename1.xml.Element;
 import com.codename1.xml.XMLParser;
 
+import java.awt.*;
 import java.io.*;
-import java.net.URI;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.net.URLEncoder;
+import java.net.*;
 import java.nio.file.*;
 import java.nio.file.attribute.PosixFilePermission;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
-import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -56,8 +43,16 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.compress.archivers.zip.ZipExtraField;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.util.EntityUtils;
 import org.json.JSONObject;
 import org.w3c.dom.Document;
+
+import javax.net.ssl.HttpsURLConnection;
 
 /**
  *
@@ -1449,15 +1444,128 @@ public class JDeploy {
     
     
 
-    
+    private void uploadResources() throws IOException {
+        File icon = new File("icon.png");
+        File installSplash = new File("installsplash.png");
+        JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File("jdeploy" + File.separator + "publish" + File.separator + "package.json"), "UTF-8"));
+
+        if (icon.exists() || installSplash.exists()) {
+            // If there is a custom icon or install splash we need to upload
+            // them to jdeploy.com so that they are available when generating
+            // the installer.  Without this, jdeploy.com would need to download the
+            // full package from npm and extract the icon and installsplash from there.
+
+            JSONObject jdeployFiles = new JSONObject();
+            byte[] iconBytes = FileUtils.readFileToByteArray(icon);
+            jdeployFiles.put("icon.png", Base64.getEncoder().encodeToString(iconBytes));
+            if (installSplash.exists()) {
+                byte[] splashBytes = FileUtils.readFileToByteArray(installSplash);
+                jdeployFiles.put("installsplash.png", Base64.getEncoder().encodeToString(splashBytes));
+            }
+            jdeployFiles.put("packageName", packageJSON.get("name"));
+            jdeployFiles.put("version", packageJSON.get("version"));
+            try {
+                System.out.println("Uploading icon to jdeploy.com...");
+                JSONObject response = makeServiceCall(JDEPLOY_REGISTRY + "publish.php", jdeployFiles.toString());
+                System.out.println("Upload complete");
+                if (response.has("code") && response.getInt("code") == 200) {
+                    System.out.println("Your package was published successfully.");
+                    System.out.println("You can download native installers for your app at " + JDEPLOY_REGISTRY + "~" + packageJSON.getString("name"));
+                } else {
+                    System.err.println("There was a problem publishing the icon to " + JDEPLOY_REGISTRY);
+                    if (response.has("error")) {
+                        System.err.println("Error message: " + response.getString("error"));
+                    } else if (response.has("code")) {
+                        System.err.println("Unexpected response code: " + response.getInt("code"));
+                    } else {
+                        System.err.println("Unexpected server response: " + response.toString());
+                    }
+                }
+
+            } catch (Exception ex) {
+                System.err.println("Failed to publish icon and splash image to jdeploy.com.  " + ex.getMessage());
+                ex.printStackTrace(System.err);
+                System.exit(1);
+            }
+        } else {
+            System.out.println("Your package was published successfully.");
+            System.out.println("You can download native installers for your app at " + JDEPLOY_REGISTRY + "~" + packageJSON.getString("name"));
+
+        }
+    }
+
+    private JSONObject fetchPackageInfoFromNpm(String packageName) throws IOException {
+        URL u = new URL("https://registry.npmjs.org/"+packageName);
+        HttpURLConnection conn = (HttpURLConnection)u.openConnection();
+        conn.setInstanceFollowRedirects(true);
+        conn.setUseCaches(false);
+        if (conn.getResponseCode() != 200) {
+            throw new IOException("Failed to fetch Package info for package "+packageName+". "+conn.getResponseMessage());
+        }
+        return new JSONObject(IOUtil.readToString(conn.getInputStream()));
+    }
+
+    private boolean isVersionPublished(String packageName, String version) {
+        try {
+            JSONObject jsonObject = fetchPackageInfoFromNpm(packageName);
+            return jsonObject.has("versions") && jsonObject.getJSONObject("versions").has(version);
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
 
     private void publish() throws IOException {
         if (alwaysPackageOnPublish) {
 
             _package();
         }
+
+        // Copy all publishable artifacts to a temporary
+        // directory so that we can add some information to the
+        // package.json without having to modify the actual package.json
+        File publishDir = new File("jdeploy/publish");
+        if (publishDir.exists()) {
+            FileUtils.deleteDirectory(publishDir);
+        }
+        if (!publishDir.exists()) {
+            publishDir.mkdirs();
+        }
+        FileUtils.copyDirectory(new File("jdeploy-bundle"), new File(publishDir, "jdeploy-bundle"));
+        FileUtils.copyFile(new File("package.json"), new File(publishDir, "package.json"));
+        File readme = new File("README.md");
+        if (readme.exists()) {
+            FileUtils.copyFile(readme, new File(publishDir, readme.getName()));
+        }
+        File license = new File("LICENSE");
+        if (license.exists()) {
+            FileUtils.copyFile(license, new File(publishDir, license.getName()));
+        }
+
+        // Now add checksums
+        JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File("package.json"), "UTF-8"));
+        JSONObject jdeployObj = packageJSON.getJSONObject("jdeploy");
+
+        File icon = new File("icon.png");
+        JSONObject checksums = new JSONObject();
+        jdeployObj.put("checksums", checksums);
+        if (icon.exists()) {
+            String md5 = MD5.getMD5Checksum(icon);
+            checksums.put("icon.png", md5);
+        }
+
+        File installSplash = new File("installsplash.png");
+        if (installSplash.exists()) {
+            checksums.put("installsplash.png", MD5.createChecksum(installSplash));
+        }
+
+        FileUtils.writeStringToFile(new File(publishDir,"package.json"), packageJSON.toString(), "UTF-8");
+
+
+
         try {
             ProcessBuilder pb = new ProcessBuilder();
+            pb.directory(publishDir);
             pb.inheritIO();
             pb.command(npm, "publish");
             Process p = pb.start();
@@ -1469,10 +1577,61 @@ public class JDeploy {
             Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
             throw new RuntimeException(ex);
         }
+        System.out.println("Package published to npm successfully.");
+        System.out.println("Waiting for npm to update its registry...");
+        long timeout = System.currentTimeMillis()+30000;
+        while (System.currentTimeMillis() < timeout) {
+            if (isVersionPublished(packageJSON.getString("name"), packageJSON.getString("version"))) {
+                break;
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (Exception ex){}
+        }
+
+        uploadResources();
+
+
     }
+
+    private JSONObject makeServiceCall(String url,
+                                        String jsonString) {
+        try{
+            CloseableHttpClient client = HttpClientBuilder.create().build();
+            HttpPost httpPost = new HttpPost(url);
+
+            httpPost.setHeader("Content-Type", "application/json; charset='utf-8'");
+            httpPost.setHeader("Accept-Charset", "UTF-8");
+            httpPost.setEntity(new StringEntity(jsonString));
+
+
+            CloseableHttpResponse response = client.execute(httpPost);
+            if (response.getStatusLine().getStatusCode() != 200) {
+                //System.err.println("Headers: "+conn.getHeaderFields());
+                throw new IOException("Failed to publish resources to jdeploy.com.  "+response.getStatusLine().getReasonPhrase());
+            }
+            String resultLine = EntityUtils.toString(response.getEntity());
+            try {
+                return new JSONObject(resultLine);
+            } catch (Exception ex) {
+                System.err.println("Unexpected server response.  Expected JSON but found "+resultLine+" Response code was: "+response.getStatusLine().getStatusCode()+".  Message was "+response.getStatusLine().getReasonPhrase());
+                ex.printStackTrace();
+                throw new Exception("Unexpected server response.  Expected JSON but found "+resultLine);
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            JSONObject out = new JSONObject();
+            out.put("code", 500);
+            out.put("error", ex.getMessage());
+            return out;
+        }
+
+
+    }
+
+
     
     private void scan() throws IOException {
-        //System.out.println("Scanning directory for executable jars, wars, and webapps...");
         File[] jars = findJarCandidates();
         System.out.println("Found "+jars.length+" jars: "+Arrays.toString(jars));
         System.out.println("Best candidate: "+shallowest(jars));
@@ -1522,6 +1681,21 @@ public class JDeploy {
                 prog.help(opts);
                 System.exit(1);
             }
+
+            if ("gui".equals(args[0])) {
+                EventQueue.invokeLater(()->{
+                    JDeployMainMenu menu = new JDeployMainMenu();
+                    menu.show();
+                });
+                return;
+
+            }
+
+            if ("upload-resources".equals(args[0])) {
+                prog.uploadResources();
+                System.exit(0);
+            }
+
             if ("clean".equals(args[0])) {
 
                 File jDeployDir = new File("jdeploy");
