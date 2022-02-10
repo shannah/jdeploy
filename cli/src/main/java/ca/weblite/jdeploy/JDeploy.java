@@ -8,18 +8,18 @@ package ca.weblite.jdeploy;
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
+import ca.weblite.jdeploy.gui.JDeployProjectEditor;
+import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.tools.io.*;
-import com.client4j.JCAXMLFile;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
-import com.codename1.xml.Element;
-import com.codename1.xml.XMLParser;
+
 
 import java.awt.*;
 import java.io.*;
 import java.net.*;
 import java.nio.file.*;
-import java.nio.file.attribute.PosixFilePermission;
+
 import java.util.*;
 import java.util.List;
 import java.util.jar.Attributes;
@@ -29,20 +29,15 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
-
-import net.lingala.zip4j.ZipFile;
-import net.lingala.zip4j.io.inputstream.ZipInputStream;
-import net.lingala.zip4j.model.FileHeader;
-import net.lingala.zip4j.model.ZipParameters;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 
-import org.apache.commons.compress.archivers.zip.ZipExtraField;
+
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
+
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
@@ -52,7 +47,8 @@ import org.apache.http.util.EntityUtils;
 import org.json.JSONObject;
 import org.w3c.dom.Document;
 
-import javax.net.ssl.HttpsURLConnection;
+import javax.swing.*;
+
 
 /**
  *
@@ -64,6 +60,8 @@ public class JDeploy {
     private File packageJsonFile;
     private Map packageJsonMap;
     private Result packageJsonResult;
+    private PrintStream out = System.out;
+    private PrintStream err = System.err;
 
     public static String JDEPLOY_REGISTRY = "https://www.jdeploy.com/";
     static {
@@ -76,6 +74,14 @@ public class JDeploy {
                 JDEPLOY_REGISTRY += "/";
             }
         }
+    }
+
+    public PrintStream getOut() {
+        return out;
+    }
+
+    public PrintStream getErr() {
+        return err;
     }
     
     public class CopyRule {
@@ -112,7 +118,7 @@ public class JDeploy {
             }
             
             if (srcDir.equals(destDirectory)) {
-                System.err.println("Copy rule has same srcDir and destDir.  Not copying: "+srcDir);
+                err.println("Copy rule has same srcDir and destDir.  Not copying: "+srcDir);
                 return;
             }
             final Set<String> includedDirectories = new HashSet<String>();
@@ -170,10 +176,29 @@ public class JDeploy {
         }
     }
     
-    public JDeploy(File directory) {
+    public JDeploy(File directory, boolean exitOnFail) {
         this.directory = directory;
+        this.exitOnFail = exitOnFail;
     }
-    
+
+    public JDeploy(File directory) {
+        this(directory, true);
+    }
+
+
+
+    public PrintStream setOut(PrintStream out) {
+        PrintStream old = this.out;
+        this.out = out;
+        return out;
+    }
+
+    public PrintStream setErr(PrintStream err) {
+        PrintStream old = this.err;
+        this.err = err;
+        return old;
+    }
+
     public File getDirectory() {
         return directory;
     }
@@ -640,6 +665,29 @@ public class JDeploy {
             }
         }
     }
+
+    private boolean exitOnFail = true;
+
+    public static class FailException extends RuntimeException {
+        private int exitCode;
+        public FailException(String message, int exitCode) {
+            super(message);
+            this.exitCode = exitCode;
+        }
+
+        public int getExitCode() {
+            return exitCode;
+        }
+    }
+    private void fail(String message, int code) {
+        if (exitOnFail) {
+            err.println(message);
+            System.exit(code);
+        } else {
+            throw new FailException(message, code);
+        }
+
+    }
     
     public void copyToBin() throws IOException {
         
@@ -647,8 +695,8 @@ public class JDeploy {
         if (getPreCopyScript(null) != null) {
             int code = 0;
             if ((code = runScript(getPreCopyScript(null))) != 0) {
-                System.err.println("Pre-copy script failed.");
-                System.exit(code);
+                fail("Pre-copy script failed", code);
+                return;
             }
         }
         
@@ -656,8 +704,9 @@ public class JDeploy {
         if (antFile.exists() && getPreCopyTarget(null) != null) {
             int code = runAntTask(getAntFile("build.xml"), getPreCopyTarget(null));
             if (code != 0) {
-                System.err.println("Pre-copy ant task failed");
-                System.exit(code);
+                fail("Pre-copy ant task failed", code);
+                return;
+
             }
         }
         
@@ -670,11 +719,11 @@ public class JDeploy {
         
         if (getJar(null) == null && getWar(null) == null) {
             // no jar or war explicitly specified... need to scan
-            System.out.println("No jar, war, or web app explicitly specified.  Scanning directory to find best candidate.");
+            out.println("No jar, war, or web app explicitly specified.  Scanning directory to find best candidate.");
             
             File best = findBestCandidate();
-            System.out.println("Found "+best);
-            System.out.println("To explicitly set the jar, war, or web app to build, use the \"war\" or \"jar\" property of the \"jdeploy\" section of the package.json file.");
+            out.println("Found "+best);
+            out.println("To explicitly set the jar, war, or web app to build, use the \"war\" or \"jar\" property of the \"jdeploy\" section of the package.json file.");
             if (best == null) {
             } else if (best.getName().endsWith(".jar")) {
                 setJar(best.getPath());
@@ -750,16 +799,16 @@ public class JDeploy {
         if (getPostCopyScript(null) != null) {
             int code = 0;
             if ((code = runScript(getPostCopyScript(null))) != 0) {
-                System.err.println("Post-copy script failed.");
-                System.exit(code);
+                fail("Post-copy script failed", code);
+                return;
             }
         }
         
         if (antFile.exists() && getPostCopyTarget(null) != null) {
             int code = runAntTask(getAntFile("build.xml"), getPostCopyTarget(null));
             if (code != 0) {
-                System.err.println("Post-copy ant task failed");
-                System.exit(code);
+                fail("Post-copy ant task failed", code);
+                return;
             }
         }
         
@@ -977,18 +1026,18 @@ public class JDeploy {
         }
 
         String jsonStr = Result.fromContent(pj).toString();
-        System.out.println("Updating your package.json file as follows:\n ");
-        System.out.println(jsonStr);
-        System.out.println("");
-        System.out.print("Proceed? (y/N)");
+        out.println("Updating your package.json file as follows:\n ");
+        out.println(jsonStr);
+        out.println("");
+        out.print("Proceed? (y/N)");
         Scanner reader = new Scanner(System.in);
         String response = reader.next();
         if ("y".equals(response.toLowerCase())) {
-            System.out.println("Writing package.json...");
+            out.println("Writing package.json...");
             FileUtils.writeStringToFile(packageJson, jsonStr, "UTF-8");
-            System.out.println("Complete!");
+            out.println("Complete!");
         } else {
-            System.out.println("Cancelled");
+            out.println("Cancelled");
         }
     }
 
@@ -1012,7 +1061,7 @@ public class JDeploy {
         return out.toString();
     }
     
-    private void init(String commandName) throws IOException {
+    private void init(String commandName, boolean prompt) throws IOException {
         commandName = directory.getAbsoluteFile().getName().toLowerCase();
         if (".".equals(commandName)) {
             commandName = directory.getAbsoluteFile().getParentFile().getName().toLowerCase();
@@ -1085,19 +1134,24 @@ public class JDeploy {
 
             Result res = Result.fromContent(m);
             String jsonStr = res.toString();
-            System.out.println("Creating your package.json file with following content:\n ");
-            System.out.println(jsonStr);
-            System.out.println("");
-            System.out.print("Proceed? (y/N)");
-            Scanner reader = new Scanner(System.in);
-            String response = reader.next();
-            if ("y".equals(response.toLowerCase().trim())) {
-                System.out.println("Writing package.json...");
-                FileUtils.writeStringToFile(packageJson, jsonStr, "UTF-8");
-                System.out.println("Complete!");
+            if (prompt) {
+                out.println("Creating your package.json file with following content:\n ");
+                out.println(jsonStr);
+                out.println("");
+                out.print("Proceed? (y/N)");
+                Scanner reader = new Scanner(System.in);
+                String response = reader.next();
+                if ("y".equals(response.toLowerCase().trim())) {
+                    out.println("Writing package.json...");
+                    FileUtils.writeStringToFile(packageJson, jsonStr, "UTF-8");
+                    out.println("Complete!");
+                } else {
+                    out.println("Cancelled");
+                }
             } else {
-                System.out.println("Cancelled");
+                FileUtils.writeStringToFile(packageJson, jsonStr, "UTF-8");
             }
+
         }
     }
     
@@ -1105,7 +1159,7 @@ public class JDeploy {
         return System.getProperty("os.name").toLowerCase().contains("win");
     }
 
-    static String npm = isWindows() ? "npm.cmd" : "npm";
+    //static String npm = NPM.npm;
 
     private static String getenv(String key, String defaultValue) {
         String value = System.getenv(key);
@@ -1427,27 +1481,15 @@ public class JDeploy {
     private void install() throws IOException {
         
         _package();
-        try {
-            ProcessBuilder pb = new ProcessBuilder();
-            pb.inheritIO();
-            pb.command(npm, "link");
-            Process p = pb.start();
-            int result = p.waitFor();
-            if (result != 0) {
-                System.exit(result);
-            }
-        } catch (InterruptedException ex) {
-            Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
-            throw new RuntimeException(ex);
-        }
+        new NPM(out, err).link(exitOnFail);
     }
     
     
 
     private void uploadResources() throws IOException {
-        File icon = new File("icon.png");
-        File installSplash = new File("installsplash.png");
-        JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File("jdeploy" + File.separator + "publish" + File.separator + "package.json"), "UTF-8"));
+        File icon = new File(directory, "icon.png");
+        File installSplash = new File(directory,"installsplash.png");
+        JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File(directory, "jdeploy" + File.separator + "publish" + File.separator + "package.json"), "UTF-8"));
 
         if (icon.exists() || installSplash.exists()) {
             // If there is a custom icon or install splash we need to upload
@@ -1465,57 +1507,48 @@ public class JDeploy {
             jdeployFiles.put("packageName", packageJSON.get("name"));
             jdeployFiles.put("version", packageJSON.get("version"));
             try {
-                System.out.println("Uploading icon to jdeploy.com...");
+                out.println("Uploading icon to jdeploy.com...");
                 JSONObject response = makeServiceCall(JDEPLOY_REGISTRY + "publish.php", jdeployFiles.toString());
-                System.out.println("Upload complete");
+                out.println("Upload complete");
                 if (response.has("code") && response.getInt("code") == 200) {
-                    System.out.println("Your package was published successfully.");
-                    System.out.println("You can download native installers for your app at " + JDEPLOY_REGISTRY + "~" + packageJSON.getString("name"));
+                    out.println("Your package was published successfully.");
+                    out.println("You can download native installers for your app at " + JDEPLOY_REGISTRY + "~" + packageJSON.getString("name"));
                 } else {
-                    System.err.println("There was a problem publishing the icon to " + JDEPLOY_REGISTRY);
+                    err.println("There was a problem publishing the icon to " + JDEPLOY_REGISTRY);
                     if (response.has("error")) {
-                        System.err.println("Error message: " + response.getString("error"));
+                        err.println("Error message: " + response.getString("error"));
                     } else if (response.has("code")) {
-                        System.err.println("Unexpected response code: " + response.getInt("code"));
+                        err.println("Unexpected response code: " + response.getInt("code"));
                     } else {
-                        System.err.println("Unexpected server response: " + response.toString());
+                        err.println("Unexpected server response: " + response.toString());
                     }
                 }
 
             } catch (Exception ex) {
-                System.err.println("Failed to publish icon and splash image to jdeploy.com.  " + ex.getMessage());
+                err.println("Failed to publish icon and splash image to jdeploy.com.  " + ex.getMessage());
                 ex.printStackTrace(System.err);
-                System.exit(1);
+                fail("Failed to publish icon and splash image to jdeploy.com. "+ex.getMessage(), 1);
+                return;
             }
         } else {
-            System.out.println("Your package was published successfully.");
-            System.out.println("You can download native installers for your app at " + JDEPLOY_REGISTRY + "~" + packageJSON.getString("name"));
+            out.println("Your package was published successfully.");
+            out.println("You can download native installers for your app at " + JDEPLOY_REGISTRY + "~" + packageJSON.getString("name"));
 
         }
     }
 
     private JSONObject fetchPackageInfoFromNpm(String packageName) throws IOException {
-        URL u = new URL("https://registry.npmjs.org/"+packageName);
-        HttpURLConnection conn = (HttpURLConnection)u.openConnection();
-        conn.setInstanceFollowRedirects(true);
-        conn.setUseCaches(false);
-        if (conn.getResponseCode() != 200) {
-            throw new IOException("Failed to fetch Package info for package "+packageName+". "+conn.getResponseMessage());
-        }
-        return new JSONObject(IOUtil.readToString(conn.getInputStream()));
+        return new NPM(out, err).fetchPackageInfoFromNpm(packageName);
+
     }
 
     private boolean isVersionPublished(String packageName, String version) {
-        try {
-            JSONObject jsonObject = fetchPackageInfoFromNpm(packageName);
-            return jsonObject.has("versions") && jsonObject.getJSONObject("versions").has(version);
-        } catch (Exception ex) {
-            return false;
-        }
+        return new NPM(out, err).isVersionPublished(packageName, version);
+
     }
 
 
-    private void publish() throws IOException {
+    public void publish() throws IOException {
         if (alwaysPackageOnPublish) {
 
             _package();
@@ -1524,14 +1557,14 @@ public class JDeploy {
         // Copy all publishable artifacts to a temporary
         // directory so that we can add some information to the
         // package.json without having to modify the actual package.json
-        File publishDir = new File("jdeploy/publish");
+        File publishDir = new File(directory,"jdeploy" + File.separator+ "publish");
         if (publishDir.exists()) {
             FileUtils.deleteDirectory(publishDir);
         }
         if (!publishDir.exists()) {
             publishDir.mkdirs();
         }
-        FileUtils.copyDirectory(new File("jdeploy-bundle"), new File(publishDir, "jdeploy-bundle"));
+        FileUtils.copyDirectory(new File(directory, "jdeploy-bundle"), new File(publishDir, "jdeploy-bundle"));
         FileUtils.copyFile(new File("package.json"), new File(publishDir, "package.json"));
         File readme = new File("README.md");
         if (readme.exists()) {
@@ -1543,10 +1576,10 @@ public class JDeploy {
         }
 
         // Now add checksums
-        JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File("package.json"), "UTF-8"));
+        JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File(directory, "package.json"), "UTF-8"));
         JSONObject jdeployObj = packageJSON.getJSONObject("jdeploy");
 
-        File icon = new File("icon.png");
+        File icon = new File(directory, "icon.png");
         JSONObject checksums = new JSONObject();
         jdeployObj.put("checksums", checksums);
         if (icon.exists()) {
@@ -1554,7 +1587,7 @@ public class JDeploy {
             checksums.put("icon.png", md5);
         }
 
-        File installSplash = new File("installsplash.png");
+        File installSplash = new File(directory, "installsplash.png");
         if (installSplash.exists()) {
             checksums.put("installsplash.png", MD5.createChecksum(installSplash));
         }
@@ -1562,23 +1595,10 @@ public class JDeploy {
         FileUtils.writeStringToFile(new File(publishDir,"package.json"), packageJSON.toString(), "UTF-8");
 
 
+        new NPM(out, err).publish(publishDir, exitOnFail);
+        out.println("Package published to npm successfully.");
+        out.println("Waiting for npm to update its registry...");
 
-        try {
-            ProcessBuilder pb = new ProcessBuilder();
-            pb.directory(publishDir);
-            pb.inheritIO();
-            pb.command(npm, "publish");
-            Process p = pb.start();
-            int result = p.waitFor();
-            if (result != 0) {
-                System.exit(result);
-            }
-        } catch (InterruptedException ex) {
-            Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
-            throw new RuntimeException(ex);
-        }
-        System.out.println("Package published to npm successfully.");
-        System.out.println("Waiting for npm to update its registry...");
         long timeout = System.currentTimeMillis()+30000;
         while (System.currentTimeMillis() < timeout) {
             if (isVersionPublished(packageJSON.getString("name"), packageJSON.getString("version"))) {
@@ -1633,23 +1653,23 @@ public class JDeploy {
     
     private void scan() throws IOException {
         File[] jars = findJarCandidates();
-        System.out.println("Found "+jars.length+" jars: "+Arrays.toString(jars));
-        System.out.println("Best candidate: "+shallowest(jars));
+        out.println("Found "+jars.length+" jars: "+Arrays.toString(jars));
+        out.println("Best candidate: "+shallowest(jars));
         
         File[] wars = findWarCandidates();
-        System.out.println("Found "+wars.length+" wars: "+Arrays.toString(wars));
-        System.out.println("Best candidate: "+shallowest(jars));
+        out.println("Found "+wars.length+" wars: "+Arrays.toString(wars));
+        out.println("Best candidate: "+shallowest(jars));
         
         File[] webApps = findWebAppCandidates();
-        System.out.println("Found "+webApps.length+" web apps: "+Arrays.toString(webApps));
-        System.out.println("Best candidate: "+shallowest(jars));
+        out.println("Found "+webApps.length+" web apps: "+Arrays.toString(webApps));
+        out.println("Best candidate: "+shallowest(jars));
         
         List<File> combined = new ArrayList<File>();
         combined.addAll(Arrays.asList(jars));
         combined.addAll(Arrays.asList(wars));
         combined.addAll(Arrays.asList(webApps));
         
-        System.out.println("If jdeploy were to run on this directory without specifying the jar or war in the package.json, it would choose " + shallowest(combined.toArray(new File[combined.size()])));
+        out.println("If jdeploy were to run on this directory without specifying the jar or war in the package.json, it would choose " + shallowest(combined.toArray(new File[combined.size()])));
     }
 
     private void help(Options opts) {
@@ -1664,7 +1684,7 @@ public class JDeploy {
     }
     
     private void _run() {
-        System.out.println("run not implemented yet");
+        out.println("run not implemented yet");
     }
 
     /**
@@ -1682,7 +1702,7 @@ public class JDeploy {
                 System.exit(1);
             }
 
-            if ("gui".equals(args[0])) {
+            if ("gui-main".equals(args[0])) {
                 EventQueue.invokeLater(()->{
                     JDeployMainMenu menu = new JDeployMainMenu();
                     menu.show();
@@ -1690,6 +1710,25 @@ public class JDeploy {
                 return;
 
             }
+
+            if ("gui".equals(args[0])) {
+                File packageJSON = new File("package.json");
+                if (packageJSON.exists()) {
+                    JSONObject packageJSONObject = new JSONObject(FileUtils.readFileToString(packageJSON, "UTF-8"));
+                    if (packageJSON.exists()) {
+                        EventQueue.invokeLater(() -> {
+                            JDeployProjectEditor editor = new JDeployProjectEditor(packageJSON, packageJSONObject);
+                            editor.show();
+                        });
+                    }
+                } else {
+                    prog.guiCreateNew(packageJSON);
+                }
+
+                return;
+
+            }
+
 
             if ("upload-resources".equals(args[0])) {
                 prog.uploadResources();
@@ -1725,7 +1764,7 @@ public class JDeploy {
                     commandName = args[1];
                 }
                 
-                prog.init(commandName);
+                prog.init(commandName, true);
             } else if ("install".equals(args[0])) {
                 prog.install();
             } else if ("publish".equals(args[0])) {
@@ -1742,6 +1781,46 @@ public class JDeploy {
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    private void guiCreateNew(File packageJSON) {
+        EventQueue.invokeLater(()->{
+            int result = JOptionPane.showConfirmDialog(null, new JLabel(
+                    "<html><p style='width:400px'>No package.json file found in this directory.  Do you want to create one now?</p></html>"),
+                    "Create package.json?",
+                    JOptionPane.YES_NO_OPTION);
+
+
+            if (result != JOptionPane.YES_OPTION) {
+                System.out.println("result "+result);
+                return;
+            }
+
+            exitOnFail = false;
+            try {
+                init(null, false);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(null,  new JLabel(
+                                "<html><p style='width:400px'>Failed to create package.json file. "+ex.getMessage()+"</p></html>"),
+                                    "JDeploy init error",
+                        JOptionPane.ERROR_MESSAGE
+                        );
+                return;
+
+            }
+            try {
+                File packageJSONFile = new File(directory, "package.json");
+                JSONObject packageJSONObject = new JSONObject(FileUtils.readFileToString(packageJSONFile, "UTF-8"));
+                new JDeployProjectEditor(new File("package.json"), packageJSONObject).show();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(null,  new JLabel(
+                                "<html><p style='width:400px'>There was a problem reading the package.json file. "+ex.getMessage()+"</p></html>"),
+                        "JDeploy init error",
+                        JOptionPane.ERROR_MESSAGE
+                );
+            }
+
+        });
     }
 
 }

@@ -36,5 +36,8 @@
     <orderEntry type="library" name="Maven: org.apache.httpcomponents:httpcore:4.4.13" level="project" />
     <orderEntry type="library" name="Maven: commons-logging:commons-logging:1.2" level="project" />
     <orderEntry type="library" name="Maven: commons-codec:commons-codec:1.11" level="project" />
+    <orderEntry type="library" name="Maven: org.kordamp.ikonli:ikonli-swing:2.6.0" level="project" />
+    <orderEntry type="library" name="Maven: org.kordamp.ikonli:ikonli-core:2.6.0" level="project" />
+    <orderEntry type="library" name="Maven: org.kordamp.ikonli:ikonli-material-pack:2.6.0" level="project" />
   </component>
 </module>
