@@ -56,6 +56,7 @@ public class ProgressDialog {
         FontIcon failedIcon = FontIcon.of(Material.ERROR);
         failedIcon.setIconSize(50);
         JLabel failedIconLabel = new JLabel(failedIcon);
+        failedIconLabel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
         JPanel buttonsPanel = new JPanel();
         JButton closeBtn = new JButton("Close");
@@ -74,10 +75,13 @@ public class ProgressDialog {
 
     private void initCompletePanel(Container cnt) {
         JLabel message = new JLabel("<html>Published successfully</html>");
+        message.setAlignmentX(Component.CENTER_ALIGNMENT);
         FontIcon doneIcon = FontIcon.of(Material.DONE);
         dialog.setTitle("Publish Succeeded");
         doneIcon.setIconSize(50);
+        doneIcon.setIconColor(Color.green);
         JLabel successIcon = new JLabel(doneIcon);
+        successIcon.setBorder(new EmptyBorder(10, 10, 10, 10));
 
         JPanel buttonsPanel = new JPanel();
         JButton closeButton = new JButton("Close");

@@ -33,15 +33,16 @@ public class LoginDialog {
     }
 
     private void initUI(Container cnt) {
+        int numCols = 20;
         JTextField username = new JTextField();
-        username.setColumns(30);
+        username.setColumns(numCols);
         JTextField email = new JTextField();
-        email.setColumns(30);
+        email.setColumns(numCols);
         ((JComponent)cnt).setBorder(new EmptyBorder(15, 15, 15, 15));
-        cnt.setPreferredSize(new Dimension(480, 300));
+        //cnt.setPreferredSize(new Dimension(480, 300));
 
         JPasswordField password = new JPasswordField();
-        password.setColumns(30);
+        password.setColumns(numCols);
 
 
 
@@ -51,13 +52,18 @@ public class LoginDialog {
         JProgressBar progressBar = new JProgressBar();
         progressBar.setIndeterminate(true);
         progressBar.setVisible(false);
+        JPanel statusPanelWrapper = new JPanel();
+        statusPanelWrapper.setLayout(new BorderLayout());
 
         JPanel statusPanel = new JPanel();
-        statusPanel.setPreferredSize(new Dimension(480, 200));
+        //statusPanel.setPreferredSize(new Dimension(480, 200));
 
-        JLabel statusLabel = new JLabel();
+        JLabel statusLabel = new JLabel("Some sample text");
         statusPanel.add(statusLabel);
+        statusPanelWrapper.setPreferredSize(new Dimension(10, statusPanel.getPreferredSize().height));
         statusPanel.setVisible(false);
+        statusPanelWrapper.add(statusPanel, BorderLayout.CENTER);
+
 
         JButton loginManuallyButton = new JButton("Login using Command-line");
         loginManuallyButton.addActionListener(evt->{
@@ -86,7 +92,7 @@ public class LoginDialog {
             npm.cancelLogin();
             dialog.dispose();
         });
-
+        dialog.getRootPane().setDefaultButton(login);
         login.addActionListener(evt->{
 
             if (username.getText().isEmpty()) {
@@ -186,10 +192,15 @@ public class LoginDialog {
                 .add("Username", username)
                 .add("Email", email)
                 .add("Password", password).get();
-
+        loginPanel.setBorder(new EmptyBorder(10, 10, 0, 10));
         JPanel center = new JPanel();
         center.setLayout(new BorderLayout());
         center.add(loginPanel, BorderLayout.CENTER);
+
+        FontIcon loginIcon = FontIcon.of(Material.SECURITY);
+        loginIcon.setIconSize(75);
+        loginIcon.setIconColor(Color.DARK_GRAY);
+        center.add(new JLabel(loginIcon), BorderLayout.WEST);
 
         JPanel buttons = new JPanel();
         buttons.setLayout(new FlowLayout(FlowLayout.RIGHT));
@@ -213,7 +224,7 @@ public class LoginDialog {
 
         cnt.removeAll();
         cnt.setLayout(new BorderLayout());
-        cnt.add(statusPanel, BorderLayout.NORTH);
+        cnt.add(statusPanelWrapper, BorderLayout.NORTH);
         cnt.add(center, BorderLayout.CENTER);
         cnt.add(south, BorderLayout.SOUTH);
 

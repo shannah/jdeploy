@@ -4,6 +4,7 @@ import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.MD5;
+import ca.weblite.tools.platform.Platform;
 import com.sun.nio.file.SensitivityWatchEventModifier;
 import io.codeworth.panelmatic.PanelBuilder;
 import io.codeworth.panelmatic.PanelMatic;
@@ -121,16 +122,20 @@ public class JDeployProjectEditor {
         path.register(watchService,new WatchEvent.Kind[]{StandardWatchEventKinds.ENTRY_MODIFY},  SensitivityWatchEventModifier.HIGH);
 
         while (pollWatchService) {
-            WatchKey key = watchService.take();
+            try {
+                WatchKey key = watchService.take();
 
-            for (WatchEvent<?> event : key.pollEvents()) {
-                String contextString = ""+event.context();
-                if ("package.json".equals(contextString)) {
-                    EventQueue.invokeLater(()->handlePackageJSONChangedOnFileSystem());
+                for (WatchEvent<?> event : key.pollEvents()) {
+                    String contextString = "" + event.context();
+                    if ("package.json".equals(contextString)) {
+                        EventQueue.invokeLater(() -> handlePackageJSONChangedOnFileSystem());
+                    }
                 }
-            }
 
-            pollWatchService = key.reset();
+                pollWatchService = key.reset();
+            } catch (ClosedWatchServiceException cwse) {
+                pollWatchService = false;
+            }
 
         }
     }
@@ -222,7 +227,13 @@ public class JDeployProjectEditor {
             }
         });
         watchThread.start();
+        frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         frame.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                handleClosing();
+            }
+
             @Override
             public void windowClosed(WindowEvent e) {
                 if (watchService != null) {
@@ -239,6 +250,46 @@ public class JDeployProjectEditor {
 
     }
 
+
+    private void handleClosing() {
+        if (modified) {
+            int answer = showWarningUnsavedChangesMessage();
+            switch (answer) {
+                case JOptionPane.YES_OPTION:
+                    //System.out.println("Save and Quit");
+                    handleSave();
+                    frame.dispose();
+                    break;
+
+                case JOptionPane.NO_OPTION:
+                    //System.out.println("Don't Save and Quit");
+                    frame.dispose();
+                    break;
+
+                case JOptionPane.CANCEL_OPTION:
+                    //System.out.println("Don't Quit");
+                    break;
+            }
+        }else {
+            frame.dispose();
+        }
+    }
+
+    private int showWarningUnsavedChangesMessage() {
+        String[] buttonLabels = new String[] {"Yes", "No", "Cancel"};
+        String defaultOption = buttonLabels[0];
+        Icon icon = null;
+
+        return JOptionPane.showOptionDialog(frame,
+                "There's still something unsaved.\n" +
+                        "Do you want to save before exiting?",
+                "Warning",
+                JOptionPane.YES_NO_CANCEL_OPTION,
+                JOptionPane.WARNING_MESSAGE,
+                icon,
+                buttonLabels,
+                defaultOption);
+    }
 
     public void show() {
         initFrame();
@@ -790,7 +841,13 @@ public class JDeployProjectEditor {
         tb.setFloatable(false);
         tb.setOpaque(false);
         tb.add(addDocType);
-        doctypesPanelWrapper.add(tb, BorderLayout.NORTH);
+        JPanel doctypesTop = new JPanel();
+        doctypesTop.setOpaque(false);
+        doctypesTop.setLayout(new BorderLayout());
+        doctypesTop.add(tb, BorderLayout.CENTER);
+        doctypesTop.add(createHelpButton("https://www.jdeploy.com/docs/help/#filetypes", "", "Learn more about file associations in jDeploy."), BorderLayout.EAST);
+        doctypesTop.setMaximumSize(new Dimension(doctypesTop.getPreferredSize()));
+        doctypesPanelWrapper.add(doctypesTop, BorderLayout.NORTH);
 
 
 
@@ -834,7 +891,12 @@ public class JDeployProjectEditor {
                 new Dimension(1000, 1000)
         );
         filler.setOpaque(false);
-
+        JPanel helpPanel = new JPanel();
+        helpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
+        helpPanel.setOpaque(false);
+        helpPanel.add(createHelpButton("https://www.jdeploy.com/docs/help/#_the_details_tab", "", "Learn about what these fields do."));
+        //helpPanel.setMaximumSize(new Dimension(helpPanel.getPreferredSize()));
+        detailWrapper.add(helpPanel);
         detailWrapper.add(detailsPanel);
         detailWrapper.add(filler);
 
@@ -851,7 +913,17 @@ public class JDeployProjectEditor {
                 .add("Install Splash Screen", mainFields.installSplash)
                 .add("Splash Screen", mainFields.splash)
                 .get();
-        tabs.add("Splash Screens", imagesPanel);
+        JPanel imagesPanelWrapper = new JPanel();
+        imagesPanelWrapper.setLayout(new BorderLayout());
+        imagesPanelWrapper.setOpaque(false);
+        imagesPanelWrapper.add(imagesPanel, BorderLayout.CENTER);
+        JPanel imagesHelpPanel = new JPanel();
+        imagesHelpPanel.setOpaque(false);
+        imagesHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
+        imagesHelpPanel.add(createHelpButton("https://www.jdeploy.com/docs/help/#splashscreens", "", "Learn more about this panel, and how splash screen images are used in jDeploy."));
+        //imagesHelpPanel.setMaximumSize(new Dimension(imagesHelpPanel.getPreferredSize()));
+        imagesPanelWrapper.add(imagesHelpPanel, BorderLayout.NORTH);
+        tabs.add("Splash Screens", imagesPanelWrapper);
 
 
         tabs.add("Filetypes", doctypesPanelWrapper);
@@ -869,6 +941,13 @@ public class JDeployProjectEditor {
                 "add 'mynews, mymusic' to the field below.");
         urlSchemesHelp.setMaximumSize(new Dimension(600, 150));
         urlsPanel.setLayout(new BoxLayout(urlsPanel, BoxLayout.Y_AXIS));
+
+        JPanel urlsHelpPanelWrapper = new JPanel();
+        urlsHelpPanelWrapper.setLayout(new FlowLayout(FlowLayout.RIGHT));
+        urlsHelpPanelWrapper.setOpaque(false);
+        urlsHelpPanelWrapper.add(createHelpButton("https://www.jdeploy.com/docs/help/#_the_urls_tab", "", "Learn more about custom URL schemes in jDeploy"));
+        urlsHelpPanelWrapper.setMaximumSize(new Dimension(10000, urlsHelpPanelWrapper.getPreferredSize().height));
+        urlsPanel.add(urlsHelpPanelWrapper);
         urlsPanel.add(urlSchemesHelp);
         urlsPanel.add(mainFields.urlSchemes);
         mainFields.urlSchemes.setMaximumSize(new Dimension(400, mainFields.urlSchemes.getPreferredSize().height));
@@ -880,12 +959,20 @@ public class JDeployProjectEditor {
         urlSchemesFiller.setOpaque(false);
         urlsPanel.add(urlSchemesFiller);
 
+        //urlsHelpPanelWrapper.add(urlsPanel, BorderLayout.CENTER);
         tabs.add("URLs", urlsPanel);
 
         JPanel cliPanel = new JPanel();
         cliPanel.setOpaque(false);
         cliPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
         cliPanel.setLayout(new BoxLayout(cliPanel, BoxLayout.Y_AXIS));
+
+        JPanel cliHelpPanel = new JPanel();
+        cliHelpPanel.setOpaque(false);
+        cliHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
+        cliHelpPanel.add(createHelpButton("https://www.jdeploy.com/docs/help/#cli", "", "Learn more about this tab in the help guide."));
+        cliHelpPanel.setMaximumSize(new Dimension(10000, cliHelpPanel.getPreferredSize().height));
+        cliPanel.add(cliHelpPanel);
         cliPanel.add(new JLabel("<html><p style='width:400px'>Your app will also be installable and runnable as a command-line app using npm/npx.  See the CLI tutorialfor more details</p></html>"));
         JButton viewCLITutorial = new JButton("Open CLI Tutorial");
         viewCLITutorial.addActionListener(evt->{
@@ -989,6 +1076,8 @@ public class JDeployProjectEditor {
         return files[0];
     }
 
+
+
     private void initMenu() {
         JMenuBar jmb = new JMenuBar();
         JMenu file = new JMenu("File");
@@ -998,9 +1087,93 @@ public class JDeployProjectEditor {
         save.addActionListener(evt-> handleSave());
         file.add(save);
 
+        JMenuItem openInTextEditor = new JMenuItem("Open with Text Editor");
+        openInTextEditor.setToolTipText("Open the package.json file for editing in your system text editor");
+
+        openInTextEditor.addActionListener(evt-> handleOpenInTextEditor());
+        file.addSeparator();
+        file.add(openInTextEditor);
+
+
+
+        if (!Platform.getSystemPlatform().isMac()) {
+            file.addSeparator();
+            JMenuItem quit = new JMenuItem("Exit");
+            quit.setAccelerator(KeyStroke.getKeyStroke('Q', Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+            quit.addActionListener(evt -> handleClosing());
+            file.add(quit);
+        }
+
+
+
+        JMenu help = new JMenu("Help");
+        JMenuItem jdeployHelp = createLinkItem("https://www.jdeploy.com/docs/help", "jDeploy Help", "Open jDeploy application help in your web browser");
+        help.add(jdeployHelp);
+
+        help.addSeparator();
+        help.add(createLinkItem("https://www.jdeploy.com/", "jDeploy Website", "Open the jDeploy website in your web browser."));
+        help.add(createLinkItem("https://www.jdeploy.com/docs/manual", "jDeploy Developers Guide", "Open the jDeploy developers guide in your web browser."));
+
+
+
+
+
+
         jmb.add(file);
+        jmb.add(help);
         frame.setJMenuBar(jmb);
     }
+
+    private JButton createHelpButton(String url, String label, String tooltipText) {
+        JButton btn = new JButton(FontIcon.of(Material.HELP));
+        btn.setText(label);
+        btn.setToolTipText(tooltipText);
+        btn.addActionListener(evt->{
+            if (Desktop.isDesktopSupported()) {
+                try {
+                    Desktop.getDesktop().browse(new URI(url));
+                } catch (Exception ex) {
+                    showError("Failed to open web browser to "+url, ex);
+                }
+            } else {
+                showError("Attempt to open web browser failed.  Not supported on this platform", null);
+            }
+        });
+        btn.setMaximumSize(new Dimension(btn.getPreferredSize()));
+        return btn;
+    }
+
+    private JMenuItem createLinkItem(String url, String label, String tooltipText) {
+        JMenuItem btn = new JMenuItem();
+        btn.setText(label);
+        btn.setToolTipText(tooltipText);
+        btn.addActionListener(evt->{
+            if (Desktop.isDesktopSupported()) {
+                try {
+                    Desktop.getDesktop().browse(new URI(url));
+                } catch (Exception ex) {
+                    showError("Failed to open web browser to "+url, ex);
+                }
+            } else {
+                showError("Attempt to open web browser failed.  Not supported on this platform", null);
+            }
+        });
+        return btn;
+    }
+
+    private void handleOpenInTextEditor() {
+        if (Desktop.isDesktopSupported()) {
+            try {
+                Desktop.getDesktop().edit(packageJSONFile);
+            } catch (Exception ex) {
+                showError("Failed to open package.json in a text editor. "+ex.getMessage(), ex);
+            }
+        } else {
+            showError("That feature isn't supported on this platform.", null);
+        }
+    }
+
+
 
     private void handleSave() {
         try {

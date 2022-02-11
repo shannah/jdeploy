@@ -106,7 +106,7 @@ public class NPM {
 
             while (input.hasNext()) {
                 String line = input.next();
-                System.out.println("line="+line);
+                //System.out.println("line="+line);
                 if (!usernameEntered[0] && line.toLowerCase().equals("username:")) {
                     usernameEntered[0] = true;
                     output.println(username);
@@ -221,7 +221,7 @@ public class NPM {
     public boolean isLoggedIn()  {
         try {
             ProcessBuilder pb = new ProcessBuilder();
-            pb.inheritIO();
+            //pb.inheritIO();
             pb.command(npm, "whoami");
             Process p = pb.start();
             int result = p.waitFor();

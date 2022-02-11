@@ -29,6 +29,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
+import net.lingala.zip4j.ZipFile;
+import net.lingala.zip4j.model.FileHeader;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -55,6 +57,11 @@ import javax.swing.*;
  * @author shannah
  */
 public class JDeploy {
+    static {
+        System.setProperty("apple.laf.useScreenMenuBar", "true");
+        System.setProperty("apple.eawt.quitStrategy", "CLOSE_ALL_WINDOWS");
+    }
+
     private boolean alwaysPackageOnPublish = !Boolean.getBoolean("jdeploy.doNotPackage");
     private final File directory;
     private File packageJsonFile;
@@ -732,11 +739,13 @@ public class JDeploy {
             }
             
         }
-        
+        boolean serverProvidedJavaFX = "true".equals(getString("javafx", "false"));
+        boolean stripFXFiles = serverProvidedJavaFX && "true".equals(getString("stripJavaFXFiles", "true"));
+        File jarFile = null;
         if (getJar(null) != null) {
             // We need to include the jar at least
             
-            File jarFile = findJarFile();
+            jarFile = findJarFile();
             if (jarFile == null) {
                 throw new IOException("Could not find jar file: "+getJar(null));
             }
@@ -745,15 +754,15 @@ public class JDeploy {
 
             includes.add(new CopyRule(parentPath, jarFile.getName(), null));
 
-            boolean serverProvidedJavaFX = "true".equals(getString("javafx", "false"));
 
             for (String path : findClassPath(jarFile)) {
                 File f = new File(path);
-                if (serverProvidedJavaFX && f.getName().startsWith("javafx-") && f.getName().endsWith(".jar")) {
+                if (stripFXFiles && f.getName().startsWith("javafx-") && f.getName().endsWith(".jar")) {
                     continue;
                 }
                 includes.add(new CopyRule(parentPath, path, excludes));
             }
+
             
         } else if (getWar(null) != null) {
             File warFile = findWarFile();
@@ -781,8 +790,135 @@ public class JDeploy {
             try {
                 r.copyTo(bin);
             } catch (Exception ex) {
-                System.err.println("Failed to copy to "+bin+" with rule "+r);
-                System.err.println("Files: "+includes);
+                err.println("Failed to copy to "+bin+" with rule "+r);
+                err.println("Files: "+includes);
+                throw ex;
+            }
+        }
+
+        if (jarFile != null && jarFile.exists() && stripFXFiles) {
+            out.println("Since JavaFX will be provided, we are stripping it from the build jar");
+            out.println("If this causes problems you can disable this by setting stripJavaFXFiles to false in the jdeploy object of your package.json file.");
+            try {
+                File mainJarFileInBin = null;
+                for (File child : bin.listFiles()) {
+                    if (child.getName().equals(jarFile.getName())) {
+                        mainJarFileInBin = child;
+                        break;
+                    }
+                }
+                if (mainJarFileInBin != null) {
+                    ZipFile jarZipFile = new ZipFile(mainJarFileInBin);
+
+                    String[] pathsToCheck = new String[]{
+                            "javafx/",
+                            "com/sun/javafx/",
+                            "api-ms-win-core-console-l1-1-0.dll",
+                            "api-ms-win-core-datetime-l1-1-0.dll",
+                            "api-ms-win-core-debug-l1-1-0.dll",
+                            "api-ms-win-core-errorhandling-l1-1-0.dll",
+                            "api-ms-win-core-file-l1-1-0.dll",
+                            "api-ms-win-core-file-l1-2-0.dll",
+                            "api-ms-win-core-file-l2-1-0.dll",
+                            "api-ms-win-core-handle-l1-1-0.dll",
+                            "api-ms-win-core-heap-l1-1-0.dll",
+                            "api-ms-win-core-interlocked-l1-1-0.dll",
+                            "api-ms-win-core-libraryloader-l1-1-0.dll",
+                            "api-ms-win-core-localization-l1-2-0.dll",
+                            "api-ms-win-core-memory-l1-1-0.dll",
+                            "api-ms-win-core-namedpipe-l1-1-0.dll",
+                            "api-ms-win-core-processenvironment-l1-1-0.dll",
+                            "api-ms-win-core-processthreads-l1-1-0.dll",
+                            "api-ms-win-core-processthreads-l1-1-1.dll",
+                            "api-ms-win-core-profile-l1-1-0.dll",
+                            "api-ms-win-core-rtlsupport-l1-1-0.dll",
+                            "api-ms-win-core-string-l1-1-0.dll",
+                            "api-ms-win-core-synch-l1-1-0.dll",
+                            "api-ms-win-core-synch-l1-2-0.dll",
+                            "api-ms-win-core-sysinfo-l1-1-0.dll",
+                            "api-ms-win-core-timezone-l1-1-0.dll",
+                            "api-ms-win-core-util-l1-1-0.dll",
+                            "api-ms-win-crt-conio-l1-1-0.dll",
+                            "api-ms-win-crt-convert-l1-1-0.dll",
+                            "api-ms-win-crt-environment-l1-1-0.dll",
+                            "api-ms-win-crt-filesystem-l1-1-0.dll",
+                            "api-ms-win-crt-heap-l1-1-0.dll",
+                            "api-ms-win-crt-locale-l1-1-0.dll",
+                            "api-ms-win-crt-math-l1-1-0.dll",
+                            "api-ms-win-crt-multibyte-l1-1-0.dll",
+                            "api-ms-win-crt-private-l1-1-0.dll",
+                            "api-ms-win-crt-process-l1-1-0.dll",
+                            "api-ms-win-crt-runtime-l1-1-0.dll",
+                            "api-ms-win-crt-stdio-l1-1-0.dll",
+                            "api-ms-win-crt-string-l1-1-0.dll",
+                            "api-ms-win-crt-time-l1-1-0.dll",
+                            "api-ms-win-crt-utility-l1-1-0.dll",
+                            "concrt140.dll",
+                            "decora_sse.dll",
+                            "glass.dll",
+                            "javafx_font.dll",
+                            "javafx_iio.dll",
+                            "msvcp140.dll",
+                            "prism_common.dll",
+                            "prism_d3d.dll",
+                            "prism_sw.dll",
+                            "ucrtbase.dll",
+                            "vcruntime140.dll",
+                            "jfxwebkit.dll",
+                            "libjavafx_font_freetype.so",
+                            "libglassgtk3.so",
+                            "libjavafx_iio.so",
+                            "libprism_sw.so",
+                            "libglassgtk2.so",
+                            "libprism_common.so",
+                            "libglass.so",
+                            "libprism_es2.so",
+                            "libdecora_sse.so",
+                            "libjavafx_font_pango.so",
+                            "libjavafx_font.so",
+                            "libjfxwebkit.so",
+                            "libjavafx_iio.dylib",
+                            "libglass.dylib",
+                            "libjavafx_font.dylib",
+                            "libprism_common.dylib",
+                            "libprism_es2.dylib",
+                            "libdecora_sse.dylib",
+                            "libprism_sw.dylib",
+                            "libjfxmedia_avf.dylib",
+                            "libglib-lite.dylib",
+                            "libfxplugins.dylib",
+                            "libgstreamer-lite.dylib",
+                            "libjfxmedia.dylib",
+                            "libjfxwebkit.dylib"
+                    };
+                    Set<String> pathsToCheckSet = new HashSet<>(Arrays.asList(pathsToCheck));
+                    List<String> pathsToRemove = new ArrayList<>();
+                    for (FileHeader header : jarZipFile.getFileHeaders()) {
+                        if (pathsToCheckSet.contains(header.getFileName())) {
+                            //jarZipFile.removeFile(header.getFileName());
+                            pathsToRemove.add(header.getFileName());
+                        }
+                    }
+                    jarZipFile.removeFiles(pathsToRemove);
+                    /*
+                    for (String path : pathsToRemove) {
+                        jarZipFile.removeFile(path);
+                    }
+                    */
+
+                    /*
+                    for (String path : pathsToCheck) {
+
+                        System.out.println("Checking for "+path+" in "+mainJarFileInBin);
+                        if (jarZipFile.getFileHeader(path) != null) {
+                            System.out.println("Found "+path+".  Trying to remove");
+                            jarZipFile.removeFile(path);
+                        }
+                    }*/
+                }
+            } catch (Exception ex) {
+                err.println("Attempt to strip JavaFX files from the application jar file failed.");
+                ex.printStackTrace(err);
                 throw ex;
             }
         }
@@ -994,7 +1130,7 @@ public class JDeploy {
             }
         }
         File packageJson = new File(directory, "package.json");
-        System.err.println("A package.json file already exists.  Updating mandatory fields...");
+        err.println("A package.json file already exists.  Updating mandatory fields...");
         JSONParser p = new JSONParser();
         String str = FileUtils.readFileToString(packageJson, "UTF-8");
         Map pj = (Map)p.parseJSON(new StringReader(str));
@@ -1189,7 +1325,7 @@ public class JDeploy {
             }
             return code;
         } catch (Exception ex) {
-            System.err.println("Failed to connect to "+url);
+            err.println("Failed to connect to "+url);
             throw ex;
         }
     }
@@ -1526,7 +1662,7 @@ public class JDeploy {
 
             } catch (Exception ex) {
                 err.println("Failed to publish icon and splash image to jdeploy.com.  " + ex.getMessage());
-                ex.printStackTrace(System.err);
+                ex.printStackTrace(err);
                 fail("Failed to publish icon and splash image to jdeploy.com. "+ex.getMessage(), 1);
                 return;
             }
@@ -1634,12 +1770,12 @@ public class JDeploy {
             try {
                 return new JSONObject(resultLine);
             } catch (Exception ex) {
-                System.err.println("Unexpected server response.  Expected JSON but found "+resultLine+" Response code was: "+response.getStatusLine().getStatusCode()+".  Message was "+response.getStatusLine().getReasonPhrase());
-                ex.printStackTrace();
+                err.println("Unexpected server response.  Expected JSON but found "+resultLine+" Response code was: "+response.getStatusLine().getStatusCode()+".  Message was "+response.getStatusLine().getReasonPhrase());
+                ex.printStackTrace(err);
                 throw new Exception("Unexpected server response.  Expected JSON but found "+resultLine);
             }
         } catch (Exception ex) {
-            ex.printStackTrace();
+            ex.printStackTrace(err);
             JSONObject out = new JSONObject();
             out.put("code", 500);
             out.put("error", ex.getMessage());
@@ -1697,21 +1833,8 @@ public class JDeploy {
             Options opts = new Options();
             CommandLine line = parser.parse(opts, args);
             args = line.getArgs();
-            if (args.length == 0) {
-                prog.help(opts);
-                System.exit(1);
-            }
-
-            if ("gui-main".equals(args[0])) {
-                EventQueue.invokeLater(()->{
-                    JDeployMainMenu menu = new JDeployMainMenu();
-                    menu.show();
-                });
-                return;
-
-            }
-
-            if ("gui".equals(args[0])) {
+            if (args.length == 0 || "gui".equals(args[0])) {
+                System.out.println("Launching shellmarks gui.  Use jdeploy -help for help");
                 File packageJSON = new File("package.json");
                 if (packageJSON.exists()) {
                     JSONObject packageJSONObject = new JSONObject(FileUtils.readFileToString(packageJSON, "UTF-8"));
@@ -1728,6 +1851,17 @@ public class JDeploy {
                 return;
 
             }
+
+            if ("gui-main".equals(args[0])) {
+                EventQueue.invokeLater(()->{
+                    JDeployMainMenu menu = new JDeployMainMenu();
+                    menu.show();
+                });
+                return;
+
+            }
+
+
 
 
             if ("upload-resources".equals(args[0])) {
