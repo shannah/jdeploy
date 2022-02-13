@@ -1,0 +1,40 @@
+{
+    "bin": {"texteditor": "jdeploy-bundle/jdeploy.js"},
+    "author": "Steve Hannah",
+    "description": "A text editor",
+    "main": "index.js",
+    "preferGlobal": true,
+    "repository": "https://github.com/shannah/jdeploy-demo-texteditor",
+    "version": "1.0.26",
+    "jdeploy": {
+        "jdk": false,
+        "javaVersion": "11",
+        "documentTypes": [
+            {
+                "editor": true,
+                "extension": "txt",
+                "mimetype": "text/plain"
+            },
+            {
+                "extension": "html",
+                "mimetype": "text/html"
+            },
+            {
+                "extension": "jdtext",
+                "mimetype": "application/x-jdeploy-demo-texteditor-jdtext"
+            }
+        ],
+        "urlSchemes": ["jdtext"],
+        "jar": "target/TextEditor-1.0-SNAPSHOT.jar",
+        "javafx": false,
+        "title": "Text Editor"
+    },
+    "dependencies": {
+        "njre": "^0.2.0",
+        "shelljs": "^0.8.4"
+    },
+    "license": "ISC",
+    "name": "jdeploy-demo-texteditor",
+    "files": ["jdeploy-bundle"],
+    "scripts": {"test": "echo \"Error: no test specified\" && exit 1"}
+}

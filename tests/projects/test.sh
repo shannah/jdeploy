@@ -10,3 +10,6 @@ cd ../TextEditor4
 bash test.sh
 cd ../TextEditor5
 bash test.sh
+cd ../TextEditor6
+bash test.sh
+cd ../TextEditor7
