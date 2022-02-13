@@ -11,9 +11,25 @@ public class PathUtil {
     public static String toNativePath(String path) {
         if (path == null) return null;
         if (Platform.getSystemPlatform().isWindows()) {
-            return path.replace("/", "\\");
+            path = path.replace("/", "\\");
         } else {
-            return path.replace("\\", "/");
+            path = path.replace("\\", "/");
         }
+        //path = stripLeading(path);
+        return path;
     }
+
+    /*
+    private static String stripLeading(String path) {
+        if (path == null) return null;
+        while (path.startsWith("./")) {
+            path =  path.substring(2);
+        }
+        while (path.startsWith(".\\")) {
+            path = path.substring(2);
+        }
+        return path;
+    }
+
+     */
 }

@@ -98,16 +98,34 @@ public class JDeploy {
         String dir;
         List<String> includes;
         List<String> excludes;
-        
+
+        private final String sanitizeDirPath(String dir) {
+            if (new File(dir).isAbsolute()) {
+                try {
+                    //System.out.println("dir="+new File(dir).getCanonicalPath()+"; directory="+directory.getCanonicalPath());
+                    dir = new File(dir).getCanonicalPath().substring(directory.getCanonicalPath().length());
+                } catch (Exception ex) {
+                    dir = dir.substring(directory.getAbsolutePath().length());
+                }
+            }
+            if (dir.startsWith("/") || dir.startsWith("\\")) {
+                dir = dir.substring(1);
+            }
+            if (dir.isEmpty()) dir = ".";
+
+            return dir.replace("\\", "/");
+        }
         
         public CopyRule(String dir, List<String> includes, List<String> excludes) {
-            this.dir = dir;
+            this.dir = sanitizeDirPath(dir);
+
             this.includes = includes;
             this.excludes = excludes;
         }
         
         public CopyRule(String dir, String includes, String excludes) {
-            this.dir = dir;
+            this.dir = sanitizeDirPath(dir);
+
             this.includes = includes == null ? null : Arrays.asList(includes.split(","));
             this.excludes = excludes == null ? null : Arrays.asList(excludes.split(","));
         }
@@ -753,6 +771,8 @@ public class JDeploy {
                 throw new IOException("Could not find jar file: "+getJar(null));
             }
             String parentPath = jarFile.getParentFile() != null ? jarFile.getParentFile().getPath() : ".";
+
+
             String excludes = null;
 
             includes.add(new CopyRule(parentPath, jarFile.getName(), null));
@@ -766,14 +786,14 @@ public class JDeploy {
                 includes.add(new CopyRule(parentPath, path, excludes));
             }
 
-            
+            System.out.println("Includes: "+includes);
         } else if (getWar(null) != null) {
             File warFile = findWarFile();
             if (warFile == null) {
                 throw new IOException("Could not find war file: "+getWar(null));
             }
             String parentPath = warFile.getParentFile() != null ? warFile.getParentFile().getPath() : ".";
-            
+
             includes.add(new CopyRule(parentPath, warFile.getName(), null));
             //if (warFile.isDirectory()) {
             //    includes.add(new CopyRule(parentPath, warFile.getName()+"/**", null));
