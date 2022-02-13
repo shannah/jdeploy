@@ -51,6 +51,9 @@ import org.w3c.dom.Document;
 
 import javax.swing.*;
 
+import static ca.weblite.jdeploy.PathUtil.fromNativePath;
+import static ca.weblite.jdeploy.PathUtil.toNativePath;
+
 
 /**
  *
@@ -497,7 +500,7 @@ public class JDeploy {
 
     public File findJarFile() {
         if (getJar(null) != null) {
-            File jarFile = new File(getJar(null));
+            File jarFile = new File(directory, toNativePath(getJar(null)));
 
             if (!jarFile.exists() && jarFile.getParentFile() == null) {
                 return null;
@@ -733,7 +736,7 @@ public class JDeploy {
             out.println("To explicitly set the jar, war, or web app to build, use the \"war\" or \"jar\" property of the \"jdeploy\" section of the package.json file.");
             if (best == null) {
             } else if (best.getName().endsWith(".jar")) {
-                setJar(best.getPath());
+                setJar(fromNativePath(best.getPath()));
             } else {
                 setWar(best.getPath());
             }
@@ -1015,7 +1018,7 @@ public class JDeploy {
     }
 
     public void bundleIcon() throws IOException {
-        File jarFile = new File(getString("jar", null));
+        File jarFile = new File(directory, toNativePath(getString("jar", null)));
 
         File iconFile = new File(jarFile.getAbsoluteFile().getParentFile(), "icon.png");
         if (!iconFile.exists()) {
@@ -1035,7 +1038,7 @@ public class JDeploy {
 
 
     public void bundleSplash() throws IOException {
-        File jarFile = new File(getString("jar", null));
+        File jarFile = new File(directory, toNativePath(getString("jar", null)));
         File absoluteParent = jarFile.getAbsoluteFile().getParentFile();
         File splashFile = new File(absoluteParent, "splash.png");
         if (!splashFile.exists() && absoluteParent.isDirectory()) {
@@ -1349,7 +1352,7 @@ public class JDeploy {
 
         String jarPath = getString("jar", null);
         if (jarPath != null) {
-            JarFile jarFile = new JarFile(jarPath);
+            JarFile jarFile = new JarFile(new File(directory, toNativePath(jarPath)));
             String mainClass = jarFile.getManifest().getMainAttributes().getValue(Attributes.Name.MAIN_CLASS);
             if (appInfo.getMacAppBundleId() == null) {
                 appInfo.setMacAppBundleId(mainClass.toLowerCase());
@@ -1508,7 +1511,7 @@ public class JDeploy {
             byte[] iconBytes;
 
             {
-                File jarFile = new File(getString("jar", null));
+                File jarFile = new File(directory, toNativePath(getString("jar", null)));
                 File absoluteParent = jarFile.getAbsoluteFile().getParentFile();
                 File iconFile = new File(absoluteParent, "icon.png");
                 if (!iconFile.exists()) {
@@ -1527,7 +1530,7 @@ public class JDeploy {
 
 
             {
-                File jarFile = new File(getString("jar", null));
+                File jarFile = new File(directory, toNativePath(getString("jar", null)));
                 File absoluteParent = jarFile.getAbsoluteFile().getParentFile();
                 File splashFile = new File(absoluteParent, "installsplash.png");
                 if (!splashFile.exists()) {
@@ -1881,7 +1884,7 @@ public class JDeploy {
                     System.out.println("Deleting "+jDeployDir);
                     FileUtils.deleteDirectory(jDeployDir);
                 }
-                if (args.length > 0) {
+                if (args.length > 1) {
                     String[] args2 = new String[args.length-1];
                     System.arraycopy(args, 1, args2, 0, args2.length);
                     args = args2;

@@ -38,6 +38,8 @@ import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 
+import static ca.weblite.jdeploy.PathUtil.fromNativePath;
+import static ca.weblite.jdeploy.PathUtil.toNativePath;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
 
@@ -740,7 +742,7 @@ public class JDeployProjectEditor {
                 showError(ex.getMessage(), ex);
                 return;
             }
-            mainFields.jar.setText(jarFile.getAbsolutePath().substring(absDirectory.getAbsolutePath().length())+1);
+            mainFields.jar.setText(fromNativePath(jarFile.getAbsolutePath().substring(absDirectory.getAbsolutePath().length()+1)));
             jdeploy.put("jar", mainFields.jar.getText());
             setModified();
 
@@ -1262,10 +1264,13 @@ public class JDeployProjectEditor {
     }
 
 
+
+
+
     private void handlePublish0() throws ValidationException {
 
 
-
+        File absDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
 
         String[] requiredFields = new String[]{
                 "name",
@@ -1287,7 +1292,7 @@ public class JDeployProjectEditor {
         if (!jdeploy.has("jar")) {
             throw new ValidationException("Please select a jar file before publishing.");
         }
-        File jarFile = new File(jdeploy.getString("jar"));
+        File jarFile = new File(absDirectory, toNativePath(jdeploy.getString("jar")));
         if (!jarFile.getName().endsWith(".jar")) {
             throw new ValidationException("The selected jar file is not a jar file.  Jar files must have the .jar extension");
         }
