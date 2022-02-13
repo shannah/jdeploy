@@ -1,0 +1,57 @@
+name: Run Integration Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+
+  test-linux-amd64:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up JDK 11
+      uses: actions/setup-java@v2
+      with:
+        java-version: '11'
+        distribution: 'adopt'
+        cache: maven
+    - name: Test Linux
+      run: bash build_and_test.sh
+     
+        
+  build-mac-x64:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v2
+ 
+    - name: Set up JDK 11
+      uses: actions/setup-java@v2
+      with:
+        java-version: '11'
+        distribution: 'adopt'
+        cache: maven
+
+    - name: Test Mac
+      run: bash build_and_test.sh
+    
+        
+  build-win-x64:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+ 
+    - name: Set up JDK 11
+      uses: actions/setup-java@v2
+      with:
+        java-version: '11'
+        distribution: 'adopt'
+        cache: maven
+
+    - name: Build Windows
+      run: bash build_and_test.sh
+      shell: bash
+      
+    
