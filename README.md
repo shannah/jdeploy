@@ -1,10 +1,9 @@
 # jDeploy
 
-Deploy your app to Mac, Linux, and Windows users without the usual hassles.
+Developer friendly desktop deployment tool.  See [the jDeploy Website](https://www.jdeploy.com) for usage instructions.
 
 ![jDeploy flow](https://www.jdeploy.com/assets/img/jdeploy-home-hero.svg)
 
-See [the jDeploy Website](https://www.jdeploy.com) for usage instructions.
 
 ## License
 
