@@ -27,7 +27,7 @@ if [ ! -f "jdeploy-bundle/jdeploy.js" ]; then
   echo "jdeploy package did not copy jdeploy.js file correctly."
   exit 1
 fi
-if [ ! -f "jdeploy-bundle/libs/javafx-base-11.0.2.jar" ]; then
+if [ -f "jdeploy-bundle/libs/javafx-base-11.0.2.jar" ]; then
   echo "jdeploy package did not copy javafx-base-11.0.2.jar file correctly."
   exit 1
 fi
