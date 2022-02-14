@@ -60,7 +60,7 @@ public class JDeployProjectEditor {
     private class MainFields {
         private JTextField name, title, version, iconUrl, jar, urlSchemes, author,
                 repository, repositoryDirectory, command, license, homepage;
-        private JTextArea description;
+        private JTextArea description, runArgs;
 
         private JCheckBox javafx, jdk;
         private JComboBox javaVersion;
@@ -490,6 +490,8 @@ public class JDeployProjectEditor {
             setModified();
         });
 
+
+
         mainFields.description = new JTextArea();
         mainFields.description.setLineWrap(true);
         mainFields.description.setWrapStyleWord(true);
@@ -509,6 +511,35 @@ public class JDeployProjectEditor {
         }
 
         JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
+
+
+        mainFields.runArgs = new JTextArea();
+        if (jdeploy.has("args")) {
+            JSONArray jarr = jdeploy.getJSONArray("args");
+            int len = jarr.length();
+            StringBuilder sb = new StringBuilder();
+            for (int i=0; i<len; i++) {
+                if (sb.length() > 0) {
+                    sb.append(System.lineSeparator());
+                }
+                sb.append(jarr.getString(i).trim());
+            }
+            mainFields.runArgs.setText(sb.toString());
+
+        }
+        addChangeListenerTo(mainFields.runArgs, ()->{
+            String[] parts = mainFields.runArgs.getText().split("\n");
+            JSONArray jarr = new JSONArray();
+            int index = 0;
+            for (String part : parts) {
+                part = part.trim();
+                if (part.isEmpty()) continue;
+                jarr.put(index++, part.trim());
+            }
+            jdeploy.put("args", jarr);
+            setModified();
+        });
+
         mainFields.title = new JTextField();
         if (jdeploy.has("title")) {
             mainFields.title.setText(jdeploy.getString("title"));
@@ -999,6 +1030,51 @@ public class JDeployProjectEditor {
         //cliPanel.add(Box.createVerticalGlue());
         cliPanel.add(new Box.Filler(new Dimension(0, 0), new Dimension(0, 0), new Dimension(10, 1000)));
         tabs.add("CLI", cliPanel);
+
+
+        JPanel runargsPanel = new JPanel();
+        runargsPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        runargsPanel.setLayout(new BorderLayout());
+        runargsPanel.setOpaque(false);
+        JPanel runArgsTop = new JPanel();
+        runArgsTop.setOpaque(false);
+        runArgsTop.setLayout(new BorderLayout());
+
+        JButton runargsHelp = createHelpButton("https://www.jdeploy.com/docs/help/#runargs", "", "Open run arguments help in web browser");
+        runargsHelp.setMaximumSize(new Dimension(runargsHelp.getPreferredSize()));
+
+        JLabel runArgsLabel = new JLabel("Runtime Arguments");
+        JLabel runArgsDescription = new JLabel("<html><p style='font-size:x-small;width:400px'>One argument per line.<br/></p>" +
+                "<p style='font-size:x-small; width:400px'>Prefix system properties with '-D'.  E.g. -Dfoo=bar</p>" +
+                "<p style='font-size:x-small;width:400px'>Prefix JVM options with '-X'.  E.g. -Xmx2G</p><br/>" +
+                "<p style='font-size:x-small;width:400px;padding-top:1em'><strong>Placeholder Variables</strong><br/>" +
+                "<strong>{{ user.home }}</strong> : The user's home directory<br/>" +
+                "<strong>{{ exe.path }}</strong> : The path to the program executable.<br/>" +
+                "<strong>{{ app.path }}</strong> : The path to the .app bundle on Mac.  Falls back to executable path on other platforms.<br/>" +
+                "</p><br/>" +
+                "<p style='font-size:x-small;width:400px;padding-top:1em'>" +
+                "<strong>Platform-Specific Arguments:</strong><br/>" +
+                "Platform-specific arguments are only added on specific platforms.<br/>" +
+                "<strong>Property Args:</strong> -D[PLATFORMS]foo=bar, where PLATFORMS is mac, win, or linux, or pipe-concatenated list.  E.g. '-D[mac]foo=bar', '-D[win]foo=bar', '-D[linux]foo=bar', '-D[mac|linux]foo=bar', etc...<br/>" +
+                "<strong>JVM Options:</strong> -X[PLATFORMS]foo, where PLATFORMS is mac, win, or linux, or pipe-concatenated list.  E.g. '-X[mac]foo', '-X[win]foo', '-X[linux]foo', '-X[mac|linux]foo', etc...<br/>" +
+                "<strong>Program Args:</strong> -[PLATFORMS]foo, where PLATFORMS is mac, win, or linux, or pipe-concatenated list.  E.g. '-[mac]foo', '-[win]foo', '-[linux]foo', '-[mac|linux]foo', etc...<br/>" +
+                "</p>" +
+                "</html>");
+        runArgsDescription.setBorder(new EmptyBorder(10,10,10,10));
+
+        runArgsTop.add(runArgsLabel, BorderLayout.CENTER);
+        runArgsTop.add(runArgsDescription, BorderLayout.SOUTH);
+        runArgsTop.add(runargsHelp, BorderLayout.EAST);
+
+        JScrollPane runArgsScroller = new JScrollPane(mainFields.runArgs);
+        runArgsScroller.setOpaque(false);
+        runArgsScroller.getViewport().setOpaque(false);
+        runargsPanel.add(runArgsScroller, BorderLayout.CENTER);
+        runargsPanel.add(runArgsTop, BorderLayout.NORTH);
+
+        tabs.add("Runtime Args", runargsPanel);
+
+
 
         cnt.removeAll();
         cnt.setLayout(new BorderLayout());
