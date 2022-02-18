@@ -7,6 +7,8 @@ import ca.weblite.jdeploy.installer.linux.MimeTypeHelper;
 import ca.weblite.jdeploy.installer.npm.NPMPackage;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.installer.npm.NPMRegistry;
+import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
+import ca.weblite.jdeploy.installer.win.UninstallWindows;
 import ca.weblite.jdeploy.installer.win.WinRegistry;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
@@ -295,7 +297,14 @@ public class Main implements Runnable {
 
     }
 
+    private static boolean uninstall;
+
     public static void main(String[] args) {
+
+        if (args.length == 1 && args[0].equals("uninstall")) {
+            uninstall = true;
+        }
+
         File logFile = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "log" + File.separator + "jdeploy-installer.log");
         logFile.getParentFile().mkdirs();
         try {
@@ -461,12 +470,7 @@ public class Main implements Runnable {
 
 
     private File findInstallFilesDir(File startDir) {
-
-
-
-        System.out.println("findInstallFilesDir("+startDir+"):");
         if (startDir == null) return null;
-
         if (Platform.getSystemPlatform().isMac() && "AppTranslocation".equals(startDir.getName())) {
             System.out.println("Detected that we are running inside Gatekeeper so we can't retrieve bundle info");
             System.out.println("Attempting to download bundle info from network");
@@ -500,11 +504,8 @@ public class Main implements Runnable {
 
 
         }
-
         File candidate = new File(startDir, ".jdeploy-files");
-        System.out.println("Candidate: "+candidate);
         if (candidate.exists() && candidate.isDirectory()) return candidate;
-        System.out.println("Doesn't exist: "+candidate);
         return findInstallFilesDir(startDir.getParentFile());
     }
 
@@ -735,6 +736,14 @@ public class Main implements Runnable {
 
     private void run0() throws Exception {
         loadAppInfo();
+        if (uninstall && Platform.getSystemPlatform().isWindows()) {
+            System.out.println("Running Windows uninstall...");
+            InstallWindowsRegistry installer = new InstallWindowsRegistry(appInfo, null, null, null);
+            UninstallWindows uninstallWindows = new UninstallWindows(appInfo.getNpmPackage(), appInfo.getVersion(), appInfo.getTitle(), installer);
+            uninstallWindows.uninstall();
+            System.out.println("Uninstall complete");
+            return;
+        }
         buildUI();
 
         frame.setMinimumSize(new Dimension(640, 480));
@@ -800,14 +809,59 @@ public class Main implements Runnable {
             // Copy the icon.png if it is present
             File bundleIcon = new File(findAppXmlFile().getParentFile(), "icon.png");
             File iconPath = new File(exePath.getParentFile(), "icon.png");
+            File icoPath =  new File(exePath.getParentFile(), "icon.ico");
             //if (bundleIcon.exists()) {
             if (Files.exists(bundleIcon.toPath())) {
                 FileUtil.copy(bundleIcon, iconPath);
             }
             installWindowsLinks(exePath);
 
-            installWindowsFileAssociations(exePath);
-            installWindowsURLSchemes(exePath);
+            //installWindowsFileAssociations(exePath);
+            //installWindowsURLSchemes(exePath);
+            File registryBackupLogs = new File(exePath.getParentFile(), "registry-backup-logs");
+
+            if (!registryBackupLogs.exists()) {
+                registryBackupLogs.mkdirs();
+            }
+            int nextLogIndex = 0;
+            for (File child : registryBackupLogs.listFiles()) {
+                if (child.getName().endsWith(".reg")) {
+                    String logIndex = child.getName().substring(0, child.getName().lastIndexOf("."));
+                    try {
+                        int logIndexInt = Integer.parseInt(logIndex);
+                        if (logIndexInt >= nextLogIndex) {
+                            nextLogIndex = logIndexInt+1;
+                        }
+                    } catch (Exception ex) {}
+                }
+            }
+            File registryBackupLog = new File(registryBackupLogs, nextLogIndex+".reg");
+            try (FileOutputStream fos = new FileOutputStream(registryBackupLog)) {
+                InstallWindowsRegistry registryInstaller = new InstallWindowsRegistry(appInfo, exePath, icoPath, fos);
+                registryInstaller.register();
+
+                //Try to copy the uninstaller
+                File uninstallerPath = registryInstaller.getUninstallerPath();
+                uninstallerPath.getParentFile().mkdirs();
+                File installerExePath = new File(System.getProperty("client4j.launcher.path"));
+                FileUtils.copyFile(installerExePath, uninstallerPath);
+                uninstallerPath.setExecutable(true, false);
+                FileUtils.copyDirectory(findInstallFilesDir(), new File(uninstallerPath.getParentFile(), findInstallFilesDir().getName()));
+
+
+            } catch (Exception ex) {
+                // restore
+                try  {
+                    InstallWindowsRegistry.rollback(registryBackupLog);
+                } catch (Exception rollbackException) {
+                    throw new RuntimeException("Failed to roll back registry after failed installation.", rollbackException);
+                }
+                // Since we rolled back the changes, we'll delete the backup log so that it doesn't get rolled back again.
+                registryBackupLog.delete();
+                ex.printStackTrace(System.err);
+                throw new RuntimeException("Failed to update registry.  Rolling back changes.", ex);
+
+            }
 
 
             installedApp = exePath;
@@ -1011,7 +1065,7 @@ public class Main implements Runnable {
             }
 
 
-            registry.addURLScheme(scheme, exePath, icoPath);
+            registry.addURLScheme(appInfo.getNpmPackage(), scheme, exePath, icoPath);
 
 
             requiresRefresh = true;
