@@ -859,6 +859,9 @@ public class JDeployProjectEditor {
         JButton addDocType = new JButton(FontIcon.of(Material.ADD));
         addDocType.setToolTipText("Add document type association");
         addDocType.addActionListener(evt->{
+            if (!jdeploy.has("documentTypes")) {
+                jdeploy.put("documentTypes", new JSONArray());
+            }
             JSONArray docTypes = jdeploy.getJSONArray("documentTypes");
             JSONObject row = new JSONObject();
             docTypes.put(docTypes.length(), row);
