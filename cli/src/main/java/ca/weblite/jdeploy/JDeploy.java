@@ -1857,7 +1857,7 @@ public class JDeploy {
             CommandLine line = parser.parse(opts, args);
             args = line.getArgs();
             if (args.length == 0 || "gui".equals(args[0])) {
-                System.out.println("Launching shellmarks gui.  Use jdeploy help for help");
+                System.out.println("Launching jdeploy gui.  Use jdeploy help for help");
                 File packageJSON = new File("package.json");
                 if (packageJSON.exists()) {
                     JSONObject packageJSONObject = new JSONObject(FileUtils.readFileToString(packageJSON, "UTF-8"));
