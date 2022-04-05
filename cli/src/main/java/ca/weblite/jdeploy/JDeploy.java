@@ -1748,7 +1748,7 @@ public class JDeploy {
 
         File installSplash = new File(directory, "installsplash.png");
         if (installSplash.exists()) {
-            checksums.put("installsplash.png", MD5.createChecksum(installSplash));
+            checksums.put("installsplash.png", MD5.getMD5Checksum(installSplash));
         }
 
         FileUtils.writeStringToFile(new File(publishDir,"package.json"), packageJSON.toString(), "UTF-8");
