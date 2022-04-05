@@ -665,14 +665,17 @@ public class Main implements Runnable {
         if (splash.exists()) {
             try {
                 ImageIcon splashImage = new ImageIcon(splash.toURI().toURL());
-                frame.getContentPane().add(new JLabel(splashImage), BorderLayout.CENTER);
+                JLabel splashLabel = new JLabel(splashImage);
+                splashLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+                frame.getContentPane().add(splashLabel, BorderLayout.CENTER);
             } catch (Exception ex) {
 
             }
         }
-        String desktopLabel = "Add Desktop Shortcut";
+        String desktopLabel = "Add desktop shortcut";
         if (Platform.getSystemPlatform().isMac()) {
-            desktopLabel = "Add Desktop Alias";
+            desktopLabel = "Add desktop alias";
         }
         JCheckBox desktopCheckbox = new JCheckBox(desktopLabel);
         desktopCheckbox.setSelected(addToDesktop);
@@ -681,13 +684,13 @@ public class Main implements Runnable {
         });
 
 
-        JCheckBox addToDockCheckBox = new JCheckBox("Add to Dock");
+        JCheckBox addToDockCheckBox = new JCheckBox("Add to dock");
         addToDockCheckBox.setSelected(addToDock);
         addToDockCheckBox.addActionListener(evt->{
             addToDock = addToDockCheckBox.isSelected();
         });
 
-        JCheckBox addToStartMenuCheckBox = new JCheckBox("Add to Start Menu");
+        JCheckBox addToStartMenuCheckBox = new JCheckBox("Add to Start menu");
         addToStartMenuCheckBox.setSelected(addToStartMenu);
         addToStartMenuCheckBox.addActionListener(evt->{
             addToStartMenu = addToStartMenuCheckBox.isSelected();
@@ -723,7 +726,7 @@ public class Main implements Runnable {
         southPanel.add(checkboxesPanel);
 
         JPanel updatesPanel = new JPanel();
-        updatesPanel.add(new JLabel("Auto Update Settings:"));
+        updatesPanel.add(new JLabel("Auto update settings:"));
         updatesPanel.add(autoUpdateSettingsJComboBox);
         updatesPanel.add(prereleaseCheckBox);
         southPanel.add(updatesPanel);
