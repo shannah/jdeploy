@@ -1,151 +1,138 @@
 package ca.weblite.jdeploy.installer;
 
-
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.appbundler.Bundler;
+import ca.weblite.jdeploy.installer.events.InstallationFormEvent;
+import ca.weblite.jdeploy.installer.events.InstallationFormEventDispatcher;
 import ca.weblite.jdeploy.installer.linux.MimeTypeHelper;
+import ca.weblite.jdeploy.installer.models.AutoUpdateSettings;
+import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.npm.NPMPackage;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.installer.npm.NPMRegistry;
+import ca.weblite.jdeploy.installer.util.JarClassLoader;
+import ca.weblite.jdeploy.installer.util.ResourceUtil;
+import ca.weblite.jdeploy.installer.views.DefaultUIFactory;
+import ca.weblite.jdeploy.installer.views.InstallationForm;
+import ca.weblite.jdeploy.installer.views.UIFactory;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.UninstallWindows;
-import ca.weblite.jdeploy.installer.win.WinRegistry;
+
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
 import com.izforge.izpack.util.os.ShellLink;
 import net.coobird.thumbnailator.Thumbnails;
 import org.apache.commons.io.FileUtils;
+import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import org.xml.sax.SAXException;
 
-import javax.swing.*;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import java.awt.*;
-import java.awt.event.ItemEvent;
+
+
+import java.awt.Desktop;
 import java.awt.image.BufferedImage;
 import java.io.*;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLEncoder;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import net.sf.image4j.codec.ico.ICOEncoder;
-
 import static ca.weblite.tools.io.IOUtil.copyResourceToFile;
 
-
-public class Main implements Runnable {
-
-    public static String JDEPLOY_REGISTRY = "https://www.jdeploy.com/";
-    static {
-        if (System.getenv("JDEPLOY_REGISTRY_URL") != null) {
-            JDEPLOY_REGISTRY = System.getenv("JDEPLOY_REGISTRY_URL");
-            if (!JDEPLOY_REGISTRY.startsWith("http://") && !JDEPLOY_REGISTRY.startsWith("https://")) {
-                throw new RuntimeException("INVALID_JDEPLOY_REGISTRY_URL environment variable.  Expecting URL but found "+JDEPLOY_REGISTRY);
-            }
-            if (!JDEPLOY_REGISTRY.endsWith("/")) {
-                JDEPLOY_REGISTRY += "/";
-            }
-        }
-    }
-    private Document appXMLDocument;
-    private AppInfo appInfo;
-    private JFrame frame;
-    private boolean addToDesktop=true, addToPrograms=true, addToStartMenu=true, addToDock=true, prerelease=false;
-    private boolean overwriteApp=true;
-    private NPMPackageVersion npmPackageVersion;
-
-    private static ResourceBundle strings =  ResourceBundle.getBundle("ca.weblite.jdeploy.installer.Strings");
-
-
-    private static enum AutoUpdateSettings {
-        Stable,
-        MinorOnly,
-        PatchesOnly,
-        Off;
-
-        private String label;
-
-        public void setLabel(String label) {
-            this.label = label;
-        }
-
-
-        @Override
-        public String toString() {
-            if (label != null) return label;
-            return strings.getString(this.name());
-        }
-    };
-
-
-
-    private AutoUpdateSettings autoUpdate = AutoUpdateSettings.Stable;
+public class Main implements Runnable, Constants {
+    public static final String JDEPLOY_REGISTRY = DefaultInstallationContext.JDEPLOY_REGISTRY;
+    private final InstallationContext installationContext = new DefaultInstallationContext();
+    private final InstallationSettings installationSettings = new InstallationSettings();
+    private UIFactory uiFactory = new DefaultUIFactory();
+    private InstallationForm installationForm;
 
     private Document getAppXMLDocument() throws IOException {
-        if (appXMLDocument == null) {
-            File appXml = findAppXmlFile();
-            if (appXml == null) {
-                return null;
-            }
+        return installationContext.getAppXMLDocument();
+    }
 
-            try (FileInputStream fis = new FileInputStream(appXml)) {
-                appXMLDocument = parseXml(fis);
-            } catch (Exception ex) {
-                throw new IOException("Failed to parse app.xml: "+ex.getMessage(), ex);
-            }
+    private NPMPackageVersion npmPackageVersion() {
+        return installationSettings.getNpmPackageVersion();
+    }
+
+    private AppInfo appInfo() {
+        return installationSettings.getAppInfo();
+    }
+
+    private void appInfo(AppInfo appInfo) {
+        installationSettings.setAppInfo(appInfo);
+    }
+
+    private void loadTheme(File themeJar) throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
+        JarClassLoader jarClassLoader = new JarClassLoader(themeJar);
+        InputStream jdeployInfoStream = jarClassLoader.getResourceAsStream("/jdeploy-info.json");
+        if (jdeployInfoStream == null) throw new IOException("Provided theme "+themeJar+" is missing the jdeploy-info.json file");
+        JSONObject json = new JSONObject(IOUtil.readToString(jdeployInfoStream));
+        if (!json.has("installerTheme") || !json.getJSONObject("installerTheme").has("factory")) {
+            throw new IOException("jdeploy-info is missing the installerTheme/factory property");
         }
-        return appXMLDocument;
+        JSONObject installerThemeJson = json.getJSONObject("installerTheme");
+
+        String factoryClassName = installerThemeJson.getString("factory");
+        Class factoryClazz = jarClassLoader.loadClass(factoryClassName);
+        if (!UIFactory.class.isAssignableFrom(factoryClazz)) {
+            throw new IOException("The specified factory class "+factoryClassName+" does not implement UIFactory while loading theme "+themeJar+".  Failed to load theme.");
+        }
+        uiFactory = (UIFactory)factoryClazz.newInstance();
+    }
+
+    private void loadThemeByName(String themeName) throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
+        loadTheme(ResourceUtil.extractZipResourceWithExecutableJarToTempDirectory(getClass(), "themes/"+themeName+".zip"));
     }
 
     private void loadNPMPackageInfo() throws IOException {
         //System.out.println("Loading NPMPackageInfo");
-        if (npmPackageVersion == null) {
-            if (appInfo == null) {
+        if (installationSettings.getNpmPackageVersion() == null) {
+            if (appInfo() == null) {
                 throw new IllegalStateException("App Info must be loaded before loading the package info");
             }
-            NPMPackage pkg = new NPMRegistry().loadPackage(appInfo.getNpmPackage());
+            NPMPackage pkg = new NPMRegistry().loadPackage(appInfo().getNpmPackage());
             if (pkg == null) {
-                throw new IOException("Cannot find NPMPackage named "+appInfo.getNpmPackage());
+                throw new IOException("Cannot find NPMPackage named "+appInfo().getNpmPackage());
             }
-            npmPackageVersion = pkg.getLatestVersion(prerelease, appInfo.getNpmVersion());
-            if (npmPackageVersion == null) {
-                throw new IOException("Cannot find version "+appInfo.getNpmVersion()+" for package "+appInfo.getNpmPackage());
-            }
-
-            if (appInfo.getDescription() == null || appInfo.getDescription().isEmpty()) {
-                appInfo.setDescription(npmPackageVersion.getDescription());
+            installationSettings.setNpmPackageVersion(pkg.getLatestVersion(installationSettings.isPrerelease(), appInfo().getNpmVersion()));
+            if (installationSettings.getNpmPackageVersion() == null) {
+                throw new IOException("Cannot find version "+appInfo().getNpmVersion()+" for package "+appInfo().getNpmPackage());
             }
 
-            if (appInfo.getDescription() == null || appInfo.getDescription().isEmpty()) {
-                appInfo.setDescription("Desktop application");
+            if (installationSettings.getNpmPackageVersion().getInstallerTheme() != null) {
+                try {
+                    loadThemeByName(installationSettings.getNpmPackageVersion().getInstallerTheme());
+                } catch (Exception ex) {
+                    System.err.println("Failed to load installer theme "+installationSettings.getNpmPackageVersion().getInstallerTheme()+".  Falling back to default theme.");
+                    ex.printStackTrace(System.err);
+                }
             }
 
-            for (NPMPackageVersion.DocumentTypeAssociation documentTypeAssociation : npmPackageVersion.getDocumentTypeAssociations()) {
-                appInfo.addDocumentMimetype(documentTypeAssociation.getExtension(), documentTypeAssociation.getMimetype());
+            if (appInfo().getDescription() == null || appInfo().getDescription().isEmpty()) {
+                appInfo().setDescription(npmPackageVersion().getDescription());
+            }
+
+            if (appInfo().getDescription() == null || appInfo().getDescription().isEmpty()) {
+                appInfo().setDescription("Desktop application");
+            }
+
+            for (NPMPackageVersion.DocumentTypeAssociation documentTypeAssociation : npmPackageVersion().getDocumentTypeAssociations()) {
+                appInfo().addDocumentMimetype(documentTypeAssociation.getExtension(), documentTypeAssociation.getMimetype());
                 if (documentTypeAssociation.getIconPath() != null) {
-                    appInfo.addDocumentTypeIcon(documentTypeAssociation.getExtension(), documentTypeAssociation.getIconPath());
+                    appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), documentTypeAssociation.getIconPath());
                 } else {
                     File iconPath = new File(findAppXmlFile().getParentFile(), "icon."+documentTypeAssociation.getExtension()+".png");
                     if (iconPath.exists()) {
-                        appInfo.addDocumentTypeIcon(documentTypeAssociation.getExtension(), iconPath.getAbsolutePath());
+                        appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), iconPath.getAbsolutePath());
                     }
                 }
                 if (documentTypeAssociation.isEditor()) {
-                    appInfo.setDocumentTypeEditor(documentTypeAssociation.getExtension());
+                    appInfo().setDocumentTypeEditor(documentTypeAssociation.getExtension());
                 }
             }
             //System.out.println("Checking npm package for URL schemes: ");
-            for (String scheme : npmPackageVersion.getUrlSchemes()) {
+            for (String scheme : npmPackageVersion().getUrlSchemes()) {
                 //System.out.println("Found scheme "+scheme);
-                appInfo.addUrlScheme(scheme);
+                appInfo().addUrlScheme(scheme);
             }
 
             // Update labels for the combobox with nice examples to show exactly which versions will be auto-updated
@@ -153,19 +140,18 @@ public class Main implements Runnable {
             AutoUpdateSettings.MinorOnly.setLabel(
                     AutoUpdateSettings.MinorOnly.toString() +
                             " [" +
-                            createUserReadableSemVerForVersion(npmPackageVersion.getVersion(), AutoUpdateSettings.MinorOnly) +
+                            createUserReadableSemVerForVersion(npmPackageVersion().getVersion(), AutoUpdateSettings.MinorOnly) +
                             "]");
             AutoUpdateSettings.PatchesOnly.setLabel(
                     AutoUpdateSettings.PatchesOnly.toString() +
                             " [" +
-                            createUserReadableSemVerForVersion(npmPackageVersion.getVersion(), AutoUpdateSettings.PatchesOnly) +
+                            createUserReadableSemVerForVersion(npmPackageVersion().getVersion(), AutoUpdateSettings.PatchesOnly) +
                             "]"
                     );
-
         }
     }
 
-    private class InvalidAppXMLFormatException extends IOException {
+    private static class InvalidAppXMLFormatException extends IOException {
         InvalidAppXMLFormatException(String message) {
             super("The app.xml file is invalid. "+message);
         }
@@ -181,23 +167,19 @@ public class Main implements Runnable {
             throw new IOException("There was a problem parsing app.xml.");
         }
         Element root = doc.getDocumentElement();
-        appInfo = new AppInfo();
-        appInfo.setAppURL(appXml.toURI().toURL());
-        appInfo.setTitle(ifEmpty(root.getAttribute("title"), root.getAttribute("package"), null));
-        appInfo.setNpmPackage(ifEmpty(root.getAttribute("package"), null));
-        appInfo.setFork(false);
-
-        String installerVersion = ifEmpty(root.getAttribute("version"), "latest");
+        appInfo(new AppInfo());
+        appInfo().setAppURL(appXml.toURI().toURL());
+        appInfo().setTitle(ifEmpty(root.getAttribute("title"), root.getAttribute("package"), null));
+        appInfo().setNpmPackage(ifEmpty(root.getAttribute("package"), null));
+        appInfo().setFork(false);
 
         // First we set the version in appInfo according to the app.xml file
-        appInfo.setNpmVersion(ifEmpty(root.getAttribute("version"), "latest"));
+        appInfo().setNpmVersion(ifEmpty(root.getAttribute("version"), "latest"));
         // Next we use that version to load the package info from the NPM registry.
         loadNPMPackageInfo();
+        appInfo().setMacAppBundleId(ifEmpty(root.getAttribute("macAppBundleId"), "ca.weblite.jdeploy.apps."+appInfo().getNpmPackage()));
 
-
-        appInfo.setMacAppBundleId(ifEmpty(root.getAttribute("macAppBundleId"), "ca.weblite.jdeploy.apps."+appInfo.getNpmPackage()));
-
-        if (appInfo.getNpmPackage() == null) {
+        if (appInfo().getNpmPackage() == null) {
             throw new InvalidAppXMLFormatException("Missing package attribute");
         }
     }
@@ -316,218 +298,18 @@ public class Main implements Runnable {
             System.err.println("Failed to redirect output to "+logFile);
             ex.printStackTrace(System.err);
         }
-
-        EventQueue.invokeLater(new Main());
+        Main main = new Main();
+        main.run();
     }
 
-    private File cachedInstallFilesDir;
     private File findInstallFilesDir() {
-        if (cachedInstallFilesDir != null && cachedInstallFilesDir.exists()) return cachedInstallFilesDir;
-        System.out.println("findInstallFilesDir():");
-        if (System.getProperty("client4j.launcher.path") != null) {
-            String launcherPath = System.getProperty("client4j.launcher.path");
-            String launcherFileName = launcherPath;
-            boolean isMac = Platform.getSystemPlatform().isMac();
-            File appBundle = isMac ? findAppBundle() : null;
-            File tmpBundleFile = new File(launcherPath);
-            if (isMac && appBundle != null && appBundle.exists()) {
-                launcherFileName = appBundle.getName();
-                tmpBundleFile = appBundle;
-
-            }
-
-            String code = extractJDeployBundleCodeFromFileName(launcherFileName);
-            String version = extractVersionFromFileName(launcherFileName);
-            if (code != null && version != null) {
-                try {
-                    cachedInstallFilesDir = downloadJDeployBundleForCode(code, version, tmpBundleFile);
-                    return cachedInstallFilesDir;
-                } catch (IOException ex) {
-                    System.err.println("Failed to download install files bundle: "+ex.getMessage());
-                    ex.printStackTrace(System.err);
-                }
-            }
-
-            System.out.println("Found client4.launcher.path property: "+launcherPath);
-            cachedInstallFilesDir = findInstallFilesDir(new File(launcherPath));
-            return cachedInstallFilesDir;
-        } else {
-            System.out.println("client4j.launcher.path is not set");
-        }
-        System.out.println("User dir: "+new File(System.getProperty("user.dir")).getAbsolutePath());
-        cachedInstallFilesDir = findInstallFilesDir(new File(System.getProperty("user.dir")));
-        return cachedInstallFilesDir;
-    }
-
-    private File findAppBundle() {
-        File start = new File(System.getProperty("client4j.launcher.path"));
-        while (start != null && !start.getName().endsWith(".app")) {
-            start = start.getParentFile();
-        }
-        return start;
-    }
-
-    private static File findBundleAppXml(File appBundle) {
-        return new File(appBundle, "Contents" + File.separator + "app.xml");
-    }
-
-    private static boolean isPrerelease(File appBundle)  {
-        if ("true".equals(System.getProperty("jdeploy.prerelease", "false"))) {
-            // This property is passed in by the launcher if the app.xml contained the prerelease
-            // attribute set to true.  This is useful so that the installer knows whether it is a
-            // prerelease - in which case it will be obtaining bundles for prerelease builds.
-            return true;
-        }
-        if (!findBundleAppXml(appBundle).exists()) {
-            return false;
-        }
-        try (InputStream inputStream = new FileInputStream(findBundleAppXml(appBundle))) {
-            Document doc = XMLUtil.parse(inputStream);
-            return "true".equals(doc.getDocumentElement().getAttribute("prerelease"));
-        } catch (Exception ex) {
-            return false;
-        }
-
-    }
-
-    private static String extractVersionFromFileName(String fileName) {
-        int pos = fileName.lastIndexOf("_");
-        if (pos < 0) return null;
-
-        fileName = fileName.substring(0, pos);
-        Pattern p = Pattern.compile("^.*?-(\\d[a-zA-Z0-9\\.\\-_]*)$");
-        Matcher m = p.matcher(fileName);
-        if (m.matches()) {
-            return m.group(1);
-        }
-        return null;
-
-    }
-
-
-    private static String extractJDeployBundleCodeFromFileName(String fileName) {
-        int pos = fileName.lastIndexOf("_");
-        if (pos < 0) return null;
-        StringBuilder out = new StringBuilder();
-        char[] chars = fileName.substring(pos+1).toCharArray();
-        for (int i=0; i<chars.length; i++) {
-            char c = chars[i];
-            if (('0' <= c && '9' >= c) || ('A' <= c && 'Z' >= c)) {
-                out.append(c);
-            } else {
-                break;
-            }
-        }
-        if (out.length() == 0) return null;
-        return out.toString();
-
-    }
-
-    private static URL getJDeployBundleURLForCode(String code, String version, File appBundle) {
-        try {
-            String prerelease = isPrerelease(appBundle) ? "&prerelease=true" : "";
-            return new URL(JDEPLOY_REGISTRY + "download.php?code=" +
-                    URLEncoder.encode(code, "UTF-8") +
-                    "&version="+URLEncoder.encode(version, "UTF-8") +
-                    "&jdeploy_files=true&platform=*" +
-                    prerelease
-            );
-        } catch (UnsupportedEncodingException ex) {
-            throw new RuntimeException("UTF-8 Encoding doesn't seem to be supported on this platform.", ex);
-        } catch (MalformedURLException e) {
-            throw new RuntimeException("Programming error.  Malformed URL for bundle. ", e);
-        }
-    }
-
-    private static File findDirectoryByNameRecursive(File startDirectory, String name) {
-        if (startDirectory.isDirectory()) {
-            if (startDirectory.getName().equals(name)) return startDirectory;
-            for (File child : startDirectory.listFiles()) {
-                File result = findDirectoryByNameRecursive(child, name);
-                if (result != null) return result;
-            }
-        }
-        return null;
-    }
-
-    private static File downloadJDeployBundleForCode(String code, String version, File appBundle) throws IOException {
-        File destDirectory = File.createTempFile("jdeploy-files-download", ".tmp");
-        destDirectory.delete();
-        Runtime.getRuntime().addShutdownHook(new Thread(()->{
-            try {
-                FileUtils.deleteDirectory(destDirectory);
-            } catch (Exception ex){}
-        }));
-        File destFile = new File(destDirectory, "jdeploy-files.zip");
-        try (InputStream inputStream = URLUtil.openStream(getJDeployBundleURLForCode(code, version, appBundle))) {
-            FileUtils.copyInputStreamToFile(inputStream, destFile);
-        }
-
-        ArchiveUtil.extract(destFile, destDirectory, "");
-        return findDirectoryByNameRecursive(destDirectory, ".jdeploy-files");
-    }
-
-
-
-    private File findInstallFilesDir(File startDir) {
-        if (startDir == null) return null;
-        if (Platform.getSystemPlatform().isMac() && "AppTranslocation".equals(startDir.getName())) {
-            System.out.println("Detected that we are running inside Gatekeeper so we can't retrieve bundle info");
-            System.out.println("Attempting to download bundle info from network");
-            // Gatekeeper is running the app from a random location, so we won't be able to find the
-            // app.xml file the normal way.
-            // We need to be creative.
-            // Using the name of the installer,
-            // we can extract the package name and version
-            File appBundle = findAppBundle();
-            if (appBundle == null) {
-                System.err.println("Failed to find app bundle");
-                return null;
-            }
-            String code = extractJDeployBundleCodeFromFileName(appBundle.getName());
-            if (code == null) {
-                System.err.println("Cannot download bundle info from the network because no code was found in the app name: "+appBundle.getName());
-                return null;
-            }
-            String version = extractVersionFromFileName(appBundle.getName());
-            if (version == null) {
-                System.err.println("Cannot download bundle info from network because the version string was not found in the app name: "+appBundle.getName());
-                return null;
-            }
-            try {
-                return downloadJDeployBundleForCode(code, version, appBundle);
-            } catch (IOException ex) {
-                System.err.println("Failed to download bundle from the network for code "+code+".");
-                ex.printStackTrace(System.err);
-                return null;
-            }
-
-
-        }
-        File candidate = new File(startDir, ".jdeploy-files");
-        if (candidate.exists() && candidate.isDirectory()) return candidate;
-        return findInstallFilesDir(startDir.getParentFile());
+        return installationContext.findInstallFilesDir();
     }
 
     private File findAppXmlFile() {
-        System.out.println("findAppXmlFile():");
-        File installFilesDir = findInstallFilesDir();
-        if (installFilesDir == null) {
-            System.out.println("installFilesDir: "+installFilesDir);
-            return null;
-        }
-        File appXml =  new File(installFilesDir, "app.xml");
-        System.out.println("Think we found appXml: "+appXml);
-        if (!appXml.exists()) {
-            System.out.println("appXml doesn't exist: "+appXml);
-            return null;
-        }
-        System.out.println("app.xml: "+appXml);
-        return appXml;
+        return installationContext.findAppXml();
 
     }
-
-
 
     @Override
     public void run() {
@@ -535,224 +317,139 @@ public class Main implements Runnable {
             run0();
         } catch (Exception ex) {
             ex.printStackTrace(System.err);
-            JOptionPane.showMessageDialog((Component)null, ex.getMessage(), "Installation failed.", JOptionPane.ERROR_MESSAGE);
-            System.exit(1);
+            invokeLater(()->{
+                uiFactory.showModalErrorDialog(null, ex.getMessage(), "Installation failed.");
+                System.exit(1);
+            });
         }
+    }
 
+    private void invokeLater(Runnable r) {
+        uiFactory.getUI().run(r);
+    }
 
+    private void onInstallClicked(InstallationFormEvent evt) {
+        evt.setConsumed(true);
+        evt.getInstallationForm().setInProgress(true, "Installing.  Please wait...");
+        new Thread(()->{
+            try {
+                install();
+                invokeLater(()->evt.getInstallationForm().setInProgress(false, ""));
+                invokeLater(()-> evt.getInstallationForm().showInstallationCompleteDialog());
+            } catch (Exception ex) {
+                invokeLater(()->evt.getInstallationForm().setInProgress(false, ""));
+                ex.printStackTrace(System.err);
+                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Installation failed. "+ex.getMessage(), "Failed"));
+            }
+        }).start();
+    }
 
+    private void onInstallCompleteOpenApp(InstallationFormEvent evt) {
+        if (Platform.getSystemPlatform().isMac()) {
+            try {
+                Runtime.getRuntime().exec(new String[]{"open", installedApp.getAbsolutePath()});
+                java.util.Timer timer = new java.util.Timer();
+                TimerTask tt = new TimerTask() {
+                    @Override
+                    public void run() {
+                        System.exit(0);
+                    }
+                };
+                timer.schedule(tt, 2000);
+            } catch (Exception ex) {
+                ex.printStackTrace(System.err);
+                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Failed to open app: "+ex.getMessage(), "Error"));
+            }
+        } else {
+            try {
+                Runtime.getRuntime().exec(new String[]{installedApp.getAbsolutePath()});
+                java.util.Timer timer = new java.util.Timer();
+                TimerTask tt = new TimerTask() {
+                    @Override
+                    public void run() {
+                        System.exit(0);
+                    }
+                };
+                timer.schedule(tt, 2000);
+            } catch (Exception ex) {
+                ex.printStackTrace(System.err);
+                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Failed to open app: "+ex.getMessage(), "Error"));
+            }
+        }
+    }
 
+    private void onInstallCompleteRevealApp(InstallationFormEvent evt) {
+        if (Desktop.isDesktopSupported()) {
+            try {
+                Desktop.getDesktop().open(installedApp.getParentFile());
+                java.util.Timer timer = new java.util.Timer();
+                TimerTask tt = new TimerTask() {
+                    @Override
+                    public void run() {
+                        System.exit(0);
+                    }
+                };
+                timer.schedule(tt, 2000);
+            } catch (Exception ex) {
+                ex.printStackTrace(System.err);
+                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Failed to open directory: "+ex.getMessage(), "Error"));
+            }
+        } else {
+            invokeLater(()->{
+                uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Reveal in explorer is not supported on this platform.", "Not supported");
+            });
+        }
+    }
+
+    private void onInstallCompleteCloseInstaller(InstallationFormEvent evt) {
+        java.util.Timer timer = new java.util.Timer();
+        TimerTask tt = new TimerTask() {
+            @Override
+            public void run() {
+                System.exit(0);
+            }
+        };
+        timer.schedule(tt, 2000);
     }
 
     private void buildUI() {
-        frame = new JFrame("Install "+appInfo.getTitle()+" "+npmPackageVersion.getVersion());
-
-        JButton installButton = new JButton("Install");
-        installButton.addActionListener(evt->{
-           new Thread(()->{
-               try {
-                   install();
-                   EventQueue.invokeLater(()->{
-                       String[] options = new String[]{
-                            "Open "+appInfo.getTitle(),
-                            "Reveal app in "+(Platform.getSystemPlatform().isMac()?"Finder":"Explorer"),
-                            "Close"
-                       };
-
-                       int choice = JOptionPane.showOptionDialog(frame,
-                               "Installation was completed successfully",
-                               "Insallation Complete",
-                               JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE,
-                               null, options, options[0]);
-                       switch (choice) {
-                           case 0: {
-                               if (Platform.getSystemPlatform().isMac()) {
-                                   try {
-                                       Runtime.getRuntime().exec(new String[]{"open", installedApp.getAbsolutePath()});
-                                       java.util.Timer timer = new java.util.Timer();
-                                       TimerTask tt = new TimerTask() {
-
-                                           @Override
-                                           public void run() {
-                                               System.exit(0);
-                                           }
-                                       };
-                                       timer.schedule(tt, 2000);
-
-
-                                   } catch (Exception ex) {
-                                       ex.printStackTrace(System.err);
-                                       JOptionPane.showMessageDialog(frame, "Failed to open app: "+ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                                   }
-
-                               } else {
-                                   try {
-                                       Runtime.getRuntime().exec(new String[]{installedApp.getAbsolutePath()});
-                                       java.util.Timer timer = new java.util.Timer();
-                                       TimerTask tt = new TimerTask() {
-
-                                           @Override
-                                           public void run() {
-                                               System.exit(0);
-                                           }
-                                       };
-                                       timer.schedule(tt, 2000);
-                                   } catch (Exception ex) {
-                                       ex.printStackTrace(System.err);
-                                       JOptionPane.showMessageDialog(frame, "Failed to open app: "+ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                                   }
-                               }
-                               break;
-                           }
-                           case 1: {
-
-                               if (Desktop.isDesktopSupported()) {
-                                   try {
-                                       Desktop.getDesktop().open(installedApp.getParentFile());
-                                       java.util.Timer timer = new java.util.Timer();
-                                       TimerTask tt = new TimerTask() {
-
-                                           @Override
-                                           public void run() {
-                                               System.exit(0);
-                                           }
-                                       };
-                                       timer.schedule(tt, 2000);
-                                   } catch (Exception ex) {
-                                       ex.printStackTrace(System.err);
-                                       JOptionPane.showMessageDialog(frame, "Failed to open directory: "+ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-
-                                   }
-                               } else {
-                                   JOptionPane.showMessageDialog(frame, "Reveal in explorer is not supported on this platform.", "Not supported", JOptionPane.ERROR_MESSAGE);
-                               }
-                               break;
-
-                           }
-                           default: {
-                               java.util.Timer timer = new java.util.Timer();
-                               TimerTask tt = new TimerTask() {
-
-                                   @Override
-                                   public void run() {
-                                       System.exit(0);
-                                   }
-                               };
-                               timer.schedule(tt, 2000);
-                           }
-
-
-                       }
-                   });
-               } catch (Exception ex) {
-                   ex.printStackTrace(System.err);
-                   EventQueue.invokeLater(()->{
-                       JOptionPane.showMessageDialog(frame, "Installation failed. "+ex.getMessage(), "Failed",  JOptionPane.ERROR_MESSAGE);
-                   });
-               }
-           }).start();
-        });
-
-
-
-        frame.getContentPane().setLayout(new BorderLayout());
-
-        JPanel buttonsPanel = new JPanel();
-        buttonsPanel.add(installButton);
-
-        File filesDir = findInstallFilesDir();
-        File splash = new File(filesDir, "installsplash.png");
-        if (splash.exists()) {
-            try {
-                ImageIcon splashImage = new ImageIcon(splash.toURI().toURL());
-                JLabel splashLabel = new JLabel(splashImage);
-                splashLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-                frame.getContentPane().add(splashLabel, BorderLayout.CENTER);
-            } catch (Exception ex) {
-
-            }
-        }
-        String desktopLabel = "Add desktop shortcut";
-        if (Platform.getSystemPlatform().isMac()) {
-            desktopLabel = "Add desktop alias";
-        }
-        JCheckBox desktopCheckbox = new JCheckBox(desktopLabel);
-        desktopCheckbox.setSelected(addToDesktop);
-        desktopCheckbox.addActionListener(evt->{
-            addToDesktop = desktopCheckbox.isSelected();
-        });
-
-
-        JCheckBox addToDockCheckBox = new JCheckBox("Add to dock");
-        addToDockCheckBox.setSelected(addToDock);
-        addToDockCheckBox.addActionListener(evt->{
-            addToDock = addToDockCheckBox.isSelected();
-        });
-
-        JCheckBox addToStartMenuCheckBox = new JCheckBox("Add to Start menu");
-        addToStartMenuCheckBox.setSelected(addToStartMenu);
-        addToStartMenuCheckBox.addActionListener(evt->{
-            addToStartMenu = addToStartMenuCheckBox.isSelected();
-        });
-
-        JPanel checkboxesPanel = new JPanel();
-        if (Platform.getSystemPlatform().isWindows()) {
-            checkboxesPanel.add(addToStartMenuCheckBox);
-        } else if (Platform.getSystemPlatform().isMac()) {
-            checkboxesPanel.add(addToDockCheckBox);
-        }
-        checkboxesPanel.add(desktopCheckbox);
-        JPanel southPanel = new JPanel();
-        southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
-
-
-        JComboBox<AutoUpdateSettings> autoUpdateSettingsJComboBox = new JComboBox<>(AutoUpdateSettings.values());
-        autoUpdateSettingsJComboBox.setSelectedIndex(0);
-        autoUpdateSettingsJComboBox.addItemListener(evt->{
-            if (evt.getStateChange() == ItemEvent.SELECTED) {
-                autoUpdate = (AutoUpdateSettings) evt.getItem();
+        installationContext.applyContext(installationSettings);
+        InstallationForm view = uiFactory.createInstallationForm(installationSettings);
+        view.setEventDispatcher(new InstallationFormEventDispatcher(view));
+        this.installationForm = view;
+        view.getEventDispatcher().addEventListener(evt->{
+            switch (evt.getType()) {
+                case InstallClicked:
+                    onInstallClicked(evt);
+                    break;
+                case InstallCompleteOpenApp:
+                    onInstallCompleteOpenApp(evt);
+                    break;
+                case InstallCompleteRevealApp:
+                    onInstallCompleteRevealApp(evt);
+                    break;
+                case InstallCompleteCloseInstaller:
+                    onInstallCompleteCloseInstaller(evt);
+                    break;
             }
         });
-
-        JCheckBox prereleaseCheckBox = new JCheckBox("Prereleases");
-        prereleaseCheckBox.setToolTipText("Check this box to automatically update to pre-releases.  Warning: This not recommended unless you are a developer or beta tester of the application as prereleases may be unstable.");
-        prereleaseCheckBox.setSelected(prerelease);
-        prereleaseCheckBox.addActionListener(evt->{
-            prerelease = prereleaseCheckBox.isSelected();
-        });
-
-
-        southPanel.add(checkboxesPanel);
-
-        JPanel updatesPanel = new JPanel();
-        updatesPanel.add(new JLabel("Auto update settings:"));
-        updatesPanel.add(autoUpdateSettingsJComboBox);
-        updatesPanel.add(prereleaseCheckBox);
-        southPanel.add(updatesPanel);
-
-        southPanel.add(buttonsPanel);
-
-        frame.getContentPane().add(southPanel, BorderLayout.SOUTH);
-
     }
 
     private void run0() throws Exception {
         loadAppInfo();
         if (uninstall && Platform.getSystemPlatform().isWindows()) {
             System.out.println("Running Windows uninstall...");
-            InstallWindowsRegistry installer = new InstallWindowsRegistry(appInfo, null, null, null);
-            UninstallWindows uninstallWindows = new UninstallWindows(appInfo.getNpmPackage(), appInfo.getVersion(), appInfo.getTitle(), installer);
+            InstallWindowsRegistry installer = new InstallWindowsRegistry(appInfo(), null, null, null);
+            UninstallWindows uninstallWindows = new UninstallWindows(appInfo().getNpmPackage(), appInfo().getVersion(), appInfo().getTitle(), installer);
             uninstallWindows.uninstall();
             System.out.println("Uninstall complete");
             return;
         }
-        buildUI();
+        invokeLater(()->{
+            buildUI();
+            installationForm.showInstallationForm();
+        });
 
-        frame.setMinimumSize(new Dimension(640, 480));
-        frame.pack();
-        frame.setLocationRelativeTo(null);
-        frame.setVisible(true);
     }
 
     private File installedApp;
@@ -761,10 +458,10 @@ public class Main implements Runnable {
 
         // Based on the user's settings, let's update the version in the appInfo
         // to correspond with the auto-update settings.
-        appInfo.setNpmVersion(createSemVerForVersion(npmPackageVersion.getVersion(), autoUpdate));
-        appInfo.setNpmAllowPrerelease(prerelease);
+        appInfo().setNpmVersion(createSemVerForVersion(npmPackageVersion().getVersion(), installationSettings.getAutoUpdate()));
+        appInfo().setNpmAllowPrerelease(installationSettings.isPrerelease());
 
-        File tmpDest = File.createTempFile("jdeploy-installer-"+appInfo.getNpmPackage(), "");
+        File tmpDest = File.createTempFile("jdeploy-installer-"+appInfo().getNpmPackage(), "");
         tmpDest.delete();
         tmpDest.mkdir();
         File tmpBundles = new File(tmpDest, "bundles");
@@ -788,7 +485,7 @@ public class Main implements Runnable {
             }
         }
 
-        Bundler.runit(appInfo, findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
+        Bundler.runit(appInfo(), findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
 
         if (Platform.getSystemPlatform().isWindows()) {
             File tmpExePath = null;
@@ -803,7 +500,7 @@ public class Main implements Runnable {
             File userHome = new File(System.getProperty("user.home"));
             File jdeployHome = new File(userHome, ".jdeploy");
             File appsDir = new File(jdeployHome, "apps");
-            File appDir = new File(appsDir, appInfo.getNpmPackage());
+            File appDir = new File(appsDir, appInfo().getNpmPackage());
             appDir.mkdirs();
             File exePath = new File(appDir, tmpExePath.getName());
             FileUtil.copy(tmpExePath, exePath);
@@ -813,14 +510,12 @@ public class Main implements Runnable {
             File bundleIcon = new File(findAppXmlFile().getParentFile(), "icon.png");
             File iconPath = new File(exePath.getParentFile(), "icon.png");
             File icoPath =  new File(exePath.getParentFile(), "icon.ico");
-            //if (bundleIcon.exists()) {
+
             if (Files.exists(bundleIcon.toPath())) {
                 FileUtil.copy(bundleIcon, iconPath);
             }
             installWindowsLinks(exePath);
 
-            //installWindowsFileAssociations(exePath);
-            //installWindowsURLSchemes(exePath);
             File registryBackupLogs = new File(exePath.getParentFile(), "registry-backup-logs");
 
             if (!registryBackupLogs.exists()) {
@@ -840,7 +535,7 @@ public class Main implements Runnable {
             }
             File registryBackupLog = new File(registryBackupLogs, nextLogIndex+".reg");
             try (FileOutputStream fos = new FileOutputStream(registryBackupLog)) {
-                InstallWindowsRegistry registryInstaller = new InstallWindowsRegistry(appInfo, exePath, icoPath, fos);
+                InstallWindowsRegistry registryInstaller = new InstallWindowsRegistry(appInfo(), exePath, icoPath, fos);
                 registryInstaller.register();
 
                 //Try to copy the uninstaller
@@ -876,8 +571,8 @@ public class Main implements Runnable {
             }
 
 
-            File installAppPath = new File(jdeployAppsDir, appInfo.getTitle()+".app");
-            if (installAppPath.exists() && overwriteApp) {
+            File installAppPath = new File(jdeployAppsDir, appInfo().getTitle()+".app");
+            if (installAppPath.exists() && installationSettings.isOverwriteApp()) {
                 FileUtils.deleteDirectory(installAppPath);
             }
             File tmpAppPath = null;
@@ -895,8 +590,8 @@ public class Main implements Runnable {
             }
             installedApp = installAppPath;
 
-            if (addToDesktop) {
-                File desktopAlias = new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + appInfo.getTitle() + ".app");
+            if (installationSettings.isAddToDesktop()) {
+                File desktopAlias = new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + appInfo().getTitle() + ".app");
                 if (desktopAlias.exists()) {
                     desktopAlias.delete();
                 }
@@ -906,7 +601,7 @@ public class Main implements Runnable {
                 }
             }
 
-            if (addToDock) {
+            if (installationSettings.isAddToDock()) {
                 /*
                 #!/bin/bash
                     myapp="//Applications//System Preferences.app"
@@ -945,7 +640,7 @@ public class Main implements Runnable {
             File userHome = new File(System.getProperty("user.home"));
             File jdeployHome = new File(userHome, ".jdeploy");
             File appsDir = new File(jdeployHome, "apps");
-            File appDir = new File(appsDir, appInfo.getNpmPackage());
+            File appDir = new File(appsDir, appInfo().getNpmPackage());
             appDir.mkdirs();
             File exePath = new File(appDir, tmpExePath.getName());
             FileUtil.copy(tmpExePath, exePath);
@@ -966,7 +661,7 @@ public class Main implements Runnable {
 
     }
 
-    private void convertWindowsIcon(File srcPng, File destIco) throws IOException, SAXException {
+    private void convertWindowsIcon(File srcPng, File destIco) throws IOException {
         List<BufferedImage> images = new ArrayList<>();
         List<Integer> bppList = new ArrayList<>();
         for (int i : new int[]{16, 24, 32, 48, 64, 128, 256}) {
@@ -988,146 +683,38 @@ public class Main implements Runnable {
 
     }
 
-    private static Document parseXml(InputStream input) throws IOException, SAXException {
-        try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder builder = factory.newDocumentBuilder();
 
-            return builder.parse(input);
-        } catch (ParserConfigurationException ex) {
-            throw new RuntimeException(ex);
-        }
-    }
 
     private void installWindowsLink(int type, File exePath, File iconPath) throws Exception {
 
 
         System.out.println("Installing windows link type "+type+" for exe "+exePath+" and icon "+iconPath);
-        ShellLink link = new ShellLink(type, appInfo.getTitle());
+        ShellLink link = new ShellLink(type, appInfo().getTitle());
         System.out.println("current user link path: "+link.getcurrentUserLinkPath());
 
         link.setUserType(ShellLink.CURRENT_USER);
-        //ShellLink link = new ShellLink(exePath.getAbsolutePath(), ShellLink.CURRENT_USER);
-        //link.setLinkName(appTitle);
-        if (appInfo.getDescription() == null) {
+        if (appInfo().getDescription() == null) {
             link.setDescription("Windows application");
         } else {
-            link.setDescription(appInfo.getDescription());
+            link.setDescription(appInfo().getDescription());
         }
         String iconPathString = iconPath.getCanonicalFile().getAbsolutePath();
         File homeDir = new File(System.getProperty("user.home")).getCanonicalFile();
 
 
         int homePathPos = iconPathString.indexOf(homeDir.getAbsolutePath());
-        /*
-        if (homePathPos == 0) {
-            String pathFromHome = iconPathString.substring(homeDir.getAbsolutePath().length());
-            if (pathFromHome.charAt(0) != '\\') {
-                pathFromHome = "\\" + pathFromHome;
-            }
-            iconPathString = "%USERPROFILE%" + pathFromHome;
-        }
-        */
+
         System.out.println("Setting icon path in link "+iconPathString);
         link.setIconLocation(iconPathString, 0);
 
         String exePathString = exePath.getCanonicalFile().getAbsolutePath();
-        /*
-        homePathPos = exePathString.indexOf(homeDir.getAbsolutePath());
-        if (homePathPos == 0) {
-            String pathFromHome = exePathString.substring(homeDir.getAbsolutePath().length());
-            if (pathFromHome.charAt(0) != '\\') {
-                pathFromHome = "\\" + pathFromHome;
-            }
-            exePathString = "%USERPROFILE%" + pathFromHome;
-        }
-        */
 
         System.out.println("Setting exePathString: "+exePathString);
         link.setTargetPath(exePathString);
-
-
         link.save();
-
-
     }
 
-    private void installWindowsURLSchemes(File exePath) throws IOException {
-        if (!appInfo.hasUrlSchemes()) {
-            return;
-        }
 
-
-        WinRegistry registry = new WinRegistry();
-        String progIdBase = "jdeploy."+appInfo.getNpmPackage();
-        boolean requiresRefresh = false;
-        for (String scheme : appInfo.getUrlSchemes()) {
-            File icoPath = null;
-            if (new File(exePath.getParentFile(), "icon.ico").exists()) {
-                icoPath = new File(exePath.getParentFile(), "icon.ico");
-            }
-
-
-            registry.addURLScheme(appInfo.getNpmPackage(), scheme, exePath, icoPath);
-
-
-            requiresRefresh = true;
-        }
-        if (requiresRefresh) {
-            registry.notifyFileAssociationsChanged();
-        }
-
-
-    }
-
-    private void installWindowsFileAssociations(File exePath) throws IOException {
-        if (!appInfo.hasDocumentTypes()) {
-            return;
-        }
-
-
-        WinRegistry registry = new WinRegistry();
-        String progIdBase = "jdeploy."+appInfo.getNpmPackage();
-        boolean requiresRefresh = false;
-        for (String extension : appInfo.getExtensions()) {
-            String mimetype = appInfo.getMimetype(extension);
-            File icoPath = null;
-
-            File pngIconPath = new File(exePath.getParentFile(), "icon."+extension+".png");
-            if (pngIconPath.exists()) {
-                icoPath = new File(exePath.getParentFile().getCanonicalFile(), "icon." + extension + ".ico");
-                try {
-                    convertWindowsIcon(pngIconPath.getCanonicalFile(), icoPath);
-                } catch (Exception ex) {
-                    System.err.println("Failed to convert file icon "+pngIconPath+" to .ico file");
-                    ex.printStackTrace(System.err);
-                    icoPath = null;
-                }
-            } else {
-                if (new File(exePath.getParentFile(), "icon.ico").exists()) {
-                    icoPath = new File(exePath.getParentFile(), "icon.ico");
-                }
-            }
-
-            registry.addFileAssociation(
-                    extension,
-                    progIdBase,
-                    appInfo.getTitle(),
-                    mimetype,
-                    exePath,
-                    icoPath,
-                    null,
-                    null
-                    );
-
-            requiresRefresh = true;
-        }
-        if (requiresRefresh) {
-            registry.notifyFileAssociationsChanged();
-        }
-
-
-    }
 
     private void installWindowsLinks(File exePath) throws Exception {
         System.out.println("Installing Windows links for exe "+exePath);
@@ -1145,7 +732,7 @@ public class Main implements Runnable {
         convertWindowsIcon(pngIconPath.getCanonicalFile(), icoPath);
 
 
-        if (addToDesktop) {
+        if (installationSettings.isAddToDesktop()) {
             try {
                 installWindowsLink(ShellLink.DESKTOP, exePath, icoPath);
             } catch (Exception ex) {
@@ -1153,7 +740,7 @@ public class Main implements Runnable {
 
             }
         }
-        if (addToPrograms) {
+        if (installationSettings.isAddToPrograms()) {
             try {
                 installWindowsLink(ShellLink.PROGRAM_MENU, exePath, icoPath);
             } catch (Exception ex) {
@@ -1161,7 +748,7 @@ public class Main implements Runnable {
 
             }
         }
-        if (addToStartMenu) {
+        if (installationSettings.isAddToStartMenu()) {
             try {
                 installWindowsLink(ShellLink.START_MENU, exePath, icoPath);
             } catch (Exception ex) {
@@ -1169,12 +756,10 @@ public class Main implements Runnable {
 
             }
         }
-
-
     }
 
     private void installLinuxMimetypes() throws IOException {
-        if (appInfo.hasDocumentTypes()) {
+        if (appInfo().hasDocumentTypes()) {
             MimeTypeHelper helper = new MimeTypeHelper();
             class MimeInfo {
                 private String mimetype;
@@ -1187,7 +772,7 @@ public class Main implements Runnable {
 
                 private void install() throws IOException {
                     MimeTypeHelper helper = new MimeTypeHelper();
-                    helper.install(mimetype, appInfo.getTitle(), extensions.toArray(new String[extensions.size()]));
+                    helper.install(mimetype, appInfo().getTitle(), extensions.toArray(new String[extensions.size()]));
                 }
             }
             class MimeInfos {
@@ -1211,8 +796,8 @@ public class Main implements Runnable {
                 }
             }
             MimeInfos mimeInfos = new MimeInfos();
-            for (String extension : appInfo.getExtensions()) {
-                String mimetype = appInfo.getMimetype(extension);
+            for (String extension : appInfo().getExtensions()) {
+                String mimetype = appInfo().getMimetype(extension);
                 if (!helper.isInstalled(mimetype)) {
                     mimeInfos.add(mimetype, extension);
                 }
@@ -1232,19 +817,19 @@ public class Main implements Runnable {
                 "Comment=Launch {{APP_TITLE}}\n" +
                 "Terminal=false\n";
 
-        if (appInfo.hasDocumentTypes() || appInfo.hasUrlSchemes()) {
+        if (appInfo().hasDocumentTypes() || appInfo().hasUrlSchemes()) {
             StringBuilder mimetypes = new StringBuilder();
-            if (appInfo.hasDocumentTypes()) {
-                for (String extension : appInfo.getExtensions()) {
-                    String mimetype = appInfo.getMimetype(extension);
+            if (appInfo().hasDocumentTypes()) {
+                for (String extension : appInfo().getExtensions()) {
+                    String mimetype = appInfo().getMimetype(extension);
                     if (mimetypes.length() > 0) {
                         mimetypes.append(";");
                     }
                     mimetypes.append(mimetype);
                 }
             }
-            if (appInfo.hasUrlSchemes()) {
-                for (String scheme : appInfo.getUrlSchemes()) {
+            if (appInfo().hasUrlSchemes()) {
+                for (String scheme : appInfo().getUrlSchemes()) {
                     if (mimetypes.length() > 0) {
                         mimetypes.append(";");
                     }
@@ -1305,15 +890,15 @@ public class Main implements Runnable {
 
         }
 
-        if (addToDesktop) {
+        if (installationSettings.isAddToDesktop()) {
             File desktopDir = new File(System.getProperty("user.home"), "Desktop");
-            addLinuxDesktopFile(desktopDir, appInfo.getTitle(), appInfo.getTitle(), pngIcon, launcherFile);
+            addLinuxDesktopFile(desktopDir, appInfo().getTitle(), appInfo().getTitle(), pngIcon, launcherFile);
         }
-        if (addToPrograms) {
+        if (installationSettings.isAddToPrograms()) {
             File homeDir = new File(System.getProperty("user.home"));
             File applicationsDir = new File(homeDir, ".local"+File.separator+"share"+File.separator+"applications");
             applicationsDir.mkdirs();
-            addLinuxDesktopFile(applicationsDir, appInfo.getTitle(), appInfo.getTitle(), pngIcon, launcherFile);
+            addLinuxDesktopFile(applicationsDir, appInfo().getTitle(), appInfo().getTitle(), pngIcon, launcherFile);
 
             // We need to run update desktop database before file type associations and url schemes will be
             // recognized.

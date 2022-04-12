@@ -99,6 +99,13 @@ public class NPMPackageVersion {
         return out;
     }
 
+    public String getInstallerTheme() {
+        if (jdeploy().has("installerTheme")) {
+            return jdeploy().getString("installerTheme");
+        }
+        return null;
+    }
+
 
 
 

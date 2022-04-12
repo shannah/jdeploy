@@ -258,4 +258,26 @@ public class FileUtil {
         }
     }
 
+    /**
+     * Gets the path of a file relative to the app root.
+     *
+     * @param file
+     * @return
+     * @throws IOException
+     */
+    public static String getRelativePath(File root, File file) throws IOException {
+        if (root == null) throw new IllegalStateException("appRoot must be set before calculating relative path");
+        if (file == null) throw new IllegalArgumentException("Cannot get relative path of null file");
+        String appCanonicalPath = root.getCanonicalPath();
+        String fileCanonicalPath = file.getCanonicalPath();
+        if (!fileCanonicalPath.startsWith(appCanonicalPath)) {
+            throw new IllegalArgumentException("Cannot get relative path of file "+file+" because it is not inside the app root "+root);
+        }
+        String relativePath = fileCanonicalPath.substring(appCanonicalPath.length()).replace('\\', '/');
+        while (relativePath.startsWith("/")) {
+            relativePath = relativePath.substring(1);
+        }
+        return relativePath;
+    }
+
 }
