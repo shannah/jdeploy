@@ -1,0 +1,5 @@
+{
+  "installerTheme" : {
+    "factory" : "ca.weblite.jdeploy.themes.fxtheme.FXUIFactory"
+  }
+}

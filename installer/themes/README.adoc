@@ -1,0 +1,108 @@
+= jDeploy Installer Themes
+
+This directory includes alternative themes for jDeploy's installer.  The default theme is written in Swing and is designed to be able to run in any with Java version 8 or higher - i.e. it should run in any VM that is specified by an app.  This is allows it to hit a "lowest common denominator" of JVM requirements.  This allows the installer to "try" to use the same VM as the application it is installing, which avoids having to download two JVMs - one for the installer and another for the app.
+
+However, it is possible to develop other themes that have more specific requirements (e.g. Java17+FX).  The app can then explicitly specify that it wants to use a "nicer" installer since it knows that the app's VM will be able to handle it.
+
+== Creating a Custom Theme
+
+The easiest way to create a custom theme is to copy the link:fx-theme[] directory and modify the necessary properties in the copy.
+
+At a minimum you should change the `artifactId` and the `jdeploy.theme.name` properties in the _pom.xml_ file to something unique for your theme.  You should also change the `test_shellmarks.sh` script inside your copy so that `-Djdeploy.installerTheme=fxtheme` is changed to `-Djdeploy.installerTheme={YOUR_THEME_NAME}` so that `YOUR_THEME_NAME` matches the value you entered into the `jdeploy.theme.name` property of the pom.xml file.
+
+The theme includes a dependency on the "installer" artifact, so you'll need to run `mvn install` in the `jdeploy/installer` directory first so that the artifact will be found by maven.
+
+=== Building the Custom Theme
+
+[source,bash]
+----
+mvn package
+----
+
+=== Installing the Custom Theme into the jDeploy Installer Resources
+
+Before the installer can use your theme, you need to install it.  The `install` goal will build your theme and install it in the `resources/themes` directory of the installer project so that it an be used.
+
+[source,bash]
+----
+mvn install
+----
+
+=== Testing the Theme
+
+The jdeploy-installer app will use the `jdeploy.installerTheme` System property if it is provided to specify the installer theme to use.  The test_shellmarks.sh script is a bash script that is set up to run the installer and set this theme.  It will install the "shellmarks" application, which is just an ad-hoc development tool created by me (Steve Hannah), so it is a good candidate to be used.
+
+To test changes to your theme, you should first install the theme, and then run the shellmarks test.
+
+[source,bash]
+----
+mvn install
+bash test_shellmarks.sh
+----
+
+TIP: If you want to test the theme with a different application, it's pretty easy.  Check out the tests/shellmarks directory, specifically its hidden `.jdeploy-files` directory, whcih contains the app metadata that the installer uses.
+
+== The Structure of a Theme Project
+
+A theme project needs to contain two files at minimum:
+
+src/main/resources/jdeploy-info.json::
+Contains meta-data to let jDeploy know the name of the _UIFactory_ class.
++
+.The jdeploy-info.json file contents for the fxtheme.
+[source,json]
+----
+{
+  "installerTheme" : {
+    "factory" : "ca.weblite.jdeploy.themes.fxtheme.FXUIFactory"
+  }
+}
+----
++
+The _installerTheme/factory_ property should point to the name of the class that implements the UIFactory interface.
+
+Class implementing UIFactory::
+The UIFactory interface defines the API that needs to be implemented by a theme.
+
+Check out DefaultUIFactory, the default Swing UIFactory implementation as an example.  You can also check out the FXUIFactory class in the fx-theme demo as an example that uses JavaFX.
+
+== Specifying the Preferred Theme for an App
+
+Apps can specify their preferred theme using the `installerTheme` property of the `jdeploy` object in the _package.json_ file.  E.g.
+
+[source,json]
+----
+{
+...
+  "jdeploy" : {
+      "installerTheme" : "fxtheme",
+      ...
+  },
+...
+}
+----
+
+If the installer cannot find the theme, or it fails to load it for some reason (e.g. if the theme has JVM requirements that exceed those requested by the app), it will fall back to the default installer theme.
+
+IMPORTANT: Installer themes are still under development as of version 3.1.11, so this directive will have no effect yet.  You can only test it offline right now using the strategy in the test_shellmarks.sh scripts.
+
+== References:
+
+=== Themes APIs to Implement
+
+. link:../src/main/java/ca/weblite/jdeploy/installer/views/UIFactory.java[UIFactory]
+. link:../src/main/java/ca/weblite/jdeploy/installer/views/InstallationForm.java[InstallationForm]
+. link:../src/main/java/ca/weblite/jdeploy/installer/views/UI.java[UI]
+
+=== Default Swing Implementations for Reference
+
+. link:../src/main/java/ca/weblite/jdeploy/installer/views/DefaultUIFactory.java[DefaultUIFactory]
+. link:../src/main/java/ca/weblite/jdeploy/installer/views/DefaultInstallationForm.java[DefaultInstallationForm]
+. link:../src/main/java/ca/weblite/jdeploy/installer/views/DefaultUI.java[DefaultUI]
+
+=== Sample JavaFX Implementations for Reference
+
+. link:fx-theme/src/main/java/ca/weblite/jdeploy/themes/fxtheme/FXUIFactory.java[FXUIFactory]
+. link:fx-theme/src/main/java/ca/weblite/jdeploy/themes/fxtheme/FXInstallationForm.java[FXInstallationForm]
+. link:fx-theme/src/main/java/ca/weblite/jdeploy/themes/fxtheme/FXUI.java[FXUI]
+

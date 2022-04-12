@@ -32,9 +32,13 @@ import org.w3c.dom.Element;
 import java.awt.Desktop;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.net.URL;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.List;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+
 import net.sf.image4j.codec.ico.ICOEncoder;
 import static ca.weblite.tools.io.IOUtil.copyResourceToFile;
 
@@ -63,9 +67,11 @@ public class Main implements Runnable, Constants {
 
     private void loadTheme(File themeJar) throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
         JarClassLoader jarClassLoader = new JarClassLoader(themeJar);
-        InputStream jdeployInfoStream = jarClassLoader.getResourceAsStream("/jdeploy-info.json");
-        if (jdeployInfoStream == null) throw new IOException("Provided theme "+themeJar+" is missing the jdeploy-info.json file");
-        JSONObject json = new JSONObject(IOUtil.readToString(jdeployInfoStream));
+
+        URL jdeployInfoUrl = jarClassLoader.getResource("jdeploy-info.json");
+        if (jdeployInfoUrl == null) throw new IOException("Provided theme "+themeJar+" is missing the jdeploy-info.json file");
+
+        JSONObject json = new JSONObject(IOUtil.readToString(jarClassLoader.getResourceAsStream("jdeploy-info.json")));
         if (!json.has("installerTheme") || !json.getJSONObject("installerTheme").has("factory")) {
             throw new IOException("jdeploy-info is missing the installerTheme/factory property");
         }
@@ -80,8 +86,16 @@ public class Main implements Runnable, Constants {
     }
 
     private void loadThemeByName(String themeName) throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
-        loadTheme(ResourceUtil.extractZipResourceWithExecutableJarToTempDirectory(getClass(), "themes/"+themeName+".zip"));
+        String resourcePath = "/themes/"+themeName+".jar";
+        URL resourceURL = getClass().getResource(resourcePath);
+        if (resourceURL != null) {
+            loadTheme(ResourceUtil.extractZipResourceWithExecutableJarToTempDirectory(getClass(), resourcePath));
+        } else {
+            throw new IOException("Theme named "+themeName+" not found.  No resource at "+resourcePath);
+        }
     }
+
+
 
     private void loadNPMPackageInfo() throws IOException {
         //System.out.println("Loading NPMPackageInfo");
@@ -98,11 +112,13 @@ public class Main implements Runnable, Constants {
                 throw new IOException("Cannot find version "+appInfo().getNpmVersion()+" for package "+appInfo().getNpmPackage());
             }
 
-            if (installationSettings.getNpmPackageVersion().getInstallerTheme() != null) {
+            String installerTheme = System.getProperty("jdeploy.installerTheme", installationSettings.getNpmPackageVersion().getInstallerTheme());
+            System.out.println("Installer theme is "+installerTheme);
+            if (installerTheme != null) {
                 try {
-                    loadThemeByName(installationSettings.getNpmPackageVersion().getInstallerTheme());
+                    loadThemeByName(installerTheme);
                 } catch (Exception ex) {
-                    System.err.println("Failed to load installer theme "+installationSettings.getNpmPackageVersion().getInstallerTheme()+".  Falling back to default theme.");
+                    System.err.println("Failed to load installer theme "+installerTheme+".  Falling back to default theme.");
                     ex.printStackTrace(System.err);
                 }
             }

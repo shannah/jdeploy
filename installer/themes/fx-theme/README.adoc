@@ -1,0 +1,5 @@
+= FX Installer Theme
+
+This project includes a sample installer theme written in JavaFX.  This is intentionally bare-bones and not practical to make it easy to understand, and so that it can be used as a template for custom themes.
+
+See link:../README.adoc[Custom themes documentation] for details on how to use this as the basis for your own theme.

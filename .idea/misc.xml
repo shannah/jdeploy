@@ -6,6 +6,7 @@
         <option value="$PROJECT_DIR$/cli/pom.xml" />
         <option value="$PROJECT_DIR$/shared/pom.xml" />
         <option value="$PROJECT_DIR$/installer/pom.xml" />
+        <option value="$PROJECT_DIR$/installer/fx-theme/pom.xml" />
       </list>
     </option>
   </component>
