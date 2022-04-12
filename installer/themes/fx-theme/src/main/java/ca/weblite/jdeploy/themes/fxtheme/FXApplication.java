@@ -16,22 +16,11 @@ public class FXApplication extends Application {
     public void start(Stage stage) throws Exception {
         installationForm.app = this;
         FXUI.initialized = true;
-        var javaVersion = javaVersion();
-        var javafxVersion = javafxVersion();
-
         install = new Button("Install");
         install.setOnAction(evt->installationForm.getEventDispatcher().fireEvent(InstallationFormEvent.Type.InstallClicked));
         var scene = new Scene(new StackPane(install), 640, 480);
         stage.setScene(scene);
         stage.show();
-    }
-
-    private static String javaVersion() {
-        return System.getProperty("java.version");
-    }
-
-    private static String javafxVersion() {
-        return System.getProperty("javafx.version");
     }
 
     void setInProgress(boolean inProgress, String message) {
