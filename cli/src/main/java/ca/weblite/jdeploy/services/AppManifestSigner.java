@@ -4,7 +4,6 @@ import ca.weblite.jdeploy.models.AppManifest;
 import java.io.*;
 
 import java.security.*;
-import java.util.*;
 
 
 public class AppManifestSigner {

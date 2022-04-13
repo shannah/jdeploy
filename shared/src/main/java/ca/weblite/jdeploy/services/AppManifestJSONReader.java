@@ -2,12 +2,12 @@ package ca.weblite.jdeploy.services;
 
 import ca.weblite.jdeploy.models.AppManifest;
 
-import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Iterator;
 
 /**
@@ -21,7 +21,7 @@ public class AppManifestJSONReader {
         if (manifestJson.has("signature")) {
             String signatureString = manifestJson.getString("signature");
             if (signatureString != null && !signatureString.isEmpty()) {
-                manifest.setSignature(Base64.decodeBase64(signatureString));
+                manifest.setSignature(Base64.getDecoder().decode(signatureString));
             }
         }
         if (manifestJson.has("identity")) {

@@ -15,4 +15,11 @@ public class DeveloperIdentities implements Iterable<DeveloperIdentity> {
     public void add(DeveloperIdentity identity) {
         identities.add(identity);
     }
+
+    public DeveloperIdentity getMainIdentity() {
+        if (identities.isEmpty()) {
+            return null;
+        }
+        return identities.get(0);
+    }
 }

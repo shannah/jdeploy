@@ -6,39 +6,34 @@ import ca.weblite.jdeploy.models.NPMApplication;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
+import java.security.cert.CertificateException;
+import java.util.Arrays;
 import java.util.Objects;
+
+import static ca.weblite.jdeploy.helpers.NPMApplicationSignatureHelper.updateAppSignature;
 
 public class NPMApplicationSigner {
     private DeveloperIdentityKeyStore keyStore = new DeveloperIdentityKeyStore();
 
-    public void sign(NPMApplication app, DeveloperIdentity... developerIdentities) throws NoSuchAlgorithmException,
+    public void sign(KeyPair keyPair, NPMApplication app, DeveloperIdentity... developerIdentities) throws NoSuchAlgorithmException,
             InvalidKeyException,
             IOException,
-            SignatureException {
+            SignatureException, UnrecoverableKeyException, CertificateException, KeyStoreException, NoSuchProviderException {
         for (DeveloperIdentity identity : developerIdentities) {
-            signWithIdentity(app, identity);
+            signWithIdentity(keyPair, app, identity);
         }
     }
 
 
 
-    private void signWithIdentity(NPMApplication app, DeveloperIdentity identity) throws NoSuchAlgorithmException,
+    private void signWithIdentity(KeyPair keyPair, NPMApplication app, DeveloperIdentity identity) throws NoSuchAlgorithmException,
             InvalidKeyException,
             IOException,
-            SignatureException {
+            SignatureException, UnrecoverableKeyException, CertificateException, KeyStoreException, NoSuchProviderException {
         Signature sig = Signature.getInstance("SHA256withRSA");
-        KeyPair keyPair = keyStore.getKeyPair(identity);
+        //KeyPair keyPair = keyStore.getKeyPair(identity, true);
         if (keyPair == null) {
-            throw new IOException("The keystore could not find key for development identity "+identity.getIdentityUrl());
-        }
-        if (identity.getPublicKey() == null) {
-            throw new IllegalStateException("The identity "+identity.getName()+" is incomplete.  It has no public key.");
-        }
-        if (!Objects.equals(identity.getPublicKey().getEncoded(), keyPair.getPublic().getEncoded())) {
-            throw new IllegalStateException("The identity "+identity.getName()+" public key doesn't match the one from the keystore.");
-        }
-        if (identity.getSignature() == null) {
-            throw new IllegalStateException("The identity "+identity.getName()+" is incomplete. It has no signature.");
+            throw new IllegalArgumentException("The keystore could not find key for development identity "+identity.getIdentityUrl());
         }
 
         sig.initSign(keyPair.getPrivate());
@@ -49,12 +44,5 @@ public class NPMApplicationSigner {
 
     }
 
-    public void updateAppSignature(NPMApplication app, Signature sig) throws SignatureException {
-        sig.update("registryUrl=".getBytes(StandardCharsets.UTF_8));
-        sig.update(app.getNpmRegistryUrl().getBytes(StandardCharsets.UTF_8));
-        sig.update("\npackageName=".getBytes(StandardCharsets.UTF_8));
-        sig.update(app.getPackageName().getBytes(StandardCharsets.UTF_8));
-        sig.update("\nversion=".getBytes(StandardCharsets.UTF_8));
-        sig.update(app.getPackageVersion().getBytes(StandardCharsets.UTF_8));
-    }
+
 }

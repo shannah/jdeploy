@@ -3,8 +3,6 @@ package ca.weblite.jdeploy.services;
 import ca.weblite.jdeploy.models.AppManifest;
 import ca.weblite.tools.io.MD5;
 
-import org.apache.commons.io.FileUtils;
-
 import java.io.File;
 import java.io.IOException;
 import java.security.InvalidKeyException;

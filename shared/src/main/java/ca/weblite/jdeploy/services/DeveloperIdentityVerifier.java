@@ -5,15 +5,30 @@ import ca.weblite.jdeploy.models.DeveloperIdentity;
 import ca.weblite.jdeploy.models.NPMApplication;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.security.*;
+
+import static ca.weblite.jdeploy.helpers.DeveloperIdentitySignatureHelper.updateSignature;
+import static ca.weblite.jdeploy.helpers.NPMApplicationSignatureHelper.updateAppSignature;
 
 /**
  * A service that will verify a developer identity
  */
 public class DeveloperIdentityVerifier {
-    private DeveloperIdentitySigner signer = new DeveloperIdentitySigner();
-    private NPMApplicationSigner appSigner = new NPMApplicationSigner();
+
+
+    /**
+     * Verifies a developer identity.  NOTE: This only verifies that the signature matches the
+     * public key in the identity.  It doesn't actually verify that the identity is valid.
+     * Verification that the identity is valid is performed when the DeveloperIdentity is loaded in
+     * {@link DeveloperIdentityURLLoader}, as it verifies that the identity is indeed from the
+     * URL that was loaded.
+     * @param identity
+     * @return
+     * @throws NoSuchAlgorithmException
+     * @throws InvalidKeyException
+     * @throws SignatureException
+     * @throws IOException
+     */
     public boolean verify(DeveloperIdentity identity)
             throws
             NoSuchAlgorithmException,
@@ -23,7 +38,7 @@ public class DeveloperIdentityVerifier {
         Signature sig = Signature.getInstance("SHA256withRSA");
         PublicKey pubKey = identity.getPublicKey();
         sig.initVerify(pubKey);
-        signer.updateSignature(identity, sig);
+        updateSignature(identity, sig);
         return sig.verify(identity.getSignature());
     }
 
@@ -35,10 +50,13 @@ public class DeveloperIdentityVerifier {
             IOException {
         Signature sig = Signature.getInstance("SHA256withRSA");
         PublicKey pubKey = identity.getPublicKey();
+        if (pubKey == null) {
+            return false;
+        }
         sig.initVerify(pubKey);
         byte[] appSignatureForIDentity = app.getSignature(identity);
         if (appSignatureForIDentity == null) return false;
-        appSigner.updateAppSignature(app, sig);
+        updateAppSignature(app, sig);
         return sig.verify(appSignatureForIDentity);
     }
 

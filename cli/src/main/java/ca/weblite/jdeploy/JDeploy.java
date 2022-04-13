@@ -10,6 +10,7 @@ import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
 import ca.weblite.jdeploy.npm.NPM;
+import ca.weblite.jdeploy.services.PackageJSONSigner;
 import ca.weblite.tools.io.*;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
@@ -918,26 +919,11 @@ public class JDeploy {
                     List<String> pathsToRemove = new ArrayList<>();
                     for (FileHeader header : jarZipFile.getFileHeaders()) {
                         if (pathsToCheckSet.contains(header.getFileName())) {
-                            //jarZipFile.removeFile(header.getFileName());
                             pathsToRemove.add(header.getFileName());
                         }
                     }
                     jarZipFile.removeFiles(pathsToRemove);
-                    /*
-                    for (String path : pathsToRemove) {
-                        jarZipFile.removeFile(path);
-                    }
-                    */
 
-                    /*
-                    for (String path : pathsToCheck) {
-
-                        System.out.println("Checking for "+path+" in "+mainJarFileInBin);
-                        if (jarZipFile.getFileHeader(path) != null) {
-                            System.out.println("Found "+path+".  Trying to remove");
-                            jarZipFile.removeFile(path);
-                        }
-                    }*/
                 }
             } catch (Exception ex) {
                 err.println("Attempt to strip JavaFX files from the application jar file failed.");
@@ -1750,6 +1736,18 @@ public class JDeploy {
         if (installSplash.exists()) {
             checksums.put("installsplash.png", MD5.getMD5Checksum(installSplash));
         }
+
+        if (jdeployObj.has("identities")) {
+            PackageJSONSigner signer = new PackageJSONSigner();
+            try {
+                signer.signPackageJSON(packageJSON);
+            } catch (Exception ex) {
+                err.println("Failed to sign the package.json. "+ex.getMessage());
+                err.println("If the package.json/jdeploy object has an identities list, you need to make sure that your jdeploy keystore has signing keys for all listed identities there.");
+                throw new IOException("Failed to sign the package.json.", ex);
+            }
+        }
+
 
         FileUtils.writeStringToFile(new File(publishDir,"package.json"), packageJSON.toString(), "UTF-8");
 

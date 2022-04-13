@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class NPMApplication {
-    private String npmRegistryUrl;
+    public static final String DEFAULT_NPM_REGISTRY = "https://registry.npmjs.org";
+    private String npmRegistryUrl = DEFAULT_NPM_REGISTRY;
     private String packageName;
     private String packageVersion;
+    private String timeStampString;
     private List<AppSignature> signatures = new ArrayList<AppSignature>();
 
     public String getNpmRegistryUrl() {
@@ -31,6 +33,14 @@ public class NPMApplication {
 
     public void setPackageVersion(String packageVersion) {
         this.packageVersion = packageVersion;
+    }
+
+    public String getTimeStampString() {
+        return timeStampString;
+    }
+
+    public void setTimeStampString(String timeStampString) {
+        this.timeStampString = timeStampString;
     }
 
     private class AppSignature {
