@@ -17,27 +17,26 @@ public class DeveloperIdentityKeyStore {
     private char[] keyStorePassword;
     private KeyStore keyStore;
     private char[] keyPassword;
+    private String alias;
 
-    public KeyPair getKeyPair(DeveloperIdentity developerIdentity, boolean generate) throws CertificateException, KeyStoreException, IOException, NoSuchAlgorithmException, UnrecoverableKeyException, NoSuchProviderException, SignatureException, InvalidKeyException {
+
+
+    public KeyPair getKeyPair(boolean generate) throws CertificateException, KeyStoreException, IOException, NoSuchAlgorithmException, UnrecoverableKeyException, NoSuchProviderException, SignatureException, InvalidKeyException {
         KeyStore keyStore = getKeyStore();
-        ArrayList<String> possibleAliases = new ArrayList<String>();
-        possibleAliases.add(developerIdentity.getIdentityUrl());
-        for (String alias : developerIdentity.getAliasUrls()) {
-            possibleAliases.add(alias);
+        Key key = keyStore.getKey(getAlias(), getKeyPassword());
+        if (key instanceof PrivateKey) {
+            Certificate cert = keyStore.getCertificate(getAlias());
+            PublicKey publicKey = cert.getPublicKey();
+            return new KeyPair(publicKey, (PrivateKey)key);
         }
-        for (String alias : possibleAliases) {
-            Key key = keyStore.getKey(developerIdentity.getIdentityUrl(), getKeyPassword());
-            if (key instanceof PrivateKey) {
-                Certificate cert = keyStore.getCertificate(alias);
-                PublicKey publicKey = cert.getPublicKey();
-                return new KeyPair(publicKey, (PrivateKey)key);
-            }
-        }
-
         if (generate) {
             KeyPair keyPair = generateKeyPair();
+            DeveloperIdentity developerIdentity = new DeveloperIdentity();
+            developerIdentity.setName(getAlias());
+            developerIdentity.setIdentityUrl("https://www.jdeploy.com");
+
             Certificate[] certs = new CertificateGenerator().generateCertificates(developerIdentity, keyPair);
-            keyStore.setKeyEntry(developerIdentity.getIdentityUrl(), keyPair.getPrivate(), getKeyPassword(), certs);
+            keyStore.setKeyEntry(getAlias(), keyPair.getPrivate(), getKeyPassword(), certs);
             try (FileOutputStream output = new FileOutputStream(getKeyStoreFile())) {
                 keyStore.store(output, getKeyStorePassword());
             }
@@ -72,7 +71,7 @@ public class DeveloperIdentityKeyStore {
 
     public File getKeyStoreFile() {
         if (keyStoreFile != null) return keyStoreFile;
-        String keyStorePath = System.getProperty("jdeploy.keystore.path", System.getProperty("user.home") + File.separator + ".jdeploy-keystore.ks");
+        String keyStorePath = System.getProperty("jdeploy.keystore.path", System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + ".keystore.ks");
         return new File(keyStorePath);
     }
 
@@ -88,10 +87,7 @@ public class DeveloperIdentityKeyStore {
 
     private char[] getKeyStorePassword() {
         if (keyStorePassword != null) return keyStorePassword;
-        String passString = System.getProperty("jdeploy.keystore.password", null);
-        if (passString == null) {
-            return null;
-        }
+        String passString = System.getProperty("jdeploy.keystore.password", "");
         return passString.toCharArray();
     }
 
@@ -101,8 +97,14 @@ public class DeveloperIdentityKeyStore {
 
     private char[] getKeyPassword() {
         if (keyPassword != null) return keyPassword;
-        String passString = System.getProperty("jdeploy.key.password", null);
-        if (passString == null) return null;
+        String passString = System.getProperty("jdeploy.key.password", "");
+
         return passString.toCharArray();
+    }
+
+    public String getAlias() {
+        if (alias != null) return alias;
+        return System.getProperty("jdeploy.keystore.alias", "jdeploy");
+
     }
 }

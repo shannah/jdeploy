@@ -1,6 +1,8 @@
 package ca.weblite.jdeploy.installer;
 
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.models.NPMApplication;
+import ca.weblite.jdeploy.services.WebsiteVerifier;
 import ca.weblite.tools.io.ArchiveUtil;
 import ca.weblite.tools.io.URLUtil;
 import ca.weblite.tools.io.XMLUtil;
@@ -222,6 +224,24 @@ public class DefaultInstallationContext implements InstallationContext {
 
     public void applyContext(InstallationSettings settings) {
         settings.setInstallFilesDir(findInstallFilesDir());
+        NPMApplication app = settings.getNpmPackageVersion().toNPMApplication();
+        if (app.getHomepage() != null) {
+            WebsiteVerifier verifier = new WebsiteVerifier();
+
+            try {
+                if (verifier.verifyHomepage(app)) {
+                    settings.setWebsiteURL(new URL(app.getHomepage()));
+                }
+            } catch (Exception ex){}
+        }
+        if (settings.getWebsiteURL() == null) {
+            try {
+                settings.setWebsiteURL(new URL("https://www.npmjs.com/package/" + app.getPackageName()));
+            } catch (Exception ex){}
+        }
+
+
+
     }
 
 

@@ -15,6 +15,9 @@ import java.util.Base64;
 
 public class DeveloperIdentityJSONReader {
     private DeveloperIdentityVerifier developerIdentityVerifier = new DeveloperIdentityVerifier();
+
+
+
     public void loadIdentityFromJSON(DeveloperIdentity identity, JSONObject json, String url) throws IOException, CertificateException, NoSuchAlgorithmException, InvalidKeySpecException, SignatureException, InvalidKeyException {
         identity.setIdentityUrl(json.getString("identityUrl"));
         identity.setName(json.getString("name"));

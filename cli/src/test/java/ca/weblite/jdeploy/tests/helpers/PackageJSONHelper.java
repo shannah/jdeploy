@@ -8,6 +8,7 @@ public class PackageJSONHelper {
         JSONObject out = new JSONObject();
         out.put("name", "test-app");
         out.put("version", "1.0");
+        out.put("homepage", "https://www.example.com");
 
         JSONObject jdeploy = new JSONObject();
         out.put("jdeploy", jdeploy);

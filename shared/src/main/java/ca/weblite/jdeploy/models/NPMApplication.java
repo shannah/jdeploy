@@ -1,5 +1,7 @@
 package ca.weblite.jdeploy.models;
 
+import ca.weblite.jdeploy.data.VerificationStatus;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -9,6 +11,13 @@ public class NPMApplication {
     private String packageName;
     private String packageVersion;
     private String timeStampString;
+    private String appSignature;
+    private String versionSignature;
+    private String developerSignature;
+    private String developerPublicKey;
+    private VerificationStatus homepageVerificationStatus = VerificationStatus.UNKNOWN;
+    private String homepage;
+
     private List<AppSignature> signatures = new ArrayList<AppSignature>();
 
     public String getNpmRegistryUrl() {
@@ -43,6 +52,66 @@ public class NPMApplication {
         this.timeStampString = timeStampString;
     }
 
+    public String getAppSignature() {
+        return appSignature;
+    }
+
+    public void setAppSignature(String appSignature) {
+        this.appSignature = appSignature;
+    }
+
+    public String getVersionSignature() {
+        return versionSignature;
+    }
+
+    public void setVersionSignature(String versionSignature) {
+        this.versionSignature = versionSignature;
+    }
+
+    public String getDeveloperSignature() {
+        return developerSignature;
+    }
+
+    public void setDeveloperSignature(String developerSignature) {
+        this.developerSignature = developerSignature;
+    }
+
+    public String getDeveloperPublicKey() {
+        return developerPublicKey;
+    }
+
+    public void setDeveloperPublicKey(String developerPublicKey) {
+        this.developerPublicKey = developerPublicKey;
+    }
+
+    public List<AppSignature> getSignatures() {
+        return signatures;
+    }
+
+    public void setSignatures(List<AppSignature> signatures) {
+        this.signatures = signatures;
+    }
+
+    public boolean isHomepageVerified() {
+        return homepageVerificationStatus == VerificationStatus.SUCCEEDED;
+    }
+
+    public void setHomepageVerified(boolean homepageVerified) {
+        homepageVerificationStatus = homepageVerified ? VerificationStatus.SUCCEEDED : VerificationStatus.FAILED;
+    }
+
+    public VerificationStatus getHomepageVerificationStatus() {
+        return homepageVerificationStatus;
+    }
+
+    public String getHomepage() {
+        return homepage;
+    }
+
+    public void setHomepage(String homepage) {
+        this.homepage = homepage;
+    }
+
     private class AppSignature {
         DeveloperIdentity developerIdentity;
         byte[] signature;
@@ -73,6 +142,23 @@ public class NPMApplication {
         }
         return out;
     }
+
+    public boolean containsAnySignature(String text) {
+        return _containsAnySignature(text, appSignature, versionSignature, developerSignature);
+    }
+
+    private static boolean containsSignature(String text, String sig) {
+        return sig != null && !sig.isEmpty() && text.contains(sig);
+    }
+
+    private static boolean _containsAnySignature(String text, String... signatures) {
+        if (signatures.length == 0) return false;
+        for (String sig :signatures) {
+            if (containsSignature(text, sig)) return true;
+        }
+        return false;
+    }
+
 
 
 }

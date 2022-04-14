@@ -1,72 +1,33 @@
 package ca.weblite.jdeploy.services;
 
-import ca.weblite.jdeploy.models.DeveloperIdentity;
-import ca.weblite.jdeploy.models.NPMApplication;
+import ca.weblite.jdeploy.tests.helpers.PackageJSONHelper;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
 import java.security.KeyPair;
-import java.util.Base64;
 
-import static ca.weblite.jdeploy.tests.helpers.DeveloperIdentifierKeyStoreHelper.createMockKeyStore;
-import static ca.weblite.jdeploy.tests.helpers.DeveloperIdentityTestHelper.createMockIdentity;
-import static ca.weblite.jdeploy.tests.helpers.PackageJSONHelper.createMockPackageJSON;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PackageJSONSignerTest {
 
     @Test
     void signPackageJSON() throws Exception {
-        DeveloperIdentityKeyStore developerIdentityKeyStore = createMockKeyStore();
+        JSONObject packageJSON = PackageJSONHelper.createMockPackageJSON();
+        PackageJSONSigner signer = new PackageJSONSigner();
+        DeveloperIdentityKeyStore identityKeyStore = new DeveloperIdentityKeyStore();
+        File keyStoreFile = File.createTempFile("tmpkeystore", ".ks");
+        keyStoreFile.delete();
+        signer.setDeveloperIdentityKeyStore(identityKeyStore);
+        identityKeyStore.setKeyStoreFile(keyStoreFile);
+        signer.signPackageJSON(packageJSON);
 
-        DeveloperIdentity identity = createMockIdentity();
-        identity.setIdentityUrl("https://example.com/id.json");
-        KeyPair keyPair = developerIdentityKeyStore.getKeyPair(identity, true);
-        identity.setPublicKey(keyPair.getPublic());
-
-        PackageJSONSigner packageJSONSigner = new PackageJSONSigner();
-        packageJSONSigner.setDeveloperIdentityKeyStore(developerIdentityKeyStore);
-        JSONObject packageJSON = createMockPackageJSON();
-        packageJSONSigner.signPackageJSON(packageJSON);
-
-        assertEquals(1, packageJSON.getJSONObject("jdeploy").getJSONObject("signatures").length());
-
-        NPMApplication app = new NPMApplication();
-        app.setPackageName(packageJSON.getString("name"));
-        app.setPackageVersion(packageJSON.getString("version"));
-        app.setTimeStampString(packageJSON.getJSONObject("jdeploy").getString("timestamp"));
-
-        NPMApplicationSigner appSigner = new NPMApplicationSigner();
-        appSigner.sign(keyPair, app, identity);
-
-        assertArrayEquals(app.getSignature(identity),
-                Base64.getDecoder().decode(packageJSON.getJSONObject("jdeploy").getJSONObject("signatures").getString(identity.getIdentityUrl())));
-
-
-
-
-    }
-
-    @Test
-    void signPackageJSONWithNoIdentities() throws Exception {
-        DeveloperIdentityKeyStore developerIdentityKeyStore = createMockKeyStore();
-
-        DeveloperIdentity identity = createMockIdentity();
-        identity.setIdentityUrl("https://example.com/id.json");
-        KeyPair keyPair = developerIdentityKeyStore.getKeyPair(identity, true);
-        identity.setPublicKey(keyPair.getPublic());
-
-        PackageJSONSigner packageJSONSigner = new PackageJSONSigner();
-        packageJSONSigner.setDeveloperIdentityKeyStore(developerIdentityKeyStore);
-        JSONObject packageJSON = createMockPackageJSON();
-        packageJSON.getJSONObject("jdeploy").remove("identities");
-        packageJSONSigner.signPackageJSON(packageJSON);
-
-        assertEquals(0, packageJSON.getJSONObject("jdeploy").getJSONObject("signatures").length());
-
-
-
-
-
+        JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
+        assertTrue(jdeploy.has("versionSignature"));
+        assertTrue(jdeploy.has("appSignature"));
+        assertTrue(jdeploy.has("developerPublicKey"));
+        assertTrue(jdeploy.has("developerSignature"));
+        assertTrue(jdeploy.has("timestamp"));
+        //System.out.println(packageJSON.toString(2));
     }
 }

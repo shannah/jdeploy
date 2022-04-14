@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.security.*;
 
 import static ca.weblite.jdeploy.helpers.DeveloperIdentitySignatureHelper.updateSignature;
-import static ca.weblite.jdeploy.helpers.NPMApplicationSignatureHelper.updateAppSignature;
+import static ca.weblite.jdeploy.helpers.NPMApplicationSignatureHelper.updateAppVersionSignature;
 
 /**
  * A service that will verify a developer identity
@@ -56,7 +56,7 @@ public class DeveloperIdentityVerifier {
         sig.initVerify(pubKey);
         byte[] appSignatureForIDentity = app.getSignature(identity);
         if (appSignatureForIDentity == null) return false;
-        updateAppSignature(app, sig);
+        updateAppVersionSignature(app, sig);
         return sig.verify(appSignatureForIDentity);
     }
 

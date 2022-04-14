@@ -345,19 +345,7 @@ public class Main implements Runnable, Constants {
     }
 
     private void onInstallClicked(InstallationFormEvent evt) {
-        evt.setConsumed(true);
-        evt.getInstallationForm().setInProgress(true, "Installing.  Please wait...");
-        new Thread(()->{
-            try {
-                install();
-                invokeLater(()->evt.getInstallationForm().setInProgress(false, ""));
-                invokeLater(()-> evt.getInstallationForm().showInstallationCompleteDialog());
-            } catch (Exception ex) {
-                invokeLater(()->evt.getInstallationForm().setInProgress(false, ""));
-                ex.printStackTrace(System.err);
-                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Installation failed. "+ex.getMessage(), "Failed"));
-            }
-        }).start();
+        evt.getInstallationForm().showTrustConfirmationDialog();
     }
 
     private void onInstallCompleteOpenApp(InstallationFormEvent evt) {
@@ -447,8 +435,50 @@ public class Main implements Runnable, Constants {
                 case InstallCompleteCloseInstaller:
                     onInstallCompleteCloseInstaller(evt);
                     break;
+                case VisitSoftwareHomepage:
+                    onVisitSoftwareHomepage(evt);
+                    break;
+                case ProceedWithInstallation:
+                    onProceedWithInstallation(evt);
+                    break;
+                case CancelInstallation:
+                    onCancelInstallation(evt);
+                    break;
             }
         });
+    }
+
+    private void onCancelInstallation(InstallationFormEvent evt) {
+        System.exit(0);
+    }
+
+    private void onProceedWithInstallation(InstallationFormEvent evt) {
+        evt.setConsumed(true);
+        evt.getInstallationForm().setInProgress(true, "Installing.  Please wait...");
+        new Thread(()->{
+            try {
+                install();
+                invokeLater(()->evt.getInstallationForm().setInProgress(false, ""));
+                invokeLater(()-> evt.getInstallationForm().showInstallationCompleteDialog());
+            } catch (Exception ex) {
+                invokeLater(()->evt.getInstallationForm().setInProgress(false, ""));
+                ex.printStackTrace(System.err);
+                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Installation failed. "+ex.getMessage(), "Failed"));
+            }
+        }).start();
+    }
+
+    private void onVisitSoftwareHomepage(InstallationFormEvent evt) {
+        if (Desktop.isDesktopSupported()) {
+            try {
+                Desktop.getDesktop().browse(installationSettings.getWebsiteURL().toURI());
+            } catch (Exception ex) {
+                ex.printStackTrace(System.err);
+                uiFactory.getUI().run(()->{
+                    uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Failed to open webpage.", "Error");
+                });
+            }
+        }
     }
 
     private void run0() throws Exception {

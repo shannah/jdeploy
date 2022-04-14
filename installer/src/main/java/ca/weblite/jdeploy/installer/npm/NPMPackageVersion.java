@@ -1,5 +1,7 @@
 package ca.weblite.jdeploy.installer.npm;
 
+import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
+import ca.weblite.jdeploy.models.NPMApplication;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -16,6 +18,10 @@ public class NPMPackageVersion {
         this.packageJson = packageJson;
     }
 
+
+    public NPMApplication toNPMApplication() {
+        return NPMApplicationHelper.createFromPackageJSON(packageJson);
+    }
 
     public NPMPackage getNpmPackage() {
         return npmPackage;

@@ -66,6 +66,11 @@ public class FXInstallationForm implements InstallationForm {
         FXApplication.launch(FXApplication.class);
     }
 
+    @Override
+    public void showTrustConfirmationDialog() {
+
+    }
+
     /**
      * Sets the event dispatcher.  The Installer will use this to set the event dispatcher in this
      * installer as soon as it is instantiated.

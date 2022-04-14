@@ -170,6 +170,38 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
     }
 
     @Override
+    public void showTrustConfirmationDialog() {
+
+        JLabel message = new JLabel("<html><p><b>Warning: </b> You should only install software from trusted sources.<br><br> <small>This software's verified homepage is <font color='blue'>" + installationSettings.getWebsiteURL()+".</font></small></p>" +
+                "<p><br><b>Do you wish to proceed with the installation?</b></p></html>");
+
+        message.setPreferredSize(new Dimension(300, 100));
+
+        message.setVerticalAlignment(JLabel.TOP);
+        //ImageIcon icon = new ImageIcon(getClass().getResource("/ca/weblite/jdeploy/installer/icon.png"));
+        //icon.setImage(icon.getImage().getScaledInstance(75, 75, Image.SCALE_SMOOTH));
+        int result = JOptionPane.showInternalOptionDialog(SwingUtilities.getWindowAncestor(this), message, "Are you sure?", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE, null, new Object[]{
+
+
+                "Proceed",
+                "Cancel",
+                "Visit Software Homepage"
+        }, 2);
+
+        switch (result) {
+            case 2:
+                this.getEventDispatcher().fireEvent(InstallationFormEvent.Type.VisitSoftwareHomepage);
+                break;
+            case 1:
+                this.getEventDispatcher().fireEvent(InstallationFormEvent.Type.CancelInstallation);
+                break;
+            case 0:
+                this.getEventDispatcher().fireEvent(InstallationFormEvent.Type.ProceedWithInstallation);
+                break;
+        }
+    }
+
+    @Override
     public void setEventDispatcher(InstallationFormEventDispatcher dispatcher) {
         this.dispatcher = dispatcher;
     }

@@ -37,7 +37,10 @@ public class InstallationFormEvent {
         InstallClicked,
         InstallCompleteOpenApp,
         InstallCompleteRevealApp,
-        InstallCompleteCloseInstaller
+        InstallCompleteCloseInstaller,
+        VisitSoftwareHomepage,
+        CancelInstallation,
+        ProceedWithInstallation
     }
 
 }

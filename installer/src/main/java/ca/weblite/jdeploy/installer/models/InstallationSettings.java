@@ -4,6 +4,7 @@ import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 
 import java.io.File;
+import java.net.URL;
 
 public class InstallationSettings {
     private boolean addToDesktop=true;
@@ -15,6 +16,8 @@ public class InstallationSettings {
     private AppInfo appInfo;
     private NPMPackageVersion npmPackageVersion;
     private File installFilesDir;
+    private URL websiteURL;
+    private boolean websiteVerified;
 
     private AutoUpdateSettings autoUpdate = AutoUpdateSettings.Stable;
 
@@ -100,5 +103,21 @@ public class InstallationSettings {
 
     public File getInstallSplashImage() {
         return new File(installFilesDir, "installsplash.png");
+    }
+
+    public URL getWebsiteURL() {
+        return websiteURL;
+    }
+
+    public void setWebsiteURL(URL websiteURL) {
+        this.websiteURL = websiteURL;
+    }
+
+    public boolean isWebsiteVerified() {
+        return websiteVerified;
+    }
+
+    public void setWebsiteVerified(boolean websiteVerified) {
+        this.websiteVerified = websiteVerified;
     }
 }

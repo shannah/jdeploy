@@ -6,6 +6,7 @@ import ca.weblite.jdeploy.installer.events.InstallationFormEventListener;
 public interface InstallationForm {
     public void showInstallationCompleteDialog();
     public void showInstallationForm();
+    public void showTrustConfirmationDialog();
     public void setEventDispatcher(InstallationFormEventDispatcher dispatcher);
     public InstallationFormEventDispatcher getEventDispatcher();
 
