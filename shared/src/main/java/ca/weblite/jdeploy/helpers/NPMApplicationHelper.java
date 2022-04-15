@@ -27,6 +27,9 @@ public class NPMApplicationHelper {
         if (jdeploy.has("developerPublicKey")) {
             out.setDeveloperPublicKey(jdeploy.getString("developerPublicKey"));
         }
+        if (packageJSON.has("homepage")) {
+            out.setHomepage(packageJSON.getString("homepage"));
+        }
 
         return out;
     }

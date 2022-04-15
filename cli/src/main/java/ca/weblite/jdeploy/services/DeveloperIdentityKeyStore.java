@@ -1,11 +1,15 @@
 package ca.weblite.jdeploy.services;
 
 import ca.weblite.jdeploy.models.DeveloperIdentity;
+import ca.weblite.tools.security.CertificateUtil;
+import org.apache.commons.io.FileUtils;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.cert.CertificateException;
 
+import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.security.cert.Certificate;
 
@@ -19,9 +23,28 @@ public class DeveloperIdentityKeyStore {
     private char[] keyPassword;
     private String alias;
 
+    private String pemString;
 
+    private File pemFile;
 
     public KeyPair getKeyPair(boolean generate) throws CertificateException, KeyStoreException, IOException, NoSuchAlgorithmException, UnrecoverableKeyException, NoSuchProviderException, SignatureException, InvalidKeyException {
+
+        if (pemString != null) {
+            try {
+                return CertificateUtil.getKeyPairFromPem(pemString);
+            } catch (InvalidKeySpecException e) {
+                throw new RuntimeException("Failed to get keypair from pemString "+pemString, e);
+            }
+        }
+
+        if (pemFile != null) {
+            try {
+                return CertificateUtil.getKeyPairFromPem(FileUtils.readFileToString(pemFile, StandardCharsets.UTF_8));
+            } catch (InvalidKeySpecException e) {
+                throw new RuntimeException("Failed to get keypair from pemFile "+pemFile, e);
+            }
+        }
+
         KeyStore keyStore = getKeyStore();
         Key key = keyStore.getKey(getAlias(), getKeyPassword());
         if (key instanceof PrivateKey) {
@@ -37,8 +60,11 @@ public class DeveloperIdentityKeyStore {
 
             Certificate[] certs = new CertificateGenerator().generateCertificates(developerIdentity, keyPair);
             keyStore.setKeyEntry(getAlias(), keyPair.getPrivate(), getKeyPassword(), certs);
-            try (FileOutputStream output = new FileOutputStream(getKeyStoreFile())) {
-                keyStore.store(output, getKeyStorePassword());
+            if (getKeyStoreFile() != null) {
+                getKeyStoreFile().getParentFile().mkdirs();
+                try (FileOutputStream output = new FileOutputStream(getKeyStoreFile())) {
+                    keyStore.store(output, getKeyStorePassword());
+                }
             }
             return keyPair;
         }
@@ -46,6 +72,20 @@ public class DeveloperIdentityKeyStore {
 
         return null;
 
+    }
+
+    public String getPrivateKeyAsPem() throws UnrecoverableKeyException, CertificateException, KeyStoreException, IOException, NoSuchAlgorithmException, SignatureException, NoSuchProviderException, InvalidKeyException {
+        return CertificateUtil.toPemEncodedString(getKeyPair(true).getPrivate());
+    }
+
+    public String getPublicKeyAsPem() throws UnrecoverableKeyException, CertificateException, KeyStoreException, IOException, NoSuchAlgorithmException, SignatureException, NoSuchProviderException, InvalidKeyException {
+        return CertificateUtil.toPemEncodedString(getKeyPair(true).getPublic());
+    }
+
+    public String getKeyPairAsPem() throws UnrecoverableKeyException, CertificateException, KeyStoreException, IOException, NoSuchAlgorithmException, SignatureException, NoSuchProviderException, InvalidKeyException {
+        StringBuilder sb = new StringBuilder();
+        sb.append(getPublicKeyAsPem()).append("\n").append(getPrivateKeyAsPem()).append("\n");
+        return sb.toString();
     }
 
 
@@ -58,7 +98,7 @@ public class DeveloperIdentityKeyStore {
     private void loadKeyStore() throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
         if (keyStore != null) return;
         keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        if (getKeyStoreFile().exists()) {
+        if (getKeyStoreFile() != null && getKeyStoreFile().exists()) {
             try (FileInputStream fis = new FileInputStream(getKeyStoreFile())) {
                 keyStore.load(fis, getKeyStorePassword());
             }
@@ -106,5 +146,35 @@ public class DeveloperIdentityKeyStore {
         if (alias != null) return alias;
         return System.getProperty("jdeploy.keystore.alias", "jdeploy");
 
+    }
+
+    /**
+     * Allows us to use a pemString as the identity instead of the keystore.
+     */
+    public String getPemString() {
+        return pemString;
+    }
+
+    /**
+     * Allows us to use a pem string as the signing identity instead of the keystore.
+     * @param pemString
+     */
+    public void setPemString(String pemString) {
+        this.pemString = pemString;
+    }
+
+    /**
+     * Allows us to use a pem file as the identity instead of the keystore.
+     */
+    public File getPemFile() {
+        return pemFile;
+    }
+
+    /**
+     * Allows us to use a pem file as the signing identity instead of the keystore.
+     * @param pemFile
+     */
+    public void setPemFile(File pemFile) {
+        this.pemFile = pemFile;
     }
 }

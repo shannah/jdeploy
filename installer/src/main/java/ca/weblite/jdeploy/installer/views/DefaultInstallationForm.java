@@ -172,7 +172,7 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
     @Override
     public void showTrustConfirmationDialog() {
 
-        JLabel message = new JLabel("<html><p><b>Warning: </b> You should only install software from trusted sources.<br><br> <small>This software's verified homepage is <font color='blue'>" + installationSettings.getWebsiteURL()+".</font></small></p>" +
+        JLabel message = new JLabel("<html><p><b>Warning: </b> You should only install software from trusted sources.<br><br>This software's verified homepage is <font color='blue'>" + installationSettings.getWebsiteURL()+".</font></p>" +
                 "<p><br><b>Do you wish to proceed with the installation?</b></p></html>");
 
         message.setPreferredSize(new Dimension(300, 100));
@@ -180,7 +180,8 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         message.setVerticalAlignment(JLabel.TOP);
         //ImageIcon icon = new ImageIcon(getClass().getResource("/ca/weblite/jdeploy/installer/icon.png"));
         //icon.setImage(icon.getImage().getScaledInstance(75, 75, Image.SCALE_SMOOTH));
-        int result = JOptionPane.showInternalOptionDialog(SwingUtilities.getWindowAncestor(this), message, "Are you sure?", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE, null, new Object[]{
+
+        int result = JOptionPane.showOptionDialog(this, message, "Are you sure?", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE, null, new Object[]{
 
 
                 "Proceed",

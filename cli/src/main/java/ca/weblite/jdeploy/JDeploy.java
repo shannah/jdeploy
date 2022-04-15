@@ -10,6 +10,7 @@ import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
 import ca.weblite.jdeploy.npm.NPM;
+import ca.weblite.jdeploy.services.DeveloperIdentityKeyStore;
 import ca.weblite.jdeploy.services.PackageJSONSigner;
 import ca.weblite.jdeploy.services.PackageJSONSignerOld;
 import ca.weblite.tools.io.*;
@@ -20,6 +21,7 @@ import com.codename1.processing.Result;
 import java.awt.*;
 import java.io.*;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 
 import java.util.*;
@@ -1738,8 +1740,9 @@ public class JDeploy {
             checksums.put("installsplash.png", MD5.getMD5Checksum(installSplash));
         }
         PackageJSONSigner signer = new PackageJSONSigner();
-        try {
 
+        try {
+            signer.setDeveloperIdentityKeyStore(getKeyStore());
             // We need to sign the packageJSON file.
             signer.signPackageJSON(packageJSON);
         } catch (Exception ex) {
@@ -1766,6 +1769,43 @@ public class JDeploy {
         uploadResources();
 
 
+    }
+
+    public DeveloperIdentityKeyStore getKeyStore() throws IOException {
+        DeveloperIdentityKeyStore out = new DeveloperIdentityKeyStore();
+        String keyString = System.getProperty("jdeploy.identity", System.getenv("JDEPLOY_IDENTITY"));
+        if (keyString != null) {
+            if (keyString.contains("PRIVATE KEY")) {
+                out.setPemString(keyString);
+            } else if (new File(keyString).exists()) {
+                // it's a file
+                File f = new File(keyString);
+                if (f.getName().endsWith(".pem") || f.getName().endsWith(".p12")) {
+                    out.setPemFile(f);
+                } else {
+                    try {
+                        String fileContents = FileUtils.readFileToString(new File(keyString), StandardCharsets.UTF_8);
+                        if (fileContents.contains("PRIVATE KEY")) {
+                            out.setPemString(fileContents);
+                        } else {
+                            out.setKeyStoreFile(f);
+                        }
+                    } catch (IOException ex) {
+                        out.setKeyStoreFile(f);
+                    }
+                }
+
+            } else {
+                if (System.getProperty("jdeploy.identity") != null) {
+                    throw new IOException("The jdeploy.identity system property is set but neither points to a file, nor contains a PEM-encoded string.  This property should point to either a keystore file, a PEM-encoded file, or contain a PEM-encoded string.");
+                } else {
+                    throw new IOException("The JDEPLOY_IDENTITY environment variable is set but neither points to a file, nor contains a PEM-encoded string.  This variable should point to either a keystore file, a PEM-encoded file, or contain a PEM-encoded string.");
+                }
+            }
+
+        }
+
+        return out;
     }
 
     private JSONObject makeServiceCall(String url,

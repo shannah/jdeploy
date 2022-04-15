@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.gui;
 
 import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.npm.NPM;
+import ca.weblite.jdeploy.services.ExportIdentityService;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
@@ -1176,6 +1177,12 @@ public class JDeployProjectEditor {
         file.add(openInTextEditor);
 
 
+        JMenuItem exportIdentity = new JMenuItem("Export Signing Keys");
+        exportIdentity.setToolTipText("Export the developer signing keys as a PEM file.  Useful for using in GitHub actions.");
+        exportIdentity.addActionListener(evt->{
+            handleExportIdentity();
+        });
+        file.add(exportIdentity);
 
         if (!Platform.getSystemPlatform().isMac()) {
             file.addSeparator();
@@ -1342,8 +1349,28 @@ public class JDeployProjectEditor {
         }
     }
 
+    private void handleExportIdentity() {
+        try {
+            handleExportIdentity0();
+        } catch (Exception ex) {
+            showError(ex.getMessage(), ex);
+        }
+    }
 
 
+
+    private void handleExportIdentity0() throws IOException {
+        ExportIdentityService exportIdentityService = new ExportIdentityService();
+        JDeploy jdeploy = new JDeploy(packageJSONFile.getAbsoluteFile().getParentFile(), false);
+        exportIdentityService.setDeveloperIdentityKeyStore(jdeploy.getKeyStore());
+        FileDialog saveDialog = new FileDialog(frame, "Select Destination", FileDialog.SAVE);
+        saveDialog.setVisible(true);
+        File[] dest = saveDialog.getFiles();
+        if (dest == null || dest.length == 0) {
+            return;
+        }
+        exportIdentityService.exportIdentityToFile(dest[0]);
+    }
 
 
     private void handlePublish0() throws ValidationException {

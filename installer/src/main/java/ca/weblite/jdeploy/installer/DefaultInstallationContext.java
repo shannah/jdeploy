@@ -232,7 +232,10 @@ public class DefaultInstallationContext implements InstallationContext {
                 if (verifier.verifyHomepage(app)) {
                     settings.setWebsiteURL(new URL(app.getHomepage()));
                 }
-            } catch (Exception ex){}
+            } catch (Exception ex){
+                System.err.println("Failed to verify homepage "+app.getHomepage());
+                ex.printStackTrace(System.err);
+            }
         }
         if (settings.getWebsiteURL() == null) {
             try {

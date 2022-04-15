@@ -9,15 +9,13 @@ import ca.weblite.tools.io.StringUtil;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyFactory;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.PublicKey;
+import java.security.*;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.logging.Level;
@@ -59,6 +57,19 @@ public class CertificateUtil {
         return new String(hexChars);
     }
 
+    public static String toPemEncodedString(PrivateKey privateKey) {
+        byte[] keyBytes = privateKey.getEncoded();
+        String keyContent = Base64.getEncoder().encodeToString(keyBytes);
+        keyContent = StringUtil.splitIntoFixedWidthLines(keyContent, 64);
+        String keyFormatted = "-----BEGIN PRIVATE KEY-----\n" + keyContent;
+
+        if (keyFormatted.charAt(keyFormatted.length()-1) != '\n') {
+            keyFormatted += "\n";
+        }
+        keyFormatted += "-----END PRIVATE KEY-----";
+        return keyFormatted;
+    }
+
     public static String toPemEncodedString(PublicKey publicKey) {
         byte[] publicKeyBytes = publicKey.getEncoded();
         String publicKeyContent = Base64.getEncoder().encodeToString(publicKeyBytes);
@@ -72,11 +83,56 @@ public class CertificateUtil {
         return publicKeyFormatted;
     }
 
+    public static PrivateKey getPrivateKeyFromPem(String pem) throws CertificateException, NoSuchAlgorithmException, InvalidKeySpecException {
+        String temp = pem;
+
+        if(temp.contains("-----BEGIN PRIVATE KEY-----"))
+        {
+            temp = temp.substring(temp.indexOf("-----BEGIN PRIVATE KEY-----"), temp.indexOf("-----END PRIVATE KEY-----"));
+            pem = temp
+                    .replace("-----BEGIN PRIVATE KEY-----\n", "")
+                    .replace("-----END PRIVATE KEY-----", "")
+                    .replace("\n", "")
+                    .replace("\r", "")
+                    .trim();
+        }
+        else if(temp.contains("-----BEGIN RSA PRIVATE KEY-----"))
+        {
+            temp = temp.substring(temp.indexOf("-----BEGIN RSA PRIVATE KEY-----"), temp.indexOf("-----END RSA PRIVATE KEY-----"));
+            pem = temp
+                    .replace("-----BEGIN RSA PRIVATE KEY-----\n", "")
+                    .replace("-----END RSA PRIVATE KEY-----", "")
+                    .replace("\n", "")
+                    .replace("\r", "")
+                    .trim();
+        } else {
+            throw new IllegalArgumentException("No priate key found in Pem string "+pem);
+        }
+
+
+        pem = pem.replace("\n", "")
+                .replace("\r", "");
+        byte[] decoded = Base64.getDecoder().decode(pem);
+        PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(decoded);
+
+        KeyFactory keyFact = KeyFactory.getInstance("RSA");
+
+        return keyFact.generatePrivate(privateKeySpec);
+
+    }
+
+    public static KeyPair getKeyPairFromPem(String pem) throws CertificateException, NoSuchAlgorithmException, InvalidKeySpecException {
+        PrivateKey privateKey = getPrivateKeyFromPem(pem);
+        PublicKey publicKey = getPublicKeyFromPem(pem);
+        return new KeyPair(publicKey, privateKey);
+    }
+
     public static PublicKey getPublicKeyFromPem(String publicKeyPEM) throws CertificateException, NoSuchAlgorithmException, InvalidKeySpecException {
         String temp = publicKeyPEM;
 
         if(temp.contains("-----BEGIN PUBLIC KEY-----"))
         {
+            temp = temp.substring(temp.indexOf("-----BEGIN PUBLIC KEY-----"), temp.indexOf("-----END PUBLIC KEY-----"));
             publicKeyPEM = temp
                     .replace("-----BEGIN PUBLIC KEY-----\n", "")
                     .replace("-----END PUBLIC KEY-----", "")
@@ -86,6 +142,7 @@ public class CertificateUtil {
         }
         else if(temp.contains("-----BEGIN RSA PUBLIC KEY-----"))
         {
+            temp = temp.substring(temp.indexOf("-----BEGIN RSA PUBLIC KEY-----"), temp.indexOf("-----END RSA PUBLIC KEY-----"));
             publicKeyPEM = temp
                     .replace("-----BEGIN RSA PUBLIC KEY-----\n", "")
                     .replace("-----END RSA PUBLIC KEY-----", "")
@@ -95,6 +152,7 @@ public class CertificateUtil {
         }
         else if(temp.contains("-----BEGIN CERTIFICATE-----"))
         {
+            temp = temp.substring(temp.indexOf("-----BEGIN CERTIFICATE-----"), temp.indexOf("-----END CERTIFICATE-----")+"-----END CERTIFICATE-----".length());
             CertificateFactory fact = CertificateFactory.getInstance("X.509");
             X509Certificate cer = (X509Certificate) fact.generateCertificate(new ByteArrayInputStream(temp.getBytes(StandardCharsets.UTF_8)));
             return cer.getPublicKey();
