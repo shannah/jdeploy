@@ -144,7 +144,10 @@ public class NPMApplication {
     }
 
     public boolean containsAnySignature(String text) {
-        return _containsAnySignature(text, appSignature, versionSignature, developerSignature);
+        // Should only check for appSignature and versionSignature because they
+        // are verified by npm.  The developer signature could potentially just be added
+        // to match an official webpage.
+        return _containsAnySignature(text, appSignature, versionSignature);
     }
 
     private static boolean containsSignature(String text, String sig) {
