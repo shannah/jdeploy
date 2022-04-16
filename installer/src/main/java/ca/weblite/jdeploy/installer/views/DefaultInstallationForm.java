@@ -173,7 +173,7 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
     public void showTrustConfirmationDialog() {
 
         JLabel message = new JLabel("<html><b>Warning: </b> You should only install software from trusted sources.<br><br>This software's verified homepage is <font color='blue'>" + installationSettings.getWebsiteURL()+".</font>" +
-                "<br><b>Do you wish to proceed with the installation?</b></html>");
+                "<br><br><b>Do you wish to proceed with the installation?</b></html>");
 
         message.setPreferredSize(new Dimension(300, 100));
 
