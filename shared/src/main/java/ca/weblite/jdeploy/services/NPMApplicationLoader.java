@@ -32,21 +32,7 @@ public class NPMApplicationLoader {
         JSONObject versionJson = versionsJson.getJSONObject(packageVersion);
         JSONObject jdeployJson = versionJson.getJSONObject("jdeploy");
         JSONObject signatures = jdeployJson.has("signatures") ? jdeployJson.getJSONObject("signatures") : new JSONObject();
-        if (jdeployJson.has("timestamp")) {
-            app.setTimeStampString(jdeployJson.getString("timestamp"));
-        }
-        if (jdeployJson.has("appSignature")) {
-            app.setAppSignature(jdeployJson.getString("appSignature"));
-        }
-        if (jdeployJson.has("versionSignature")) {
-            app.setVersionSignature(jdeployJson.getString("versionSignature"));
-        }
-        if (jdeployJson.has("developerSignature")) {
-            app.setDeveloperSignature(jdeployJson.getString("developerSignature"));
-        }
-        if (jdeployJson.has("developerPublicKey")) {
-            app.setDeveloperPublicKey(jdeployJson.getString("developerPublicKey"));
-        }
+
 
 
         if (jdeployJson.has("identities")) {

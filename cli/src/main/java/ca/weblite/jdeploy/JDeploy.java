@@ -11,8 +11,6 @@ import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.services.DeveloperIdentityKeyStore;
-import ca.weblite.jdeploy.services.PackageJSONSigner;
-import ca.weblite.jdeploy.services.PackageJSONSignerOld;
 import ca.weblite.tools.io.*;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
@@ -1738,15 +1736,6 @@ public class JDeploy {
         File installSplash = new File(directory, "installsplash.png");
         if (installSplash.exists()) {
             checksums.put("installsplash.png", MD5.getMD5Checksum(installSplash));
-        }
-        PackageJSONSigner signer = new PackageJSONSigner();
-
-        try {
-            signer.setDeveloperIdentityKeyStore(getKeyStore());
-            // We need to sign the packageJSON file.
-            signer.signPackageJSON(packageJSON);
-        } catch (Exception ex) {
-            throw new IOException("Failed to sign the packageJSON file.", ex);
         }
 
         FileUtils.writeStringToFile(new File(publishDir,"package.json"), packageJSON.toString(), "UTF-8");

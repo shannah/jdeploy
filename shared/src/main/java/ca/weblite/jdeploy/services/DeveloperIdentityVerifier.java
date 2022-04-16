@@ -3,9 +3,12 @@ package ca.weblite.jdeploy.services;
 import ca.weblite.jdeploy.models.DeveloperIdentities;
 import ca.weblite.jdeploy.models.DeveloperIdentity;
 import ca.weblite.jdeploy.models.NPMApplication;
+import ca.weblite.tools.security.CertificateUtil;
 
 import java.io.IOException;
 import java.security.*;
+import java.security.cert.CertificateException;
+import java.security.spec.InvalidKeySpecException;
 
 import static ca.weblite.jdeploy.helpers.DeveloperIdentitySignatureHelper.updateSignature;
 import static ca.weblite.jdeploy.helpers.NPMApplicationSignatureHelper.updateAppVersionSignature;
@@ -41,6 +44,8 @@ public class DeveloperIdentityVerifier {
         updateSignature(identity, sig);
         return sig.verify(identity.getSignature());
     }
+
+
 
     public boolean verify(DeveloperIdentity identity, NPMApplication app)
             throws

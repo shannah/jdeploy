@@ -1,8 +1,12 @@
 package ca.weblite.jdeploy.gui;
 
 import ca.weblite.jdeploy.JDeploy;
+import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
+import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
+import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.services.ExportIdentityService;
+import ca.weblite.jdeploy.services.WebsiteVerifier;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
@@ -66,6 +70,8 @@ public class JDeployProjectEditor {
         private JCheckBox javafx, jdk;
         private JComboBox javaVersion;
         private JButton icon, installSplash, splash, selectJar;
+        private JButton verifyHomepageButton;
+        private JLabel homepageVerifiedLabel;
 
 
     }
@@ -451,6 +457,48 @@ public class JDeployProjectEditor {
         }
     }
 
+
+    private Timer verifyTimer;
+
+    private void queueHomepageVerification() {
+        if (verifyTimer != null) verifyTimer.stop();
+        verifyTimer = new Timer(2000, evt->{
+            verifyTimer = null;
+            checkHomepageVerified();
+        });
+        verifyTimer.setRepeats(false);
+        verifyTimer.start();
+    }
+
+    private boolean checkHomepageVerified() {
+        if (EventQueue.isDispatchThread()) {
+            SwingWorker worker = new SwingWorker() {
+                private boolean verified;
+                @Override
+                protected Object doInBackground() throws Exception {
+                    verified = checkHomepageVerified();
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    mainFields.homepageVerifiedLabel.setVisible(verified);
+                    mainFields.verifyHomepageButton.setVisible(!verified);
+                    frame.revalidate();
+                }
+            };
+            worker.execute();
+        }
+        NPMApplication app = NPMApplicationHelper.createFromPackageJSON(packageJSON);
+        WebsiteVerifier verifier = new WebsiteVerifier();
+        try {
+            verifier.verifyHomepage(app);
+            return app.isHomepageVerified();
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
     private void initMainFields(Container cnt) {
         mainFields = new MainFields();
         mainFields.name = new JTextField();
@@ -629,6 +677,19 @@ public class JDeployProjectEditor {
             setModified();
         });
 
+        mainFields.verifyHomepageButton = new JButton("Verify");
+        mainFields.verifyHomepageButton.setToolTipText("Verify that you own this page");
+        mainFields.verifyHomepageButton.addActionListener(evt->{
+            handleVerifyHomepage();
+        });
+
+        mainFields.homepageVerifiedLabel = new JLabel(FontIcon.of(Material.DONE));
+        mainFields.homepageVerifiedLabel.setForeground(Color.green);
+        mainFields.homepageVerifiedLabel.setToolTipText("Homepage has been verified");
+        mainFields.homepageVerifiedLabel.setVisible(false);
+        queueHomepageVerification();
+
+
         mainFields.homepage = new JTextField();
         if (packageJSON.has("homepage")) {
             mainFields.homepage.setText(packageJSON.getString("homepage"));
@@ -636,6 +697,7 @@ public class JDeployProjectEditor {
         addChangeListenerTo(mainFields.homepage, ()->{
             packageJSON.put("homepage", mainFields.homepage.getText());
             setModified();
+            queueHomepageVerification();
         });
 
 
@@ -890,7 +952,6 @@ public class JDeployProjectEditor {
 
         JTabbedPane tabs = new JTabbedPane();
 
-
         JComponent detailsPanel = PanelMatic.begin()
                 .add(Groupings.lineGroup(mainFields.icon,
                         (JComponent)Box.createRigidArea(new Dimension(10, 10)),
@@ -910,7 +971,7 @@ public class JDeployProjectEditor {
                 .add("", mainFields.javafx)
                 .add("", mainFields.jdk)
                 .addHeader(PanelBuilder.HeaderLevel.H5, "Links")
-                .add("Homepage", mainFields.homepage)
+                .add("Homepage", Groupings.lineGroup(mainFields.homepage, mainFields.verifyHomepageButton, mainFields.homepageVerifiedLabel))
                 .add("Repository", Groupings.lineGroup(new JLabel("URL:"), mainFields.repository, new JLabel("Directory:"), mainFields.repositoryDirectory))
                 .get();
         JPanel detailWrapper = new JPanel();
@@ -1176,13 +1237,23 @@ public class JDeployProjectEditor {
         file.addSeparator();
         file.add(openInTextEditor);
 
-
+        /*
         JMenuItem exportIdentity = new JMenuItem("Export Signing Keys");
         exportIdentity.setToolTipText("Export the developer signing keys as a PEM file.  Useful for using in GitHub actions.");
         exportIdentity.addActionListener(evt->{
             handleExportIdentity();
         });
         file.add(exportIdentity);
+
+         */
+
+        JMenuItem verifyHomepage = new JMenuItem("Verify Homepage");
+        verifyHomepage.setToolTipText("Verify your app's homepage so that users will know that you are the developer of your app");
+        verifyHomepage.addActionListener(evt->{
+            handleVerifyHomepage();
+        });
+        file.addSeparator();
+        file.add(verifyHomepage);
 
         if (!Platform.getSystemPlatform().isMac()) {
             file.addSeparator();
@@ -1210,6 +1281,12 @@ public class JDeployProjectEditor {
         jmb.add(file);
         jmb.add(help);
         frame.setJMenuBar(jmb);
+    }
+
+    private void handleVerifyHomepage() {
+        NPMApplication app = NPMApplicationHelper.createFromPackageJSON(packageJSON);
+        VerifyWebsiteController verifyController = new VerifyWebsiteController(frame, app);
+        EventQueue.invokeLater(verifyController);
     }
 
     private JButton createHelpButton(String url, String label, String tooltipText) {

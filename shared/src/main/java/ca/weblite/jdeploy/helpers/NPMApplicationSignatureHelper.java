@@ -15,7 +15,6 @@ public class NPMApplicationSignatureHelper {
         sig.update("\nversion=".getBytes(StandardCharsets.UTF_8));
         sig.update(app.getPackageVersion().getBytes(StandardCharsets.UTF_8));
         sig.update("\ntimestamp=".getBytes(StandardCharsets.UTF_8));
-        sig.update(app.getTimeStampString().getBytes(StandardCharsets.UTF_8));
     }
 
     public static void updateAppSignature(NPMApplication app, Signature sig) throws SignatureException {

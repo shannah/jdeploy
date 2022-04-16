@@ -10,11 +10,7 @@ public class NPMApplication {
     private String npmRegistryUrl = DEFAULT_NPM_REGISTRY;
     private String packageName;
     private String packageVersion;
-    private String timeStampString;
-    private String appSignature;
-    private String versionSignature;
-    private String developerSignature;
-    private String developerPublicKey;
+
     private VerificationStatus homepageVerificationStatus = VerificationStatus.UNKNOWN;
     private String homepage;
 
@@ -44,45 +40,7 @@ public class NPMApplication {
         this.packageVersion = packageVersion;
     }
 
-    public String getTimeStampString() {
-        return timeStampString;
-    }
 
-    public void setTimeStampString(String timeStampString) {
-        this.timeStampString = timeStampString;
-    }
-
-    public String getAppSignature() {
-        return appSignature;
-    }
-
-    public void setAppSignature(String appSignature) {
-        this.appSignature = appSignature;
-    }
-
-    public String getVersionSignature() {
-        return versionSignature;
-    }
-
-    public void setVersionSignature(String versionSignature) {
-        this.versionSignature = versionSignature;
-    }
-
-    public String getDeveloperSignature() {
-        return developerSignature;
-    }
-
-    public void setDeveloperSignature(String developerSignature) {
-        this.developerSignature = developerSignature;
-    }
-
-    public String getDeveloperPublicKey() {
-        return developerPublicKey;
-    }
-
-    public void setDeveloperPublicKey(String developerPublicKey) {
-        this.developerPublicKey = developerPublicKey;
-    }
 
     public List<AppSignature> getSignatures() {
         return signatures;
@@ -102,6 +60,10 @@ public class NPMApplication {
 
     public VerificationStatus getHomepageVerificationStatus() {
         return homepageVerificationStatus;
+    }
+
+    public void resetHomepageVerificationStatus() {
+        homepageVerificationStatus = VerificationStatus.UNKNOWN;
     }
 
     public String getHomepage() {
@@ -143,24 +105,6 @@ public class NPMApplication {
         return out;
     }
 
-    public boolean containsAnySignature(String text) {
-        // Should only check for appSignature and versionSignature because they
-        // are verified by npm.  The developer signature could potentially just be added
-        // to match an official webpage.
-        return _containsAnySignature(text, appSignature, versionSignature);
-    }
-
-    private static boolean containsSignature(String text, String sig) {
-        return sig != null && !sig.isEmpty() && text.contains(sig);
-    }
-
-    private static boolean _containsAnySignature(String text, String... signatures) {
-        if (signatures.length == 0) return false;
-        for (String sig :signatures) {
-            if (containsSignature(text, sig)) return true;
-        }
-        return false;
-    }
 
 
 

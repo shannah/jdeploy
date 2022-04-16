@@ -2,8 +2,11 @@ package ca.weblite.jdeploy.helpers;
 
 import ca.weblite.jdeploy.models.NPMApplication;
 
+import ca.weblite.tools.security.CertificateUtil;
 import org.json.JSONObject;
 
+import java.nio.charset.StandardCharsets;
+import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 
 public class NPMApplicationHelper {
@@ -12,21 +15,7 @@ public class NPMApplicationHelper {
         out.setPackageName(packageJSON.getString("name"));
         out.setPackageVersion(packageJSON.getString("version"));
         JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
-        String timestamp = jdeploy.has("timestamp") ? jdeploy.getString("timestamp") : new Date().getTime()+"";
-        out.setTimeStampString(timestamp);
 
-        if (jdeploy.has("appSignature")) {
-            out.setAppSignature(jdeploy.getString("appSignature"));
-        }
-        if (jdeploy.has("versionSignature")) {
-            out.setVersionSignature(jdeploy.getString("versionSignature"));
-        }
-        if (jdeploy.has("developerSignature")) {
-            out.setDeveloperSignature(jdeploy.getString("developerSignature"));
-        }
-        if (jdeploy.has("developerPublicKey")) {
-            out.setDeveloperPublicKey(jdeploy.getString("developerPublicKey"));
-        }
         if (packageJSON.has("homepage")) {
             out.setHomepage(packageJSON.getString("homepage"));
         }
@@ -34,15 +23,32 @@ public class NPMApplicationHelper {
         return out;
     }
 
-    public static void updatePackageJSONSignatures(NPMApplication app, JSONObject packageJSON) {
-        JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
-        jdeploy.put("appSignature", app.getAppSignature());
-        jdeploy.put("developerSignature", app.getDeveloperSignature());
-        jdeploy.put("versionSignature", app.getVersionSignature());
-        jdeploy.put("developerPublicKey", app.getDeveloperPublicKey());
-        jdeploy.put("timestamp", app.getTimeStampString());
-
+    public static String getApplicationSha256Hash(NPMApplication app) throws NoSuchAlgorithmException {
+        return CertificateUtil.getSHA256String(getApplicationKey(app).getBytes(StandardCharsets.UTF_8));
     }
+
+    public static String getVersionSha256Hash(NPMApplication app) throws NoSuchAlgorithmException {
+        return CertificateUtil.getSHA256String(getVersionKey(app).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Gets a unique key for the application.
+     * @param app
+     * @return
+     */
+    public static String getApplicationKey(NPMApplication app) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(app.getNpmRegistryUrl()).append("\n").append(app.getPackageName()).append("\n").append(app.getHomepage());
+        return sb.toString();
+    }
+
+    public static String getVersionKey(NPMApplication app) {
+        return getApplicationKey(app)+"\n" + app.getPackageVersion();
+    }
+
+
+
+
 
 
 }
