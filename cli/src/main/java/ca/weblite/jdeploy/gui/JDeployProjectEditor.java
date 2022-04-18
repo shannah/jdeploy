@@ -1272,7 +1272,10 @@ public class JDeployProjectEditor {
         help.addSeparator();
         help.add(createLinkItem("https://www.jdeploy.com/", "jDeploy Website", "Open the jDeploy website in your web browser."));
         help.add(createLinkItem("https://www.jdeploy.com/docs/manual", "jDeploy Developers Guide", "Open the jDeploy developers guide in your web browser."));
-
+        help.addSeparator();
+        help.add(createLinkItem("https://groups.google.com/g/jdeploy-developers", "jDeploy Developers Mailing List", "A mailing list for developers who are developing apps with jDeploy"));
+        help.add(createLinkItem("https://github.com/shannah/jdeploy/discussions", "Support Forum", "A place to ask questions and get help from the community"));
+        help.add(createLinkItem("https://github.com/shannah/jdeploy/issues", "Issue Tracker", "Find and report bugs"));
 
 
 

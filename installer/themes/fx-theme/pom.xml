@@ -13,7 +13,7 @@
         <maven.compiler.target>11</maven.compiler.target>
         <jdeploy.theme.name>fxtheme</jdeploy.theme.name>
         <jdeploy.installer.directory>${project.basedir}/../..</jdeploy.installer.directory>
-        <jdeploy.installer.themes.directory>${jdeploy.installer.directory}/src/resources/themes</jdeploy.installer.themes.directory>
+        <jdeploy.installer.themes.directory>${jdeploy.installer.directory}/src/main/resources/themes</jdeploy.installer.themes.directory>
         <jdeploy.installer.install.destination>${jdeploy.installer.themes.directory}/${jdeploy.theme.name}.jar</jdeploy.installer.install.destination>
     </properties>
     <build>
