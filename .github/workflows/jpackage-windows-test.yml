@@ -3,9 +3,9 @@
 
 name: JPackage Windows Test
 on:
-  push:
-    tags: '*'
-    branches: [master]
+  #push:
+  #  tags: '*'
+  #  branches: [master]
   workflow_dispatch:
 
 jobs:
@@ -59,7 +59,7 @@ jobs:
       uses: actions/upload-artifact@v2.2.4
       with:
         name: Windows MSI Installer
-        path: tests/projects/TextEditor/jdeploy/*.msi
+        path: tests/projects/TextEditor/jdeploy/jpackage/*.msi
         
         
         
