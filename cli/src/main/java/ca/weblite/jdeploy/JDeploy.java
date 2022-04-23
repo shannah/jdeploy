@@ -7,6 +7,7 @@ package ca.weblite.jdeploy;
 
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.appbundler.Bundler;
+import ca.weblite.jdeploy.cli.controllers.JPackageController;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
 import ca.weblite.jdeploy.npm.NPM;
@@ -66,8 +67,9 @@ public class JDeploy {
         System.setProperty("apple.laf.useScreenMenuBar", "true");
         System.setProperty("apple.eawt.quitStrategy", "CLOSE_ALL_WINDOWS");
     }
-
+    private boolean alwaysClean = !Boolean.getBoolean("jdeploy.doNotClean");
     private boolean alwaysPackageOnPublish = !Boolean.getBoolean("jdeploy.doNotPackage");
+    private boolean doNotStripJavaFXFiles;
     private final File directory;
     private File packageJsonFile;
     private Map packageJsonMap;
@@ -764,6 +766,9 @@ public class JDeploy {
         }
         boolean serverProvidedJavaFX = "true".equals(getString("javafx", "false"));
         boolean stripFXFiles = serverProvidedJavaFX && "true".equals(getString("stripJavaFXFiles", "true"));
+        if (doNotStripJavaFXFiles) {
+            stripFXFiles = false;
+        }
         File jarFile = null;
         if (getJar(null) != null) {
             // We need to include the jar at least
@@ -1600,9 +1605,45 @@ public class JDeploy {
 
 
 
+    private void jpackageCLI() {
+        packageJsonFile = new File(directory, "package.json");
+        final boolean origDoNotStreipJavaFXFiles = doNotStripJavaFXFiles;
+        try {
+            if (packageJsonFile == null) {
+                throw new IllegalStateException("packageJSONFile not set yet");
+            }
+            JPackageController jPackageController = new JPackageController(packageJsonFile);
+            if (!jPackageController.doesJdkIncludeJavafx()) {
+                doNotStripJavaFXFiles = true;
+            }
+            try {
+                if (alwaysClean) {
+                    File jdeployBundleDirectory = new File(directory, "jdeploy-bundle");
+                    if (jdeployBundleDirectory.exists()) {
+                        FileUtils.deleteDirectory(jdeployBundleDirectory);
+                    }
+                }
+                copyToBin();
+            } catch (Exception ex) {
+                err.println("Failed to copy files to jdeploy directory.");
+                ex.printStackTrace(err);
+                System.exit(1);
+            }
+
+            jPackageController.run();
+        } finally {
+            doNotStripJavaFXFiles = origDoNotStreipJavaFXFiles;
+        }
+    }
 
     
     private void _package() throws IOException {
+        if (alwaysClean) {
+            File jdeployBundle = new File(directory, "jdeploy-bundle");
+            if (jdeployBundle.exists()) {
+                FileUtils.deleteDirectory(jdeployBundle);
+            }
+        }
         copyToBin();
         try {
             allBundles();
@@ -1695,6 +1736,8 @@ public class JDeploy {
 
 
     public void publish() throws IOException {
+
+
         if (alwaysPackageOnPublish) {
 
             _package();
@@ -1937,7 +1980,9 @@ public class JDeploy {
                 }
             }
 
-            if ("package".equals(args[0])) {
+            if ("jpackage".equals(args[0])) {
+                prog.jpackageCLI();
+            } else if ("package".equals(args[0])) {
                 prog._package();
             } else if ("init".equals(args[0])) {
                 String commandName = null;

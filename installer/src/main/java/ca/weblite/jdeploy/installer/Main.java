@@ -18,6 +18,7 @@ import ca.weblite.jdeploy.installer.views.UIFactory;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.UninstallWindows;
 
+import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
 import com.izforge.izpack.util.os.ShellLink;
@@ -131,7 +132,7 @@ public class Main implements Runnable, Constants {
                 appInfo().setDescription("Desktop application");
             }
 
-            for (NPMPackageVersion.DocumentTypeAssociation documentTypeAssociation : npmPackageVersion().getDocumentTypeAssociations()) {
+            for (DocumentTypeAssociation documentTypeAssociation : npmPackageVersion().getDocumentTypeAssociations()) {
                 appInfo().addDocumentMimetype(documentTypeAssociation.getExtension(), documentTypeAssociation.getMimetype());
                 if (documentTypeAssociation.getIconPath() != null) {
                     appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), documentTypeAssociation.getIconPath());

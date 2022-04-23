@@ -51,5 +51,6 @@
     <orderEntry type="library" scope="TEST" name="Maven: org.junit.platform:junit-platform-engine:1.8.2" level="project" />
     <orderEntry type="library" name="Maven: org.bouncycastle:bcpkix-jdk15on:1.70" level="project" />
     <orderEntry type="library" name="Maven: org.bouncycastle:bcutil-jdk15on:1.70" level="project" />
+    <orderEntry type="library" name="Maven: ca.weblite.jdeploy:image4j:0.7.2" level="project" />
   </component>
 </module>

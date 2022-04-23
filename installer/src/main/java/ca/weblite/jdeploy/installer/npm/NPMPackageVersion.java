@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.npm;
 
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
+import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 import ca.weblite.jdeploy.models.NPMApplication;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -35,33 +36,7 @@ public class NPMPackageVersion {
         return version;
     }
 
-    public class DocumentTypeAssociation {
-        private String extension, mimetype, iconPath;
-        private boolean editor;
 
-        private DocumentTypeAssociation(String extension, String mimetype, String iconPath, boolean editor) {
-            this.extension = extension;
-            this.mimetype = mimetype;
-            this.iconPath = iconPath;
-
-        }
-
-        public String getExtension() {
-            return extension;
-        }
-
-        public String getMimetype() {
-            return mimetype;
-        }
-
-        public String getIconPath() {
-            return iconPath;
-        }
-
-        public boolean isEditor() {
-            return editor;
-        }
-    }
 
     private JSONObject jdeploy() {
         return packageJson.getJSONObject("jdeploy");
