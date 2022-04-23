@@ -1,0 +1,66 @@
+# This workflow will build a Java project with Maven, and cache/restore any dependencies to improve the workflow execution time
+# For more information see: https://help.github.com/actions/language-and-framework-guides/building-and-testing-java-with-maven
+
+name: JPackage Windows Test
+on:
+  push:
+    tags: '*'
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build:
+
+    runs-on: windows-latest
+
+    steps:
+     - name: Download Wix
+      uses: i3h/download-release-asset@v1
+      with:
+        owner: wixtoolset
+        repo: wix3
+        tag: wix3112rtm
+        file: wix311-binaries.zip
+    - name: Decompress Wix
+      uses: DuckSoft/extract-7z-action@v1.0
+      with:
+        pathSource: wix311-binaries.zip
+        pathTarget: ./target/wix
+    - name: Add Wix to Path
+      run: echo "$HOME/target/wix" >> $GITHUB_PATH
+
+    - uses: actions/checkout@v3
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+    - name: Set up Git Config
+      run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+    - name: Build with Maven
+      run: |
+        cd shared
+        mvn install
+        cd ../cli
+        mvn package
+      shell: bash
+        
+    - name: Run jpackage via jDeploy
+      run: |
+        BASEDIR=$(pwd)
+        cd tests/projects/TextEditor
+        java -jar $BASEDIR/cli/target/jdeploy-cli-1.0-SNAPSHOT.jar jpackage
+        ls jdeploy/jpackage
+      shell: bash
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v2.2.4
+      with:
+        name: Windows MSI Installer
+        path: tests/projects/TextEditor/jdeploy/*.msi
+        
+        
+        
+    
