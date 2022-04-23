@@ -3,9 +3,9 @@
 
 name: JPackage Linux Test
 on:
-  push:
-    tags: '*'
-    branches: [master]
+  #push:
+  #  tags: '*'
+  #  branches: [master]
   workflow_dispatch:
 
 jobs:
