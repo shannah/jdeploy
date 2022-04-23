@@ -14,7 +14,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-     - name: Download Wix
+    - name: Download Wix
       uses: i3h/download-release-asset@v1
       with:
         owner: wixtoolset
