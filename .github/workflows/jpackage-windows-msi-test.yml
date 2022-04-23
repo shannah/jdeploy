@@ -52,7 +52,7 @@ jobs:
       run: |
         BASEDIR=$(pwd)
         cd tests/projects/TextEditor
-        java -jar $BASEDIR/cli/target/jdeploy-cli-1.0-SNAPSHOT.jar jpackage --type msi --win-menu --win-menu-group "jpackage Apps"
+        java -jar $BASEDIR/cli/target/jdeploy-cli-1.0-SNAPSHOT.jar jpackage --type msi
         ls jdeploy/jpackage
       shell: bash
     - name: Upload a Build Artifact
