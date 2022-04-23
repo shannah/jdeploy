@@ -1605,14 +1605,14 @@ public class JDeploy {
 
 
 
-    private void jpackageCLI() {
+    private void jpackageCLI(String[] args) {
         packageJsonFile = new File(directory, "package.json");
         final boolean origDoNotStreipJavaFXFiles = doNotStripJavaFXFiles;
         try {
             if (packageJsonFile == null) {
                 throw new IllegalStateException("packageJSONFile not set yet");
             }
-            JPackageController jPackageController = new JPackageController(packageJsonFile);
+            JPackageController jPackageController = new JPackageController(packageJsonFile, args);
             if (!jPackageController.doesJdkIncludeJavafx()) {
                 doNotStripJavaFXFiles = true;
             }
@@ -1919,10 +1919,12 @@ public class JDeploy {
     public static void main(String[] args) {
         try {
             JDeploy prog = new JDeploy(new File(".").getAbsoluteFile());
-            CommandLineParser parser = new DefaultParser();
             Options opts = new Options();
-            CommandLine line = parser.parse(opts, args);
-            args = line.getArgs();
+            if (args.length > 0 && !"jpackage".equals(args[0])) {
+                CommandLineParser parser = new DefaultParser();
+                CommandLine line = parser.parse(opts, args);
+                args = line.getArgs();
+            }
             if (args.length == 0 || "gui".equals(args[0])) {
                 System.out.println("Launching jdeploy gui.  Use jdeploy help for help");
                 File packageJSON = new File("package.json");
@@ -1981,7 +1983,9 @@ public class JDeploy {
             }
 
             if ("jpackage".equals(args[0])) {
-                prog.jpackageCLI();
+                String[] jpackageArgs = new String[args.length-1];
+                System.arraycopy(args, 1, jpackageArgs, 0, jpackageArgs.length);
+                prog.jpackageCLI(jpackageArgs);
             } else if ("package".equals(args[0])) {
                 prog._package();
             } else if ("init".equals(args[0])) {

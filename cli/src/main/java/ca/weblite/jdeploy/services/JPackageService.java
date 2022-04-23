@@ -23,14 +23,13 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 public class JPackageService {
     private String jpackagePath="jpackage";
     private JSONObject packageJSON;
     private File packageJSONFile;
+    private Map<String,String> args = new LinkedHashMap<>();
 
     public JPackageService(File packageJSONFile, JSONObject packageJSON) throws IOException {
         this.packageJSONFile = packageJSONFile;
@@ -53,21 +52,44 @@ public class JPackageService {
         run();
     }
 
-    private void run() throws Exception {
+    private String getArg(String key, String defaultValue) {
+        if (args.containsKey(key)) {
+            return args.get(key);
+        }
+        return defaultValue;
+    }
 
+    private void run() throws Exception {
+        Set<String> usedArgs = new HashSet<>();
         ProcessBuilder pb = new ProcessBuilder(jpackagePath,
-                "--input", getJDeployBundleDirectory().getAbsolutePath(),
-                "--main-jar", getMainJarFile().getName(),
-                "--dest", getDestDirectory().getAbsolutePath(),
-                "--description", getDescription(),
-                "--app-version", getAppVersion(),
+                "--input", getArg("--input", getJDeployBundleDirectory().getAbsolutePath()),
+                "--main-jar", getArg("--main-jar", getMainJarFile().getName()),
+                "--dest", getArg("--dest", getDestDirectory().getAbsolutePath()),
+                "--description", getArg("--description", getDescription()),
+                "--app-version", getArg("--app-version", getAppVersion()),
                 "--name", getAppName());
+        usedArgs.add("--input");
+        usedArgs.add("--main-jar");
+        usedArgs.add("--dest");
+        usedArgs.add("--description");
+        usedArgs.add("--name");
         if (getIconFile().exists()) {
             File icnsFile = processIcon();
             pb.command().add("--icon");
-            pb.command().add(icnsFile.getAbsolutePath());
+            pb.command().add(getArg("--icon", icnsFile.getAbsolutePath()));
+        } else if (args.containsKey("--icon")){
+            pb.command().add("--icon");
+            pb.command().add(args.get("--icon"));
         }
+        usedArgs.add("--icon");
         appendFileAssociationsToCommand(pb.command());
+        for (String argKey : args.keySet()) {
+            if (!usedArgs.contains(argKey)) {
+                usedArgs.add(argKey);
+                pb.command().add(argKey);
+                pb.command().add(args.get(argKey));
+            }
+        }
         Process p = pb.start();
         int result;
         if ((result = p.waitFor()) != 0) {
@@ -293,6 +315,16 @@ public class JPackageService {
         }
 
 
+
+    }
+
+
+
+    public void setArgs(String[] args) {
+        this.args.clear();
+        for (int i=0; i<args.length; i+=2) {
+            this.args.put(args[i], args[i+1]);
+        }
 
     }
 

@@ -12,9 +12,11 @@ public class JPackageController implements Runnable {
     private File packageJSONFile;
     private PrintStream out = System.out;
     private PrintStream err = System.err;
+    private String[] args;
 
-    public JPackageController(File packageJSONFile) {
+    public JPackageController(File packageJSONFile, String[] args) {
         this.packageJSONFile = packageJSONFile;
+        this.args = args;
     }
 
 
@@ -25,6 +27,7 @@ public class JPackageController implements Runnable {
             out.println("Generating native bundle for current platform with jPackage");
             out.println("TIP: You can override the path to your jpackage binary with the JDEPLOY_JPACKAGE environment variable.");
             JPackageService jPackageService = new JPackageService(packageJSONFile, null);
+            if (args != null) jPackageService.setArgs(args);
             jPackageService.execute();
             out.println("jpackage succeeded.");
             out.println("The bundle was generated in "+new File(packageJSONFile.getParentFile(), "jdeploy" + File.separator + "jpackage").getAbsolutePath());
