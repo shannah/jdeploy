@@ -38,5 +38,11 @@ jobs:
         cd tests/projects/TextEditor
         java -jar $BASEDIR/cli/target/jdeploy-cli-1.0-SNAPSHOT.jar jpackage
         ls jdeploy/jpackage
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v2.2.4
+      with:
+        name: Text Editor-1.0.26.dmg
+        path: tests/projects/TextEditor/jdeploy/jpackage/Text Editor-1.0.26.dmg
+        
         
     
