@@ -37,3 +37,4 @@ jobs:
         BASEDIR=$(pwd)
         cd tests/projects/TextEditor
         java -jar $BASEDIR/cli/target/jdeploy-cli-1.0-SNAPSHOT.jar jpackage
+        ls jdeploy/jpackage
