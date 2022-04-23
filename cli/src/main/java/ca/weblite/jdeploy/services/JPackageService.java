@@ -69,6 +69,11 @@ public class JPackageService {
                 "--description", getArg("--description", getDescription()),
                 "--app-version", getArg("--app-version", getAppVersion()),
                 "--name", getAppName());
+        Set<String> usedFlags = new HashSet<>();
+        if (args.containsKey("--type") && "msi".equals(args.get("--type")) ) {
+            pb.command().add("--win-menu");
+            usedFlags.add("--win-menu");
+        }
         usedArgs.add("--input");
         usedArgs.add("--main-jar");
         usedArgs.add("--dest");
@@ -92,7 +97,10 @@ public class JPackageService {
             }
         }
         for (String flag : flags) {
-            pb.command().add(flag);
+            if (!usedFlags.contains(flag)) {
+                pb.command().add(flag);
+                usedFlags.add(flag);
+            }
         }
         Process p = pb.start();
         int result;
