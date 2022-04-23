@@ -38,3 +38,9 @@ jobs:
         cd tests/projects/TextEditor
         java -jar $BASEDIR/cli/target/jdeploy-cli-1.0-SNAPSHOT.jar jpackage
         ls jdeploy/jpackage
+        
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v2.2.4
+      with:
+        name: text-editor_1.0.26-1_amd64.deb
+        path: tests/projects/TextEditor/jdeploy/jpackage/text-editor_1.0.26-1_amd64.deb
