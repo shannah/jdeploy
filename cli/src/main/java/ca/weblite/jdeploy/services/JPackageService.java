@@ -30,6 +30,7 @@ public class JPackageService {
     private JSONObject packageJSON;
     private File packageJSONFile;
     private Map<String,String> args = new LinkedHashMap<>();
+    private Set<String> flags = new LinkedHashSet<>();
 
     public JPackageService(File packageJSONFile, JSONObject packageJSON) throws IOException {
         this.packageJSONFile = packageJSONFile;
@@ -89,6 +90,9 @@ public class JPackageService {
                 pb.command().add(argKey);
                 pb.command().add(args.get(argKey));
             }
+        }
+        for (String flag : flags) {
+            pb.command().add(flag);
         }
         Process p = pb.start();
         int result;
@@ -323,7 +327,14 @@ public class JPackageService {
     public void setArgs(String[] args) {
         this.args.clear();
         for (int i=0; i<args.length; i+=2) {
-            this.args.put(args[i], args[i+1]);
+            if (args.length <= i+1) {
+                this.flags.add(args[i]);
+            } else if (args[i+1].startsWith("--")) {
+                this.flags.add(args[i]);
+                i--;
+            } else {
+                this.args.put(args[i], args[i + 1]);
+            }
         }
 
     }
