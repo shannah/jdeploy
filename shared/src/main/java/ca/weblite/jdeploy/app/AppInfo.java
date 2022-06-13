@@ -54,6 +54,10 @@ public class AppInfo  {
 
     private Set<String> urlSchemes;
 
+    private String nodeVersion;
+
+    private String webInstallEndpoint;
+
 
     public void addUrlScheme(String scheme) {
         if (urlSchemes == null) urlSchemes = new HashSet<>();
@@ -70,7 +74,7 @@ public class AppInfo  {
         }
         return urlSchemes;
     }
-    
+
 
     private Map<String, String> documentMimetypes() {
         if (documentMimetypes == null) documentMimetypes = new HashMap<>();
@@ -124,8 +128,8 @@ public class AppInfo  {
 
 
 
-    
-    
+
+
     /**
      * @return the tagline
      */
@@ -145,13 +149,13 @@ public class AppInfo  {
      */
     public void setGithubRepositoryUrl(String url) {
         this.githubRepositoryUrl=url;
-        
+
     }
 
     public String getGithubRepositoryUrl() {
         return githubRepositoryUrl;
     }
-    
+
     /**
      * @return the macAppBundleId
      */
@@ -172,14 +176,14 @@ public class AppInfo  {
     public CodeSignSettings getCodeSignSettings() {
         return codeSignSettings;
     }
-    
+
     public void setCodeSignSettings(CodeSignSettings settings) {
         if (!Objects.equals(settings, codeSignSettings)) {
             codeSignSettings = settings;
 
         }
     }
-    
+
     /**
      * @return the macAppUrl
      */
@@ -235,8 +239,8 @@ public class AppInfo  {
     public void setLinuxAppUrl(String url) {
         linuxAppUrl = url;
     }
-    
-    
+
+
 
     /**
      * @return the linuxInstallerUrl
@@ -250,7 +254,7 @@ public class AppInfo  {
      */
     public void setLinuxInstallerUrl(String url) {
         linuxInstallerUrl = url;
-        
+
     }
 
 
@@ -311,23 +315,39 @@ public class AppInfo  {
         this.fork = fork;
     }
 
+    public String getNodeVersion() {
+        return nodeVersion;
+    }
+
+    public void setNodeVersion(String nodeVersion) {
+        this.nodeVersion = nodeVersion;
+    }
+
+    public String getWebInstallEndpoint() {
+        return webInstallEndpoint;
+    }
+
+    public void setWebInstallEndpoint(String webInstallEndpoint) {
+        this.webInstallEndpoint = webInstallEndpoint;
+    }
+
 
     public static enum Updates {
         Auto,
         Manual
     }
-    
+
     public static class PermissionsList implements Iterable<Permission>{
         private List<Permission> permissions=new ArrayList<>();
 
         public PermissionsList() {
-            
+
         }
-        
+
         public PermissionsList(Iterable<Permission> perms) {
             addAll(perms);
         }
-        
+
         @Override
         public Iterator<Permission> iterator() {
             return permissions.iterator();
@@ -338,11 +358,11 @@ public class AppInfo  {
             permissions.add(perm);
 
         }
-        
+
         public void sort() {
             Collections.sort(permissions);
         }
-        
+
         public void addAll(Iterable<Permission> perms) {
             for (Permission p : perms) {
                 add(p);
@@ -362,10 +382,10 @@ public class AppInfo  {
             permissions.clear();
 
         }
-        
-        
+
+
     }
-    
+
     /**
      * @return the permissions
      */
@@ -374,7 +394,7 @@ public class AppInfo  {
     }
 
 
-    
+
     /**
      * @return the dependencies
      */
@@ -388,7 +408,7 @@ public class AppInfo  {
         }
         return runtimes;
     }
-    
+
     public List<Dependency> getDependencies(boolean init) {
         if (dependencies == null && init) {
             dependencies = new ArrayList<Dependency>();
@@ -402,7 +422,7 @@ public class AppInfo  {
     public void setDependencies(List<Dependency> dependencies) {
         this.dependencies = dependencies;
     }
-    
+
     public RuntimeGrantedPermissions getPermissionsAsRuntimeGrantedPermissions() {
         RuntimeGrantedPermissions out = new RuntimeGrantedPermissions();
         if (getPermissions() != null) {
@@ -411,22 +431,22 @@ public class AppInfo  {
             }
         }
         return out;
-        
+
     }
-            
-    
+
+
     public static class Permission implements Comparable<Permission> {
-        
+
         public Permission() {
-            
+
         }
-        
+
         public Permission(Permission toCopy) {
             name = toCopy.name;
             target = toCopy.target;
             action = toCopy.action;
         }
-        
+
         /**
          * Gets this permission as a RuntimeGrantedPermission.  RuntimeGrantedPermission
          * is used to encapsulate the actual permissions used by an app at runtime.  They are
@@ -441,7 +461,7 @@ public class AppInfo  {
             out.setExpires(new Date(System.currentTimeMillis() + 30 * 24 * 60 * 60 * 1000l));
             return out;
         }
-        
+
         public static Permission fromRuntimeGrantedPermssion(RuntimeGrantedPermission perm) {
             Permission out = new Permission();
             out.setName(perm.getClassName());
@@ -449,11 +469,11 @@ public class AppInfo  {
             out.setAction(perm.getActions());
             return out;
         }
-        
+
         public Permission(String name) {
             this.name = name;
         }
-        
+
         public Permission(String name, String target) {
             this.name = name;
             this.target = target;
@@ -514,7 +534,7 @@ public class AppInfo  {
 
             }
         }
-        
+
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
@@ -525,7 +545,7 @@ public class AppInfo  {
             sb.append(";");
             return sb.toString();
         }
-        
+
         public Permission copy() {
             Permission out = new Permission();
             out.name = name;
@@ -553,23 +573,23 @@ public class AppInfo  {
             hash = 37 * hash + Objects.hashCode(this.action);
             return hash;
         }
-        
-        
-        
+
+
+
         public static List<Permission> copy(List<Permission> src, List<Permission> dest) {
             for (Permission perm : src) {
                 dest.add(perm.copy());
             }
             return dest;
         }
-        
-        
+
+
         @Override
         public int compareTo(Permission perm) {
             return (name + ":" + target + ":" + action)
                     .compareTo(perm.name+":"+perm.target+":"+perm.action);
         }
-        
+
         private String name, target, action;
 
         private void trimStrings() {
@@ -578,10 +598,10 @@ public class AppInfo  {
             if (action != null) action = action.trim();
         }
 
-        
-        
+
+
     }
-    
+
     public static class JRE extends Observable {
 
         /**
@@ -603,8 +623,8 @@ public class AppInfo  {
             return "JRE{version:"+version+", os:"+os+", arch:"+arch+", url:"+url+", fx: "+fx+"}";
         }
 
-        
-        
+
+
         /**
          * @return the version
          */
@@ -619,7 +639,7 @@ public class AppInfo  {
             if (!Objects.equals(version, this.version)) {
                 this.version = version;
                 setChanged();
-                
+
             }
         }
 
@@ -635,7 +655,7 @@ public class AppInfo  {
          */
         public void setOS(String platform) {
             if (!Objects.equals(platform, this.os)) {
-                
+
                 this.os = platform;
                 setChanged();
             }
@@ -674,7 +694,7 @@ public class AppInfo  {
                 setChanged();
             }
         }
-        
+
         public JRE copy() {
             JRE out = new JRE();
             out.url = url;
@@ -683,15 +703,15 @@ public class AppInfo  {
             out.version = version;
             out.fx = fx;
             return out;
-            
+
         }
-        
-        
-        
-        
+
+
+
+
         public boolean isSupported() {
             return new Platform(os, arch).matchesSystem();
-            
+
         }
 
         private void trimStrings() {
@@ -720,27 +740,27 @@ public class AppInfo  {
             if (fx) hash +=1;
             return hash;
         }
-        
-        
-        
+
+
+
         private URL url;
-        
+
         private String os, arch, version;
         private boolean fx; // includes JavaFX
     }
-    
+
     public static class QuickLink  {
 
-        
+
         public QuickLink(QuickLink toCopy) {
             this.url = toCopy.url;
             this.title = toCopy.title;
         }
-        
+
         public QuickLink() {
-            
+
         }
-        
+
         /**
          * @return the url
          */
@@ -774,11 +794,11 @@ public class AppInfo  {
 
             }
         }
-        
+
         public QuickLink copy() {
             return new QuickLink(this);
         }
-        
+
         private void trimStrings() {
             if (title != null) title = title.trim();
         }
@@ -789,7 +809,7 @@ public class AppInfo  {
                 QuickLink ql = (QuickLink)obj;
                 return Objects.equals(ql.title, title) && Objects.equals(ql.url, url);
             }
-            return super.equals(obj); 
+            return super.equals(obj);
         }
 
         @Override
@@ -799,15 +819,15 @@ public class AppInfo  {
             hash = 47 * hash + Objects.hashCode(this.title);
             return hash;
         }
-        
-        
-        
+
+
+
         private URL url;
         private String title;
 
-        
+
     }
-    
+
     public static class Dependency extends Observable {
 
         /**
@@ -820,7 +840,7 @@ public class AppInfo  {
         /**
          * Sets the common name of this dependency.  The common name and version
          * provides an alternative method for identifying a library vs providing
-         * a URL.  
+         * a URL.
          * @param commonName the commonName to set
          */
         public void setCommonName(String commonName) {
@@ -882,8 +902,8 @@ public class AppInfo  {
                 setChanged();
             }
         }
-        
-        
+
+
 
         /**
          * @return the url
@@ -917,12 +937,12 @@ public class AppInfo  {
                 this.trusted = trusted;
                 setChanged();
             }
-            
+
         }
 
         /**
          * The name of the jar that this dependency should "replace" in the classpath.
-         * This is to deal with the situation that the app was distributed with one 
+         * This is to deal with the situation that the app was distributed with one
          * version of the library, but for trust reasons, that jar should always
          * be replaced by the jar in the dependency.
          * @return the jarName
@@ -940,7 +960,7 @@ public class AppInfo  {
                 setChanged();
             }
         }
-        
+
         public Dependency copy() {
             Dependency out = new Dependency();
             out.url = url;
@@ -981,13 +1001,13 @@ public class AppInfo  {
             return hash;
         }
 
-        
-        
-        
-        
-       
-        
-        
+
+
+
+
+
+
+
         public boolean isSupported() {
             return new Platform(platform, arch).matchesSystem();
         }
@@ -997,22 +1017,22 @@ public class AppInfo  {
             if (platform != null) platform = platform.trim();
             if (arch != null) arch = arch.trim();
         }
-        
+
         private URL url;
         private boolean trusted;
         private String jarName;
         private String platform, arch, commonName, version;
-        
+
     }
 
-    
 
 
 
-    
-    
-    
-    
+
+
+
+
+
     private URL url(URL baseUrl, String url) {
         try {
             if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("github://")) {
@@ -1025,7 +1045,7 @@ public class AppInfo  {
             return null;
         }
     }
-    
+
     private URL getDependentURL(URL appInfoUrl, String relativePath) {
         String url = appInfoUrl.toString();
         try {
@@ -1034,7 +1054,7 @@ public class AppInfo  {
             throw new RuntimeException(mex);
         }
     }
-    
+
 
     /**
      * @return the installed
@@ -1056,7 +1076,7 @@ public class AppInfo  {
     public URL getAppURL() {
         return appURL;
     }
-    
+
     public URL getAppInfoURL() {
         if (appURL == null) return null;
         String u = appURL.toString();
@@ -1080,23 +1100,23 @@ public class AppInfo  {
 
         }
     }
-    
-   
+
+
     public int getNumScreenshots() {
         return numScreenshots;
     }
-    
+
     public void setNumScreenshots(int numScreenshots) {
         this.numScreenshots = numScreenshots;
     }
-    
+
     /**
      * @return the title
      */
     public String getTitle() {
         return title;
     }
-    
+
     public void setTitle(String t) {
         title = t;
     }
@@ -1107,7 +1127,7 @@ public class AppInfo  {
     public String getVendor() {
         return vendor;
     }
-    
+
     public void setVendor(String v) {
         vendor = v;
     }
@@ -1118,8 +1138,8 @@ public class AppInfo  {
     public String getVersion() {
         return version;
     }
-    
-    
+
+
 
     /**
      * @param v the version to set
@@ -1127,12 +1147,12 @@ public class AppInfo  {
     public void setVersion(String v) {
         version = v;
     }
-    
+
     public AppInfo() {
-        
+
     }
-    
-    
+
+
     public PermissionsList getPermissions(boolean init) {
         if (permissions == null && init) {
             permissions = new PermissionsList();
@@ -1140,28 +1160,28 @@ public class AppInfo  {
         }
         return permissions;
     }
-    
+
     public AppInfo(Manifest mf) {
         setTitle(att(mf, Name.IMPLEMENTATION_TITLE));
         if (getTitle() == null) {
             setTitle(att(mf, Name.SPECIFICATION_TITLE));
         }
-        
+
         setVendor(att(mf, Name.IMPLEMENTATION_VENDOR));
         if (getVendor() == null) {
             setVendor(att(mf, Name.SPECIFICATION_VENDOR));
         }
-        
+
         setVersion(att(mf, Name.IMPLEMENTATION_VERSION));
         if (getVersion() == null) {
            setVersion(att(mf, Name.SPECIFICATION_VERSION));
         }
     }
-    
+
     private static String att(Manifest mf, Name name) {
         return mf.getMainAttributes().getValue(name);
     }
-    
+
     public void addScreenshot(URL screenshot) {
         if (screenshots == null) {
             screenshots = new ArrayList<URL>();
@@ -1169,14 +1189,14 @@ public class AppInfo  {
         screenshots.add(screenshot);
 
     }
-    
+
     public void clearScreenshots() {
         if (screenshots != null && !screenshots.isEmpty()) {
             screenshots.clear();
 
         }
     }
-    
+
     public void removeScreenshot(ResourceInfo screenshot) {
         if (screenshots != null) {
             if (screenshots.remove(screenshot)) {
@@ -1184,7 +1204,7 @@ public class AppInfo  {
             }
         }
     }
-    
+
     public List<URL> getScreenshots() {
         ArrayList<URL> out = new ArrayList<>();
         if (screenshots != null) {
@@ -1192,11 +1212,11 @@ public class AppInfo  {
         }
         return out;
     }
-    
+
     public URL getIcon() {
         return icon;
     }
-    
+
     public void setIcon(URL icon) {
         if (!Objects.equals(icon, this.icon)) {
             this.icon = icon;
@@ -1206,7 +1226,7 @@ public class AppInfo  {
     public void setDescription(String desc) {
         description = desc;
     }
-    
+
     public void setChanges(String ch) {
         changes = ch;
     }
@@ -1218,7 +1238,7 @@ public class AppInfo  {
     public String getChanges() {
         return changes;
     }
-    
+
     public AppInfo copy() {
         AppInfo out = new AppInfo();
         out.setTitle(getTitle());
@@ -1249,25 +1269,25 @@ public class AppInfo  {
         out.appURL = appURL;
         out.installed = installed;
 
-        
+
         out.numScreenshots = numScreenshots;
         out.updates = updates;
-        
+
         if (dependencies != null) {
             out.dependencies = new ArrayList<>();
             for (Dependency dep : dependencies) {
                 out.dependencies.add(dep.copy());
             }
         }
-        
+
         if (runtimes != null) {
             out.runtimes = new ArrayList<>();
             for (JRE r : runtimes) {
                 out.runtimes.add(r.copy());
             }
         }
-        
-        
+
+
         return out;
     }
 
@@ -1278,24 +1298,24 @@ public class AppInfo  {
         }
         return super.equals(obj);
     }
-    
+
     private static boolean equalsPairs(Object... objs) {
         int len = objs.length;
         for (int i=0; i<len; i+=2) {
             Object o1 = objs[i];
             Object o2 = objs[i+1];
-            
+
             if (!o1.getClass().equals(o2.getClass())) {
                 return false;
             }
-            
+
             if (!Objects.deepEquals(o1, o2)) {
                 return false;
             }
         }
         return false;
     }
-    
+
     public void trimStrings() {
         if (getTitle() != null) setTitle(getTitle().trim());
         if (getDescription() != null) setDescription(getDescription().trim());
@@ -1308,27 +1328,27 @@ public class AppInfo  {
         if (getLinuxAppUrl() != null) setLinuxAppUrl(getLinuxAppUrl().trim());
         if (getLinuxInstallerUrl() != null) setLinuxInstallerUrl(getLinuxInstallerUrl().trim());
         if (macAppBundleId != null) macAppBundleId = macAppBundleId.trim();
-        
+
         if (permissions != null) {
             for (Permission p : permissions) {
                 p.trimStrings();
             }
         }
-        
+
         if (runtimes != null) {
             for (JRE r : runtimes) {
                 r.trimStrings();
             }
         }
 
-        
+
         if (dependencies != null) {
             for (Dependency dep : dependencies) {
                 dep.trimStrings();
             }
         }
     }
-    
+
     public void normalize() {
         trimStrings();
         if (permissions != null) {
@@ -1336,7 +1356,7 @@ public class AppInfo  {
         }
         // TODO:  sort other collections
     }
-    
+
     private boolean equalsImpl(AppInfo o) {
         return equalsPairs(new Object[]{
             getTitle(), o.getTitle(),
@@ -1366,17 +1386,17 @@ public class AppInfo  {
                 npmPackage, o.npmPackage,
                 npmVersion, o.npmVersion,
                 npmAllowPrerelease, o.npmAllowPrerelease
-            
+
         });
     }
-    
-    
+
+
     public String[] getPropertyKeys() {
         return new String[]{
             "macAppUrl", "windowsAppUrl", "windowsInstallerUrl", "linuxAppUrl", "linuxInstallerUrl"
         };
     }
-    
+
     public void setProperty(String key, String value) {
         switch (key) {
             case "macAppUrl" : setMacAppUrl(value); break;
@@ -1384,19 +1404,19 @@ public class AppInfo  {
             case "windowsInstallerUrl" : setWindowsInstallerUrl(value); break;
             case "linuxAppUrl" : setLinuxAppUrl(value); break;
             case "linuxInstallerUrl" : setLinuxInstallerUrl(value); break;
-            default: 
+            default:
                 throw new IllegalArgumentException("Attempt to set unsupported property "+key+".  Supported keys include "+Arrays.toString(getPropertyKeys()));
         }
     }
-    
+
     public static enum CodeSignSettings {
         Default,
         None,
         CodeSign,
         CodeSignAndNotarize
     }
-    
-    
+
+
     //private String title, description, changes;
     private PermissionsList permissions;
     //private String vendor;
@@ -1411,11 +1431,11 @@ public class AppInfo  {
     private List<Dependency> dependencies;
     private List<JRE> runtimes;
     private CodeSignSettings codeSignSettings = CodeSignSettings.None;
-    
-    
+
+
     private String macAppBundleId;
-    
-    
-    
-  
+
+
+
+
 }

@@ -10,6 +10,7 @@ import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.npm.NPMPackage;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.installer.npm.NPMRegistry;
+import ca.weblite.jdeploy.installer.services.WebInstallerService;
 import ca.weblite.jdeploy.installer.util.JarClassLoader;
 import ca.weblite.jdeploy.installer.util.ResourceUtil;
 import ca.weblite.jdeploy.installer.views.DefaultUIFactory;
@@ -29,14 +30,16 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
 
-
-import java.awt.Desktop;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.URL;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
@@ -150,6 +153,14 @@ public class Main implements Runnable, Constants {
             for (String scheme : npmPackageVersion().getUrlSchemes()) {
                 //System.out.println("Found scheme "+scheme);
                 appInfo().addUrlScheme(scheme);
+            }
+
+            if (npmPackageVersion().getNodeVersion() != null) {
+                appInfo().setNodeVersion(npmPackageVersion().getNodeVersion());
+            }
+
+            if (npmPackageVersion().getWebInstallEndpoint() != null) {
+                appInfo().setWebInstallEndpoint(npmPackageVersion().getWebInstallEndpoint());
             }
 
             // Update labels for the combobox with nice examples to show exactly which versions will be auto-updated
@@ -455,6 +466,28 @@ public class Main implements Runnable, Constants {
 
     private void onProceedWithInstallation(InstallationFormEvent evt) {
         evt.setConsumed(true);
+        if (installationSettings.getAppInfo().getWebInstallEndpoint() != null) {
+            String webInstallEndpoint = installationSettings.getAppInfo().getWebInstallEndpoint();
+            evt.getInstallationForm().setInProgress(true, "Opening Web-based Installation Wizard...");
+            new WebInstallerService().startWebInstall(webInstallEndpoint)
+                    .thenAccept(result -> {
+
+                        EventQueue.invokeLater(()->{
+                            onProceedWithInstallation0(evt);
+                        });
+                    });
+
+        } else {
+            onProceedWithInstallation0(evt);
+        }
+
+    }
+
+    private void writeWebInstallationReceiptDetails(WebInstallerService.WebInstallationResult result) {
+        installationSettings.setInstallFilesDir();
+    }
+
+    private void onProceedWithInstallation0(InstallationFormEvent evt) {
         evt.getInstallationForm().setInProgress(true, "Installing.  Please wait...");
         new Thread(()->{
             try {

@@ -67,6 +67,13 @@ public class NPMPackageVersion {
         return out;
     }
 
+    public String getWebInstallEndpoint() {
+        if (jdeploy().has("webInstallEndpoint")) {
+            return jdeploy().getString("webInstallEndpoint");
+        }
+        return null;
+    }
+
     public Iterable<String> getUrlSchemes() {
         ArrayList<String> out = new ArrayList<>();
         if (jdeploy().has("urlSchemes")) {
@@ -83,6 +90,13 @@ public class NPMPackageVersion {
     public String getInstallerTheme() {
         if (jdeploy().has("installerTheme")) {
             return jdeploy().getString("installerTheme");
+        }
+        return null;
+    }
+
+    public String getNodeVersion() {
+        if (jdeploy().has("nodeVersion")) {
+            return jdeploy().getString("nodeVersion");
         }
         return null;
     }
