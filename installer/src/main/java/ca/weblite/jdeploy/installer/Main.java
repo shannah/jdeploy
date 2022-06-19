@@ -34,6 +34,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.List;
@@ -69,13 +70,20 @@ public class Main implements Runnable, Constants {
         installationSettings.setAppInfo(appInfo);
     }
 
-    private void loadTheme(File themeJar) throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
+    private void loadTheme(File themeJar)
+            throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
         JarClassLoader jarClassLoader = new JarClassLoader(themeJar);
 
         URL jdeployInfoUrl = jarClassLoader.getResource("jdeploy-info.json");
-        if (jdeployInfoUrl == null) throw new IOException("Provided theme "+themeJar+" is missing the jdeploy-info.json file");
+        if (jdeployInfoUrl == null) {
+            throw new IOException(
+                    "Provided theme "+themeJar+" is missing the jdeploy-info.json file"
+            );
+        }
 
-        JSONObject json = new JSONObject(IOUtil.readToString(jarClassLoader.getResourceAsStream("jdeploy-info.json")));
+        JSONObject json = new JSONObject(
+                IOUtil.readToString(jarClassLoader.getResourceAsStream("jdeploy-info.json"))
+        );
         if (!json.has("installerTheme") || !json.getJSONObject("installerTheme").has("factory")) {
             throw new IOException("jdeploy-info is missing the installerTheme/factory property");
         }
@@ -84,12 +92,19 @@ public class Main implements Runnable, Constants {
         String factoryClassName = installerThemeJson.getString("factory");
         Class factoryClazz = jarClassLoader.loadClass(factoryClassName);
         if (!UIFactory.class.isAssignableFrom(factoryClazz)) {
-            throw new IOException("The specified factory class "+factoryClassName+" does not implement UIFactory while loading theme "+themeJar+".  Failed to load theme.");
+            throw new IOException(
+                    "The specified factory class " +
+                            factoryClassName +
+                            " does not implement UIFactory while loading theme " +
+                            themeJar +
+                            ".  Failed to load theme."
+            );
         }
         uiFactory = (UIFactory)factoryClazz.newInstance();
     }
 
-    private void loadThemeByName(String themeName) throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
+    private void loadThemeByName(String themeName)
+            throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
         String resourcePath = "/themes/"+themeName+".jar";
         URL resourceURL = getClass().getResource(resourcePath);
         if (resourceURL != null) {
@@ -111,18 +126,30 @@ public class Main implements Runnable, Constants {
             if (pkg == null) {
                 throw new IOException("Cannot find NPMPackage named "+appInfo().getNpmPackage());
             }
-            installationSettings.setNpmPackageVersion(pkg.getLatestVersion(installationSettings.isPrerelease(), appInfo().getNpmVersion()));
+            installationSettings.setNpmPackageVersion(
+                    pkg.getLatestVersion(installationSettings.isPrerelease(), appInfo().getNpmVersion())
+            );
             if (installationSettings.getNpmPackageVersion() == null) {
-                throw new IOException("Cannot find version "+appInfo().getNpmVersion()+" for package "+appInfo().getNpmPackage());
+                throw new IOException(
+                        "Cannot find version " +
+                                appInfo().getNpmVersion() +
+                                " for package " +
+                                appInfo().getNpmPackage()
+                );
             }
 
-            String installerTheme = System.getProperty("jdeploy.installerTheme", installationSettings.getNpmPackageVersion().getInstallerTheme());
+            String installerTheme = System.getProperty(
+                    "jdeploy.installerTheme",
+                    installationSettings.getNpmPackageVersion().getInstallerTheme()
+            );
             System.out.println("Installer theme is "+installerTheme);
             if (installerTheme != null) {
                 try {
                     loadThemeByName(installerTheme);
                 } catch (Exception ex) {
-                    System.err.println("Failed to load installer theme "+installerTheme+".  Falling back to default theme.");
+                    System.err.println(
+                            "Failed to load installer theme "+installerTheme+".  Falling back to default theme."
+                    );
                     ex.printStackTrace(System.err);
                 }
             }
@@ -136,13 +163,25 @@ public class Main implements Runnable, Constants {
             }
 
             for (DocumentTypeAssociation documentTypeAssociation : npmPackageVersion().getDocumentTypeAssociations()) {
-                appInfo().addDocumentMimetype(documentTypeAssociation.getExtension(), documentTypeAssociation.getMimetype());
+                appInfo().addDocumentMimetype(
+                        documentTypeAssociation.getExtension(),
+                        documentTypeAssociation.getMimetype()
+                );
                 if (documentTypeAssociation.getIconPath() != null) {
-                    appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), documentTypeAssociation.getIconPath());
+                    appInfo().addDocumentTypeIcon(
+                            documentTypeAssociation.getExtension(),
+                            documentTypeAssociation.getIconPath()
+                    );
                 } else {
-                    File iconPath = new File(findAppXmlFile().getParentFile(), "icon."+documentTypeAssociation.getExtension()+".png");
+                    File iconPath = new File(
+                            findAppXmlFile().getParentFile(),
+                            "icon."+documentTypeAssociation.getExtension()+".png"
+                    );
                     if (iconPath.exists()) {
-                        appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), iconPath.getAbsolutePath());
+                        appInfo().addDocumentTypeIcon(
+                                documentTypeAssociation.getExtension(),
+                                iconPath.getAbsolutePath()
+                        );
                     }
                 }
                 if (documentTypeAssociation.isEditor()) {
@@ -168,12 +207,18 @@ public class Main implements Runnable, Constants {
             AutoUpdateSettings.MinorOnly.setLabel(
                     AutoUpdateSettings.MinorOnly.toString() +
                             " [" +
-                            createUserReadableSemVerForVersion(npmPackageVersion().getVersion(), AutoUpdateSettings.MinorOnly) +
+                            createUserReadableSemVerForVersion(
+                                    npmPackageVersion().getVersion(),
+                                    AutoUpdateSettings.MinorOnly
+                            ) +
                             "]");
             AutoUpdateSettings.PatchesOnly.setLabel(
                     AutoUpdateSettings.PatchesOnly.toString() +
                             " [" +
-                            createUserReadableSemVerForVersion(npmPackageVersion().getVersion(), AutoUpdateSettings.PatchesOnly) +
+                            createUserReadableSemVerForVersion(
+                                    npmPackageVersion().getVersion(),
+                                    AutoUpdateSettings.PatchesOnly
+                            ) +
                             "]"
                     );
         }
@@ -205,7 +250,12 @@ public class Main implements Runnable, Constants {
         appInfo().setNpmVersion(ifEmpty(root.getAttribute("version"), "latest"));
         // Next we use that version to load the package info from the NPM registry.
         loadNPMPackageInfo();
-        appInfo().setMacAppBundleId(ifEmpty(root.getAttribute("macAppBundleId"), "ca.weblite.jdeploy.apps."+appInfo().getNpmPackage()));
+        appInfo().setMacAppBundleId(
+                ifEmpty(
+                        root.getAttribute("macAppBundleId"),
+                        "ca.weblite.jdeploy.apps."+appInfo().getNpmPackage()
+                )
+        );
 
         if (appInfo().getNpmPackage() == null) {
             throw new InvalidAppXMLFormatException("Missing package attribute");
@@ -315,7 +365,10 @@ public class Main implements Runnable, Constants {
             uninstall = true;
         }
 
-        File logFile = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "log" + File.separator + "jdeploy-installer.log");
+        File logFile = new File(System.getProperty("user.home") +
+                File.separator + ".jdeploy" +
+                File.separator + "log" +
+                File.separator + "jdeploy-installer.log");
         logFile.getParentFile().mkdirs();
         try {
             PrintStream originalOut = System.out;
@@ -374,7 +427,12 @@ public class Main implements Runnable, Constants {
                 timer.schedule(tt, 2000);
             } catch (Exception ex) {
                 ex.printStackTrace(System.err);
-                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Failed to open app: "+ex.getMessage(), "Error"));
+                invokeLater(()-> uiFactory.showModalErrorDialog(
+                        evt.getInstallationForm(),
+                        "Failed to open app: "+ex.getMessage(),
+                        "Error"
+
+                ));
             }
         } else {
             try {
@@ -389,7 +447,11 @@ public class Main implements Runnable, Constants {
                 timer.schedule(tt, 2000);
             } catch (Exception ex) {
                 ex.printStackTrace(System.err);
-                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Failed to open app: "+ex.getMessage(), "Error"));
+                invokeLater(()-> uiFactory.showModalErrorDialog(
+                        evt.getInstallationForm(),
+                        "Failed to open app: "+ex.getMessage(),
+                        "Error"
+                ));
             }
         }
     }
@@ -408,11 +470,19 @@ public class Main implements Runnable, Constants {
                 timer.schedule(tt, 2000);
             } catch (Exception ex) {
                 ex.printStackTrace(System.err);
-                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Failed to open directory: "+ex.getMessage(), "Error"));
+                invokeLater(()-> uiFactory.showModalErrorDialog(
+                        evt.getInstallationForm(),
+                        "Failed to open directory: "+ex.getMessage(),
+                        "Error"
+                ));
             }
         } else {
             invokeLater(()->{
-                uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Reveal in explorer is not supported on this platform.", "Not supported");
+                uiFactory.showModalErrorDialog(
+                        evt.getInstallationForm(),
+                        "Reveal in explorer is not supported on this platform.",
+                        "Not supported"
+                );
             });
         }
     }
@@ -434,6 +504,7 @@ public class Main implements Runnable, Constants {
         view.setEventDispatcher(new InstallationFormEventDispatcher(view));
         this.installationForm = view;
         view.getEventDispatcher().addEventListener(evt->{
+            // This should always be executed on the UI thread
             switch (evt.getType()) {
                 case InstallClicked:
                     onInstallClicked(evt);
@@ -468,13 +539,41 @@ public class Main implements Runnable, Constants {
         evt.setConsumed(true);
         if (installationSettings.getAppInfo().getWebInstallEndpoint() != null) {
             String webInstallEndpoint = installationSettings.getAppInfo().getWebInstallEndpoint();
-            evt.getInstallationForm().setInProgress(true, "Opening Web-based Installation Wizard...");
+            evt.getInstallationForm().setInProgress(
+                    true,
+                    "Opening Web-based Installation Wizard..."
+            );
             new WebInstallerService().startWebInstall(webInstallEndpoint)
                     .thenAccept(result -> {
-
-                        EventQueue.invokeLater(()->{
-                            onProceedWithInstallation0(evt);
+                        uiFactory.getUI().run(()->{
+                            switch (result.getStatus()) {
+                                case SUCCESS:
+                                    try {
+                                        writeWebInstallationReceiptDetails(result);
+                                        onProceedWithInstallation0(evt);
+                                    } catch (IOException ex) {
+                                        uiFactory.showModalErrorDialog(
+                                                evt.getInstallationForm(),
+                                                "Failed to write installation configuration: " + ex.getMessage(),
+                                                "Installation failed"
+                                        );
+                                    }
+                                    break;
+                                case CANCELLED:
+                                    onCancelInstallation(evt);
+                                    break;
+                                default:
+                                    uiFactory.showModalErrorDialog(
+                                            evt.getInstallationForm(),
+                                            "Installation Failed due to a problem in the web installer.",
+                                            "Installation failed"
+                                    );
+                                    break;
+                            }
                         });
+
+
+
                     });
 
         } else {
@@ -483,8 +582,37 @@ public class Main implements Runnable, Constants {
 
     }
 
-    private void writeWebInstallationReceiptDetails(WebInstallerService.WebInstallationResult result) {
-        installationSettings.setInstallFilesDir();
+    private void writeWebInstallationReceiptDetails(
+            WebInstallerService.WebInstallationResult result
+    )
+            throws IOException {
+        File configDirectory = getPackageConfigurationDirectory();
+        configDirectory.mkdirs();
+        File configFile = new File(configDirectory, "config.json");
+        FileUtils.writeStringToFile(
+                configFile,
+                result.getReceiptDetails().toString(2),
+                StandardCharsets.UTF_8
+        );
+    }
+
+    private File getEtcDirectory() {
+        String sep = File.separator;
+        return new File(System.getProperty("user.home") + sep + ".jdeploy" + sep + "etc");
+
+    }
+
+    /**
+     * Retrieves the configuration directory where the package can store its configuration
+     * files.
+     * @return
+     */
+    private File getPackageConfigurationDirectory() {
+        String packageName = appInfo().getNpmPackage();
+        if (packageName.contains("/")) {
+            packageName = packageName.replace("/", File.separator);
+        }
+        return new File(getEtcDirectory(), packageName);
     }
 
     private void onProceedWithInstallation0(InstallationFormEvent evt) {
@@ -497,7 +625,11 @@ public class Main implements Runnable, Constants {
             } catch (Exception ex) {
                 invokeLater(()->evt.getInstallationForm().setInProgress(false, ""));
                 ex.printStackTrace(System.err);
-                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Installation failed. "+ex.getMessage(), "Failed"));
+                invokeLater(()-> uiFactory.showModalErrorDialog(
+                        evt.getInstallationForm(),
+                        "Installation failed. "+ex.getMessage(),
+                        "Failed"
+                ));
             }
         }).start();
     }
@@ -509,7 +641,11 @@ public class Main implements Runnable, Constants {
             } catch (Exception ex) {
                 ex.printStackTrace(System.err);
                 uiFactory.getUI().run(()->{
-                    uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Failed to open webpage.", "Error");
+                    uiFactory.showModalErrorDialog(
+                            evt.getInstallationForm(),
+                            "Failed to open webpage.",
+                            "Error"
+                    );
                 });
             }
         }
@@ -519,8 +655,18 @@ public class Main implements Runnable, Constants {
         loadAppInfo();
         if (uninstall && Platform.getSystemPlatform().isWindows()) {
             System.out.println("Running Windows uninstall...");
-            InstallWindowsRegistry installer = new InstallWindowsRegistry(appInfo(), null, null, null);
-            UninstallWindows uninstallWindows = new UninstallWindows(appInfo().getNpmPackage(), appInfo().getVersion(), appInfo().getTitle(), installer);
+            InstallWindowsRegistry installer = new InstallWindowsRegistry(
+                    appInfo(),
+                    null,
+                    null,
+                    null
+            );
+            UninstallWindows uninstallWindows = new UninstallWindows(
+                    appInfo().getNpmPackage(),
+                    appInfo().getVersion(),
+                    appInfo().getTitle(),
+                    installer
+            );
             uninstallWindows.uninstall();
             System.out.println("Uninstall complete");
             return;
@@ -538,7 +684,10 @@ public class Main implements Runnable, Constants {
 
         // Based on the user's settings, let's update the version in the appInfo
         // to correspond with the auto-update settings.
-        appInfo().setNpmVersion(createSemVerForVersion(npmPackageVersion().getVersion(), installationSettings.getAutoUpdate()));
+        appInfo().setNpmVersion(createSemVerForVersion(
+                npmPackageVersion().getVersion(),
+                installationSettings.getAutoUpdate())
+        );
         appInfo().setNpmAllowPrerelease(installationSettings.isPrerelease());
 
         File tmpDest = File.createTempFile("jdeploy-installer-"+appInfo().getNpmPackage(), "");
@@ -565,7 +714,13 @@ public class Main implements Runnable, Constants {
             }
         }
 
-        Bundler.runit(appInfo(), findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
+        Bundler.runit(
+                appInfo(),
+                findAppXmlFile().toURI().toURL().toString(),
+                target,
+                tmpBundles.getAbsolutePath(),
+                tmpReleases.getAbsolutePath()
+        );
 
         if (Platform.getSystemPlatform().isWindows()) {
             File tmpExePath = null;
@@ -575,7 +730,9 @@ public class Main implements Runnable, Constants {
                 }
             }
             if (tmpExePath == null) {
-                throw new RuntimeException("Failed to find exe file after creation.  Something must have gone wrong in generation process");
+                throw new RuntimeException(
+                        "Failed to find exe file after creation.  Something must have gone wrong in generation process"
+                );
             }
             File userHome = new File(System.getProperty("user.home"));
             File jdeployHome = new File(userHome, ".jdeploy");
@@ -624,7 +781,10 @@ public class Main implements Runnable, Constants {
                 File installerExePath = new File(System.getProperty("client4j.launcher.path"));
                 FileUtils.copyFile(installerExePath, uninstallerPath);
                 uninstallerPath.setExecutable(true, false);
-                FileUtils.copyDirectory(findInstallFilesDir(), new File(uninstallerPath.getParentFile(), findInstallFilesDir().getName()));
+                FileUtils.copyDirectory(
+                        findInstallFilesDir(),
+                        new File(uninstallerPath.getParentFile(), findInstallFilesDir().getName())
+                );
 
 
             } catch (Exception ex) {
@@ -632,7 +792,9 @@ public class Main implements Runnable, Constants {
                 try  {
                     InstallWindowsRegistry.rollback(registryBackupLog);
                 } catch (Exception rollbackException) {
-                    throw new RuntimeException("Failed to roll back registry after failed installation.", rollbackException);
+                    throw new RuntimeException(
+                            "Failed to roll back registry after failed installation.", rollbackException
+                    );
                 }
                 // Since we rolled back the changes, we'll delete the backup log so that it doesn't get rolled back again.
                 registryBackupLog.delete();
@@ -645,7 +807,11 @@ public class Main implements Runnable, Constants {
             installedApp = exePath;
 
         } else if (Platform.getSystemPlatform().isMac()) {
-            File jdeployAppsDir = new File(System.getProperty("user.home") + File.separator + "Applications" + File.separator + "jDeploy Apps");
+            File jdeployAppsDir = new File(
+                    System.getProperty("user.home") +
+                            File.separator + "Applications" +
+                            File.separator + "jDeploy Apps"
+            );
             if (!jdeployAppsDir.exists()) {
                 jdeployAppsDir.mkdirs();
             }
@@ -658,7 +824,13 @@ public class Main implements Runnable, Constants {
             File tmpAppPath = null;
             for (File candidateApp : new File(tmpBundles, "mac").listFiles()) {
                 if (candidateApp.getName().endsWith(".app")) {
-                    int result = Runtime.getRuntime().exec(new String[]{"mv", candidateApp.getAbsolutePath(), installAppPath.getAbsolutePath()}).waitFor();
+                    int result = Runtime.getRuntime().exec(
+                            new String[] {
+                                    "mv",
+                                    candidateApp.getAbsolutePath(),
+                                    installAppPath.getAbsolutePath()
+                            })
+                            .waitFor();
                     if (result != 0) {
                         throw new RuntimeException("Failed to copy app to "+jdeployAppsDir);
                     }
@@ -671,31 +843,38 @@ public class Main implements Runnable, Constants {
             installedApp = installAppPath;
 
             if (installationSettings.isAddToDesktop()) {
-                File desktopAlias = new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + appInfo().getTitle() + ".app");
+                File desktopAlias = new File(
+                        System.getProperty("user.home") +
+                                File.separator + "Desktop" +
+                                File.separator + appInfo().getTitle() + ".app");
                 if (desktopAlias.exists()) {
                     desktopAlias.delete();
                 }
-                int result = Runtime.getRuntime().exec(new String[]{"ln", "-s", installAppPath.getAbsolutePath(), desktopAlias.getAbsolutePath()}).waitFor();
+                int result = Runtime.getRuntime().exec(
+                        new String[] {
+                                "ln",
+                                "-s",
+                                installAppPath.getAbsolutePath(),
+                                desktopAlias.getAbsolutePath()
+                        }).waitFor();
                 if (result != 0) {
                     throw new RuntimeException("Failed to make desktop alias.");
                 }
             }
 
             if (installationSettings.isAddToDock()) {
-                /*
-                #!/bin/bash
-                    myapp="//Applications//System Preferences.app"
-                    defaults write com.apple.dock persistent-apps -array-add "<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>$myapp</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>"
-                    osascript -e 'tell application "Dock" to quit'
-                    osascript -e 'tell application "Dock" to activate'
-                 */
-                String myapp = installAppPath.getAbsolutePath().replace('/', '#').replace("#", "//");
+                String myapp = installAppPath.getAbsolutePath()
+                        .replace('/', '#')
+                        .replace("#", "//");
                 File shellScript = File.createTempFile("installondock", ".sh");
                 shellScript.deleteOnExit();
 
                 System.out.println("Adding to dock: "+myapp);
                 String[] commands = new String[]{
-                        "/usr/bin/defaults write com.apple.dock persistent-apps -array-add \"<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>"+myapp+"</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>\"",
+                        "/usr/bin/defaults write com.apple.dock persistent-apps -array-add " +
+                                "\"<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key>" +
+                                "<string>"+myapp+"</string><key>_CFURLStringType</key>" +
+                                "<integer>0</integer></dict></dict></dict>\"",
                         "/usr/bin/osascript -e 'tell application \"Dock\" to quit'",
                         "/usr/bin/osascript -e 'tell application \"Dock\" to activate'"
 
@@ -715,7 +894,10 @@ public class Main implements Runnable, Constants {
                 tmpExePath = exeCandidate;
             }
             if (tmpExePath == null) {
-                throw new RuntimeException("Failed to find launcher file after creation.  Something must have gone wrong in generation process");
+                throw new RuntimeException(
+                        "Failed to find launcher file after creation.  " +
+                                "Something must have gone wrong in generation process"
+                );
             }
             File userHome = new File(System.getProperty("user.home"));
             File jdeployHome = new File(userHome, ".jdeploy");
@@ -929,14 +1111,16 @@ public class Main implements Runnable, Constants {
         FileUtil.writeStringToFile(contents, dest);
     }
 
-    private void addLinuxDesktopFile(File desktopDir, String filePrefix, String title, File pngIcon, File launcherFile) throws IOException {
+    private void addLinuxDesktopFile(File desktopDir, String filePrefix, String title, File pngIcon, File launcherFile)
+            throws IOException {
         if (desktopDir.exists()) {
             File desktopFile = new File(desktopDir, filePrefix+".desktop");
             while (desktopFile.exists()) {
                 int index = 2;
                 String baseName = desktopFile.getName();
                 if (desktopFile.getName().lastIndexOf(" ") != -1) {
-                    String indexStr = desktopFile.getName().substring(desktopFile.getName().lastIndexOf(" ")+1);
+                    String indexStr = desktopFile.getName()
+                            .substring(desktopFile.getName().lastIndexOf(" ")+1);
                     try {
                         index = Integer.parseInt(indexStr);
                         index++;
@@ -959,7 +1143,9 @@ public class Main implements Runnable, Constants {
 
     public void installLinuxLinks(File launcherFile) throws Exception {
         if (!launcherFile.exists()) {
-            throw new IllegalStateException("Launcher "+launcherFile+" does not exist so we cannot install a shortcut to it.");
+            throw new IllegalStateException(
+                    "Launcher "+launcherFile+" does not exist so we cannot install a shortcut to it."
+            );
         }
 
         launcherFile.setExecutable(true, false);
@@ -976,13 +1162,20 @@ public class Main implements Runnable, Constants {
         }
         if (installationSettings.isAddToPrograms()) {
             File homeDir = new File(System.getProperty("user.home"));
-            File applicationsDir = new File(homeDir, ".local"+File.separator+"share"+File.separator+"applications");
+            File applicationsDir = new File(
+                    homeDir,
+                    ".local"+File.separator+"share"+File.separator+"applications"
+            );
             applicationsDir.mkdirs();
             addLinuxDesktopFile(applicationsDir, appInfo().getTitle(), appInfo().getTitle(), pngIcon, launcherFile);
 
             // We need to run update desktop database before file type associations and url schemes will be
             // recognized.
-            Process p = Runtime.getRuntime().exec(new String[]{"update-desktop-database", applicationsDir.getAbsolutePath()});
+            Process p = Runtime.getRuntime().exec(
+                    new String[] {
+                            "update-desktop-database",
+                            applicationsDir.getAbsolutePath()
+                    });
             int result = p.waitFor();
             if (result != 0) {
                 throw new IOException("Failed to update desktop database.  Exit code "+result);
