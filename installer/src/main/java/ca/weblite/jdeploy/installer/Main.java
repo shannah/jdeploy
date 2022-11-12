@@ -521,7 +521,7 @@ public class Main implements Runnable, Constants {
             if (System.getProperty("os.arch").equals("aarch64")) {
                 target += "-arm64";
             } else {
-                target += "-x86";
+                target += "-x64";
             }
         } else if (Platform.getSystemPlatform().isWindows()) {
             target = "win";
