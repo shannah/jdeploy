@@ -1427,16 +1427,11 @@ public class JDeploy {
 
     public void allBundles() throws Exception {
         Set<String> bundles = bundles();
-        if (bundles.contains("mac-")) {
-            if (bundles.contains("mac-arm64")) {
-                macArmBundle();
-            }
-            if (bundles.contains("mac-x64")) {
-                macIntelBundle();
-            }
-        } else if (bundles.contains("mac")) {
-            macBundle();
+        if (bundles.contains("mac") || bundles.contains("mac-x64")) {
             macIntelBundle();
+        }
+        if (bundles.contains("mac-arm64")) {
+            macArmBundle();
         }
         if (bundles.contains("win")) {
             windowsBundle();

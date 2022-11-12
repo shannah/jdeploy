@@ -195,7 +195,9 @@ public class Bundler {
         }
 
         if("mac".equals(target) || "mac-x64".equals(target)) {
-            return MacBundler.start(MacBundler.TargetArchitecture.X64, app,DEST_DIR, RELEASE_DIR);
+            BundlerResult bundlerResult =  MacBundler.start(MacBundler.TargetArchitecture.X64, app,DEST_DIR, RELEASE_DIR);
+            bundlerResult.setResultForType("mac", bundlerResult);
+            return bundlerResult;
         }
 
         if ("mac-arm64".equals(target)) {

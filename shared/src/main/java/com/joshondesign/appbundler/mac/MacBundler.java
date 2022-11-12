@@ -36,9 +36,11 @@ public class MacBundler {
     }
 
     public static BundlerResult start(TargetArchitecture targetArchitecture, AppDescription app, String dest_dir, String releaseDir) throws Exception {
+        String OSNAME_WITH_ARCH = OSNAME+"-" + targetArchitecture.name().toLowerCase();
         verboseLevel = Bundler.verboseLevel;
-        File destDir = new File(dest_dir+"/"+OSNAME+"-" + targetArchitecture.name().toLowerCase()+"/");
-        BundlerResult out = new BundlerResult(OSNAME);
+        File destDir = new File(dest_dir+"/"+OSNAME_WITH_ARCH+"/");
+        BundlerResult out = new BundlerResult(OSNAME_WITH_ARCH);
+
         File appDir = new File(destDir,app.getName()+".app");
         out.setOutputFile(appDir);
         if (appDir.exists()) {
@@ -146,7 +148,7 @@ public class MacBundler {
             }
         }
 
-        File releaseDestDir = new File(releaseDir + "/" + OSNAME);
+        File releaseDestDir = new File(releaseDir + "/" + OSNAME_WITH_ARCH);
         String releaseFileName = app.getName() + ".tar.gz";
         releaseFileName = releaseFileName.replaceAll("\\s+", ".");
         File releaseFile = new File(releaseDestDir, releaseFileName);

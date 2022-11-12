@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+echo "====================== jDeploy Release =============================="
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 
 if [ -f "$HOME/.jdeploy/release_profile" ]; then
@@ -8,14 +9,19 @@ fi
 
 JDEPLOY="$SCRIPTPATH/cli/target/jdeploy-cli-1.0-SNAPSHOT.jar"
 
+echo "-------- Building jDeploy Shared Library ---------------"
 #First build the shared library which is used by both cli and installer
 cd shared
 mvn clean install
+
+echo "-------- Building jDeploy CLI ------------"
 
 # Build and link jDeploy to use for building installer.
 # After installer is built - we'll circle back and rebuild jDeploy with new installer
 cd ../cli
 mvn clean package
+
+echo "----------- Building jDeploy Installer -------------"
 
 #Next build the installer because we need to sign it and bundle it
 cd ../installer
@@ -23,10 +29,12 @@ mvn clean package
 if [ "$GITHUB_REF_TYPE" != "tag" ] || [[ "$GITHUB_REF_NAME" =~ "-alpha" ]]; then
   # IF this is not a tag, or it is a tagged prerelease, then we'll mark the installer as
   # a prerelease installer so that it gets the latest installer - even prerelease.
+  echo "----------------  Building Pre-release Bundle ------------------------"
   JDEPLOY_BUNDLE_PRERELEASE=true java -jar "$JDEPLOY" clean package
 else
   # Otherwise, we just build normally - in which case the installer will only use the latest
   # stable version.
+  echo "----------------  Building Release Release Bundle ------------------------"
   java -jar "$JDEPLOY" clean package
 fi
 
@@ -34,6 +42,7 @@ fi
 
 
 for MAC_ARCH in "x64" "arm64"; do
+  echo "-------------------- Building Mac Installer for $MAC_ARCH arch -------------------------"
   codesign -vvvv jdeploy/bundles/mac-$MAC_ARCH/jdeploy-installer.app
   APP_PATH="jdeploy/bundles/mac-$MAC_ARCH/jdeploy-installer.app"
   ZIP_PATH="${APP_PATH}.zip"
@@ -53,6 +62,8 @@ for MAC_ARCH in "x64" "arm64"; do
 done
 
 #codesign --test-requirement="=notarized" --verify --verbose "$APP_PATH"
+
+echo "-------------------  About to Make Installer Templates --------------------------"
 
 bash make_installer_templates.sh
 cd ../cli
