@@ -2,17 +2,16 @@
 <metadata modelVersion="1.1.0">
   <groupId>ca.weblite.jdeploy</groupId>
   <artifactId>jdeploy-installer-template-linux-amd64</artifactId>
-  <version>1.0-SNAPSHOT</version>
   <versioning>
+    <lastUpdated>20221112174514</lastUpdated>
     <snapshot>
       <localCopy>true</localCopy>
     </snapshot>
-    <lastUpdated>20220116000448</lastUpdated>
     <snapshotVersions>
       <snapshotVersion>
         <extension>jar</extension>
         <value>1.0-SNAPSHOT</value>
-        <updated>20220116000448</updated>
+        <updated>20221112174514</updated>
       </snapshotVersion>
       <snapshotVersion>
         <extension>pom</extension>
@@ -21,4 +20,5 @@
       </snapshotVersion>
     </snapshotVersions>
   </versioning>
+  <version>1.0-SNAPSHOT</version>
 </metadata>

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <metadata modelVersion="1.1.0">
   <groupId>ca.weblite.jdeploy</groupId>
-  <artifactId>jdeploy-installer-template-win-amd64</artifactId>
+  <artifactId>jdeploy-installer-template-mac-arm64</artifactId>
   <versioning>
-    <lastUpdated>20221112174511</lastUpdated>
+    <lastUpdated>20221112174509</lastUpdated>
     <snapshot>
       <localCopy>true</localCopy>
     </snapshot>
@@ -11,12 +11,12 @@
       <snapshotVersion>
         <extension>jar</extension>
         <value>1.0-SNAPSHOT</value>
-        <updated>20221112174511</updated>
+        <updated>20221112174509</updated>
       </snapshotVersion>
       <snapshotVersion>
         <extension>pom</extension>
         <value>1.0-SNAPSHOT</value>
-        <updated>20220103204442</updated>
+        <updated>20221112174509</updated>
       </snapshotVersion>
     </snapshotVersions>
   </versioning>
