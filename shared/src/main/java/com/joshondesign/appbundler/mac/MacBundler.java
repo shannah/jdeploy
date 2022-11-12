@@ -2,27 +2,20 @@ package com.joshondesign.appbundler.mac;
 
 import ca.weblite.jdeploy.appbundler.AppDescription;
 import ca.weblite.jdeploy.appbundler.Bundler;
-import ca.weblite.jdeploy.appbundler.Jar;
-import ca.weblite.jdeploy.appbundler.NativeLib;
-import ca.weblite.jdeploy.appbundler.Prop;
 import ca.weblite.jdeploy.appbundler.Util;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.IOUtil;
 import ca.weblite.tools.io.URLUtil;
 import ca.weblite.tools.platform.Platform;
 import ca.weblite.jdeploy.appbundler.BundlerResult;
-
 import com.client4j.publisher.server.SigningRequest;
-import com.client4j.publisher.server.SigningResponse;
 import com.github.gino0631.icns.IcnsBuilder;
-import com.github.gino0631.icns.IcnsIcons;
 import com.github.gino0631.icns.IcnsType;
 import com.joshondesign.xml.XMLWriter;
 import java.awt.image.BufferedImage;
 
 import java.io.*;
 import java.net.URL;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.MessageFormat;
 import java.util.Iterator;
@@ -33,21 +26,18 @@ import javax.imageio.stream.ImageInputStream;
 import net.coobird.thumbnailator.Thumbnails;
 import org.apache.commons.io.FileUtils;
 
-/**
- * Created by IntelliJ IDEA.
- * User: joshmarinacci
- * Date: Jun 29, 2010
- * Time: 4:54:43 PM
- * To change this template use File | Settings | File Templates.
- */
 public class MacBundler {
     public static int verboseLevel = Bundler.verboseLevel;
     private static final String OSNAME = "mac";
 
-    public static BundlerResult start(AppDescription app, String dest_dir, String releaseDir) throws Exception {
+    public enum TargetArchitecture {
+        X64,
+        ARM64
+    }
+
+    public static BundlerResult start(TargetArchitecture targetArchitecture, AppDescription app, String dest_dir, String releaseDir) throws Exception {
         verboseLevel = Bundler.verboseLevel;
-        //create the dir structure
-        File destDir = new File(dest_dir+"/"+OSNAME+"/");
+        File destDir = new File(dest_dir+"/"+OSNAME+"-" + targetArchitecture.name().toLowerCase()+"/");
         BundlerResult out = new BundlerResult(OSNAME);
         File appDir = new File(destDir,app.getName()+".app");
         out.setOutputFile(appDir);
@@ -60,7 +50,6 @@ public class MacBundler {
         if (verboseLevel > 0) {
             System.out.println("Creating "+appDir);
         }
-        
         appDir.mkdirs();
         p("app dir exists = " + appDir.exists());
         File contentsDir = new File(appDir,"Contents");
@@ -68,73 +57,29 @@ public class MacBundler {
         new File(contentsDir,"MacOS").mkdir();
         File resourcesDir = new File(contentsDir, "Resources");
         resourcesDir.mkdir();
-
-        // copy the icon
         processIcon(app, contentsDir);
-        /*
-        for(String iconS : app.getAppIcons()) {
-            if(iconS.toLowerCase().endsWith(".icns")) {
-                p("Using icon: " + iconS);
-                File icon = new File(iconS);
-                File outIcon = new File(resourcesDir,"icon.icns");
-                p("out icon = " + outIcon.getAbsolutePath());
-                p("t = " + resourcesDir.getAbsolutePath());
-                p("t = " + resourcesDir.exists());
-                Bundler.copyStream(new FileInputStream(icon),new FileOutputStream(outIcon));
-            }
-        }
-        */
-
-
         for(String ext : app.getExtensions()) {
             String exticon = app.getExtensionIcon(ext);
             if(exticon != null) {
                 File ifile = new File(exticon);
-                System.out.println("copying over icon " + ifile.getAbsolutePath());
                 if(ifile.exists()) {
-                    /*
-                    File outIcon = new File(resourcesDir,ifile.getName());
-                    Bundler.copyStream(new FileInputStream(ifile), new FileOutputStream(outIcon));
-                    p("copied: " + ifile.getAbsolutePath());
-                    p("   to:  " + outIcon.getAbsolutePath());
-                    */
                     processIcon(app, contentsDir, ext, ifile);
                 }
                 
             }
         }
-        
-        //build the info plist
         processInfoPlist(app,contentsDir);
         processAppXml(app, contentsDir);
-
-        //copy the pkginfo
-
         Bundler.copyStream(
                 MacBundler.class.getResourceAsStream("PkgInfo.txt"),
                 new FileOutputStream(new File(contentsDir,"PkgInfo")));
 
-        // copy the java stub
-        InputStream stub_path = MacBundler.class.getResourceAsStream("Client4JLauncher");
+        InputStream stub_path = getClient4JLauncherResource(targetArchitecture);
         File stub_dest = new File(contentsDir,"MacOS/Client4JLauncher");
         Bundler.copyStream(stub_path,new FileOutputStream(stub_dest));
-        // make the stub executable
-        /*
-        String[] command = new String[3];
-        command[0] = "chmod";
-        command[1] = "755";
-        command[2] = stub_dest.getAbsolutePath();
-        p("calling: ");
-        for(String s : command) {
-            System.out.print(s + " ");
-        }
-        p("");
-        Runtime.getRuntime().exec(command);
-        */
+
         stub_dest.setExecutable(true, false);
-        
-        // See if a codesign client is specified
-        //C4JClient codesignClient = C4JClient.createSigningClient();
+
         SigningRequest signingRequest = new SigningRequest(app.getMacDeveloperID(), app.getMacCertificateName(), app.getMacNotarizationPassword());
         signingRequest.setCodesign(app.isMacCodeSigningEnabled());
         signingRequest.setNotarize(app.isMacNotarizationEnabled());
@@ -151,19 +96,11 @@ public class MacBundler {
                 tmpRemoveAttributesScript.setExecutable(true, false);
                 tmpRemoveAttributesScript.deleteOnExit();
                 Runtime.getRuntime().exec(tmpRemoveAttributesScript.getAbsolutePath()).waitFor();
-
-
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
-            // We don't do this anymore because codesign now fails if there is a resource fork.
-            //try {
-            //    Runtime.getRuntime().exec("/usr/bin/SetFile -a B "+appDir).waitFor();
-            //} catch (Exception ex) {
-            //    ex.printStackTrace();
-            //}
-            if (/*codesignClient == null &&*/ app.isMacCodeSigningEnabled()) {
-                //codesign --deep --verbose=4 -f -s "$CERT" "$1"
+
+            if (app.isMacCodeSigningEnabled()) {
                 System.out.println("Signing "+appDir.getAbsolutePath());
 
                 File entitlementsFile = new File("jdeploy.mac.bundle.entitlements");
@@ -172,7 +109,6 @@ public class MacBundler {
                     entitlementsFile.deleteOnExit();
                     FileUtils.copyInputStreamToFile(MacBundler.class.getResourceAsStream("mac.bundle.entitlements"), entitlementsFile);
                 }
-
                 {
                     ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign",
 
@@ -182,8 +118,6 @@ public class MacBundler {
                             "-s", app.getMacCertificateName(),
                             "--entitlements", entitlementsFile.getAbsolutePath(),
                             new File(appDir, "Contents/app.xml").getAbsolutePath());
-
-
                     pb.inheritIO();
                     Process p = pb.start();
                     int exitCode = p.waitFor();
@@ -191,7 +125,6 @@ public class MacBundler {
                         throw new RuntimeException("Codesign failed with exit code " + exitCode);
                     }
                 }
-
                 {
                     ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign",
                             "--deep",
@@ -210,13 +143,9 @@ public class MacBundler {
                         throw new RuntimeException("Codesign failed with exit code " + exitCode);
                     }
                 }
-                
             }
         }
-        
-        
-        
-        
+
         File releaseDestDir = new File(releaseDir + "/" + OSNAME);
         String releaseFileName = app.getName() + ".tar.gz";
         releaseFileName = releaseFileName.replaceAll("\\s+", ".");
@@ -224,47 +153,9 @@ public class MacBundler {
         releaseDestDir.mkdirs();
         
         Util.compressAsTarGz(releaseFile, appDir);
-        /*
-        if (codesignClient != null) {
-            System.out.println("Preparingn codesigning request");
-            if (signingRequest.isCodesign() || signingRequest.isNotarize()) {
-                signingRequest.setFile(releaseFile);
-                System.out.println("Sending codesign request");
-                SigningResponse resp = codesignClient.sendSigningRequest(signingRequest);
-                System.out.println("Received codesign response");
-                File responseFile = resp.getFile();
-                if (resp.isRanCodesign()) {
-                    System.out.println("Server ran codesign and exited with code "+resp.getCodesignExitCode());
-                    System.out.println(resp.getCodesignLog());
-                }
-                if (resp.isRanAltool()) {
-                    System.out.println("Server ran altool and exited with code "+resp.getAltoolExitCode());
-                    System.out.println(resp.getAltoolLog());
-                }
-                if (responseFile.getName().endsWith(".dmg")) {
-                    releaseFile = new File(releaseFile.getParentFile(), app.getName()+".dmg");
-                }
-                if (releaseFile != null && responseFile.exists()) {
-                    releaseFile.getParentFile().mkdirs();
-                    FileUtil.copy(responseFile, releaseFile );
-                } else {
-                    throw new RuntimeException("Codesign server did not return a resulting file. "+responseFile);
-                }
-                
-                // We need to update the App to the signed app too now.
-                FileUtil.delTree(appDir);
-                if (responseFile.getName().endsWith(".tar.gz")) {
-                    Util.decompressTarGz(releaseFile, destDir);
-                
-                } else if (releaseFile.getName().endsWith(".zip")){
-                    Util.decompressZip(releaseFile, destDir);
-                } 
-                
-            }
-        } else*/ if (Platform.getSystemPlatform().isMac() && app.isMacCodeSigningEnabled() && app.isMacNotarizationEnabled()) {
+        if (Platform.getSystemPlatform().isMac() && app.isMacCodeSigningEnabled() && app.isMacNotarizationEnabled()) {
             System.out.println("Attempting to notarize app.");
             // Notarization can only be enabled if the app is signed.
-            // xcrun altool --notarize-app --primary-bundle-id "pdfocrx-ce" --username "steve@weblite.ca" --password "ozqj-hrnw-fgvs-dhvq" --file ~/Downloads/tmp/PDF\ OCR\ X\ Community\ Edition.zip
             if (app.isMacNotarizationEnabled()) {
                 ProcessBuilder pb = new ProcessBuilder("/usr/bin/xcrun", 
                         "altool", 
@@ -277,7 +168,6 @@ public class MacBundler {
                         app.getMacNotarizationPassword(),
                         "--file",
                         releaseFile.getAbsolutePath()
-
                 );
                 pb.inheritIO();
                 Process p = pb.start();
@@ -285,13 +175,22 @@ public class MacBundler {
                 if (exitCode != 0) {
                     throw new RuntimeException("Notarization failed with exit code "+exitCode);
                 }
-
             }
         }
-        
         out.addReleaseFile(releaseFile);
         
         return out;
+    }
+
+    private static InputStream getClient4JLauncherResource(TargetArchitecture targetArchitecture) {
+        switch (targetArchitecture) {
+            case X64:
+                return MacBundler.class.getResourceAsStream("x64/Client4JLauncher");
+            case ARM64:
+                return MacBundler.class.getResourceAsStream("arm64/Client4JLauncher");
+            default:
+                throw new IllegalArgumentException("Target architecture " + targetArchitecture + " not supported");
+        }
     }
     
     private static void processAppXml(AppDescription app, File contentsDir) throws Exception {
@@ -584,16 +483,7 @@ public class MacBundler {
         out.start("key").text("CFBundleSignature").end().start("string").text("????").end();
         out.start("key").text("CFBundleInfoDictionaryVersion").end().start("string").text("6.0").end();
         out.start("key").text("CFBundleIconFile").end().start("string").text("icon.icns").end();
-
         out.start("key").text("NSHighResolutionCapable").end().start("true").end();
-
-        //out.start("key").text("LSUIElement").end().start("true").end();
-        //LSMinimumSystemVersion
-        //LSMultipleInstancesProhibited
-
-
-        
-        
         out.end().end(); //dict, plist
         out.close();
         fixPlistXML(new File(contentsDir, "Info.plist"));
@@ -636,7 +526,5 @@ public class MacBundler {
             throw new IOException("Problem getting Xcode version: "+ex.getMessage(), ex);
         }
         throw new IOException("Did not find any lines in Xcode version that matched the patterns we were looking for.  Returning version -1");
-        
     }
-
 }

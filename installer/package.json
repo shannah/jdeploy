@@ -12,7 +12,7 @@
   "version": "1.0.5",
   "jdeploy": {
       "jar": "target/jdeploy-installer-1.0-SNAPSHOT.jar",
-      "bundles" : ["mac", "win", "linux"],
+      "bundles" : ["mac-x64", "mac-arm64", "win", "linux"],
       "macAppBundleId" : "HRNMHC7527.ca.weblite.jdeploy.installer",
       "codesign" : true,
       "notarize" : false,

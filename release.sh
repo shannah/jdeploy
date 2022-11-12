@@ -31,23 +31,27 @@ else
 fi
 
 # Make sure the codesign was successful
-codesign -vvvv jdeploy/bundles/mac/jdeploy-installer.app
 
-APP_PATH="jdeploy/bundles/mac/jdeploy-installer.app"
-ZIP_PATH="${APP_PATH}.zip"
 
-# Create a ZIP archive suitable for notarization.
-/usr/bin/ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+for MAC_ARCH in "x64" "arm64"; do
+  codesign -vvvv jdeploy/bundles/mac-$MAC_ARCH/jdeploy-installer.app
+  APP_PATH="jdeploy/bundles/mac-$MAC_ARCH/jdeploy-installer.app"
+  ZIP_PATH="${APP_PATH}.zip"
 
-TEAM_ID_FLAG=""
-if [ ! -z "$APPLE_TEAM_ID" ]; then
-  TEAM_ID_FLAG="--team-id $APPLE_TEAM_ID"
-fi
+  # Create a ZIP archive suitable for notarization.
+  /usr/bin/ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
 
-xcrun notarytool store-credentials "AC_PASSWORD" --apple-id "$APPLE_ID" $TEAM_ID_FLAG --password "$APPLE_2FA_PASSWORD"
-xcrun notarytool submit "$ZIP_PATH" --keychain-profile "AC_PASSWORD" --wait
-xcrun stapler staple "$APP_PATH"
-xcrun stapler validate "$APP_PATH"
+  TEAM_ID_FLAG=""
+  if [ ! -z "$APPLE_TEAM_ID" ]; then
+    TEAM_ID_FLAG="--team-id $APPLE_TEAM_ID"
+  fi
+
+  xcrun notarytool store-credentials "AC_PASSWORD" --apple-id "$APPLE_ID" $TEAM_ID_FLAG --password "$APPLE_2FA_PASSWORD"
+  xcrun notarytool submit "$ZIP_PATH" --keychain-profile "AC_PASSWORD" --wait
+  xcrun stapler staple "$APP_PATH"
+  xcrun stapler validate "$APP_PATH"
+done
+
 #codesign --test-requirement="=notarized" --verify --verbose "$APP_PATH"
 
 bash make_installer_templates.sh

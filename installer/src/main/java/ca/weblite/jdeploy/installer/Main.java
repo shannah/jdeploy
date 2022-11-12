@@ -518,6 +518,11 @@ public class Main implements Runnable, Constants {
         String target;
         if (Platform.getSystemPlatform().isMac()) {
             target = "mac";
+            if (System.getProperty("os.arch").equals("aarch64")) {
+                target += "-arm64";
+            } else {
+                target += "-x86";
+            }
         } else if (Platform.getSystemPlatform().isWindows()) {
             target = "win";
         } else if (Platform.getSystemPlatform().isLinux()) {
@@ -623,7 +628,7 @@ public class Main implements Runnable, Constants {
                 FileUtils.deleteDirectory(installAppPath);
             }
             File tmpAppPath = null;
-            for (File candidateApp : new File(tmpBundles, "mac").listFiles()) {
+            for (File candidateApp : new File(tmpBundles, target).listFiles()) {
                 if (candidateApp.getName().endsWith(".app")) {
                     int result = Runtime.getRuntime().exec(new String[]{"mv", candidateApp.getAbsolutePath(), installAppPath.getAbsolutePath()}).waitFor();
                     if (result != 0) {

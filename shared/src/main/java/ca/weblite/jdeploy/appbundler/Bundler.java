@@ -194,9 +194,12 @@ public class Bundler {
             }
         }
 
-        if("mac".equals(target)) {
-            return MacBundler.start(app,DEST_DIR, RELEASE_DIR);
-            
+        if("mac".equals(target) || "mac-x64".equals(target)) {
+            return MacBundler.start(MacBundler.TargetArchitecture.X64, app,DEST_DIR, RELEASE_DIR);
+        }
+
+        if ("mac-arm64".equals(target)) {
+            return MacBundler.start(MacBundler.TargetArchitecture.ARM64, app,DEST_DIR, RELEASE_DIR);
         }
         
         if("win".equals(target)) {
@@ -219,7 +222,9 @@ public class Bundler {
         if("all".equals(target)) {
             BundlerResult out = new BundlerResult("all");
             
-            out.setResultForType("mac", MacBundler.start(app,DEST_DIR, RELEASE_DIR));
+            out.setResultForType("mac", MacBundler.start(MacBundler.TargetArchitecture.X64, app,DEST_DIR, RELEASE_DIR));
+            out.setResultForType("mac-x64", out.getResultForType("mac", false));
+            out.setResultForType("mac-arm64", MacBundler.start(MacBundler.TargetArchitecture.ARM64, app,DEST_DIR, RELEASE_DIR));
             out.setResultForType("win", WindowsBundler2.start(app,DEST_DIR, RELEASE_DIR));
             out.setResultForType("win-installer", WindowsBundler2.start(app, DEST_DIR, RELEASE_DIR, true));
             out.setResultForType("linux", LinuxBundler.start(app, DEST_DIR, RELEASE_DIR));

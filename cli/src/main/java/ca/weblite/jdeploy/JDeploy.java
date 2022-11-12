@@ -1393,7 +1393,15 @@ public class JDeploy {
 
 
     public void macBundle() throws Exception {
-        bundle("mac");
+        macIntelBundle();
+    }
+
+    public void macIntelBundle() throws Exception {
+        bundle("mac-x64");
+    }
+
+    public void macArmBundle() throws Exception {
+        bundle("mac-arm64");
     }
 
     public void macInstaller() throws Exception {
@@ -1419,8 +1427,16 @@ public class JDeploy {
 
     public void allBundles() throws Exception {
         Set<String> bundles = bundles();
-        if (bundles.contains("mac")) {
+        if (bundles.contains("mac-")) {
+            if (bundles.contains("mac-arm64")) {
+                macArmBundle();
+            }
+            if (bundles.contains("mac-x64")) {
+                macIntelBundle();
+            }
+        } else if (bundles.contains("mac")) {
             macBundle();
+            macIntelBundle();
         }
         if (bundles.contains("win")) {
             windowsBundle();
@@ -1472,10 +1488,12 @@ public class JDeploy {
 
 
         File installerZip;
-        if (target.equals("mac")) {
-            installerZip = new File(installerDir, appInfo.getTitle()+" Installer-mac-amd64.tar");
+        if (target.equals("mac") || target.equals("mac-x64")) {
+            installerZip = new File(installerDir, appInfo.getTitle() + " Installer-mac-amd64.tar");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-mac-amd64.tar"), installerZip);
-
+        } else if (target.equals("mac-arm64")) {
+            installerZip = new File(installerDir, appInfo.getTitle() + " Installer-mac-arm64.tar");
+            FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-mac-arm64.tar"), installerZip);
         } else if (target.equals("win")) {
             installerZip = new File(installerDir, newName+".exe");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-win-amd64.exe"), installerZip);
@@ -1564,7 +1582,7 @@ public class JDeploy {
             @Override
             public String filterName(String name) {
 
-                if ("mac".equals(target)) {
+                if (target.startsWith("mac")) {
                     name = name
 
                             .replaceFirst("^jdeploy-installer/jdeploy-installer\\.app/(.*)", newName + "/" + newName + ".app/$1")
@@ -1593,7 +1611,7 @@ public class JDeploy {
             filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledSplashFile, newName + "/.jdeploy-files/installsplash.png"));
             filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledIconFile, newName + "/.jdeploy-files/icon.png"));
         }
-        if (target.equals("mac") || target.equals("linux")) {
+        if (target.startsWith("mac") || target.equals("linux")) {
             // Mac and linux use tar file
             ArchiveUtil.filterNamesInTarFile(installerZip, filter, filesToAdd);
         }  else {
