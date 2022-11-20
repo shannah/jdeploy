@@ -14,6 +14,9 @@ public class NPMApplicationHelper {
         NPMApplication out = new NPMApplication();
         out.setPackageName(packageJSON.getString("name"));
         out.setPackageVersion(packageJSON.getString("version"));
+        if (packageJSON.has("source")) {
+            out.setSource(packageJSON.getString("source"));
+        }
         JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
 
         if (packageJSON.has("homepage")) {

@@ -10,6 +10,7 @@ import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.cli.controllers.JPackageController;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
+import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.services.DeveloperIdentityKeyStore;
 import ca.weblite.tools.io.*;
@@ -1320,23 +1321,19 @@ public class JDeploy {
 
     private Map<String,String> bundleCodeCache = new HashMap<String,String>();
 
-    private String fetchJdeployBundleCode(AppInfo appInfo) throws IOException {
-        if (appInfo.getNpmPackage() == null) {
-            throw new IllegalArgumentException("Cannot fetch jdeploy bundle code without package and version");
-        }
-
-        if (bundleCodeCache.containsKey(appInfo.getNpmPackage())) {
-            return bundleCodeCache.get(appInfo.getNpmPackage());
+    private String fetchJdeployBundleCode(String fullPackageName) throws IOException {
+        if (bundleCodeCache.containsKey(fullPackageName)) {
+            return bundleCodeCache.get(fullPackageName);
         }
         String url = JDEPLOY_REGISTRY+"register.php?package=" +
-                URLEncoder.encode(appInfo.getNpmPackage(), "UTF-8");
+                URLEncoder.encode(fullPackageName, "UTF-8");
 
         //System.out.println("Connecting to "+url);
         try (InputStream inputStream = URLUtil.openStream(new URL(url))) {
             JSONObject jsonResponse = new JSONObject(IOUtil.readToString(inputStream));
             String code =  jsonResponse.getString("code");
             if (code != null && !code.isEmpty()) {
-                bundleCodeCache.put(appInfo.getNpmPackage(), code);
+                bundleCodeCache.put(fullPackageName, code);
             }
             return code;
         } catch (Exception ex) {
@@ -1345,9 +1342,20 @@ public class JDeploy {
         }
     }
 
+    private String fetchJdeployBundleCode(AppInfo appInfo) throws IOException {
+        if (appInfo.getNpmPackage() == null) {
+            throw new IllegalArgumentException("Cannot fetch jdeploy bundle code without package and version");
+        }
+
+        return fetchJdeployBundleCode(getFullPackageName(appInfo.getNpmSource(), appInfo.getNpmPackage()));
+    }
+
     private void loadAppInfo(AppInfo appInfo) throws IOException {
         appInfo.setNpmPackage((String)m().get("name"));
         appInfo.setNpmVersion(getString("version", "latest"));
+        if (m().containsKey("source")) {
+            appInfo.setNpmSource((String)m().get("source"));
+        }
         if (appInfo.getNpmVersion() != null && appInfo.getNpmPackage() != null) {
             appInfo.setJdeployBundleCode(fetchJdeployBundleCode(appInfo));
         }
@@ -1684,19 +1692,36 @@ public class JDeploy {
         new NPM(out, err).link(exitOnFail);
     }
     
-    
+    private File getGithubReleaseFilesDir() {
+        return new File(directory, "jdeploy" + File.separator + "github-release-files");
+    }
+
+    private void saveGithubReleaseFiles() throws IOException {
+        File icon = new File(directory, "icon.png");
+        File installSplash = new File(directory,"installsplash.png");
+        File releaseFilesDir = getGithubReleaseFilesDir();
+        releaseFilesDir.mkdirs();
+        if (icon.exists()) {
+            FileUtils.copyFile(icon, new File(releaseFilesDir, icon.getName()));
+
+        }
+        if (installSplash.exists()) {
+            FileUtils.copyFile(installSplash, new File(releaseFilesDir, installSplash.getName()));
+        }
+        out.println("Assets copied to " + releaseFilesDir);
+    }
 
     private void uploadResources() throws IOException {
         File icon = new File(directory, "icon.png");
         File installSplash = new File(directory,"installsplash.png");
-        JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File(directory, "jdeploy" + File.separator + "publish" + File.separator + "package.json"), "UTF-8"));
+        File publishDir = new File(directory, "jdeploy" + File.separator + "publish");
+        JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File(publishDir, "package.json"), "UTF-8"));
 
         if (icon.exists() || installSplash.exists()) {
             // If there is a custom icon or install splash we need to upload
             // them to jdeploy.com so that they are available when generating
             // the installer.  Without this, jdeploy.com would need to download the
             // full package from npm and extract the icon and installsplash from there.
-
             JSONObject jdeployFiles = new JSONObject();
             byte[] iconBytes = FileUtils.readFileToByteArray(icon);
             jdeployFiles.put("icon.png", Base64.getEncoder().encodeToString(iconBytes));
@@ -1737,29 +1762,24 @@ public class JDeploy {
         }
     }
 
-    private JSONObject fetchPackageInfoFromNpm(String packageName) throws IOException {
-        return new NPM(out, err).fetchPackageInfoFromNpm(packageName);
+    private JSONObject fetchPackageInfoFromNpm(String packageName, String source) throws IOException {
+        return new NPM(out, err).fetchPackageInfoFromNpm(packageName, source);
 
     }
 
-    private boolean isVersionPublished(String packageName, String version) {
-        return new NPM(out, err).isVersionPublished(packageName, version);
-
+    private boolean isVersionPublished(String packageName, String version, String source) {
+        return new NPM(out, err).isVersionPublished(packageName, version, source);
     }
 
+    // This variable is set in prepublish().  It points to a directory where the publishable
+    // bundle is stored.
+    private File publishDir;
 
-    public void publish() throws IOException {
-
-
-        if (alwaysPackageOnPublish) {
-
-            _package();
-        }
-
+    private JSONObject prepublish(String source) throws IOException {
         // Copy all publishable artifacts to a temporary
         // directory so that we can add some information to the
         // package.json without having to modify the actual package.json
-        File publishDir = new File(directory,"jdeploy" + File.separator+ "publish");
+        publishDir = new File(directory,"jdeploy" + File.separator+ "publish");
         if (publishDir.exists()) {
             FileUtils.deleteDirectory(publishDir);
         }
@@ -1779,6 +1799,9 @@ public class JDeploy {
 
         // Now add checksums
         JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File(directory, "package.json"), "UTF-8"));
+        if (source != null && !source.isEmpty()) {
+            packageJSON.put("source", source);
+        }
         JSONObject jdeployObj = packageJSON.getJSONObject("jdeploy");
 
         File icon = new File(directory, "icon.png");
@@ -1795,25 +1818,81 @@ public class JDeploy {
         }
 
         FileUtils.writeStringToFile(new File(publishDir,"package.json"), packageJSON.toString(), "UTF-8");
+        return packageJSON;
+    }
 
+    private String getFullPackageName(String source, String packageName) {
+        if (source == null || source.isEmpty()) {
+            return packageName;
+        }
 
+        return source + "#" + packageName;
+    }
+
+    /**
+     * Prepares a self-publish release.
+     * @throws IOException
+     */
+    public void prepareGithubRelease(String source, InputStream oldPackageInfo) throws IOException {
+        if (source == null) {
+            String repoName = System.getenv("GITHUB_REPOSITORY");
+            if (repoName == null) {
+                throw new IllegalArgumentException("prepare-github-release requires the GITHUB_REPOSITORY environment variable to be set.");
+            }
+            source = "https://github.com/" + repoName;
+        }
+
+        if (oldPackageInfo == null) {
+            String packageInfoUrl = source + "releases/download/jdeploy/package-info.json";
+            try {
+                oldPackageInfo = URLUtil.openStream(new URL(packageInfoUrl));
+            } catch (IOException ex) {
+                out.println("Failed to open stream for existing package-info.json at " + packageInfoUrl + ". Perhaps it doesn't exist yet");
+            }
+        }
+        copyToBin();
+
+        JSONObject packageJSON = prepublish(source);
+        getGithubReleaseFilesDir().mkdirs();
+        new NPM(out, err).pack(publishDir, getGithubReleaseFilesDir(), exitOnFail);
+        saveGithubReleaseFiles();
+        PackageInfoBuilder builder = new PackageInfoBuilder();
+        if (oldPackageInfo != null) {
+            builder.load(oldPackageInfo);
+        } else {
+            builder.setCreatedTime();
+        }
+        builder.setModifiedTime();
+        builder.setVersionTimestamp(packageJSON.getString("version"));
+        builder.addVersion(packageJSON.getString("version"), new FileInputStream(new File(publishDir, "package.json")));
+        builder.setLatestVersion(packageJSON.getString("version"));
+        builder.save(new FileOutputStream(new File(getGithubReleaseFilesDir(), "package-info.json")));
+        // Trigger register of package name
+        fetchJdeployBundleCode(getFullPackageName(source, packageJSON.getString("name")));
+        out.println("Release files created in " + getGithubReleaseFilesDir());
+
+    }
+
+    public void publish() throws IOException {
+        if (alwaysPackageOnPublish) {
+            _package();
+        }
+        JSONObject packageJSON = prepublish(null);
         new NPM(out, err).publish(publishDir, exitOnFail);
         out.println("Package published to npm successfully.");
         out.println("Waiting for npm to update its registry...");
 
         long timeout = System.currentTimeMillis()+30000;
         while (System.currentTimeMillis() < timeout) {
-            if (isVersionPublished(packageJSON.getString("name"), packageJSON.getString("version"))) {
+            String source = packageJSON.has("source") ? packageJSON.getString("source") : "";
+            if (isVersionPublished(packageJSON.getString("name"), packageJSON.getString("version"), source)) {
                 break;
             }
             try {
                 Thread.sleep(1000);
             } catch (Exception ex){}
         }
-
         uploadResources();
-
-
     }
 
     public DeveloperIdentityKeyStore getKeyStore() throws IOException {
@@ -2012,6 +2091,8 @@ public class JDeploy {
                 prog.install();
             } else if ("publish".equals(args[0])) {
                 prog.publish();
+            } else if ("github-prepare-release".equals(args[0])) {
+                prog.prepareGithubRelease(null, null);
             } else if ("scan".equals(args[0])) {
                 prog.scan();
             } else if ("run".equals(args[0])) {

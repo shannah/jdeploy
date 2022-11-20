@@ -10,6 +10,7 @@ public class NPMApplication {
     private String npmRegistryUrl = DEFAULT_NPM_REGISTRY;
     private String packageName;
     private String packageVersion;
+    private String source = "";
 
     private VerificationStatus homepageVerificationStatus = VerificationStatus.UNKNOWN;
     private String homepage;
@@ -41,6 +42,13 @@ public class NPMApplication {
     }
 
 
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public String getSource() {
+        return this.source;
+    }
 
     public List<AppSignature> getSignatures() {
         return signatures;

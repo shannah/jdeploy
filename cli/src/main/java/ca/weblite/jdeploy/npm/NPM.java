@@ -7,6 +7,7 @@ import org.json.JSONObject;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.util.Scanner;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -14,6 +15,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class NPM {
+    private static final String REGISTRY_URL="https://registry.npmjs.org/";
+    private static final String GITHUB_URL = "https://github.com/";
+
     private Process pendingLoginProcess;
     private PrintStream out=System.out, err=System.err;
     static boolean isWindows() {
@@ -33,8 +37,8 @@ public class NPM {
         }
     }
 
-    public JSONObject fetchPackageInfoFromNpm(String packageName) throws IOException {
-        URL u = new URL("https://registry.npmjs.org/"+packageName);
+    public JSONObject fetchPackageInfoFromNpm(String packageName, String source) throws IOException {
+        URL u = new URL(getPackageUrl(packageName, source));
         HttpURLConnection conn = (HttpURLConnection)u.openConnection();
         conn.setInstanceFollowRedirects(true);
         conn.setUseCaches(false);
@@ -44,9 +48,9 @@ public class NPM {
         return new JSONObject(IOUtil.readToString(conn.getInputStream()));
     }
 
-    public boolean isVersionPublished(String packageName, String version) {
+    public boolean isVersionPublished(String packageName, String version, String source) {
         try {
-            JSONObject jsonObject = fetchPackageInfoFromNpm(packageName);
+            JSONObject jsonObject = fetchPackageInfoFromNpm(packageName, source);
             return jsonObject.has("versions") && jsonObject.getJSONObject("versions").has(version);
         } catch (Exception ex) {
             return false;
@@ -198,6 +202,48 @@ public class NPM {
         }
     }
 
+    public void pack(File publishDir, File outputDir, boolean exitOnFail) throws IOException {
+        try {
+            ProcessBuilder pb = new ProcessBuilder();
+            pb.directory(publishDir);
+            if (out == System.out) {
+                pb.inheritIO();
+            }
+            out.println("Running npm pack --pack-destination" + outputDir);
+            pb.command(npm, "pack", "--pack-destination", outputDir.getAbsolutePath());
+            Process p = pb.start();
+            if (out != System.out) {
+                new Thread(()->{
+                    try {
+                        pipe(p.getInputStream(), out);
+                    } catch (Exception ex){
+                        ex.printStackTrace(System.err);
+                    }
+                }).start();
+            }
+            if (err != System.err) {
+                new Thread(()->{
+                    try {
+                        pipe(p.getErrorStream(), err);
+                    } catch (Exception ex){
+                        ex.printStackTrace(System.err);
+                    }
+                }).start();
+            }
+            int result = p.waitFor();
+            if (result != 0) {
+                if (exitOnFail) {
+                    System.exit(result);
+                } else {
+                    throw new JDeploy.FailException("npm pack command failed.  Please ensure npm is installed and in your PATH.", result);
+                }
+            }
+        } catch (InterruptedException ex) {
+            Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
+            throw new RuntimeException(ex);
+        }
+    }
+
     public void link(boolean exitOnFail) throws IOException  {
         try {
             ProcessBuilder pb = new ProcessBuilder();
@@ -232,5 +278,16 @@ public class NPM {
             return false;
         }
         return true;
+    }
+
+    private String getPackageUrl(String packageName, String source) throws UnsupportedEncodingException {
+        if (source.startsWith(GITHUB_URL)) {
+            String[] parts = packageName.split("/");
+            return GITHUB_URL +
+                    URLEncoder.encode(parts[1], "UTF-8") + "/" +
+                    URLEncoder.encode(parts[2], "UTF-8") + "/releases/download/jdeploy/package-info.json";
+        } else {
+            return REGISTRY_URL+ URLEncoder.encode(packageName, "UTF-8");
+        }
     }
 }

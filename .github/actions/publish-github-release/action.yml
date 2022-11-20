@@ -1,0 +1,45 @@
+name: 'Publish Github Release'
+description: Publish jDeploy Bundles on Github
+
+inputs:
+
+  app_version:
+    description: The app version
+    required: true
+  release_tag:
+    description: The release tag
+    required: true
+  github_token:
+    description: Github token
+    required: true
+
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v2
+      with:
+        node-version: '16.x'
+        registry-url: 'https://registry.npmjs.org'
+    - name: Publish with jDeploy
+      run: |
+        npm version "${{ inputs.app_version }}"
+        npx jdeploy github-prepare-release
+    - name: Publish package-info.json
+      uses: marvinpinto/action-automatic-releases@latest
+      with:
+        repo_token: "${{ inputs.github_token }}"
+        automatic_release_tag: "jdeploy"
+        prerelease: false
+        title: "jDeploy Package Info"
+        files: ./jdeploy/github-release-files/package-info.json
+    - name: Publish jDeploy Release
+        uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: "${{ inputs.github_token }}"
+          automatic_release_tag: "${{ inputs.release_tag }}"
+          prerelease: false
+          title: "${{ inputs.release_tag }}"
+          files: ./jdeploy/github-release-files/*
+

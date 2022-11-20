@@ -42,6 +42,8 @@ public class AppInfo  {
     private String changes;
     private String npmPackage;
     private String npmVersion;
+
+    private String npmSource = "";
     private boolean npmAllowPrerelease;
     private String jdeployBundleCode;
     private boolean fork;
@@ -273,6 +275,14 @@ public class AppInfo  {
 
     public String getNpmPackage() {
         return npmPackage;
+    }
+
+    public String getNpmSource() {
+        return npmSource;
+    }
+
+    public void setNpmSource(String source) {
+        this.npmSource = source;
     }
 
     public void setNpmPackage(String npmPackage) {

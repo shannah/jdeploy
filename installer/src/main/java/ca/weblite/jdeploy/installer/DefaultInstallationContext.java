@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 
 public class DefaultInstallationContext implements InstallationContext {
     public static String JDEPLOY_REGISTRY = "https://www.jdeploy.com/";
+    private static final String GITHUB_URL = "https://github.com/";
     static {
         if (System.getenv("JDEPLOY_REGISTRY_URL") != null) {
             JDEPLOY_REGISTRY = System.getenv("JDEPLOY_REGISTRY_URL");
@@ -239,14 +240,19 @@ public class DefaultInstallationContext implements InstallationContext {
         }
         if (settings.getWebsiteURL() == null) {
             try {
-                settings.setWebsiteURL(new URL("https://www.npmjs.com/package/" + app.getPackageName()));
+                settings.setWebsiteURL(new URL(getDefaultWebsiteUrl(app.getPackageName(), app.getSource())));
             } catch (Exception ex){}
         }
-
-
-
     }
 
+    private String getDefaultWebsiteUrl(String packageName, String source) throws UnsupportedEncodingException {
+        if (source.startsWith(GITHUB_URL)) {
+            String[] parts = packageName.substring(GITHUB_URL.length()).split("/");
+            return GITHUB_URL + URLEncoder.encode(parts[1], "UTF-8") + "/" + URLEncoder.encode(parts[2], "UTF-8");
+        } else {
+            return "https://www.npmjs.com/package/" + URLEncoder.encode(packageName, "UTF-8");
+        }
+    }
 
 
     public File findAppXml() {

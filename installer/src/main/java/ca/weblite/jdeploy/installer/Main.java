@@ -104,7 +104,7 @@ public class Main implements Runnable, Constants {
             if (appInfo() == null) {
                 throw new IllegalStateException("App Info must be loaded before loading the package info");
             }
-            NPMPackage pkg = new NPMRegistry().loadPackage(appInfo().getNpmPackage());
+            NPMPackage pkg = new NPMRegistry().loadPackage(appInfo().getNpmPackage(), appInfo().getNpmSource());
             if (pkg == null) {
                 throw new IOException("Cannot find NPMPackage named "+appInfo().getNpmPackage());
             }
@@ -188,6 +188,9 @@ public class Main implements Runnable, Constants {
         appInfo().setAppURL(appXml.toURI().toURL());
         appInfo().setTitle(ifEmpty(root.getAttribute("title"), root.getAttribute("package"), null));
         appInfo().setNpmPackage(ifEmpty(root.getAttribute("package"), null));
+        if (root.hasAttribute("source")) {
+            appInfo().setNpmSource(root.getAttribute("source"));
+        }
         appInfo().setFork(false);
 
         // First we set the version in appInfo according to the app.xml file

@@ -1152,8 +1152,9 @@ public class JDeployProjectEditor {
         JButton viewDownloadPage = new JButton("View Download Page");
         viewDownloadPage.addActionListener(evt->{
             String packageName = packageJSON.getString("name");
+            String source = packageJSON.has("source") ? packageJSON.getString("source") : "";
             try {
-                JSONObject packageInfo = new NPM(System.out, System.err).fetchPackageInfoFromNpm(packageName);
+                JSONObject packageInfo = new NPM(System.out, System.err).fetchPackageInfoFromNpm(packageName, source);
 
             } catch (Exception ex) {
                 showError("Unable to load your package details from NPM.  Either you haven't published your app yet, or there was a network error.", ex);
@@ -1491,7 +1492,8 @@ public class JDeployProjectEditor {
         // Now let's make sure that this version isn't already published.
         String version = packageJSON.getString("version");
         String packageName = packageJSON.getString("name");
-        if (new NPM(System.out, System.err).isVersionPublished(packageName, version)) {
+        String source = packageJSON.has("source") ? packageJSON.getString("source") : "";
+        if (new NPM(System.out, System.err).isVersionPublished(packageName, version, source)) {
             throw new ValidationException("The package " + packageName + " already has a published version " + version + ".  Please increment the version number and try to publish again.");
         }
 

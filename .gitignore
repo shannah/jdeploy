@@ -10,3 +10,4 @@ target
 installer/jdeploy
 installer/jdeploy-bundle
 cli/bin
+tests/projects/*/jdeploy
