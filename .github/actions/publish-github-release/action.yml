@@ -20,6 +20,7 @@ runs:
         node-version: '16.x'
         registry-url: 'https://registry.npmjs.org'
     - name: Publish with jDeploy
+      shell: bash
       run: |
         npm version "${{ inputs.release_tag }}"
         npx jdeploy github-prepare-release
