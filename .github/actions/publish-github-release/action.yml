@@ -14,6 +14,11 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Set up Git Config
+      shell: bash
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "<>"
     - name: Set up Node
       uses: actions/setup-node@v2
       with:
