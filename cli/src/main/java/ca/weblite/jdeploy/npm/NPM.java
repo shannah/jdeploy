@@ -282,10 +282,7 @@ public class NPM {
 
     private String getPackageUrl(String packageName, String source) throws UnsupportedEncodingException {
         if (source.startsWith(GITHUB_URL)) {
-            String[] parts = packageName.split("/");
-            return GITHUB_URL +
-                    URLEncoder.encode(parts[1], "UTF-8") + "/" +
-                    URLEncoder.encode(parts[2], "UTF-8") + "/releases/download/jdeploy/package-info.json";
+            return source + "/releases/download/jdeploy/package-info.json";
         } else {
             return REGISTRY_URL+ URLEncoder.encode(packageName, "UTF-8");
         }

@@ -246,8 +246,7 @@ public class DefaultInstallationContext implements InstallationContext {
 
     private String getDefaultWebsiteUrl(String packageName, String source) throws UnsupportedEncodingException {
         if (source.startsWith(GITHUB_URL)) {
-            String[] parts = packageName.substring(GITHUB_URL.length()).split("/");
-            return GITHUB_URL + URLEncoder.encode(parts[1], "UTF-8") + "/" + URLEncoder.encode(parts[2], "UTF-8");
+            return source;
         } else {
             return "https://www.npmjs.com/package/" + URLEncoder.encode(packageName, "UTF-8");
         }
