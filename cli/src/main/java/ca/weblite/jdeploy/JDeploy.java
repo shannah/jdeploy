@@ -1360,7 +1360,13 @@ public class JDeploy {
             appInfo.setJdeployBundleCode(fetchJdeployBundleCode(appInfo));
         }
         appInfo.setMacAppBundleId(getString("macAppBundleId", null));
-        appInfo.setTitle(getString("displayName", appInfo.getNpmPackage()));
+        appInfo.setTitle(
+                getString(
+                        "displayName",
+                        getString("title", appInfo.getNpmPackage())
+                )
+        );
+
         appInfo.setNpmAllowPrerelease("true".equals(getenv("JDEPLOY_BUNDLE_PRERELEASE", getString("prerelease", "false"))));
         appInfo.setFork("true".equals(getString("fork", "false")));
 
@@ -1451,6 +1457,10 @@ public class JDeploy {
     }
 
     public void allInstallers() throws Exception {
+        allInstallers(null);
+    }
+
+    public void allInstallers(String source) throws Exception {
         Set<String> installers = installers();
         for (String target : installers) {
             String version = "latest";
@@ -1458,7 +1468,7 @@ public class JDeploy {
                 version = target.substring(target.indexOf("@")+1);
                 target = target.substring(0, target.indexOf("@"));
             }
-            installer(target, version);
+            installer(target, version, source);
         }
 
 
@@ -1472,39 +1482,55 @@ public class JDeploy {
     }
 
     public void installer(String target, String version) throws Exception {
+        installer(target, version, null);
+    }
+
+    private File getInstallersDir() {
+        return new File("jdeploy" + File.separator + "installers");
+    }
+
+    public void installer(String target, String version, String source) throws Exception {
         AppInfo appInfo = new AppInfo();
         loadAppInfo(appInfo);
+        if (source != null && !source.isEmpty()) {
+            appInfo.setNpmSource(source);
+            appInfo.setJdeployBundleCode(fetchJdeployBundleCode(source + "# " + appInfo.getNpmPackage()));
+        }
         String packageJSONVersion = (String)m().get("version");
         appInfo.setNpmVersion(version);
         if (packageJSONVersion != null) {
             appInfo.setNpmVersion(packageJSONVersion);
         }
 
-        File installerDir = new File("jdeploy" + File.separator + "installers");
+        File installerDir = getInstallersDir();
         installerDir.mkdirs();
 
-        String _newName = appInfo.getTitle() + " Installer";
+        String _newName = appInfo.getTitle() + " Installer-${{ platform }}";
         if (appInfo.getJdeployBundleCode() != null) {
             _newName += "-"+appInfo.getNpmVersion()+"_"+appInfo.getJdeployBundleCode();
         }
-        final String newName = _newName;
+
 
 
         File installerZip;
         if (target.equals("mac") || target.equals("mac-x64")) {
-            installerZip = new File(installerDir, appInfo.getTitle() + " Installer-mac-amd64.tar");
+            _newName = _newName.replace("${{ platform }}", "mac-x64");
+            installerZip = new File(installerDir, _newName + ".tar" +".tar");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-mac-amd64.tar"), installerZip);
         } else if (target.equals("mac-arm64")) {
-            installerZip = new File(installerDir, appInfo.getTitle() + " Installer-mac-arm64.tar");
+            _newName = _newName.replace("${{ platform }}", "mac-arm64");
+            installerZip = new File(installerDir, _newName +  ".tar");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-mac-arm64.tar"), installerZip);
         } else if (target.equals("win")) {
-            installerZip = new File(installerDir, newName+".exe");
+            _newName = _newName.replace("${{ platform }}", "win-x64");
+            installerZip = new File(installerDir, _newName + ".exe");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-win-amd64.exe"), installerZip);
             installerZip.setExecutable(true, false);
             return;
 
         } else if (target.equals("linux")) {
-            installerZip = new File(installerDir, newName);
+            _newName = _newName.replace("${{ platform }}", "linux-x64");
+            installerZip = new File(installerDir, _newName);
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-linux-amd64"), installerZip);
             installerZip.setExecutable(true, false);
             return;
@@ -1512,7 +1538,7 @@ public class JDeploy {
         } else {
             throw new IllegalArgumentException("Unsupported installer type: "+target+".  Only mac, win, and linux supported");
         }
-
+        final String newName = _newName;
 
         // We are no longer embedding jdeploy files at all because
         // Gatekeeper runs the installer in a random directory anyways, so we can't locate them.
@@ -1533,6 +1559,7 @@ public class JDeploy {
                 appElement.setAttribute("package", appInfo.getNpmPackage());
                 appElement.setAttribute("version", appInfo.getNpmVersion());
                 appElement.setAttribute("macAppBundleId", appInfo.getMacAppBundleId());
+                appElement.setAttribute("source", source);
 
 
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -1657,8 +1684,11 @@ public class JDeploy {
         }
     }
 
-    
     private void _package() throws IOException {
+        _package(null);
+    }
+    
+    private void _package(String source) throws IOException {
         if (alwaysClean) {
             File jdeployBundle = new File(directory, "jdeploy-bundle");
             if (jdeployBundle.exists()) {
@@ -1676,7 +1706,7 @@ public class JDeploy {
             }
         }
         try {
-            allInstallers();
+            allInstallers(source);
         } catch (Exception ex) {
             if (ex instanceof IOException) {
                 throw (IOException)ex;
@@ -1708,6 +1738,14 @@ public class JDeploy {
         if (installSplash.exists()) {
             FileUtils.copyFile(installSplash, new File(releaseFilesDir, installSplash.getName()));
         }
+
+        File installerFiles = getInstallersDir();
+        if (installerFiles.isDirectory()) {
+            for (File installerFile : installerFiles.listFiles()) {
+                FileUtils.copyFile(installerFile, new File(releaseFilesDir, installerFile.getName()));
+            }
+        }
+
         out.println("Assets copied to " + releaseFilesDir);
     }
 
@@ -1850,7 +1888,7 @@ public class JDeploy {
                 out.println("Failed to open stream for existing package-info.json at " + packageInfoUrl + ". Perhaps it doesn't exist yet");
             }
         }
-        copyToBin();
+        _package(source);
 
         JSONObject packageJSON = prepublish(source);
         getGithubReleaseFilesDir().mkdirs();

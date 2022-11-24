@@ -207,6 +207,7 @@ public class MacBundler {
             out.start("app",
                     "name", app.getName(),
                     "package", app.getNpmPackage(),
+                    "source", app.getNpmSource(),
                     "version", app.getNpmVersion(),
                     "icon", app.getIconDataURI(),
                     "prerelease", app.isNpmPrerelease() ? "true" : "false",

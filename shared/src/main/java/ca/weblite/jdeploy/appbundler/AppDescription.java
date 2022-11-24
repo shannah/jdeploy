@@ -15,6 +15,8 @@ public class AppDescription {
     private String iconDataURI;
     private String npmPackage;
     private String npmVersion;
+
+    private String npmSource = "";
     private boolean npmPrerelease;
     private boolean fork;
     private String url;
@@ -234,6 +236,14 @@ public class AppDescription {
 
     public void setNpmPackage(String npmPackage) {
         this.npmPackage = npmPackage;
+    }
+
+    public String getNpmSource() {
+        return npmSource;
+    }
+
+    public void setNpmSource(String npmSource) {
+        this.npmSource = npmSource;
     }
 
     public String getNpmVersion() {

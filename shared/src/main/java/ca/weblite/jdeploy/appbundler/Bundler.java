@@ -120,6 +120,9 @@ public class Bundler {
             app.setNpmPackage(appInfo.getNpmPackage());
             app.setNpmVersion(appInfo.getNpmVersion());
         }
+        if (appInfo.getNpmSource() != null) {
+            app.setNpmSource(appInfo.getNpmSource());
+        }
         if (appInfo.getMacAppBundleId() != null && !appInfo.getMacAppBundleId().isEmpty()) {
             System.out.println("Setting up codesigning");
             app.setMacBundleId(appInfo.getMacAppBundleId());

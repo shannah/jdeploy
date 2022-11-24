@@ -40,7 +40,6 @@ public class DefaultInstallationContext implements InstallationContext {
     private File cachedInstallFilesDir;
     public File findInstallFilesDir() {
         if (cachedInstallFilesDir != null && cachedInstallFilesDir.exists()) return cachedInstallFilesDir;
-        System.out.println("findInstallFilesDir():");
         if (System.getProperty("client4j.launcher.path") != null) {
             String launcherPath = System.getProperty("client4j.launcher.path");
             String launcherFileName = launcherPath;
