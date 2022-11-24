@@ -11,6 +11,7 @@ import ca.weblite.jdeploy.cli.controllers.JPackageController;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
 import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
+import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.services.DeveloperIdentityKeyStore;
 import ca.weblite.tools.io.*;
@@ -1368,6 +1369,9 @@ public class JDeploy {
         );
 
         appInfo.setNpmAllowPrerelease("true".equals(getenv("JDEPLOY_BUNDLE_PRERELEASE", getString("prerelease", "false"))));
+        if (PrereleaseHelper.isPrereleaseVersion(appInfo.getNpmVersion()) || PrereleaseHelper.isPrereleaseVersion(appInfo.getVersion())) {
+            appInfo.setNpmAllowPrerelease(true);
+        }
         appInfo.setFork("true".equals(getString("fork", "false")));
 
         if (rj().getAsBoolean("codesign") && rj().getAsBoolean("notarize")) {

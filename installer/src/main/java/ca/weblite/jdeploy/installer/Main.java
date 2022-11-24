@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.installer;
 
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.appbundler.Bundler;
+import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.installer.events.InstallationFormEvent;
 import ca.weblite.jdeploy.installer.events.InstallationFormEventDispatcher;
 import ca.weblite.jdeploy.installer.linux.MimeTypeHelper;
@@ -510,6 +511,10 @@ public class Main implements Runnable, Constants {
         // to correspond with the auto-update settings.
         appInfo().setNpmVersion(createSemVerForVersion(npmPackageVersion().getVersion(), installationSettings.getAutoUpdate()));
         appInfo().setNpmAllowPrerelease(installationSettings.isPrerelease());
+        if (PrereleaseHelper.isPrereleaseVersion(npmPackageVersion().getVersion())) {
+            appInfo().setNpmAllowPrerelease(true);
+        }
+
 
         File tmpDest = File.createTempFile("jdeploy-installer-"+appInfo().getNpmPackage(), "");
         tmpDest.delete();
