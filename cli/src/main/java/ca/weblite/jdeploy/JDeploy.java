@@ -1410,52 +1410,55 @@ public class JDeploy {
 
 
 
-    public void macBundle() throws Exception {
-        macIntelBundle();
+    public void macBundle(String source) throws Exception {
+        macIntelBundle(source);
     }
 
-    public void macIntelBundle() throws Exception {
-        bundle("mac-x64");
+    public void macIntelBundle(String source) throws Exception {
+        bundle("mac-x64", source);
     }
 
-    public void macArmBundle() throws Exception {
-        bundle("mac-arm64");
+    public void macArmBundle(String source) throws Exception {
+        bundle("mac-arm64", source);
     }
 
     public void macInstaller() throws Exception {
 
     }
 
-    public void windowsBundle() throws Exception {
-        bundle("win");
+    public void windowsBundle(String source) throws Exception {
+        bundle("win", source);
     }
-    public void linuxBundle() throws Exception {
-        bundle("linux");
-    }
-
-    public void windowsInstallerBundle() throws Exception {
-        bundle("win-installer");
+    public void linuxBundle(String source) throws Exception {
+        bundle("linux", source);
     }
 
-    public void linuxInstallerBundle() throws Exception {
-        bundle("linux-installer");
+    public void windowsInstallerBundle(String source) throws Exception {
+        bundle("win-installer", source);
     }
 
+    public void linuxInstallerBundle(String source) throws Exception {
+        bundle("linux-installer", source);
+    }
 
 
     public void allBundles() throws Exception {
+        allBundles(null);
+    }
+
+    public void allBundles(String source) throws Exception {
         Set<String> bundles = bundles();
         if (bundles.contains("mac") || bundles.contains("mac-x64")) {
-            macIntelBundle();
+            macIntelBundle(source);
         }
         if (bundles.contains("mac-arm64")) {
-            macArmBundle();
+            macArmBundle(source);
         }
         if (bundles.contains("win")) {
-            windowsBundle();
+            windowsBundle(source);
         }
         if (bundles.contains("linux")) {
-            linuxBundle();
+            linuxBundle(source);
         }
 
     }
@@ -1479,8 +1482,15 @@ public class JDeploy {
     }
 
     public void bundle(String target) throws Exception {
+        bundle(target, null);
+    }
+
+    public void bundle(String target, String source) throws Exception {
         AppInfo appInfo = new AppInfo();
         loadAppInfo(appInfo);
+        if (source != null) {
+            appInfo.setNpmSource(source);
+        }
 
         Bundler.runit(appInfo, appInfo.getAppURL().toString(), target, "jdeploy" + File.separator + "bundles", "jdeploy" + File.separator + "releases");
     }
@@ -1701,7 +1711,7 @@ public class JDeploy {
         }
         copyToBin();
         try {
-            allBundles();
+            allBundles(source);
         } catch (Exception ex) {
             if (ex instanceof IOException) {
                 throw (IOException)ex;
