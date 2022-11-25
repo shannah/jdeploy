@@ -9,6 +9,8 @@ inputs:
   github_token:
     description: Github token
     required: true
+  jdeploy_version: The version of Jdeploy
+    default: latest
 
 
 runs:
@@ -28,7 +30,7 @@ runs:
       shell: bash
       run: |
         npm version "${{ inputs.release_tag }}"
-        npx jdeploy github-prepare-release
+        npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
     - name: Publish package-info.json
       uses: marvinpinto/action-automatic-releases@latest
       with:
