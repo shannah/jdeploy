@@ -1519,7 +1519,7 @@ public class JDeploy {
         File installerZip;
         if (target.equals("mac") || target.equals("mac-x64")) {
             _newName = _newName.replace("${{ platform }}", "mac-x64");
-            installerZip = new File(installerDir, _newName + ".tar" +".tar");
+            installerZip = new File(installerDir, _newName + ".tar");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-mac-amd64.tar"), installerZip);
         } else if (target.equals("mac-arm64")) {
             _newName = _newName.replace("${{ platform }}", "mac-arm64");
@@ -1885,7 +1885,7 @@ public class JDeploy {
         }
 
         if (oldPackageInfo == null) {
-            String packageInfoUrl = source + "releases/download/jdeploy/package-info.json";
+            String packageInfoUrl = source + "/releases/download/jdeploy/package-info.json";
             try {
                 oldPackageInfo = URLUtil.openStream(new URL(packageInfoUrl));
             } catch (IOException ex) {
