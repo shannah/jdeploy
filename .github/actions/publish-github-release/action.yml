@@ -9,7 +9,8 @@ inputs:
   github_token:
     description: Github token
     required: true
-  jdeploy_version: The version of Jdeploy
+  jdeploy_version:
+    description: The version of Jdeploy
     default: latest
 
 
