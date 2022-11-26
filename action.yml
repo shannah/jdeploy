@@ -37,7 +37,7 @@ runs:
       with:
         repo_token: "${{ inputs.github_token }}"
         automatic_release_tag: "jdeploy"
-        prerelease: false
+        prerelease: true
         title: "jDeploy Package Info"
         files: ./jdeploy/github-release-files/package-info.json
     - name: Upload Files to Release

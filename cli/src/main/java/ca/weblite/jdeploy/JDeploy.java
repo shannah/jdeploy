@@ -1540,6 +1540,9 @@ public class JDeploy {
             installerZip = new File(installerDir, _newName + ".exe");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-win-amd64.exe"), installerZip);
             installerZip.setExecutable(true, false);
+            if (bundlerSettings.isCompressBundles()) {
+                installerZip = compress(target, installerZip);
+            }
             return;
 
         } else if (target.equals("linux")) {
@@ -1547,6 +1550,9 @@ public class JDeploy {
             installerZip = new File(installerDir, _newName);
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-linux-amd64"), installerZip);
             installerZip.setExecutable(true, false);
+            if (bundlerSettings.isCompressBundles()) {
+                installerZip = compress(target, installerZip);
+            }
             return;
 
         } else {
@@ -1664,31 +1670,35 @@ public class JDeploy {
         }
 
         if (bundlerSettings.isCompressBundles()) {
-            if (target.startsWith("mac") || target.equals("linux")) {
-                // Mac and linux use tar file
-                String gzipFileName = installerZip.getName() + ".gz";
-                if (gzipFileName.endsWith(".tar.gz")) {
-                    gzipFileName = gzipFileName.replaceFirst("\\.tar\\.gz$", ".tgz");
-                }
-                File gzipFile = new File(installerZip.getParentFile(), gzipFileName);
-                ArchiveUtil.gzip(installerZip, gzipFile);
-                installerZip.delete();
-                installerZip = gzipFile;
-            }  else {
-                // Windows uses zip file
-                String zipFileName = installerZip.getName();
-                if (!zipFileName.endsWith(".zip")) {
-                    zipFileName += ".zip";
-                    File zipFile = new File(installerZip.getParentFile(), zipFileName);
-                    ArchiveUtil.zip(installerZip, zipFile);
-                    installerZip.delete();
-                    installerZip = zipFile;
-                }
-            }
+            installerZip = compress(target, installerZip);
         }
 
     }
 
+    private File compress(String target, File installerZip) throws IOException {
+        if (target.startsWith("mac") || target.equals("linux")) {
+            // Mac and linux use tar file
+            String gzipFileName = installerZip.getName() + ".gz";
+            if (gzipFileName.endsWith(".tar.gz")) {
+                gzipFileName = gzipFileName.replaceFirst("\\.tar\\.gz$", ".tgz");
+            }
+            File gzipFile = new File(installerZip.getParentFile(), gzipFileName);
+            ArchiveUtil.gzip(installerZip, gzipFile);
+            installerZip.delete();
+            installerZip = gzipFile;
+        }  else {
+            // Windows uses zip file
+            String zipFileName = installerZip.getName();
+            if (!zipFileName.endsWith(".zip")) {
+                zipFileName += ".zip";
+                File zipFile = new File(installerZip.getParentFile(), zipFileName);
+                ArchiveUtil.zip(installerZip, zipFile);
+                installerZip.delete();
+                installerZip = zipFile;
+            }
+        }
+        return installerZip;
+    }
 
 
     private void jpackageCLI(String[] args) {
