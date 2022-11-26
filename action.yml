@@ -54,7 +54,7 @@ runs:
       uses: marvinpinto/action-automatic-releases@latest
       with:
         repo_token: "${{ inputs.github_token }}"
-        automatic_release_tag: "jdeploy-${{ github.ref_name }}"
+        automatic_release_tag: "latest-${{ github.ref_name }}"
         prerelease: true
         title: "Native Bundles (${{ github.ref_name }})"
         files: "./jdeploy/github-release-files/*"
