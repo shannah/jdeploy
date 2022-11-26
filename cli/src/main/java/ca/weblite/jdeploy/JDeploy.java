@@ -1465,7 +1465,7 @@ public class JDeploy {
     }
 
     public void allInstallers() throws Exception {
-        allInstallers(null);
+        allInstallers(new BundlerSettings());
     }
 
     public void allInstallers(BundlerSettings bundlerSettings) throws Exception {
@@ -1497,7 +1497,7 @@ public class JDeploy {
     }
 
     public void installer(String target, String version) throws Exception {
-        installer(target, version, null);
+        installer(target, version, new BundlerSettings());
     }
 
     private File getInstallersDir() {
@@ -1723,7 +1723,7 @@ public class JDeploy {
     }
 
     private void _package() throws IOException {
-        _package(null);
+        _package(new BundlerSettings());
     }
     
     private void _package(BundlerSettings bundlerSettings) throws IOException {
@@ -1956,7 +1956,7 @@ public class JDeploy {
         if (alwaysPackageOnPublish) {
             _package();
         }
-        JSONObject packageJSON = prepublish(null);
+        JSONObject packageJSON = prepublish(new BundlerSettings());
         new NPM(out, err).publish(publishDir, exitOnFail);
         out.println("Package published to npm successfully.");
         out.println("Waiting for npm to update its registry...");
@@ -2171,7 +2171,7 @@ public class JDeploy {
             } else if ("publish".equals(args[0])) {
                 prog.publish();
             } else if ("github-prepare-release".equals(args[0])) {
-                prog.prepareGithubRelease(null, null);
+                prog.prepareGithubRelease(new BundlerSettings(), null);
             } else if ("scan".equals(args[0])) {
                 prog.scan();
             } else if ("run".equals(args[0])) {
