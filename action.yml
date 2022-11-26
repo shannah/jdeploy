@@ -56,7 +56,7 @@ runs:
         repo_token: "${{ inputs.github_token }}"
         automatic_release_tag: "jdeploy-${{ github.ref_name }}"
         prerelease: true
-        title: "jDeploy Package Info"
+        title: "Native Bundles (${{ github.ref_name }})"
         files: "./jdeploy/github-release-files/*"
 
     - name: Upload Files to Release for Tag
