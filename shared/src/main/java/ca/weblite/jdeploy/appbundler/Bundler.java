@@ -64,7 +64,7 @@ public class Bundler {
         //File descriptor = new File(jarUrl);
         //if(!descriptor.exists()) throw new Error("Descriptor file: " + jarUrl + " does not exist");
         
-        runit(null, jarUrl, target, DEST_DIR, DEST_DIR);
+        runit(new BundlerSettings(), null, jarUrl, target, DEST_DIR, DEST_DIR);
 
     }
 
@@ -88,7 +88,7 @@ public class Bundler {
         return "data:image/png;base64," + Base64.getEncoder().encodeToString(IOUtils.toByteArray(url));
     }
 
-    public static BundlerResult runit(AppInfo appInfo, String url,
+    public static BundlerResult runit(BundlerSettings bundlerSettings, AppInfo appInfo, String url,
             String target,
             String DEST_DIR,
             String RELEASE_DIR) throws Exception {
@@ -198,42 +198,42 @@ public class Bundler {
         }
 
         if("mac".equals(target) || "mac-x64".equals(target)) {
-            BundlerResult bundlerResult =  MacBundler.start(MacBundler.TargetArchitecture.X64, app,DEST_DIR, RELEASE_DIR);
+            BundlerResult bundlerResult =  MacBundler.start(bundlerSettings, MacBundler.TargetArchitecture.X64, app,DEST_DIR, RELEASE_DIR);
             bundlerResult.setResultForType("mac", bundlerResult);
             return bundlerResult;
         }
 
         if ("mac-arm64".equals(target)) {
-            return MacBundler.start(MacBundler.TargetArchitecture.ARM64, app,DEST_DIR, RELEASE_DIR);
+            return MacBundler.start(bundlerSettings, MacBundler.TargetArchitecture.ARM64, app,DEST_DIR, RELEASE_DIR);
         }
         
         if("win".equals(target)) {
-            return WindowsBundler2.start(app,DEST_DIR, RELEASE_DIR);
+            return WindowsBundler2.start(bundlerSettings, app,DEST_DIR, RELEASE_DIR);
             
         }
         if("win-installer".equals(target)) {
-            return WindowsBundler2.start(app, DEST_DIR, RELEASE_DIR, true);
+            return WindowsBundler2.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true);
             
         }
         
         if ("linux".equals(target)) {
-            return LinuxBundler.start(app, DEST_DIR, RELEASE_DIR);
+            return LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR);
             
         }
         if ("linux-installer".equals(target)) {
-            return LinuxBundler.start(app, DEST_DIR, RELEASE_DIR, true);
+            return LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true);
         }
         
         if("all".equals(target)) {
             BundlerResult out = new BundlerResult("all");
             
-            out.setResultForType("mac", MacBundler.start(MacBundler.TargetArchitecture.X64, app,DEST_DIR, RELEASE_DIR));
+            out.setResultForType("mac", MacBundler.start(bundlerSettings, MacBundler.TargetArchitecture.X64, app,DEST_DIR, RELEASE_DIR));
             out.setResultForType("mac-x64", out.getResultForType("mac", false));
-            out.setResultForType("mac-arm64", MacBundler.start(MacBundler.TargetArchitecture.ARM64, app,DEST_DIR, RELEASE_DIR));
-            out.setResultForType("win", WindowsBundler2.start(app,DEST_DIR, RELEASE_DIR));
-            out.setResultForType("win-installer", WindowsBundler2.start(app, DEST_DIR, RELEASE_DIR, true));
-            out.setResultForType("linux", LinuxBundler.start(app, DEST_DIR, RELEASE_DIR));
-            out.setResultForType("linux-installer", LinuxBundler.start(app, DEST_DIR, RELEASE_DIR, true));
+            out.setResultForType("mac-arm64", MacBundler.start(bundlerSettings, MacBundler.TargetArchitecture.ARM64, app,DEST_DIR, RELEASE_DIR));
+            out.setResultForType("win", WindowsBundler2.start(bundlerSettings, app,DEST_DIR, RELEASE_DIR));
+            out.setResultForType("win-installer", WindowsBundler2.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true));
+            out.setResultForType("linux", LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR));
+            out.setResultForType("linux-installer", LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true));
             return out;
         }
         

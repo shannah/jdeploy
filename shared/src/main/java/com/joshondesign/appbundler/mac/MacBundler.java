@@ -1,13 +1,10 @@
 package com.joshondesign.appbundler.mac;
 
-import ca.weblite.jdeploy.appbundler.AppDescription;
-import ca.weblite.jdeploy.appbundler.Bundler;
-import ca.weblite.jdeploy.appbundler.Util;
+import ca.weblite.jdeploy.appbundler.*;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.IOUtil;
 import ca.weblite.tools.io.URLUtil;
 import ca.weblite.tools.platform.Platform;
-import ca.weblite.jdeploy.appbundler.BundlerResult;
 import com.client4j.publisher.server.SigningRequest;
 import com.github.gino0631.icns.IcnsBuilder;
 import com.github.gino0631.icns.IcnsType;
@@ -35,7 +32,7 @@ public class MacBundler {
         ARM64
     }
 
-    public static BundlerResult start(TargetArchitecture targetArchitecture, AppDescription app, String dest_dir, String releaseDir) throws Exception {
+    public static BundlerResult start(BundlerSettings bundlerSettings, TargetArchitecture targetArchitecture, AppDescription app, String dest_dir, String releaseDir) throws Exception {
         String OSNAME_WITH_ARCH = OSNAME+"-" + targetArchitecture.name().toLowerCase();
         verboseLevel = Bundler.verboseLevel;
         File destDir = new File(dest_dir+"/"+OSNAME_WITH_ARCH+"/");

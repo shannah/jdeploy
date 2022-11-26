@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.installer;
 
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.appbundler.Bundler;
+import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.installer.events.InstallationFormEvent;
 import ca.weblite.jdeploy.installer.events.InstallationFormEventDispatcher;
@@ -545,7 +546,12 @@ public class Main implements Runnable, Constants {
             }
         }
 
-        Bundler.runit(appInfo(), findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
+        BundlerSettings bundlerSettings = new BundlerSettings();
+        if (appInfo().getNpmSource() != null && !appInfo().getNpmSource().isEmpty()) {
+            bundlerSettings.setSource(appInfo().getNpmSource());
+        }
+
+        Bundler.runit(bundlerSettings, appInfo(), findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
 
         if (Platform.getSystemPlatform().isWindows()) {
             File tmpExePath = null;

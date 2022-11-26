@@ -29,6 +29,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 /**
  *
@@ -121,9 +122,35 @@ public class ArchiveUtil {
             } catch ( Exception ex){}
         }
     }
-    
-    
-    
+
+
+    public static void gzip(File srcFile, File destFile) throws IOException {
+        GZIPOutputStream os = null;
+        FileInputStream is = null;
+        try {
+            os = new GZIPOutputStream(new FileOutputStream(destFile));
+            is = new FileInputStream(srcFile);
+
+            int chunk = 1024*100;
+            byte[] buf = new byte[chunk];
+            int len;
+            while ( (len = is.read(buf)) != -1 ){
+                os.write(buf, 0, len);
+            }
+            os.flush();
+            os.close();
+            is.close();
+
+
+        } finally {
+            try {
+                is.close();
+            } catch ( Exception ex){}
+            try {
+                os.close();
+            } catch ( Exception ex){}
+        }
+    }
     
 
     public static void untar(String tarPath, String destFolderPath, String prefix) throws IOException{

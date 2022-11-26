@@ -5,12 +5,9 @@
  */
 package com.joshondesign.appbundler.win;
 
-import ca.weblite.jdeploy.appbundler.AppDescription;
+import ca.weblite.jdeploy.appbundler.*;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.IOUtil;
-import ca.weblite.jdeploy.appbundler.Bundler;
-import ca.weblite.jdeploy.appbundler.BundlerResult;
-import ca.weblite.jdeploy.appbundler.Util;
 import com.joshondesign.xml.XMLWriter;
 import java.io.File;
 import java.io.FileInputStream;
@@ -25,12 +22,12 @@ public class WindowsBundler2 {
     
     private static int verboseLevel;
     
-    public static BundlerResult start(AppDescription app, String destDir, String releaseDir) throws Exception {
+    public static BundlerResult start(BundlerSettings bundlerSettings, AppDescription app, String destDir, String releaseDir) throws Exception {
         verboseLevel = Bundler.verboseLevel;
-        return start(app, destDir, releaseDir, false);
+        return start(bundlerSettings, app, destDir, releaseDir, false);
     }
     
-    public static BundlerResult start(AppDescription app, String destDir, String releaseDir, boolean installer) throws Exception {
+    public static BundlerResult start(BundlerSettings bundlerSettings, AppDescription app, String destDir, String releaseDir, boolean installer) throws Exception {
         verboseLevel = Bundler.verboseLevel;
         BundlerResult out = installer ? new BundlerResult("win-installer") : new BundlerResult("win");
         File winDir = new File(destDir, "windows");

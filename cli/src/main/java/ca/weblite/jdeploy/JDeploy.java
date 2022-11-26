@@ -7,6 +7,7 @@ package ca.weblite.jdeploy;
 
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.appbundler.Bundler;
+import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.cli.controllers.JPackageController;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
@@ -1410,55 +1411,55 @@ public class JDeploy {
 
 
 
-    public void macBundle(String source) throws Exception {
-        macIntelBundle(source);
+    public void macBundle(BundlerSettings bundlerSettings) throws Exception {
+        macIntelBundle(bundlerSettings);
     }
 
-    public void macIntelBundle(String source) throws Exception {
-        bundle("mac-x64", source);
+    public void macIntelBundle(BundlerSettings bundlerSettings) throws Exception {
+        bundle("mac-x64", bundlerSettings);
     }
 
-    public void macArmBundle(String source) throws Exception {
-        bundle("mac-arm64", source);
+    public void macArmBundle(BundlerSettings bundlerSettings) throws Exception {
+        bundle("mac-arm64", bundlerSettings);
     }
 
     public void macInstaller() throws Exception {
 
     }
 
-    public void windowsBundle(String source) throws Exception {
-        bundle("win", source);
+    public void windowsBundle(BundlerSettings bundlerSettings) throws Exception {
+        bundle("win", bundlerSettings);
     }
-    public void linuxBundle(String source) throws Exception {
-        bundle("linux", source);
-    }
-
-    public void windowsInstallerBundle(String source) throws Exception {
-        bundle("win-installer", source);
+    public void linuxBundle(BundlerSettings bundlerSettings) throws Exception {
+        bundle("linux", bundlerSettings);
     }
 
-    public void linuxInstallerBundle(String source) throws Exception {
-        bundle("linux-installer", source);
+    public void windowsInstallerBundle(BundlerSettings bundlerSettings) throws Exception {
+        bundle("win-installer", bundlerSettings);
+    }
+
+    public void linuxInstallerBundle(BundlerSettings bundlerSettings) throws Exception {
+        bundle("linux-installer", bundlerSettings);
     }
 
 
     public void allBundles() throws Exception {
-        allBundles(null);
+        allBundles(new BundlerSettings());
     }
 
-    public void allBundles(String source) throws Exception {
+    public void allBundles(BundlerSettings bundlerSettings) throws Exception {
         Set<String> bundles = bundles();
         if (bundles.contains("mac") || bundles.contains("mac-x64")) {
-            macIntelBundle(source);
+            macIntelBundle(bundlerSettings);
         }
         if (bundles.contains("mac-arm64")) {
-            macArmBundle(source);
+            macArmBundle(bundlerSettings);
         }
         if (bundles.contains("win")) {
-            windowsBundle(source);
+            windowsBundle(bundlerSettings);
         }
         if (bundles.contains("linux")) {
-            linuxBundle(source);
+            linuxBundle(bundlerSettings);
         }
 
     }
@@ -1467,7 +1468,7 @@ public class JDeploy {
         allInstallers(null);
     }
 
-    public void allInstallers(String source) throws Exception {
+    public void allInstallers(BundlerSettings bundlerSettings) throws Exception {
         Set<String> installers = installers();
         for (String target : installers) {
             String version = "latest";
@@ -1475,24 +1476,24 @@ public class JDeploy {
                 version = target.substring(target.indexOf("@")+1);
                 target = target.substring(0, target.indexOf("@"));
             }
-            installer(target, version, source);
+            installer(target, version, bundlerSettings);
         }
 
 
     }
 
     public void bundle(String target) throws Exception {
-        bundle(target, null);
+        bundle(target, new BundlerSettings());
     }
 
-    public void bundle(String target, String source) throws Exception {
+    public void bundle(String target, BundlerSettings bundlerSettings) throws Exception {
         AppInfo appInfo = new AppInfo();
         loadAppInfo(appInfo);
-        if (source != null) {
-            appInfo.setNpmSource(source);
+        if (bundlerSettings.getSource() != null) {
+            appInfo.setNpmSource(bundlerSettings.getSource());
         }
 
-        Bundler.runit(appInfo, appInfo.getAppURL().toString(), target, "jdeploy" + File.separator + "bundles", "jdeploy" + File.separator + "releases");
+        Bundler.runit(bundlerSettings, appInfo, appInfo.getAppURL().toString(), target, "jdeploy" + File.separator + "bundles", "jdeploy" + File.separator + "releases");
     }
 
     public void installer(String target, String version) throws Exception {
@@ -1503,9 +1504,10 @@ public class JDeploy {
         return new File("jdeploy" + File.separator + "installers");
     }
 
-    public void installer(String target, String version, String source) throws Exception {
+    public void installer(String target, String version, BundlerSettings bundlerSettings) throws Exception {
         AppInfo appInfo = new AppInfo();
         loadAppInfo(appInfo);
+        String source = bundlerSettings.getSource();
         if (source != null && !source.isEmpty()) {
             appInfo.setNpmSource(source);
             appInfo.setJdeployBundleCode(fetchJdeployBundleCode(source + "# " + appInfo.getNpmPackage()));
@@ -1523,8 +1525,6 @@ public class JDeploy {
         if (appInfo.getJdeployBundleCode() != null) {
             _newName += "-"+appInfo.getNpmVersion()+"_"+appInfo.getJdeployBundleCode();
         }
-
-
 
         File installerZip;
         if (target.equals("mac") || target.equals("mac-x64")) {
@@ -1663,6 +1663,30 @@ public class JDeploy {
             ArchiveUtil.filterNamesInZipFile(installerZip, filter, filesToAdd);
         }
 
+        if (bundlerSettings.isCompressBundles()) {
+            if (target.startsWith("mac") || target.equals("linux")) {
+                // Mac and linux use tar file
+                String gzipFileName = installerZip.getName() + ".gz";
+                if (gzipFileName.endsWith(".tar.gz")) {
+                    gzipFileName = gzipFileName.replaceFirst("\\.tar\\.gz$", ".tgz");
+                }
+                File gzipFile = new File(installerZip.getParentFile(), gzipFileName);
+                ArchiveUtil.gzip(installerZip, gzipFile);
+                installerZip.delete();
+                installerZip = gzipFile;
+            }  else {
+                // Windows uses zip file
+                String zipFileName = installerZip.getName();
+                if (!zipFileName.endsWith(".zip")) {
+                    zipFileName += ".zip";
+                    File zipFile = new File(installerZip.getParentFile(), zipFileName);
+                    ArchiveUtil.zip(installerZip, zipFile);
+                    installerZip.delete();
+                    installerZip = zipFile;
+                }
+            }
+        }
+
     }
 
 
@@ -1702,7 +1726,7 @@ public class JDeploy {
         _package(null);
     }
     
-    private void _package(String source) throws IOException {
+    private void _package(BundlerSettings bundlerSettings) throws IOException {
         if (alwaysClean) {
             File jdeployBundle = new File(directory, "jdeploy-bundle");
             if (jdeployBundle.exists()) {
@@ -1711,7 +1735,7 @@ public class JDeploy {
         }
         copyToBin();
         try {
-            allBundles(source);
+            allBundles(bundlerSettings);
         } catch (Exception ex) {
             if (ex instanceof IOException) {
                 throw (IOException)ex;
@@ -1720,7 +1744,7 @@ public class JDeploy {
             }
         }
         try {
-            allInstallers(source);
+            allInstallers(bundlerSettings);
         } catch (Exception ex) {
             if (ex instanceof IOException) {
                 throw (IOException)ex;
@@ -1827,7 +1851,7 @@ public class JDeploy {
     // bundle is stored.
     private File publishDir;
 
-    private JSONObject prepublish(String source) throws IOException {
+    private JSONObject prepublish(BundlerSettings bundlerSettings) throws IOException {
         // Copy all publishable artifacts to a temporary
         // directory so that we can add some information to the
         // package.json without having to modify the actual package.json
@@ -1851,8 +1875,8 @@ public class JDeploy {
 
         // Now add checksums
         JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File(directory, "package.json"), "UTF-8"));
-        if (source != null && !source.isEmpty()) {
-            packageJSON.put("source", source);
+        if (bundlerSettings.getSource() != null && !bundlerSettings.getSource().isEmpty()) {
+            packageJSON.put("source", bundlerSettings.getSource());
         }
         JSONObject jdeployObj = packageJSON.getJSONObject("jdeploy");
 
@@ -1885,26 +1909,29 @@ public class JDeploy {
      * Prepares a self-publish release.
      * @throws IOException
      */
-    public void prepareGithubRelease(String source, InputStream oldPackageInfo) throws IOException {
-        if (source == null) {
+    public void prepareGithubRelease(BundlerSettings bundlerSettings, InputStream oldPackageInfo) throws IOException {
+        if (bundlerSettings.getSource() == null) {
             String repoName = System.getenv("GITHUB_REPOSITORY");
             if (repoName == null) {
                 throw new IllegalArgumentException("prepare-github-release requires the GITHUB_REPOSITORY environment variable to be set.");
             }
-            source = "https://github.com/" + repoName;
+            bundlerSettings.setSource("https://github.com/" + repoName);
         }
 
         if (oldPackageInfo == null) {
-            String packageInfoUrl = source + "/releases/download/jdeploy/package-info.json";
+            String packageInfoUrl = bundlerSettings.getSource() + "/releases/download/jdeploy/package-info.json";
             try {
                 oldPackageInfo = URLUtil.openStream(new URL(packageInfoUrl));
             } catch (IOException ex) {
                 out.println("Failed to open stream for existing package-info.json at " + packageInfoUrl + ". Perhaps it doesn't exist yet");
             }
         }
-        _package(source);
 
-        JSONObject packageJSON = prepublish(source);
+        bundlerSettings.setCompressBundles(true);
+
+        _package(bundlerSettings);
+
+        JSONObject packageJSON = prepublish(bundlerSettings);
         getGithubReleaseFilesDir().mkdirs();
         new NPM(out, err).pack(publishDir, getGithubReleaseFilesDir(), exitOnFail);
         saveGithubReleaseFiles();
@@ -1920,7 +1947,7 @@ public class JDeploy {
         builder.setLatestVersion(packageJSON.getString("version"));
         builder.save(new FileOutputStream(new File(getGithubReleaseFilesDir(), "package-info.json")));
         // Trigger register of package name
-        fetchJdeployBundleCode(getFullPackageName(source, packageJSON.getString("name")));
+        fetchJdeployBundleCode(getFullPackageName(bundlerSettings.getSource(), packageJSON.getString("name")));
         out.println("Release files created in " + getGithubReleaseFilesDir());
 
     }

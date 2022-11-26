@@ -5,13 +5,10 @@
  */
 package com.joshondesign.appbundler.linux;
 
+import ca.weblite.jdeploy.appbundler.*;
 import com.joshondesign.appbundler.win.*;
-import ca.weblite.jdeploy.appbundler.AppDescription;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.IOUtil;
-import ca.weblite.jdeploy.appbundler.Bundler;
-import ca.weblite.jdeploy.appbundler.BundlerResult;
-import ca.weblite.jdeploy.appbundler.Util;
 import com.joshondesign.xml.XMLWriter;
 import java.io.File;
 import java.io.FileInputStream;
@@ -25,11 +22,11 @@ import java.io.IOException;
 public class LinuxBundler {
     
     private static int verboseLevel;
-    public static BundlerResult start(AppDescription app, String destDir, String releaseDir) throws Exception {
-        return start(app, destDir, releaseDir, false);
+    public static BundlerResult start(BundlerSettings bundlerSettings, AppDescription app, String destDir, String releaseDir) throws Exception {
+        return start(bundlerSettings, app, destDir, releaseDir, false);
     }
     
-    public static BundlerResult start(AppDescription app, String destDir, String releaseDir, boolean installer) throws Exception {
+    public static BundlerResult start(BundlerSettings bundlerSettings, AppDescription app, String destDir, String releaseDir, boolean installer) throws Exception {
         BundlerResult out = installer ? new BundlerResult("linux-installer") : new BundlerResult("linux");
         File winDir = new File(destDir, "linux");
         winDir.mkdirs();
