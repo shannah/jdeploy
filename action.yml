@@ -3,9 +3,6 @@ description: Publish jDeploy Bundles on Github
 
 inputs:
 
-  release_tag:
-    description: The release tag
-    required: true
   github_token:
     description: Github token
     required: true
@@ -27,11 +24,21 @@ runs:
       with:
         node-version: '16.x'
         registry-url: 'https://registry.npmjs.org'
-    - name: Publish with jDeploy
+
+    - name: Prepare Installer Bundles for Branch
+        if: ${{ github.ref_type == 'branch' }}
+        shell: bash
+        run: |
+          npm version "1.0-${{ github.ref_name }}-snap.$(date +%Y%m%d%H%M%S)"
+          npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
+
+    - name: Prepare Installer Bundles for Tag
+      if: ${{ github.ref_type == 'tag' }}
       shell: bash
       run: |
-        npm version "${{ inputs.release_tag }}"
+        npm version "${{ github.ref_name }}"
         npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
+
     - name: Publish package-info.json
       uses: marvinpinto/action-automatic-releases@latest
       with:
@@ -40,7 +47,19 @@ runs:
         prerelease: true
         title: "jDeploy Package Info"
         files: ./jdeploy/github-release-files/package-info.json
-    - name: Upload Files to Release
+
+    - name: Upload files to Snapshot Release for Branch
+      if: ${{ github.ref_type == 'branch' }}
+      uses: marvinpinto/action-automatic-releases@latest
+      with:
+        repo_token: "${{ inputs.github_token }}"
+        automatic_release_tag: "latest-${{ github.ref_name }}"
+        prerelease: true
+        title: "jDeploy Package Info"
+        files: "./jdeploy/github-release-files/*"
+
+    - name: Upload Files to Release for Tag
+      if: ${{ github.ref_type == 'tag' }}
       uses: xresloader/upload-to-github-release@v1
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
