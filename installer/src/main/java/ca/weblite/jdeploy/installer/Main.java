@@ -607,7 +607,7 @@ public class Main implements Runnable, Constants {
             if (Files.exists(bundleIcon.toPath())) {
                 FileUtil.copy(bundleIcon, iconPath);
             }
-            installWindowsLinks(exePath);
+            installWindowsLinks(exePath, appInfo().getTitle() + nameSuffix);
 
             File registryBackupLogs = new File(exePath.getParentFile(), "registry-backup-logs");
 
@@ -796,11 +796,11 @@ public class Main implements Runnable, Constants {
 
 
 
-    private void installWindowsLink(int type, File exePath, File iconPath) throws Exception {
+    private void installWindowsLink(int type, File exePath, File iconPath, String appTitle) throws Exception {
 
 
         System.out.println("Installing windows link type "+type+" for exe "+exePath+" and icon "+iconPath);
-        ShellLink link = new ShellLink(type, appInfo().getTitle());
+        ShellLink link = new ShellLink(type, appTitle);
         System.out.println("current user link path: "+link.getcurrentUserLinkPath());
 
         link.setUserType(ShellLink.CURRENT_USER);
@@ -827,7 +827,7 @@ public class Main implements Runnable, Constants {
 
 
 
-    private void installWindowsLinks(File exePath) throws Exception {
+    private void installWindowsLinks(File exePath, String appTitle) throws Exception {
         System.out.println("Installing Windows links for exe "+exePath);
         File pngIconPath = new File(exePath.getParentFile(), "icon.png");
         File icoPath = new File(exePath.getParentFile().getCanonicalFile(), "icon.ico");
@@ -845,7 +845,7 @@ public class Main implements Runnable, Constants {
 
         if (installationSettings.isAddToDesktop()) {
             try {
-                installWindowsLink(ShellLink.DESKTOP, exePath, icoPath);
+                installWindowsLink(ShellLink.DESKTOP, exePath, icoPath, appTitle);
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to install desktop shortcut", ex);
 
@@ -853,7 +853,7 @@ public class Main implements Runnable, Constants {
         }
         if (installationSettings.isAddToPrograms()) {
             try {
-                installWindowsLink(ShellLink.PROGRAM_MENU, exePath, icoPath);
+                installWindowsLink(ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle);
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to install program menu shortcut", ex);
 
@@ -861,7 +861,7 @@ public class Main implements Runnable, Constants {
         }
         if (installationSettings.isAddToStartMenu()) {
             try {
-                installWindowsLink(ShellLink.START_MENU, exePath, icoPath);
+                installWindowsLink(ShellLink.START_MENU, exePath, icoPath, appTitle);
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to install start menu shortcut", ex);
 
