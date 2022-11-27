@@ -1693,11 +1693,25 @@ public class JDeploy {
         }  else {
             // Windows uses zip file
             String zipFileName = installerZip.getName();
+            if (installerZip.getName().endsWith(".exe")) {
+                File installerZipFolder = new File(
+                        installerZip.getParentFile(),
+                        installerZip.getName().substring(0, installerZip.getName().lastIndexOf("."))
+                );
+                if (installerZipFolder.exists()) {
+                    FileUtil.delTree(installerZipFolder);
+                }
+                installerZipFolder.mkdirs();
+                File installerZipInFolder = new File(installerZipFolder, installerZip.getName());
+                installerZip.renameTo(installerZipInFolder);
+                installerZip = installerZipFolder;
+                zipFileName = installerZip.getName();
+            }
             if (!zipFileName.endsWith(".zip")) {
                 zipFileName += ".zip";
                 File zipFile = new File(installerZip.getParentFile(), zipFileName);
                 ArchiveUtil.zip(installerZip, zipFile);
-                installerZip.delete();
+                FileUtil.delTree(installerZip);
                 installerZip = zipFile;
             }
         }
