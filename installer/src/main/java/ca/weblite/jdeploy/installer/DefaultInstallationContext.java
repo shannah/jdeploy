@@ -56,6 +56,8 @@ public class DefaultInstallationContext implements InstallationContext {
             String version = extractVersionFromFileName(launcherFileName);
             if (code != null && version != null) {
                 try {
+                    System.setProperty("jdeploy.bundle-code", code);
+                    System.setProperty("jdeploy.bundle-version", version);
                     cachedInstallFilesDir = downloadJDeployBundleForCode(code, version, tmpBundleFile);
                     return cachedInstallFilesDir;
                 } catch (IOException ex) {
@@ -150,6 +152,11 @@ public class DefaultInstallationContext implements InstallationContext {
         if (pos < 0) return null;
 
         fileName = fileName.substring(0, pos);
+        if (fileName.contains("@")) {
+            int lastPos = fileName.lastIndexOf("@");
+            fileName = fileName.substring(0, lastPos) + "0.0.0-" + fileName.substring(lastPos+1);
+        }
+
         Pattern p = Pattern.compile("^.*?-(\\d[a-zA-Z0-9\\.\\-_]*)$");
         Matcher m = p.matcher(fileName);
         if (m.matches()) {

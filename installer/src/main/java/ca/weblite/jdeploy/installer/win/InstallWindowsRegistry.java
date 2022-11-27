@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.win;
 
 import ca.weblite.jdeploy.app.AppInfo;
+import ca.weblite.tools.io.MD5;
 import org.apache.commons.io.FileUtils;
 
 import static com.sun.jna.platform.win32.Advapi32Util.*;
@@ -203,8 +204,22 @@ public class InstallWindowsRegistry {
         return new File(System.getProperty("user.home") + File.separator +
                 ".jdeploy" + File.separator +
                 "uninstallers" + File.separator +
-                appInfo.getNpmPackage() + File.separator +
-                appInfo.getNpmPackage()+"-uninstall.exe");
+                getFullyQualifiedPackageName() + File.separator +
+                exe.getName()+"-uninstall.exe");
+
+    }
+
+    public String getFullyQualifiedPackageName() {
+        String sourceHash = getSourceHash();
+        if (sourceHash == null) {
+            return appInfo.getNpmPackage();
+        }
+        String suffix = "";
+        if (appInfo.getNpmVersion().startsWith("0.0.0-")) {
+            String v = appInfo.getNpmVersion();
+            suffix = "." + v.substring(v.indexOf("-")+1);
+        }
+        return sourceHash + "." + appInfo.getNpmPackage() + suffix;
     }
 
     private Set<AppType> getAppTypes() {
@@ -232,8 +247,26 @@ public class InstallWindowsRegistry {
     }
 
 
-    private String getRegisteredAppName() {
-        return "jdeploy." + appInfo.getNpmPackage();
+    public String getRegisteredAppName() {
+        String sourceHash = getSourceHash();
+        if (sourceHash == null) {
+            return "jdeploy." + appInfo.getNpmPackage();
+        }
+
+        String suffix = "";
+        if (appInfo.getNpmVersion().startsWith("0.0.0-")) {
+            String v = appInfo.getNpmVersion();
+            suffix = "." + v.substring(v.indexOf("-")+1);
+        }
+        return "jdeploy." + sourceHash + "." + appInfo.getNpmPackage() + suffix;
+    }
+
+    private String getSourceHash() {
+        if (appInfo.getNpmSource() == null || appInfo.getNpmSource().isEmpty()) {
+            return null;
+        }
+
+        return MD5.getMd5(appInfo.getNpmSource());
     }
 
     private String getUninstallKey() {
@@ -279,7 +312,18 @@ public class InstallWindowsRegistry {
      * @return
      */
     private String getProgId() {
-        return "jdeploy."+appInfo.getNpmPackage()+".file";
+        String sourceHash = getSourceHash();
+        if (sourceHash == null) {
+            return "jdeploy." + appInfo.getNpmPackage() + ".file";
+        }
+
+        String suffix = "";
+        if (appInfo.getNpmVersion().startsWith("0.0.0-")) {
+            String v = appInfo.getNpmVersion();
+            suffix = "." + v.substring(v.indexOf("-")+1);
+        }
+
+        return "jdeploy." + sourceHash + "." + appInfo.getNpmPackage() + suffix + ".file";
     }
 
     /**

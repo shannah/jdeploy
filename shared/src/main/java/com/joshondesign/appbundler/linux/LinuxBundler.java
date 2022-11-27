@@ -28,14 +28,14 @@ public class LinuxBundler {
     
     public static BundlerResult start(BundlerSettings bundlerSettings, AppDescription app, String destDir, String releaseDir, boolean installer) throws Exception {
         BundlerResult out = installer ? new BundlerResult("linux-installer") : new BundlerResult("linux");
-        File winDir = new File(destDir, "linux");
-        winDir.mkdirs();
+        File linuxDir = new File(destDir, "linux");
+        linuxDir.mkdirs();
         
         File linuxReleaseDir = new File(releaseDir, "linux");
         linuxReleaseDir.mkdirs();
         
         String appName = installer ? app.getName() + " Installer.jci" : app.getName();
-        File destFile = new File(winDir, appName);
+        File destFile = new File(linuxDir, appName);
         String releaseFileName = appName.replaceAll("\\s+", ".")+".tar.gz";
         File releaseFile = new File(linuxReleaseDir, releaseFileName);
         out.setOutputFile(destFile);

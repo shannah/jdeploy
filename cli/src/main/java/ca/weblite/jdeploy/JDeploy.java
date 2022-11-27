@@ -1522,8 +1522,12 @@ public class JDeploy {
         installerDir.mkdirs();
 
         String _newName = appInfo.getTitle() + " Installer-${{ platform }}";
+        String versionStr = appInfo.getNpmVersion();
+        if (versionStr.startsWith("0.0.0-")) {
+            versionStr = "@" + versionStr.substring("0.0.0-".length());
+        }
         if (appInfo.getJdeployBundleCode() != null) {
-            _newName += "-"+appInfo.getNpmVersion()+"_"+appInfo.getJdeployBundleCode();
+            _newName += "-"+versionStr+"_"+appInfo.getJdeployBundleCode();
         }
 
         File installerZip;

@@ -7,7 +7,8 @@ public class PrereleaseHelper {
         return versionString.indexOf("-alpha") > 0 ||
                 versionString.indexOf("-pre") > 0 ||
                 versionString.indexOf("-beta") > 0 ||
-                versionString.indexOf("-snap") > 0;
+                versionString.indexOf("-snap") > 0 ||
+                versionString.startsWith("0.0.0-");
 
     }
 }

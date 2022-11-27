@@ -190,8 +190,12 @@ public class Main implements Runnable, Constants {
         appInfo().setAppURL(appXml.toURI().toURL());
         appInfo().setTitle(ifEmpty(root.getAttribute("title"), root.getAttribute("package"), null));
         appInfo().setNpmPackage(ifEmpty(root.getAttribute("package"), null));
+        String fullyQualifiedPackageName = appInfo().getNpmPackage();
         if (root.hasAttribute("source")) {
             appInfo().setNpmSource(root.getAttribute("source"));
+        }
+        if (appInfo().getNpmSource() != null && !appInfo().getNpmSource().isEmpty()) {
+            fullyQualifiedPackageName = MD5.getMd5(appInfo().getNpmSource()) + "." + fullyQualifiedPackageName;
         }
         appInfo().setFork(false);
 
@@ -199,7 +203,13 @@ public class Main implements Runnable, Constants {
         appInfo().setNpmVersion(ifEmpty(root.getAttribute("version"), "latest"));
         // Next we use that version to load the package info from the NPM registry.
         loadNPMPackageInfo();
-        appInfo().setMacAppBundleId(ifEmpty(root.getAttribute("macAppBundleId"), "ca.weblite.jdeploy.apps."+appInfo().getNpmPackage()));
+
+        String bundleSuffix = "";
+        if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
+            String v = appInfo().getNpmVersion();
+            bundleSuffix = "." +v.substring(v.indexOf("-")+1);
+        }
+        appInfo().setMacAppBundleId(ifEmpty(root.getAttribute("macAppBundleId"), "ca.weblite.jdeploy.apps."+fullyQualifiedPackageName + bundleSuffix));
 
         if (appInfo().getNpmPackage() == null) {
             throw new InvalidAppXMLFormatException("Missing package attribute");
@@ -250,6 +260,11 @@ public class Main implements Runnable, Constants {
     }
 
     private static String createSemVerForVersion(String version, AutoUpdateSettings updateSettings) {
+        if (version.startsWith("0.0.0-")) {
+            // Special case for Github branches, in which case the app should stay in sync with
+            // the branch
+            return version;
+        }
         switch (updateSettings) {
             case Stable:
                 return "latest";
@@ -492,7 +507,7 @@ public class Main implements Runnable, Constants {
         if (uninstall && Platform.getSystemPlatform().isWindows()) {
             System.out.println("Running Windows uninstall...");
             InstallWindowsRegistry installer = new InstallWindowsRegistry(appInfo(), null, null, null);
-            UninstallWindows uninstallWindows = new UninstallWindows(appInfo().getNpmPackage(), appInfo().getVersion(), appInfo().getTitle(), installer);
+            UninstallWindows uninstallWindows = new UninstallWindows(appInfo().getNpmPackage(), appInfo().getNpmSource(), appInfo().getVersion(), appInfo().getTitle(), installer);
             uninstallWindows.uninstall();
             System.out.println("Uninstall complete");
             return;
@@ -547,8 +562,12 @@ public class Main implements Runnable, Constants {
         }
 
         BundlerSettings bundlerSettings = new BundlerSettings();
+        String sourceHash = null;
+        String fullyQualifiedPackageName = appInfo().getNpmPackage();
         if (appInfo().getNpmSource() != null && !appInfo().getNpmSource().isEmpty()) {
             bundlerSettings.setSource(appInfo().getNpmSource());
+            sourceHash = MD5.getMd5(appInfo().getNpmSource());
+            fullyQualifiedPackageName = sourceHash + "." + fullyQualifiedPackageName;
         }
 
         Bundler.runit(bundlerSettings, appInfo(), findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
@@ -566,9 +585,17 @@ public class Main implements Runnable, Constants {
             File userHome = new File(System.getProperty("user.home"));
             File jdeployHome = new File(userHome, ".jdeploy");
             File appsDir = new File(jdeployHome, "apps");
-            File appDir = new File(appsDir, appInfo().getNpmPackage());
+            File appDir = new File(appsDir, fullyQualifiedPackageName);
             appDir.mkdirs();
-            File exePath = new File(appDir, tmpExePath.getName());
+            String nameSuffix = "";
+
+            if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
+                nameSuffix = "-" + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
+            }
+
+            String exeName = appInfo().getTitle() + nameSuffix;
+            File exePath = new File(appDir, exeName);
+
             FileUtil.copy(tmpExePath, exePath);
             exePath.setExecutable(true, false);
 
@@ -631,13 +658,17 @@ public class Main implements Runnable, Constants {
             installedApp = exePath;
 
         } else if (Platform.getSystemPlatform().isMac()) {
-            File jdeployAppsDir = new File(System.getProperty("user.home") + File.separator + "Applications" + File.separator + "jDeploy Apps");
+            File jdeployAppsDir = new File(System.getProperty("user.home") + File.separator + "Applications");
             if (!jdeployAppsDir.exists()) {
                 jdeployAppsDir.mkdirs();
             }
+            String nameSuffix = "";
+            if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
+                nameSuffix = " " + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
+            }
 
-
-            File installAppPath = new File(jdeployAppsDir, appInfo().getTitle()+".app");
+            String appName = appInfo().getTitle() + nameSuffix;
+            File installAppPath = new File(jdeployAppsDir, appName+".app");
             if (installAppPath.exists() && installationSettings.isOverwriteApp()) {
                 FileUtils.deleteDirectory(installAppPath);
             }
@@ -657,7 +688,7 @@ public class Main implements Runnable, Constants {
             installedApp = installAppPath;
 
             if (installationSettings.isAddToDesktop()) {
-                File desktopAlias = new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + appInfo().getTitle() + ".app");
+                File desktopAlias = new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + appName + ".app");
                 if (desktopAlias.exists()) {
                     desktopAlias.delete();
                 }
@@ -706,9 +737,18 @@ public class Main implements Runnable, Constants {
             File userHome = new File(System.getProperty("user.home"));
             File jdeployHome = new File(userHome, ".jdeploy");
             File appsDir = new File(jdeployHome, "apps");
-            File appDir = new File(appsDir, appInfo().getNpmPackage());
+            File appDir = new File(appsDir, fullyQualifiedPackageName);
             appDir.mkdirs();
-            File exePath = new File(appDir, tmpExePath.getName());
+
+            String nameSuffix = "";
+            String titleSuffix = "";
+            if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
+                nameSuffix = "-" + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
+                titleSuffix = "-" + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
+            }
+
+            String exeName = deriveLinuxBinaryNameFromTitle(appInfo().getTitle()) + nameSuffix;
+            File exePath = new File(appDir, exeName);
             FileUtil.copy(tmpExePath, exePath);
 
             // Copy the icon.png if it is present
@@ -718,13 +758,18 @@ public class Main implements Runnable, Constants {
                 FileUtil.copy(bundleIcon, iconPath);
             }
             installLinuxMimetypes();
-            installLinuxLinks(exePath);
+
+            installLinuxLinks(exePath, appInfo().getTitle() + titleSuffix);
             installedApp = exePath;
 
         }
 
         File tmpPlatformBundles = new File(tmpBundles, target);
 
+    }
+
+    private String deriveLinuxBinaryNameFromTitle(String title) {
+        return title.toLowerCase().replace(" ", "-").replaceAll("[^a-z0-9\\-]", "");
     }
 
     private void convertWindowsIcon(File srcPng, File destIco) throws IOException {
@@ -943,7 +988,7 @@ public class Main implements Runnable, Constants {
 
     }
 
-    public void installLinuxLinks(File launcherFile) throws Exception {
+    public void installLinuxLinks(File launcherFile, String title) throws Exception {
         if (!launcherFile.exists()) {
             throw new IllegalStateException("Launcher "+launcherFile+" does not exist so we cannot install a shortcut to it.");
         }
@@ -958,13 +1003,13 @@ public class Main implements Runnable, Constants {
 
         if (installationSettings.isAddToDesktop()) {
             File desktopDir = new File(System.getProperty("user.home"), "Desktop");
-            addLinuxDesktopFile(desktopDir, appInfo().getTitle(), appInfo().getTitle(), pngIcon, launcherFile);
+            addLinuxDesktopFile(desktopDir, title, title, pngIcon, launcherFile);
         }
         if (installationSettings.isAddToPrograms()) {
             File homeDir = new File(System.getProperty("user.home"));
             File applicationsDir = new File(homeDir, ".local"+File.separator+"share"+File.separator+"applications");
             applicationsDir.mkdirs();
-            addLinuxDesktopFile(applicationsDir, appInfo().getTitle(), appInfo().getTitle(), pngIcon, launcherFile);
+            addLinuxDesktopFile(applicationsDir, title, title, pngIcon, launcherFile);
 
             // We need to run update desktop database before file type associations and url schemes will be
             // recognized.

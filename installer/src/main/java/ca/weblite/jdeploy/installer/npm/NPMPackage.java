@@ -99,6 +99,13 @@ public class NPMPackage {
     }
 
     public NPMPackageVersion getLatestVersion(boolean prerelease, String semVer) {
+        if (semVer.startsWith("0.0.0-")) {
+            if (packageInfo.getJSONObject("versions").has(semVer)) {
+                return new NPMPackageVersion(this, semVer, packageInfo.getJSONObject("versions").getJSONObject(semVer));
+            } else {
+                return null;
+            }
+        }
         String versionNumber = null;
         if (semVer == null) semVer = "latest";
         if (prerelease && "latest".equals(semVer)) {
@@ -128,7 +135,6 @@ public class NPMPackage {
         }
         return new NPMPackageVersion(this, versionNumber, packageInfo.getJSONObject("versions").getJSONObject(versionNumber));
     }
-
 
 
 
