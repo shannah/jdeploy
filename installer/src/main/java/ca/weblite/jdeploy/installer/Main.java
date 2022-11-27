@@ -590,10 +590,10 @@ public class Main implements Runnable, Constants {
             String nameSuffix = "";
 
             if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
-                nameSuffix = "-" + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
+                nameSuffix = " " + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
             }
 
-            String exeName = appInfo().getTitle() + nameSuffix;
+            String exeName = appInfo().getTitle() + nameSuffix + ".exe";
             File exePath = new File(appDir, exeName);
 
             FileUtil.copy(tmpExePath, exePath);
