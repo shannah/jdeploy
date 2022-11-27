@@ -643,7 +643,22 @@ public class Main implements Runnable, Constants {
                 if (uninstallerPath.exists()) {
                     if (!uninstallerPath.canWrite()) {
                         uninstallerPath.setWritable(true, false);
-                        uninstallerPath.delete();
+                        try {
+                            // Give windows time to update its cache
+                            Thread.sleep(1000L);
+                        } catch (InterruptedException interruptedException) {
+                            // Ignore
+                        }
+                    }
+                    if (!uninstallerPath.delete()) {
+                        throw new IOException("Failed to delete uninstaller: "+uninstallerPath);
+                    }
+
+                    try {
+                        // Give Windows time to update its cache
+                        Thread.sleep(1000L);
+                    } catch (InterruptedException interruptedException) {
+                        // Ignore
                     }
                 }
                 FileUtils.copyFile(installerExePath, uninstallerPath);
