@@ -201,11 +201,16 @@ public class InstallWindowsRegistry {
     }
 
     public File getUninstallerPath() {
+        String suffix = "";
+        if (appInfo.getNpmVersion().startsWith("0.0.0-")) {
+            String v = appInfo.getNpmVersion();
+            suffix = "-" + v.substring(v.indexOf("-")+1);
+        }
         return new File(System.getProperty("user.home") + File.separator +
                 ".jdeploy" + File.separator +
                 "uninstallers" + File.separator +
                 getFullyQualifiedPackageName() + File.separator +
-                exe.getName()+"-uninstall.exe");
+                appInfo.getNpmPackage()+suffix+"-uninstall.exe");
 
     }
 

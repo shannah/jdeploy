@@ -354,6 +354,7 @@ public class Main implements Runnable, Constants {
             run0();
         } catch (Exception ex) {
             ex.printStackTrace(System.err);
+            System.err.flush();
             invokeLater(()->{
                 uiFactory.showModalErrorDialog(null, ex.getMessage(), "Installation failed.");
                 System.exit(1);

@@ -84,10 +84,16 @@ public class UninstallWindows {
     }
 
     private File getUninstallerPath() {
+
+        String suffix = "";
+        if (version.startsWith("0.0.0-")) {
+
+            suffix = "-" + version.substring(version.indexOf("-")+1);
+        }
         return new File(getJDeployHome(),
                 "uninstallers" + File.separator +
                         new File(fullyQualifiedPackageName).getName() + File.separator +
-                        new File(appFileName)+"-uninstall.exe");
+                        new File(packageName)+suffix+"-uninstall.exe");
     }
 
     private Iterable<File> getVersionDirectories() {
