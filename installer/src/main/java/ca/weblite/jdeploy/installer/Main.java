@@ -640,6 +640,12 @@ public class Main implements Runnable, Constants {
                 File uninstallerPath = registryInstaller.getUninstallerPath();
                 uninstallerPath.getParentFile().mkdirs();
                 File installerExePath = new File(System.getProperty("client4j.launcher.path"));
+                if (uninstallerPath.exists()) {
+                    if (!uninstallerPath.canWrite()) {
+                        uninstallerPath.setWritable(true, false);
+                        uninstallerPath.delete();
+                    }
+                }
                 FileUtils.copyFile(installerExePath, uninstallerPath);
                 uninstallerPath.setExecutable(true, false);
                 FileUtils.copyDirectory(findInstallFilesDir(), new File(uninstallerPath.getParentFile(), findInstallFilesDir().getName()));
