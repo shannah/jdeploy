@@ -508,7 +508,11 @@ public class Main implements Runnable, Constants {
         if (uninstall && Platform.getSystemPlatform().isWindows()) {
             System.out.println("Running Windows uninstall...");
             InstallWindowsRegistry installer = new InstallWindowsRegistry(appInfo(), null, null, null);
-            UninstallWindows uninstallWindows = new UninstallWindows(appInfo().getNpmPackage(), appInfo().getNpmSource(), appInfo().getVersion(), appInfo().getTitle(), installer);
+            String version = null;
+            if (appInfo().getNpmVersion() != null && appInfo().getNpmVersion().startsWith("0.0.0-")) {
+                version = appInfo().getNpmVersion();
+            }
+            UninstallWindows uninstallWindows = new UninstallWindows(appInfo().getNpmPackage(), appInfo().getNpmSource(), version, appInfo().getTitle(), installer);
             uninstallWindows.uninstall();
             System.out.println("Uninstall complete");
             return;

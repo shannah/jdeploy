@@ -29,7 +29,7 @@ public class UninstallWindows {
         this.installWindowsRegistry = installer;
         this.fullyQualifiedPackageName = installer.getFullyQualifiedPackageName();
         this.appFileName = this.appTitle;
-        if (version.startsWith("0.0.0-")) {
+        if (version != null && version.startsWith("0.0.0-")) {
             this.appFileName += " " + version.substring(version.indexOf("-")+1);
         }
     }
@@ -86,8 +86,7 @@ public class UninstallWindows {
     private File getUninstallerPath() {
 
         String suffix = "";
-        if (version.startsWith("0.0.0-")) {
-
+        if (version != null && version.startsWith("0.0.0-")) {
             suffix = "-" + version.substring(version.indexOf("-")+1);
         }
         return new File(getJDeployHome(),
