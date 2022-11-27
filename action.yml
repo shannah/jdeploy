@@ -29,7 +29,7 @@ runs:
       if: ${{ github.ref_type == 'branch' }}
       shell: bash
       run: |
-        npm version "0.0.0-latest-${{ github.ref_name }}"
+        npm version "0.0.0-${{ github.ref_name }}"
         
         npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
 
@@ -54,7 +54,7 @@ runs:
       uses: marvinpinto/action-automatic-releases@latest
       with:
         repo_token: "${{ inputs.github_token }}"
-        automatic_release_tag: "latest-${{ github.ref_name }}"
+        automatic_release_tag: "${{ github.ref_name }}"
         prerelease: true
         title: "Native Bundles (${{ github.ref_name }})"
         files: "./jdeploy/github-release-files/*"
