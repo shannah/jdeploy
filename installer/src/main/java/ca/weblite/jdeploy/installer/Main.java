@@ -769,8 +769,9 @@ public class Main implements Runnable, Constants {
             String nameSuffix = "";
             String titleSuffix = "";
             if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
-                nameSuffix = "-" + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
-                titleSuffix = "-" + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
+                String v = appInfo().getNpmVersion();
+                nameSuffix = "-" +v.substring(v.indexOf("-") + 1).trim();
+                titleSuffix = "-" + v.substring(v.indexOf("-") + 1).trim();
             }
 
             String exeName = deriveLinuxBinaryNameFromTitle(appInfo().getTitle()) + nameSuffix;
