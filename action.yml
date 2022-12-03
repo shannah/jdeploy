@@ -8,7 +8,7 @@ inputs:
     required: true
   jdeploy_version:
     description: The version of Jdeploy
-    default: latest
+    default: '4.0.0-alpha.17'
 
 
 runs:
@@ -30,7 +30,7 @@ runs:
       shell: bash
       run: |
         npm version "0.0.0-${{ github.ref_name }}"
-        
+        npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}' 
         npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
 
     - name: Prepare Installer Bundles for Tag
@@ -38,6 +38,7 @@ runs:
       shell: bash
       run: |
         npm version "${{ github.ref_name }}"
+        npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}' 
         npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
 
     - name: Publish package-info.json
