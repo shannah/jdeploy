@@ -1972,7 +1972,9 @@ public class JDeploy {
         builder.setModifiedTime();
         builder.setVersionTimestamp(packageJSON.getString("version"));
         builder.addVersion(packageJSON.getString("version"), new FileInputStream(new File(publishDir, "package.json")));
-        builder.setLatestVersion(packageJSON.getString("version"));
+        if (!PrereleaseHelper.isPrereleaseVersion(packageJSON.getString("version"))) {
+            builder.setLatestVersion(packageJSON.getString("version"));
+        }
         builder.save(new FileOutputStream(new File(getGithubReleaseFilesDir(), "package-info.json")));
         // Trigger register of package name
         fetchJdeployBundleCode(getFullPackageName(bundlerSettings.getSource(), packageJSON.getString("name")));
