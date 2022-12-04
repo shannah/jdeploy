@@ -25,17 +25,13 @@ runs:
         node-version: '16.x'
         registry-url: 'https://registry.npmjs.org'
 
-    - name: Set package.json properties for release
-      shell: bash
-      run: |
-        npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
-        npm pkg set jdeploy.commit-hash="$GITHUB_SHA"
-
     - name: Prepare Installer Bundles for Branch
       if: ${{ github.ref_type == 'branch' }}
       shell: bash
       run: |
         npm version "0.0.0-${{ github.ref_name }}"
+        npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
+        npm pkg set jdeploy.commit-hash="$GITHUB_SHA"
         npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
 
     - name: Prepare Installer Bundles for Tag
@@ -43,6 +39,8 @@ runs:
       shell: bash
       run: |
         npm version "${{ github.ref_name }}"
+        npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
+        npm pkg set jdeploy.commit-hash="$GITHUB_SHA"
         npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
 
     - name: Publish package-info.json
