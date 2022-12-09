@@ -43,9 +43,21 @@ public class PackageInfoBuilder {
             name = namePrefix + name;
             getVersion(version).put("name", name);
         }
+        JSONObject jdeployObject = getVersion(version).getJSONObject("jdeploy");
+        if (jdeployObject != null) {
+            String commitHash = jdeployObject.getString("commitHash");
+            if (commitHash != null && !commitHash.isEmpty()) {
+                if (!json.has("commit-hashes")) {
+                    json.put("commit-hashes", new JSONObject());
+                }
+                json.getJSONObject("commit-hashes").put(version, commitHash);
+            }
+        }
 
         json.put("name", name);
         json.put("_id", name);
+
+
 
         return this;
     }
