@@ -44,7 +44,7 @@ public class PackageInfoBuilder {
             getVersion(version).put("name", name);
         }
         JSONObject jdeployObject = getVersion(version).getJSONObject("jdeploy");
-        if (jdeployObject != null) {
+        if (jdeployObject != null && jdeployObject.has("commitHash")) {
             String commitHash = jdeployObject.getString("commitHash");
             if (commitHash != null && !commitHash.isEmpty()) {
                 if (!json.has("commit-hashes")) {
