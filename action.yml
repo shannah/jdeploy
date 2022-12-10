@@ -31,7 +31,7 @@ runs:
       run: |
         npm version "0.0.0-${{ github.ref_name }}"
         npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
-        npm pkg set jdeploy.commit-hash="$GITHUB_SHA"
+        npm pkg set jdeploy.commitHash-="$GITHUB_SHA"
         npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
 
     - name: Prepare Installer Bundles for Tag
@@ -40,7 +40,7 @@ runs:
       run: |
         npm version "${{ github.ref_name }}"
         npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
-        npm pkg set jdeploy.commit-hash="$GITHUB_SHA"
+        npm pkg set jdeploy.commitHash="$GITHUB_SHA"
         npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
 
     - name: Publish package-info.json
