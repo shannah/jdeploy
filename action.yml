@@ -70,20 +70,12 @@ runs:
       with:
         file: "./jdeploy/github-release-files/*"
         tags: true
-    - name: Search for release
-      uses: actions/create-release@v1
-      id: search_release
-      env:
-        GITHUB_TOKEN: ${{ inputs.github_token }}
-      with:
-        tag_name: ${{ github.ref_name }}
     - name: Append to release notes
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       with:
-        tag_name: ${{ github.ref_name }}
-        release_id: ${{ steps.search_release.outputs.id }}
+        tag_name: refs/tags/${{ github.ref_name }}
         body_path: "./jdeploy/github-release-files/jdeploy-release-notes.md"
 
 
