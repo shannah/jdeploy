@@ -70,12 +70,11 @@ runs:
       with:
         file: "./jdeploy/github-release-files/*"
         tags: true
-
-    - name: Add jDeploy Release Notes
-      uses: irongut/EditRelease@v1.2.0
+    - name: Append to release notes
+      uses: actions/create-release@v1
       with:
-        token: ${{ inputs.github_token }}
-        id: ${{ github.ref_name }}
-        files: "./jdeploy/github-release-files/jdeploy-release-notes.md"
+        tag_name: ${{ github.ref_name }}
+        body_path: "./jdeploy/github-release-files/jdeploy-release-notes.md"
+
 
 
