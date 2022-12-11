@@ -71,6 +71,19 @@ runs:
         file: "./jdeploy/github-release-files/*"
         tags: true
 
-
+    - name: Update release body
+      if: ${{ github.ref_type == 'branch' }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        BODY=$(cat ./jdeploy/github-release-files/jdeploy-release-notes.md)
+        curl \
+        -X PATCH \
+        -H "Accept: application/vnd.github+json" \
+        -H "Authorization: Bearer ${GITHUB_TOKEN}"\
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        ${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/${GITHUB_REF_NAME}\
+        -d "{\"body\":\"$(echo "$BODY" | tr '\n' ' ')\"}"
 
 
