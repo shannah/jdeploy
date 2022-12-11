@@ -70,6 +70,12 @@ public class JDeploy {
         System.setProperty("apple.laf.useScreenMenuBar", "true");
         System.setProperty("apple.eawt.quitStrategy", "CLOSE_ALL_WINDOWS");
     }
+
+    private static final String BUNDLE_MAC_X64 = "mac-x64";
+    private static final String BUNDLE_MAC_ARM64 = "mac-arm64";
+    private static final String BUNDLE_WIN = "win";
+    private static final String BUNDLE_LINUX = "linux";
+
     private boolean alwaysClean = !Boolean.getBoolean("jdeploy.doNotClean");
     private boolean alwaysPackageOnPublish = !Boolean.getBoolean("jdeploy.doNotPackage");
     private boolean doNotStripJavaFXFiles;
@@ -277,7 +283,20 @@ public class JDeploy {
         return Result.fromContent(mj());
     }
 
+    private Set<String> bundlesOverride;
+
+    private void overrideBundles(String... bundles) {
+        if (bundles == null) {
+            bundlesOverride = null;
+        } else {
+            bundlesOverride = new LinkedHashSet<>(Arrays.asList(bundles));
+        }
+    }
+
     private Set<String> bundles() {
+        if (bundlesOverride != null) {
+            return new LinkedHashSet<String>(bundlesOverride);
+        }
         Map m = mj();
         HashSet<String> out = new HashSet<String>();
         if (m.containsKey("bundles")) {
@@ -1416,11 +1435,11 @@ public class JDeploy {
     }
 
     public void macIntelBundle(BundlerSettings bundlerSettings) throws Exception {
-        bundle("mac-x64", bundlerSettings);
+        bundle(BUNDLE_MAC_X64, bundlerSettings);
     }
 
     public void macArmBundle(BundlerSettings bundlerSettings) throws Exception {
-        bundle("mac-arm64", bundlerSettings);
+        bundle(BUNDLE_MAC_ARM64, bundlerSettings);
     }
 
     public void macInstaller() throws Exception {
@@ -1449,16 +1468,16 @@ public class JDeploy {
 
     public void allBundles(BundlerSettings bundlerSettings) throws Exception {
         Set<String> bundles = bundles();
-        if (bundles.contains("mac") || bundles.contains("mac-x64")) {
+        if (bundles.contains("mac") || bundles.contains(BUNDLE_MAC_X64)) {
             macIntelBundle(bundlerSettings);
         }
-        if (bundles.contains("mac-arm64")) {
+        if (bundles.contains(BUNDLE_MAC_ARM64)) {
             macArmBundle(bundlerSettings);
         }
-        if (bundles.contains("win")) {
+        if (bundles.contains(BUNDLE_WIN)) {
             windowsBundle(bundlerSettings);
         }
-        if (bundles.contains("linux")) {
+        if (bundles.contains(BUNDLE_LINUX)) {
             linuxBundle(bundlerSettings);
         }
 
@@ -1531,15 +1550,15 @@ public class JDeploy {
         }
 
         File installerZip;
-        if (target.equals("mac") || target.equals("mac-x64")) {
-            _newName = _newName.replace("${{ platform }}", "mac-x64");
+        if (target.equals("mac") || target.equals(BUNDLE_MAC_X64)) {
+            _newName = _newName.replace("${{ platform }}", BUNDLE_MAC_X64);
             installerZip = new File(installerDir, _newName + ".tar");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-mac-amd64.tar"), installerZip);
-        } else if (target.equals("mac-arm64")) {
-            _newName = _newName.replace("${{ platform }}", "mac-arm64");
+        } else if (target.equals(BUNDLE_MAC_ARM64)) {
+            _newName = _newName.replace("${{ platform }}", BUNDLE_MAC_ARM64);
             installerZip = new File(installerDir, _newName +  ".tar");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-mac-arm64.tar"), installerZip);
-        } else if (target.equals("win")) {
+        } else if (target.equals(BUNDLE_WIN)) {
             _newName = _newName.replace("${{ platform }}", "win-x64");
             installerZip = new File(installerDir, _newName + ".exe");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-win-amd64.exe"), installerZip);
@@ -1549,7 +1568,7 @@ public class JDeploy {
             }
             return;
 
-        } else if (target.equals("linux")) {
+        } else if (target.equals(BUNDLE_LINUX)) {
             _newName = _newName.replace("${{ platform }}", "linux-x64");
             installerZip = new File(installerDir, _newName);
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-linux-amd64"), installerZip);
@@ -1792,6 +1811,58 @@ public class JDeploy {
         return new File(directory, "jdeploy" + File.separator + "github-release-files");
     }
 
+    private String createGithubReleaseNotes() {
+        final String repo = System.getenv("GITHUB_REPOSITORY");
+        final String releasesPrefix = "/releases/download/";
+        final String branchTag = System.getenv("GITHUB_REF_NAME");
+        final File releaseFilesDir = getGithubReleaseFilesDir();
+        final Optional<File> macIntelBundle = Arrays.asList(
+                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_MAC_X64))
+        ).stream().findFirst();
+        final Optional<File> macArmBundle = Arrays.asList(
+                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_MAC_ARM64))
+        ).stream().findFirst();
+        final Optional<File> winBundle = Arrays.asList(
+                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_WIN))
+        ).stream().findFirst();
+        final Optional<File> linuxBundle = Arrays.asList(
+                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_LINUX))
+        ).stream().findFirst();
+        StringBuilder notes = new StringBuilder();
+        notes.append("## Application Installers\n\n");
+        if (macArmBundle.isPresent()) {
+            notes.append("* [Mac (Apple Silicon)](https://github.com/")
+                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
+                    .append(urlencode(macArmBundle.get().getName())).append(")\n");
+        }
+        if (macIntelBundle.isPresent()) {
+            notes.append("* [Mac (Intel)](https://github.com/")
+                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
+                    .append(urlencode(macIntelBundle.get().getName())).append(")\n");
+        }
+        if (winBundle.isPresent()) {
+            notes.append("* [Windows (x64)](https://github.com/")
+                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
+                    .append(urlencode(winBundle.get().getName())).append(")\n");
+        }
+        if (linuxBundle.isPresent()) {
+            notes.append("* [Linux (x64)](https://github.com/")
+                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
+                    .append(urlencode(linuxBundle.get().getName())).append(")\n");
+        }
+        return notes.toString();
+    }
+
+    private String urlencode(String str) {
+        try {
+            return URLEncoder.encode(str, "UTF-8");
+        } catch (Exception ex) {
+            err.println("Failed to encode string "+str);
+            ex.printStackTrace(err);
+            return str;
+        }
+    }
+
     private void saveGithubReleaseFiles() throws IOException {
         File icon = new File(directory, "icon.png");
         File installSplash = new File(directory,"installsplash.png");
@@ -1811,6 +1882,9 @@ public class JDeploy {
                 FileUtils.copyFile(installerFile, new File(releaseFilesDir, installerFile.getName()));
             }
         }
+
+        final String releaseNotes = createGithubReleaseNotes();
+        FileUtil.writeStringToFile(releaseNotes, new File(releaseFilesDir, "jdeploy-release-notes.md"));
 
         out.println("Assets copied to " + releaseFilesDir);
     }
@@ -1956,8 +2030,12 @@ public class JDeploy {
         }
 
         bundlerSettings.setCompressBundles(true);
-
-        _package(bundlerSettings);
+        overrideBundles(BUNDLE_MAC_X64, BUNDLE_MAC_ARM64, BUNDLE_WIN, BUNDLE_LINUX);
+        try {
+            _package(bundlerSettings);
+        } finally {
+            overrideBundles(null);
+        }
 
         JSONObject packageJSON = prepublish(bundlerSettings);
         getGithubReleaseFilesDir().mkdirs();
