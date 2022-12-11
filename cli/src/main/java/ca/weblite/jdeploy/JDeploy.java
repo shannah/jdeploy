@@ -1815,6 +1815,7 @@ public class JDeploy {
         final String repo = System.getenv("GITHUB_REPOSITORY");
         final String releasesPrefix = "/releases/download/";
         final String branchTag = System.getenv("GITHUB_REF_NAME");
+        final String refType = System.getenv("GITHUB_REF_TYPE");
         final File releaseFilesDir = getGithubReleaseFilesDir();
         final Optional<File> macIntelBundle = Arrays.asList(
                 releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_MAC_X64))
@@ -1829,31 +1830,54 @@ public class JDeploy {
                 releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_LINUX))
         ).stream().findFirst();
         StringBuilder notes = new StringBuilder();
-        notes.append("## Application Installers\n\n");
+        notes.append("## Application Installers");
+        if ("branch".equals(refType)) {
+            notes.append(" for latest snapshot of ").append(branchTag).append(" branch");
+        } else {
+            notes.append(" latest release");
+        }
+        notes.append("\n\n");
+
         if (macArmBundle.isPresent()) {
             notes.append("* [Mac (Apple Silicon)](https://github.com/")
                     .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                    .append(urlencode(macArmBundle.get().getName())).append(")\n");
+                    .append(urlencodeFileNameForGithubRelease(macArmBundle.get().getName())).append(")\n");
         }
         if (macIntelBundle.isPresent()) {
             notes.append("* [Mac (Intel)](https://github.com/")
                     .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                    .append(urlencode(macIntelBundle.get().getName())).append(")\n");
+                    .append(urlencodeFileNameForGithubRelease(macIntelBundle.get().getName())).append(")\n");
         }
         if (winBundle.isPresent()) {
             notes.append("* [Windows (x64)](https://github.com/")
                     .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                    .append(urlencode(winBundle.get().getName())).append(")\n");
+                    .append(urlencodeFileNameForGithubRelease(winBundle.get().getName())).append(")\n");
         }
         if (linuxBundle.isPresent()) {
             notes.append("* [Linux (x64)](https://github.com/")
                     .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                    .append(urlencode(linuxBundle.get().getName())).append(")\n");
+                    .append(urlencodeFileNameForGithubRelease(linuxBundle.get().getName())).append(")\n");
         }
+
+        if ("branch".equals(refType)) {
+            notes.append("\nOr launch app installer via command-line on Linux, Mac, or Windows:\n\n");
+            notes.append("```bash\n");
+            notes.append("/bin/bash -c \"$(curl -fsSL https://www.jdeploy.com/").append(repo).append(branchTag).append("/install.sh)\"\n");
+            notes.append("```\n");
+        } else {
+            notes.append("\nOr launch app installer via command-line on Linux, Mac, or Windows:\n\n");
+            notes.append("```bash\n");
+            notes.append("/bin/bash -c \"$(curl -fsSL https://www.jdeploy.com/").append(repo).append("/install.sh)\"\n");
+            notes.append("```\n");
+        }
+        notes.append("\nSee [jDeploy Download Page](https://www.jdeploy.com/gh/").append(repo).append("/").append(branchTag).append(") for more download options.\n\n");
+
+
         return notes.toString();
     }
 
-    private String urlencode(String str) {
+    private String urlencodeFileNameForGithubRelease(String str) {
+        str = str.replace(" ", ".");
         try {
             return URLEncoder.encode(str, "UTF-8");
         } catch (Exception ex) {
