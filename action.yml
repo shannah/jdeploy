@@ -8,7 +8,7 @@ inputs:
     required: true
   jdeploy_version:
     description: The version of Jdeploy
-    default: '4.0.0-alpha.27'
+    default: '4.0.0-alpha.28'
 
 
 runs:

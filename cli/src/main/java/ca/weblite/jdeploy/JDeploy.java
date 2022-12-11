@@ -1862,13 +1862,13 @@ public class JDeploy {
         if ("branch".equals(refType)) {
             notes.append("\nOr launch app installer via command-line on Linux, Mac, or Windows:\n\n");
             notes.append("```bash\n");
-            notes.append("/bin/bash -c \"$(curl -fsSL https://www.jdeploy.com/")
+            notes.append("/bin/bash -c \"$(curl -fsSL https://www.jdeploy.com/gh/")
                     .append(repo).append("/").append(branchTag).append("/install.sh)\"\n");
             notes.append("```\n");
         } else {
             notes.append("\nOr launch app installer via command-line on Linux, Mac, or Windows:\n\n");
             notes.append("```bash\n");
-            notes.append("/bin/bash -c \"$(curl -fsSL https://www.jdeploy.com/").append(repo).append("/install.sh)\"\n");
+            notes.append("/bin/bash -c \"$(curl -fsSL https://www.jdeploy.com/gh/").append(repo).append("/install.sh)\"\n");
             notes.append("```\n");
         }
         notes.append("\nSee [download page](https://www.jdeploy.com/gh/").append(repo).append("/").append(branchTag).append(") for more download options.\n\n");
