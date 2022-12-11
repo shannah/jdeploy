@@ -73,6 +73,8 @@ runs:
     - name: Search for release
       uses: actions/create-release@v1
       id: search_release
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
       with:
         tag_name: ${{ github.ref_name }}
     - name: Append to release notes
