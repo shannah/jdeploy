@@ -47,7 +47,13 @@ function njreWrap() {
 
     function download (dir, url) {
         if (url.indexOf("?") > 0 || jdkProvider === 'zulu') {
-            var destName = bundleType + ".zip";
+            var ext = ".zip";
+            switch (process.platform) {
+                case 'linux':
+                    ext = ".tar.gz";
+                    break;
+            }
+            var destName = bundleType + ext;
         } else {
             destName = path.basename(url);
         }
@@ -286,6 +292,7 @@ function njreWrap() {
 
          };
 
+
          var zuluBaseURL = "https://api.azul.com/zulu/download/community/v1.0/bundles/latest/binary?"
          if (!options.os) {
              switch (process.platform) {
@@ -295,6 +302,7 @@ function njreWrap() {
                  break
                case 'linux':
                  q.os = 'linux'
+                 q.ext = 'tar.gz'
                  break
 
                case 'win32':
