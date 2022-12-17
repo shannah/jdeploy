@@ -54,6 +54,16 @@ public class PackageInfoBuilder {
             }
         }
 
+        if (jdeployObject != null && jdeployObject.has("gitTag")) {
+            String gitTag = jdeployObject.getString("gitTag");
+            if (gitTag != null && !gitTag.isEmpty()) {
+                if (!json.has("git-tags")) {
+                    json.put("git-tags", new JSONObject());
+                }
+                json.getJSONObject("git-tags").put(version, gitTag);
+            }
+        }
+
         json.put("name", name);
         json.put("_id", name);
 

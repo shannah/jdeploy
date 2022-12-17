@@ -14,7 +14,7 @@ inputs:
     required: false
   jdeploy_version:
     description: The version of Jdeploy
-    default: '4.0.0-alpha.31'
+    default: '4.0.0-alpha.32'
 
 
 runs:
@@ -74,6 +74,7 @@ runs:
         npm pkg set version="$TAG_VERSION"
         npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
         npm pkg set jdeploy.commitHash="$GITHUB_SHA"
+        npm pkg set jdeploy.gitTag="${{ github.ref_name }}"
         npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
 
     - name: Publish package-info.json to Github
