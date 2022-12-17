@@ -53,7 +53,7 @@ runs:
       if: ${{ github.ref_type == 'tag' }}
       run: |
         TAG_VERSION=${{ github.ref_name }}
-        if [ ${TAG_VERSION:1} == 'v' ]; then
+        if [[ $TAG_VERSION} = v* ]]; then
           echo "TAG_VERSION=${TAG_VERSION:1}" >> $GITHUB_ENV
         else
           echo "TAG_VERSION=${TAG_VERSION}" >> $GITHUB_ENV
