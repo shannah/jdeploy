@@ -108,7 +108,6 @@ runs:
         set -e
         BODY=$(cat ./jdeploy/github-release-files/jdeploy-release-notes.md)
         BODY_JSON="{\"body\": $(echo "$BODY" | jq -sR .)}"
-        echo "BODY_JSON=$BODY_JSON"
         RELEASE_RESULT=$(curl -s \
         -H "Accept: application/vnd.github+json" \
         -H "Authorization: Bearer ${GITHUB_TOKEN}" \
