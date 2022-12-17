@@ -2,18 +2,42 @@ name: 'Publish Github Release'
 description: Publish jDeploy Bundles on Github
 
 inputs:
-
+  deploy_target:
+    description: Target deployment destination (npm or github).
+    # Options are github or npm
+    default: github
   github_token:
     description: Github token
-    required: true
+    required: false
+  npm_token:
+    description: npm token
+    required: false
   jdeploy_version:
     description: The version of Jdeploy
-    default: '4.0.0-alpha.28'
+    default: '4.0.0-alpha.29'
 
 
 runs:
   using: composite
   steps:
+    - name: Check Deploy Target
+      if: ${{ inputs.deploy_target != 'github' && inputs.deploy_target != 'npm' }}
+      shell: bash
+      run: |
+        echo "Unsupported jdeploy deploy_target: ${{ inputs.deploy_target }}"
+        exit 1
+    - name: Check Github Deployment Inputs
+      if: ${{ inputs.deploy_target == 'github' && inputs.github_token == '' }}
+      shell: bash
+      run: |
+        echo "jdeploy action missing github_token parameter"
+        exit 1
+    - name: Check npm Deployment Inputs
+      if: ${{ inputs.deploy_target == 'npm' && inputs.npm_token == '' }}
+      shell: bash
+      run: |
+        echo "jdeploy action missing npm_token parameter"
+        exit 1
     - name: Set up Git Config
       shell: bash
       run: |
@@ -26,7 +50,7 @@ runs:
         registry-url: 'https://registry.npmjs.org'
 
     - name: Prepare Installer Bundles for Branch
-      if: ${{ github.ref_type == 'branch' }}
+      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
       shell: bash
       run: |
         npm version "0.0.0-${{ github.ref_name }}"
@@ -35,7 +59,7 @@ runs:
         npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
 
     - name: Prepare Installer Bundles for Tag
-      if: ${{ github.ref_type == 'tag' }}
+      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' }}
       shell: bash
       run: |
         npm version "${{ github.ref_name }}"
@@ -43,8 +67,9 @@ runs:
         npm pkg set jdeploy.commitHash="$GITHUB_SHA"
         npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
 
-    - name: Publish package-info.json
+    - name: Publish package-info.json to Github
       uses: marvinpinto/action-automatic-releases@latest
+      if: ${{ inputs.deploy_target == 'github' }}
       with:
         repo_token: "${{ inputs.github_token }}"
         automatic_release_tag: "jdeploy"
@@ -52,8 +77,8 @@ runs:
         title: "jDeploy Package Info"
         files: ./jdeploy/github-release-files/package-info.json
 
-    - name: Upload files to Snapshot Release for Branch
-      if: ${{ github.ref_type == 'branch' }}
+    - name: Upload files to Github Snapshot Release for Branch
+      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
       uses: marvinpinto/action-automatic-releases@latest
       with:
         repo_token: "${{ inputs.github_token }}"
@@ -62,8 +87,8 @@ runs:
         title: "Native Bundles (${{ github.ref_name }})"
         files: "./jdeploy/github-release-files/*"
 
-    - name: Upload Files to Release for Tag
-      if: ${{ github.ref_type == 'tag' }}
+    - name: Upload Files to Github Release for Tag
+      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' }}
       uses: xresloader/upload-to-github-release@v1
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
@@ -72,7 +97,7 @@ runs:
         tags: true
 
     - name: Update release body
-      if: ${{ github.ref_type == 'branch' }}
+      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
@@ -99,4 +124,13 @@ runs:
         https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID} \
         -d "$BODY_JSON"
 
-
+    - name: Publish to npm
+      if: ${{ inputs.deploy_target == 'npm' && github.ref_type == 'tag' }}
+      shell: bash
+      env:
+        NODE_AUTH_TOKEN: ${{ inputs.npm_token }}
+      run: |
+        npm version "${{ github.ref_name }}"
+        npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
+        npm pkg set jdeploy.commitHash="$GITHUB_SHA"
+        npx jdeploy@${{ inputs.jdeploy_version }} publish
