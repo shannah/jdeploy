@@ -104,6 +104,7 @@ runs:
       with:
         file: "./jdeploy/github-release-files/*"
         tags: true
+        overwrite: true
 
     - name: Update release body (for branch release)
       if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
