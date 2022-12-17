@@ -14,7 +14,7 @@ inputs:
     required: false
   jdeploy_version:
     description: The version of Jdeploy
-    default: '4.0.0-alpha.29'
+    default: '4.0.0-alpha.30'
 
 
 runs:
@@ -151,7 +151,8 @@ runs:
         https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME})
         RELEASE_ID=$( jq -r  '.id' <<< "${RELEASE_RESULT}" ) 
         OLD_BODY=$(jq -r '.body' <<< "${RELEASE_RESULT}" )
-        BODY_JSON="{\"body\": $(echo "$OLD_BODY\n$BODY" | jq -sR .)}"
+        NEW_BODY=$(GITHUB_RELEASE_BODY="$OLD_BODY" JDEPLOY_RELEASE_NOTES="$BODY" npx 'jdeploy@${{ inputs.jdeploy_version }}' github-build-release-body)
+        BODY_JSON="{\"body\": $(echo "$NEW_BODY" | jq -sR .)}"
         echo "Release ID is ${RELEASE_ID}"
         curl \
         -X PATCH \

@@ -2032,6 +2032,27 @@ public class JDeploy {
         return source + "#" + packageName;
     }
 
+    public String injectGithubReleaseNotes(String originalNotes, String jdeployReleaseNotes) {
+        final String beginMarker = "<!-- JDEPLOY BEGIN -->";
+        final String endMarker = "<!-- JDEPLOY END -->";
+        final int beginMarkerPos = originalNotes.indexOf(beginMarker);
+        final int endMarkerPos = beginMarkerPos >= 0 ? originalNotes.indexOf(endMarker, beginMarkerPos) : -1;
+        final StringBuilder sb = new StringBuilder();
+        if (beginMarkerPos >= 0 && endMarkerPos > 0) {
+            sb.append(originalNotes, 0, beginMarkerPos);
+            sb.append(beginMarker).append("\n");
+            sb.append(jdeployReleaseNotes.trim()).append("\n");
+            sb.append(endMarker).append("\n\n");
+            sb.append(originalNotes.substring(endMarkerPos+endMarker.length()).trim());
+        } else {
+            sb.append(originalNotes.trim()).append("\n\n");
+            sb.append(beginMarker).append("\n");
+            sb.append(jdeployReleaseNotes).append("\n");
+            sb.append(endMarker).append("\n");
+        }
+        return sb.toString();
+    }
+
     /**
      * Prepares a self-publish release.
      * @throws IOException
@@ -2305,6 +2326,14 @@ public class JDeploy {
                 prog.publish();
             } else if ("github-prepare-release".equals(args[0])) {
                 prog.prepareGithubRelease(new BundlerSettings(), null);
+            } else if ("github-build-release-body".equals(args[0])) {
+                String oldBody = System.getenv("GITHUB_RELEASE_BODY");
+                String jdeployReleaseNotes = System.getenv("JDEPLOY_RELEASE_NOTES");
+                if (oldBody == null || jdeployReleaseNotes == null) {
+                    System.err.println("The github-build-release-body action requires both the GITHUB_RELEASE_BODY and JDEPLOY_RELEASE_NOTES environment variables to be set");
+                    System.exit(1);
+                }
+                System.out.println(prog.injectGithubReleaseNotes(oldBody, jdeployReleaseNotes));
             } else if ("scan".equals(args[0])) {
                 prog.scan();
             } else if ("run".equals(args[0])) {
