@@ -52,7 +52,7 @@ runs:
       shell: bash
       if: ${{ github.ref_type == 'tag' }}
       run: |
-        TAG_VERSION=${{ github.event.release.tag_name }}
+        TAG_VERSION=${{ github.ref_name }}
         if [ $TAG_VERSION == v* ]; then
           echo "TAG_VERSION=${TAG_VERSION:1}" >> $GITHUB_ENV
         else
