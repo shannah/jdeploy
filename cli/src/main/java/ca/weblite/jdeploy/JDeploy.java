@@ -1904,7 +1904,8 @@ public class JDeploy {
         File installerFiles = getInstallersDir();
         if (installerFiles.isDirectory()) {
             for (File installerFile : installerFiles.listFiles()) {
-                FileUtils.copyFile(installerFile, new File(releaseFilesDir, installerFile.getName()));
+                FileUtils.copyFile(installerFile, new File(releaseFilesDir, installerFile.getName().replace(' ', '.')));
+
             }
         }
 
