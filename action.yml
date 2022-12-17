@@ -62,7 +62,7 @@ runs:
       if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' }}
       shell: bash
       run: |
-        npm version "${{ github.ref_name }}"
+        npm pkg set version='${{ github.ref_name }}'
         npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
         npm pkg set jdeploy.commitHash="$GITHUB_SHA"
         npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
