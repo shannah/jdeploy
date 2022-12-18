@@ -2416,8 +2416,9 @@ public class JDeploy {
             try {
                 File packageJSONFile = new File(directory, "package.json");
                 JSONObject packageJSONObject = new JSONObject(FileUtils.readFileToString(packageJSONFile, "UTF-8"));
-                new JDeployProjectEditor(new File("package.json"), packageJSONObject).show();
+                new JDeployProjectEditor(packageJSONFile, packageJSONObject).show();
             } catch (Exception ex) {
+                ex.printStackTrace(err);
                 JOptionPane.showMessageDialog(null,  new JLabel(
                                 "<html><p style='width:400px'>There was a problem reading the package.json file. "+ex.getMessage()+"</p></html>"),
                         "JDeploy init error",

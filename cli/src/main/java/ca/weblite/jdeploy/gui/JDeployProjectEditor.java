@@ -867,7 +867,7 @@ public class JDeployProjectEditor {
         });
         mainFields.javaVersion = new JComboBox<String>(new String[]{"8", "11", "17"});
         if (jdeploy.has("javaVersion")) {
-            mainFields.javaVersion.setSelectedItem(jdeploy.getString("javaVersion"));
+            mainFields.javaVersion.setSelectedItem(String.valueOf(jdeploy.get("javaVersion")));
         } else {
             mainFields.javaVersion.setSelectedItem("11");
         }
