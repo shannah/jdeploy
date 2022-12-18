@@ -1,0 +1,28 @@
+# This workflow will build a Java project with Ant and bundle them as native app installers with jDeploy
+# See https://www.jdeploy.com for more information.
+name: jDeploy CI with Ant
+
+on:
+  push:
+    branches: *
+    tags: *
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up JDK #{{ JAVA_VERSION }}
+        uses: actions/setup-java@v3
+        with:
+          java-version: '#{{ JAVA_VERSION }}'
+          distribution: 'temurin'
+      - name: Build with Ant
+        run: ant -noinput -buildfile build.xml
+
+      - name: Build App Installer Bundles
+        uses: shannah/jdeploy@#{{ JDEPLOY_VERSION }}
+        with:
+          github_token: ${{ github.token }}

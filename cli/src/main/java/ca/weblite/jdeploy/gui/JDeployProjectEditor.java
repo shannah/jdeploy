@@ -1,11 +1,14 @@
 package ca.weblite.jdeploy.gui;
 
 import ca.weblite.jdeploy.JDeploy;
+import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
+import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.services.ExportIdentityService;
+import ca.weblite.jdeploy.services.GithubWorkflowGenerator;
 import ca.weblite.jdeploy.services.WebsiteVerifier;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.MD5;
@@ -30,6 +33,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.JTextComponent;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -61,6 +65,9 @@ public class JDeployProjectEditor {
     private WatchService watchService;
     private boolean pollWatchService = true;
     private boolean processingPackageJSONChange = false;
+
+    private JMenuItem generateGithubWorkflowMenuItem;
+    private JMenuItem editGithubWorkflowMenuItem;
 
     private class MainFields {
         private JTextField name, title, version, iconUrl, jar, urlSchemes, author,
@@ -1238,6 +1245,17 @@ public class JDeployProjectEditor {
         file.addSeparator();
         file.add(openInTextEditor);
 
+        generateGithubWorkflowMenuItem = new JMenuItem("Create Github Workflow");
+        generateGithubWorkflowMenuItem.setToolTipText("Generate a Github workflow to deploy your application automatically with Github Actions");
+        generateGithubWorkflowMenuItem.addActionListener(evt -> generateGithubWorkflow());
+
+        editGithubWorkflowMenuItem = new JMenuItem("Edit Github Workflow");
+        editGithubWorkflowMenuItem.setToolTipText("Edit the Github workflow file in a text editor");
+        editGithubWorkflowMenuItem.addActionListener(evt -> editGithubWorkflow());
+        file.addSeparator();
+        file.add(generateGithubWorkflowMenuItem);
+        file.add(editGithubWorkflowMenuItem);
+
         /*
         JMenuItem exportIdentity = new JMenuItem("Export Signing Keys");
         exportIdentity.setToolTipText("Export the developer signing keys as a PEM file.  Useful for using in GitHub actions.");
@@ -1264,8 +1282,6 @@ public class JDeployProjectEditor {
             file.add(quit);
         }
 
-
-
         JMenu help = new JMenu("Help");
         JMenuItem jdeployHelp = createLinkItem("https://www.jdeploy.com/docs/help", "jDeploy Help", "Open jDeploy application help in your web browser");
         help.add(jdeployHelp);
@@ -1278,10 +1294,6 @@ public class JDeployProjectEditor {
         help.add(createLinkItem("https://github.com/shannah/jdeploy/discussions", "Support Forum", "A place to ask questions and get help from the community"));
         help.add(createLinkItem("https://github.com/shannah/jdeploy/issues", "Issue Tracker", "Find and report bugs"));
 
-
-
-
-
         jmb.add(file);
         jmb.add(help);
         frame.setJMenuBar(jmb);
@@ -1291,6 +1303,30 @@ public class JDeployProjectEditor {
         NPMApplication app = NPMApplicationHelper.createFromPackageJSON(packageJSON);
         VerifyWebsiteController verifyController = new VerifyWebsiteController(frame, app);
         EventQueue.invokeLater(verifyController);
+    }
+
+    private void generateGithubWorkflow() {
+        final File projectDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
+        final JDeploy jdeploy = new JDeploy(projectDirectory, false);
+
+        EventQueue.invokeLater(
+                new GenerateGithubWorkflowController(
+                        frame,
+                        jdeploy.getJavaVersion(17),
+                        "master",
+                        new GithubWorkflowGenerator(projectDirectory)
+                )
+        );
+    }
+
+    private void editGithubWorkflow() {
+        final File projectDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
+        EventQueue.invokeLater(
+                new EditGithubWorkflowController(
+                        frame,
+                        new GithubWorkflowGenerator(projectDirectory)
+                )
+        );
     }
 
     private JButton createHelpButton(String url, String label, String tooltipText) {

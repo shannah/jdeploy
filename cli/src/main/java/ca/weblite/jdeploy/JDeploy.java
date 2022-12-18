@@ -15,6 +15,8 @@ import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.services.DeveloperIdentityKeyStore;
+import ca.weblite.jdeploy.services.GithubWorkflowGenerator;
+import ca.weblite.jdeploy.services.JavaVersionExtractor;
 import ca.weblite.tools.io.*;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
@@ -1233,8 +1235,19 @@ public class JDeploy {
         }
         return out.toString();
     }
-    
-    private void init(String commandName, boolean prompt) throws IOException {
+
+
+
+    /**
+     *
+     * @param commandName The name of the command-line command that will be installed for CLI use of the app.
+     * @param prompt If true, then the user will be prompted to confirm settings before actually writing the package.json
+     * @param generateGithubWorkflow True if this should also generate a github workflow.
+     * @throws IOException
+     */
+    private void init(String commandName, boolean prompt, boolean generateGithubWorkflow) throws IOException {
+        final int javaVersionInt = new JavaVersionExtractor().extractJavaVersionFromSystemProperties(11);
+
         commandName = directory.getAbsoluteFile().getName().toLowerCase();
         if (".".equals(commandName)) {
             commandName = directory.getAbsoluteFile().getParentFile().getName().toLowerCase();
@@ -1244,9 +1257,6 @@ public class JDeploy {
             updatePackageJson(commandName);
         } else {
             File candidate = findBestCandidate();
-            if (commandName == null) {
-
-            }
             if (candidate != null) {
                 commandName = candidate.getName();
                 if (commandName.endsWith(".jar") || commandName.endsWith(".war")) {
@@ -1292,39 +1302,61 @@ public class JDeploy {
                 jdeploy.put("war", getRelativePath(candidate));
             }
 
-            jdeploy.put("javaVersion", "11");
+            jdeploy.put("javaVersion", javaVersionInt);
             jdeploy.put("javafx", false);
             jdeploy.put("jdk", false);
 
-
-
             String title = toTitleCase(commandName);
-
 
             jdeploy.put("title", title);
 
             m.put("jdeploy", jdeploy);
 
-            Result res = Result.fromContent(m);
-            String jsonStr = res.toString();
+            final Result res = Result.fromContent(m);
+            final String jsonStr = res.toString();
+            final GithubWorkflowGenerator githubWorkflowGenerator = new GithubWorkflowGenerator(directory);
             if (prompt) {
                 out.println("Creating your package.json file with following content:\n ");
                 out.println(jsonStr);
                 out.println("");
                 out.print("Proceed? (y/N)");
-                Scanner reader = new Scanner(System.in);
-                String response = reader.next();
+                final Scanner reader = new Scanner(System.in);
+                final String response = reader.next();
                 if ("y".equals(response.toLowerCase().trim())) {
                     out.println("Writing package.json...");
                     FileUtils.writeStringToFile(packageJson, jsonStr, "UTF-8");
                     out.println("Complete!");
+
+                    if (generateGithubWorkflow && !githubWorkflowGenerator.getGithubWorkflowFile().exists()) {
+                        out.print("Would you like to generate a workflow run jDeploy with Github Actions? (y/N)");
+                        final String githubWorkflowResponse = reader.next();
+                        if ("y".equalsIgnoreCase(githubWorkflowResponse.trim())) {
+                            try {
+                                out.println("Generating Github workflow...");
+                                githubWorkflowGenerator.generateGithubWorkflow(javaVersionInt, "master");
+                                out.println("Github Workflow generated at " + githubWorkflowGenerator.getGithubWorkflowFile());
+                            } catch (IOException ex) {
+                                err.println("Failed to generate workflow file");
+                                ex.printStackTrace(err);
+                            }
+                        }
+                    }
                 } else {
                     out.println("Cancelled");
                 }
             } else {
                 FileUtils.writeStringToFile(packageJson, jsonStr, "UTF-8");
+                if (generateGithubWorkflow && !githubWorkflowGenerator.getGithubWorkflowFile().exists()) {
+                    try {
+                        out.println("Generating Github workflow...");
+                        githubWorkflowGenerator.generateGithubWorkflow(javaVersionInt, "master");
+                        out.println("Github Workflow generated at " + githubWorkflowGenerator.getGithubWorkflowFile());
+                    } catch (IOException ex) {
+                        err.println("Failed to generate workflow file");
+                        ex.printStackTrace(err);
+                    }
+                }
             }
-
         }
     }
     
@@ -2322,7 +2354,7 @@ public class JDeploy {
                     commandName = args[1];
                 }
                 
-                prog.init(commandName, true);
+                prog.init(commandName, true, true);
             } else if ("install".equals(args[0])) {
                 prog.install();
             } else if ("publish".equals(args[0])) {
@@ -2353,7 +2385,7 @@ public class JDeploy {
 
     private void guiCreateNew(File packageJSON) {
         EventQueue.invokeLater(()->{
-            int result = JOptionPane.showConfirmDialog(null, new JLabel(
+            final int result = JOptionPane.showConfirmDialog(null, new JLabel(
                     "<html><p style='width:400px'>No package.json file found in this directory.  Do you want to create one now?</p></html>"),
                     "Create package.json?",
                     JOptionPane.YES_NO_OPTION);
@@ -2364,9 +2396,14 @@ public class JDeploy {
                 return;
             }
 
+            final int addWorkflowResult = JOptionPane.showConfirmDialog(null, new JLabel(
+                            "<html><p style='width:400px'>Would you like to also create a Github workflow to build installer bundles automatically using Github Actions?</p></html>"),
+                    "Create Github Workflow?",
+                    JOptionPane.YES_NO_OPTION);
+            final boolean addGithubWorkflow = addWorkflowResult == JOptionPane.YES_OPTION;
             exitOnFail = false;
             try {
-                init(null, false);
+                init(null, false, addGithubWorkflow);
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(null,  new JLabel(
                                 "<html><p style='width:400px'>Failed to create package.json file. "+ex.getMessage()+"</p></html>"),
