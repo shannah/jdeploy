@@ -2280,8 +2280,8 @@ public class JDeploy {
         try {
             JDeploy prog = new JDeploy(new File(".").getAbsoluteFile());
             Options opts = new Options();
-            opts.addOption("no-prompt", false,"Indicates not to prompt user ");
-            opts.addOption("no-workflow", false,"Indicates not to create a github workflow if true");
+            opts.addOption("y", "no-prompt", false,"Indicates not to prompt user ");
+            opts.addOption("W", "no-workflow", false,"Indicates not to create a github workflow if true");
             boolean noPromptFlag = false;
             boolean noWorkflowFlag = false;
             if (args.length > 0 && !"jpackage".equals(args[0])) {
