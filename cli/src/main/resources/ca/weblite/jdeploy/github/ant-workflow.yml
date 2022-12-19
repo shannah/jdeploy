@@ -4,8 +4,8 @@ name: jDeploy CI with Ant
 
 on:
   push:
-    branches: *
-    tags: *
+    branches: [ '*' ]
+    tags: [ '*' ]
 
 jobs:
   build:

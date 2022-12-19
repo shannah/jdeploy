@@ -86,7 +86,7 @@ public class SynchronizePackageJSONMojo extends AbstractMojo
     }
 
     private File getJarPath() {
-        final File outputDir = new File(project.getBuild().getOutputDirectory());
+        final File outputDir = new File(project.getBuild().getOutputDirectory()).getParentFile();
         return new File(outputDir, project.getBuild().getFinalName() + ".jar");
     }
 

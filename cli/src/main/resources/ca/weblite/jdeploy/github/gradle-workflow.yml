@@ -5,8 +5,8 @@ name: jDeploy CI with Gradle
 
 on:
   push:
-    branches: *
-    tags: *
+    branches: [ '*' ]
+    tags: [ '*' ]
 
 permissions:
   contents: read

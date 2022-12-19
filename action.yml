@@ -14,7 +14,7 @@ inputs:
     required: false
   jdeploy_version:
     description: The version of Jdeploy
-    default: '4.0.0-alpha.33'
+    default: '4.0.0-alpha.37'
 
 
 runs:
@@ -62,7 +62,7 @@ runs:
       if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
       shell: bash
       run: |
-        npm version "0.0.0-${{ github.ref_name }}"
+        npm pkg set version="0.0.0-${{ github.ref_name }}"
         npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
         npm pkg set jdeploy.commitHash="$GITHUB_SHA"
         npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
