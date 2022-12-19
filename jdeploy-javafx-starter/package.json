@@ -1,0 +1,30 @@
+{
+  "bin": {
+    "jdeploy-javafx-starter": "jdeploy-bundle/jdeploy.js"
+  },
+  "author": "",
+  "description": "null",
+  "main": "index.js",
+  "preferGlobal": true,
+  "repository": "",
+  "version": "1.0.0",
+  "jdeploy": {
+    "jdk": false,
+    "javaVersion": 17,
+    "javafx": true,
+    "title": "jdeploy-javafx-starter",
+    "jar": "target/classes/jdeploy-javafx-starter-1.0.0.jar"
+  },
+  "dependencies": {
+    "njre": "^0.2.0",
+    "shelljs": "^0.8.4"
+  },
+  "license": "ISC",
+  "name": "jdeploy-javafx-starter",
+  "files": [
+    "jdeploy-bundle"
+  ],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}

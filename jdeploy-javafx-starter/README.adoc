@@ -1,0 +1,3 @@
+= jDeploy JavaFX Starter
+
+A starter project for Java FX, using jDeploy to build native app installers.
