@@ -286,12 +286,21 @@ public class JDeploy {
     }
 
     private Set<String> bundlesOverride;
+    private Set<String> installersOverride;
 
     private void overrideBundles(String... bundles) {
         if (bundles == null) {
             bundlesOverride = null;
         } else {
             bundlesOverride = new LinkedHashSet<>(Arrays.asList(bundles));
+        }
+    }
+
+    private void overrideInstallers(String... installers) {
+        if (installers == null) {
+            installersOverride = null;
+        } else {
+            installersOverride = new LinkedHashSet<>(Arrays.asList(installers));
         }
     }
 
@@ -311,6 +320,9 @@ public class JDeploy {
     }
 
     private Set<String> installers() {
+        if (installersOverride != null) {
+            return new LinkedHashSet<>(installersOverride);
+        }
         Map m = mj();
         HashSet<String> out = new HashSet<String>();
         if (m.containsKey("installers")) {
@@ -2111,11 +2123,12 @@ public class JDeploy {
         }
 
         bundlerSettings.setCompressBundles(true);
-        overrideBundles(BUNDLE_MAC_X64, BUNDLE_MAC_ARM64, BUNDLE_WIN, BUNDLE_LINUX);
+
+        overrideInstallers(BUNDLE_MAC_X64, BUNDLE_MAC_ARM64, BUNDLE_WIN, BUNDLE_LINUX);
         try {
             _package(bundlerSettings);
         } finally {
-            overrideBundles(null);
+            overrideInstallers(null);
         }
 
         JSONObject packageJSON = prepublish(bundlerSettings);

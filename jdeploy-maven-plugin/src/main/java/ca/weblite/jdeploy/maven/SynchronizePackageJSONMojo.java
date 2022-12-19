@@ -64,7 +64,7 @@ public class SynchronizePackageJSONMojo extends AbstractMojo
         if (syncProjectDescription) {
             paramBuilder.add("description", project.getDescription());
         }
-        paramBuilder.add("jdeploy.javaVersion", getCompilerTarget(8));
+        paramBuilder.add("jdeploy.javaVersion", String.valueOf(getCompilerTarget(8)));
         paramBuilder.add("jdeploy.javafx", hasJavafxDependency());
 
 

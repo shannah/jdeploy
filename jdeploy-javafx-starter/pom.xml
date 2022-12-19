@@ -4,7 +4,7 @@
     <groupId>ca.weblite</groupId>
     <artifactId>jdeploy-javafx-starter</artifactId>
     <packaging>pom</packaging>
-    <version>1.0.2-SNAPSHOT</version>
+    <version>1.0.4</version>
     <name>jDeploy JavaFX Starter Parent</name>
     <description>Parent for JavaFX starter project</description>
     <url>https://www.jdeploy.com</url>
@@ -14,7 +14,7 @@
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <maven.compiler.main.class>org.openjfx.App</maven.compiler.main.class>
-        <jdeploy.maven.plugin.version>1.0.3</jdeploy.maven.plugin.version>
+        <jdeploy.maven.plugin.version>1.0.4</jdeploy.maven.plugin.version>
         <jdeploy.version>4.0.0-alpha.37</jdeploy.version>
     </properties>
     <licenses>
