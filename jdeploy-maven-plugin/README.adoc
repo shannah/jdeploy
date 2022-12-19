@@ -1,0 +1,45 @@
+= jDeploy Maven Plugin
+
+A maven plugin to better integrate jDeploy into the maven build cycle.
+
+== Usage
+
+Add the dependency
+
+[source,xml]
+---
+<build>
+    <plugins>
+        <plugin>
+            <groupId>ca.weblite</groupId>
+            <artifactId>jdeploy-maven-plugin</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <executions>
+                <execution>
+                    <id>jdeploy</id>
+                    <phase>package</phase>
+                    <goals>
+                        <goal>sync-package-json</goal>
+                    </goals>
+                </execution>
+            </executions>
+        </plugin>
+    </plugins>
+</build>
+---
+
+This will result in maven "synchronizing" key properties in the package.json (and generating the package.json if necessary) based on the build environment.
+
+== Properties
+
+
+|===
+|Property |Description | Default
+
+|jdeploy.version | The jDeploy version to use for generating package.json | latest
+|jdeploy.sync-version | Whether to synchronize the package.json version with the pom.xml version. | true
+|jdeploy.sync-name | Whether to synchronize the package.json name with the pom.xml name | true
+|jdeploy.description | Whether to synchronize the package.json description with the pom.xml description | true
+|jdeploy.name | Override the 'name' property to set in the package.json file | `${project.artifactId}`
+|jdeploy.title | Override the jdeploy.title property to set in the package.json file | `${project.name}`
+|===

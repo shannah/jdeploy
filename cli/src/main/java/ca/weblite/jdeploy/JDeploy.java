@@ -2280,10 +2280,17 @@ public class JDeploy {
         try {
             JDeploy prog = new JDeploy(new File(".").getAbsoluteFile());
             Options opts = new Options();
+            opts.addOption("no-prompt", false,"Indicates not to prompt user ");
+            opts.addOption("no-workflow", false,"Indicates not to create a github workflow if true");
+            boolean noPromptFlag = false;
+            boolean noWorkflowFlag = false;
             if (args.length > 0 && !"jpackage".equals(args[0])) {
                 CommandLineParser parser = new DefaultParser();
                 CommandLine line = parser.parse(opts, args);
                 args = line.getArgs();
+                noPromptFlag = line.hasOption("no-prompt");
+                noWorkflowFlag = line.hasOption("no-workflow");
+
             }
             if (args.length == 0 || "gui".equals(args[0])) {
                 System.out.println("Launching jdeploy gui.  Use jdeploy help for help");
@@ -2353,8 +2360,9 @@ public class JDeploy {
                 if (args.length > 1) {
                     commandName = args[1];
                 }
-                
-                prog.init(commandName, true, true);
+                final boolean prompt = !noPromptFlag;
+                final boolean generateGithubWorkflow = !noWorkflowFlag;
+                prog.init(commandName, prompt, generateGithubWorkflow);
             } else if ("install".equals(args[0])) {
                 prog.install();
             } else if ("publish".equals(args[0])) {
