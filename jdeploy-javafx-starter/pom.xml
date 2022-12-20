@@ -16,7 +16,7 @@
         <maven.compiler.main.class>org.openjfx.App</maven.compiler.main.class>
         <javafx.version>19</javafx.version>
         <javafx.plugin.version>0.0.3</javafx.plugin.version>
-        <jdeploy.maven.plugin.version>1.0.4</jdeploy.maven.plugin.version>
+        <jdeploy.maven.plugin.version>1.0.6</jdeploy.maven.plugin.version>
         <jdeploy.version>4.0.0-alpha.38</jdeploy.version>
     </properties>
     <licenses>
