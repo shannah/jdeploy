@@ -2,8 +2,8 @@
 set -e
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 cd "$SCRIPTPATH/../jdeploy-maven-plugin"
-mvn deploy -Psign-artifacts
+mvn install -Psign-artifacts
 cd "$SCRIPTPATH/../jdeploy-javafx-starter"
-mvn deploy -Psign-artifacts
+mvn install -Psign-artifacts
 cd "$SCRIPTPATH/../jdeploy-javafx-archetype"
-mvn deploy -Psign-artifacts
+mvn install -Psign-artifacts

@@ -1,0 +1,32 @@
+= jDeploy Developer Docs
+
+This document is intended for developers actually working on jDeploy - not developing apps using jDeploy.
+
+== Deploying to Maven
+
+Some of the projects in this repo are distributed on Maven central. These include:
+
+. link:jdeploy-javafx-starter/[jdeploy-javafx-starter]
+. link:jdeploy-maven-plugin/[jdeploy-maven-plugin]
+. link:jdeploy-javafx-archetype[jdeploy-javafx-archetype]
+
+link:jdeploy-javafx-archetype[jdeploy-javafx-archetype] depends on link:jdeploy-javafx-starter/[jdeploy-javafx-starter].
+
+link:jdeploy-javafx-starter/[jdeploy-javafx-starter] depends on link:jdeploy-maven-plugin/[jdeploy-maven-plugin].
+
+When you update the version of one of them, you should update the dependencies in the dependent projects to point to the new version.
+
+For example, if you update link:jdeploy-maven-plugin/[jdeploy-maven-plugin], you should update the corresponding dependency in link:jdeploy-javafx-starter/pom.xml[jdeploy-javafx-starter/pom.xml].
+
+Similarly, if you update link:jdeploy-javafx-starter/[jdeploy-javafx-starter], you should update the corresponding dependency in link:jdeploy-javafx-archetype/src/main/resources/META-INF/maven/archetype-metadata.xml[jdeploy-javafx-archetype's archetype-metadata.xml file].
+
+IMPORTANT: The https://github.com/shannah/jdeploy-javafx-starter[jdeploy-javafx-starter] repository is based off of link:jdeploy-javafx-archetype[jdeploy-javafx-archetype], and should receive all corresponding changes.
+
+After updating all dependencies, you can deploy to maven central with:
+
+[source,bash]
+---
+bash scripts/deploy-maven-plugin.sh
+---
+
+Then log into https://oss.sonatype.org/#stagingRepositories to complete the release.

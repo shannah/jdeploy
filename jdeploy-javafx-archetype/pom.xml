@@ -4,7 +4,7 @@
 
   <groupId>ca.weblite</groupId>
   <artifactId>jdeploy-javafx-starter-archetype</artifactId>
-  <version>1.0.0-SNAPSHOT</version>
+  <version>1.0.6</version>
   <packaging>maven-archetype</packaging>
 
   <name>sample-archetype</name>
@@ -54,4 +54,46 @@
     <connection>scm:git:git@github.com:shannah/jdeploy.git/sample</connection>
     <url>https://github.com/shannah/jdeploy/jdeploy-javafx-archetype</url>
   </scm>
+  <distributionManagement>
+    <repository>
+      <id>nexus-staging</id>
+      <name>Nexus Release Repository</name>
+      <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+    </repository>
+  </distributionManagement>
+  <profiles>
+
+    <profile>
+      <id>sign-artifacts</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>1.5</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+                <configuration>
+                  <passphrase>${gpg.passphrase}</passphrase>
+
+                </configuration>
+              </execution>
+            </executions>
+            <configuration>
+              <!-- Prevent gpg from using pinentry programs -->
+              <gpgArguments>
+                <arg>--pinentry-mode</arg>
+                <arg>loopback</arg>
+              </gpgArguments>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

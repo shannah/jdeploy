@@ -4,7 +4,7 @@
     <groupId>ca.weblite</groupId>
     <artifactId>jdeploy-javafx-starter</artifactId>
     <packaging>pom</packaging>
-    <version>1.0.4</version>
+    <version>1.0.6</version>
     <name>jDeploy JavaFX Starter Parent</name>
     <description>Parent for JavaFX starter project</description>
     <url>https://www.jdeploy.com</url>
@@ -14,8 +14,10 @@
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <maven.compiler.main.class>org.openjfx.App</maven.compiler.main.class>
+        <javafx.version>19</javafx.version>
+        <javafx.plugin.version>0.0.3</javafx.plugin.version>
         <jdeploy.maven.plugin.version>1.0.4</jdeploy.maven.plugin.version>
-        <jdeploy.version>4.0.0-alpha.37</jdeploy.version>
+        <jdeploy.version>4.0.0-alpha.38</jdeploy.version>
     </properties>
     <licenses>
         <license>
@@ -43,18 +45,11 @@
             <dependency>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-controls</artifactId>
-                <version>19</version>
+                <version>${javafx.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
 
-    <dependencies>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-controls</artifactId>
-            <version>19</version>
-        </dependency>
-    </dependencies>
     <build>
         <pluginManagement>
             <plugins>
@@ -105,7 +100,7 @@
                 <plugin>
                     <groupId>org.openjfx</groupId>
                     <artifactId>javafx-maven-plugin</artifactId>
-                    <version>0.0.3</version>
+                    <version>${javafx.plugin.version}</version>
                     <configuration>
                         <mainClass>${maven.compiler.main.class}</mainClass>
                     </configuration>

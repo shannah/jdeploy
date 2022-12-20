@@ -1,3 +1,31 @@
 = jDeploy JavaFX Starter
 
-A starter project for Java FX, using jDeploy to build native app installers.
+A starter project for Java FX, using jDeploy to build native app installers.  This is intended to be used as a "parent" project, similar to the way the the Spring Boot Starter project works.  It includes plugins and dependencies to boostrap a JavaFX maven project that publishes native app installers using Github actions.
+
+There are three ways to use this project:
+
+1. Use the https://github.com/shannah/jdeploy-javafx-starter Github template to create a new repo.  It uses this project as its parent.
+2. Use the link:../jdeploy-javafx-archetype/[jdeploy-javafx-archetype] to generate a new project that uses this project as its parent.
+3. Create a project manually and set this project as its parent.  E.g.:
++
+[source,xml]
+----
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <parent>
+        <artifactId>jdeploy-javafx-starter</artifactId>
+        <groupId>ca.weblite</groupId>
+        <version>1.0.6</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.jdeploy.demos</groupId>
+    <artifactId>sample</artifactId>
+    <version>1.0.0</version>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.main.class>org.openjfx.App</maven.compiler.main.class>
+    </properties>
+</project>
+
+----
+
