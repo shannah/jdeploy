@@ -15,6 +15,10 @@ inputs:
   jdeploy_version:
     description: The version of Jdeploy
     default: '4.0.0-alpha.38'
+  target_repository:
+    description: Optional target repository where to publish releases.
+    required: false
+    default: ${{ github.repository }}
 
 
 runs:
@@ -65,7 +69,7 @@ runs:
         npm pkg set version="0.0.0-${{ github.ref_name }}"
         npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
         npm pkg set jdeploy.commitHash="$GITHUB_SHA"
-        npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
+        GITHUB_REPOSITORY=${{ inputs.target_repository }} npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
 
     - name: Prepare Installer Bundles for Tag
       if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' }}
@@ -75,11 +79,11 @@ runs:
         npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
         npm pkg set jdeploy.commitHash="$GITHUB_SHA"
         npm pkg set jdeploy.gitTag="${{ github.ref_name }}"
-        npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
+        GITHUB_REPOSITORY=${{ inputs.target_repository }} npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
 
     - name: Publish package-info.json to Github
       uses: marvinpinto/action-automatic-releases@latest
-      if: ${{ inputs.deploy_target == 'github' }}
+      if: ${{ inputs.deploy_target == 'github' && inputs.target_repository == github.repository }}
       with:
         repo_token: "${{ inputs.github_token }}"
         automatic_release_tag: "jdeploy"
@@ -87,8 +91,17 @@ runs:
         title: "jDeploy Package Info"
         files: ./jdeploy/github-release-files/package-info.json
 
+    - name: Publish package-info.json to Github
+      if: ${{ inputs.deploy_target == 'github' && inputs.target_repository != github.repository }}
+      shell: bash
+      run: |
+        gh release delete -R '${{ inputs.target_repository }}' jdeploy || true
+        gh release create -R '${{ inputs.target_repository }}' jdeploy ./jdeploy/github-release-files/package-info.json
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+
     - name: Upload files to Github Snapshot Release for Branch
-      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
+      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' && inputs.target_repository == github.repository }}
       uses: marvinpinto/action-automatic-releases@latest
       with:
         repo_token: "${{ inputs.github_token }}"
@@ -97,8 +110,17 @@ runs:
         title: "Native Bundles (${{ github.ref_name }})"
         files: "./jdeploy/github-release-files/*"
 
+    - name: Upload files to Github Snapshot Release for Branch
+      if: ${{ inputs.deploy_target == 'github' && inputs.target_repository != github.repository }}
+      shell: bash
+      run: |
+        gh release delete -R '${{ inputs.target_repository }}' '${{ github.ref_name }}' || true
+        gh release create -R '${{ inputs.target_repository }}' '${{ github.ref_name }}' -F ./jdeploy/github-release-files/jdeploy-release-notes.md ./jdeploy/github-release-files/*
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+
     - name: Upload Files to Github Release for Tag
-      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' }}
+      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' && inputs.target_repository == github.repository }}
       uses: xresloader/upload-to-github-release@v1
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
@@ -108,7 +130,7 @@ runs:
         overwrite: true
 
     - name: Update release body (for branch release)
-      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
+      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' && inputs.target_repository == github.repository }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
@@ -135,7 +157,7 @@ runs:
         -d "$BODY_JSON"
 
     - name: Update release body (for tag release)
-      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' }}
+      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' && inputs.target_repository == github.repository }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
