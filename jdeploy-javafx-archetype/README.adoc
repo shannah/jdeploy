@@ -24,7 +24,7 @@ TIP: This archetype was used to generate the https://github.com/shannah/jdeploy-
 mvn archetype:generate \
         -DarchetypeGroupId=ca.weblite \
         -DarchetypeArtifactId=jdeploy-javafx-starter-archetype \
-        -DarchetypeVersion=1.0.6 \
+        -DarchetypeVersion=1.0.7 \
         -DgroupId=org.openjfx \
         -DartifactId=sample \
         -Dversion=1.0.0

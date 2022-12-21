@@ -6,7 +6,7 @@
 
   <groupId>ca.weblite</groupId>
   <artifactId>jdeploy-maven-plugin</artifactId>
-  <version>1.0.6</version>
+  <version>1.0.7</version>
   <packaging>maven-plugin</packaging>
 
   <name>jdeploy-maven-plugin</name>

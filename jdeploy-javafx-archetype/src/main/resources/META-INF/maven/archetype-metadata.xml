@@ -3,7 +3,7 @@
     xmlns="https://maven.apache.org/plugins/maven-archetype-plugin/archetype-descriptor/1.1.0"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <requiredProperty key="jdeployJavaFXStarterVersion">
-    <defaultValue>1.0.6</defaultValue>
+    <defaultValue>1.0.7</defaultValue>
   </requiredProperty>
   <fileSets>
     <fileSet filtered="true" packaged="true" encoding="UTF-8">

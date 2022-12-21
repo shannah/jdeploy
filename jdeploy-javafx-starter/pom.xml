@@ -4,7 +4,7 @@
     <groupId>ca.weblite</groupId>
     <artifactId>jdeploy-javafx-starter</artifactId>
     <packaging>pom</packaging>
-    <version>1.0.6</version>
+    <version>1.0.7</version>
     <name>jDeploy JavaFX Starter Parent</name>
     <description>Parent for JavaFX starter project</description>
     <url>https://www.jdeploy.com</url>
@@ -16,7 +16,7 @@
         <maven.compiler.main.class>org.openjfx.App</maven.compiler.main.class>
         <javafx.version>19</javafx.version>
         <javafx.plugin.version>0.0.3</javafx.plugin.version>
-        <jdeploy.maven.plugin.version>1.0.6</jdeploy.maven.plugin.version>
+        <jdeploy.maven.plugin.version>1.0.7</jdeploy.maven.plugin.version>
         <jdeploy.version>4.0.0-alpha.38</jdeploy.version>
     </properties>
     <licenses>
@@ -61,11 +61,11 @@
                         <archive>
                             <manifest>
                                 <addClasspath>true</addClasspath>
-                                <mainClass>${maven.compiler.main.class}</mainClass>
+                                <classpathPrefix>libs/</classpathPrefix>
+                                <mainClass>
+                                    ${maven.compiler.main.class}
+                                </mainClass>
                             </manifest>
-                            <manifestEntries>
-                                <Class-Path>.</Class-Path>
-                            </manifestEntries>
                         </archive>
                     </configuration>
                 </plugin>
@@ -149,6 +149,10 @@
                     <plugin>
                         <groupId>ca.weblite</groupId>
                         <artifactId>jdeploy-maven-plugin</artifactId>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
                     </plugin>
                 </plugins>
             </build>
