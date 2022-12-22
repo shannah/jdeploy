@@ -1,5 +1,9 @@
-name: 'Publish Github Release'
-description: Publish jDeploy Bundles on Github
+name: 'Publish Native Installers'
+description: Publish jDeploy Bundles on Github or npm
+author: shannah
+branding:
+  icon: archive
+  color: blue
 
 inputs:
   deploy_target:
@@ -14,7 +18,7 @@ inputs:
     required: false
   jdeploy_version:
     description: The version of Jdeploy
-    default: '4.0.0-alpha.38'
+    default: '4.0.0-beta.1'
   target_repository:
     description: Optional target repository where to publish releases.
     required: false
