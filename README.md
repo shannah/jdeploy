@@ -39,7 +39,7 @@ jobs:
       - name: Build App Installer Bundles
         uses: actions/jdeploy@master
         with:
-          github_token: ${{ secrets.STEVE_PAT }}
+          github_token: ${{ github.token }}
 ```
 
 See https://www.jdeploy.com/docs/manual/#_publishing_on_github[the jDeploy Developer Guide] to learn more.
