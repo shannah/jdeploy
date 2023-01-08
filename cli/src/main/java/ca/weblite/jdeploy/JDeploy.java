@@ -802,6 +802,10 @@ public class JDeploy {
         }
         boolean serverProvidedJavaFX = "true".equals(getString("javafx", "false"));
         boolean stripFXFiles = serverProvidedJavaFX && "true".equals(getString("stripJavaFXFiles", "true"));
+        List<String> mavenDependencies = (List<String>) getList("mavenDependencies", true);
+        boolean useMavenDependencies =!mavenDependencies.isEmpty();
+
+
         if (doNotStripJavaFXFiles) {
             stripFXFiles = false;
         }
@@ -819,10 +823,17 @@ public class JDeploy {
             String excludes = null;
 
             includes.add(new CopyRule(parentPath, jarFile.getName(), null));
-
-
             for (String path : findClassPath(jarFile)) {
                 File f = new File(path);
+                if (useMavenDependencies) {
+                    // If we are using maven dependencies, then we won't
+                    // We add this stripped file placeholder to mark that it was stripped.
+                    // This also ensures that the parent directory will be included in distribution.
+                    File strippedFile = new File(f.getParentFile(), f.getName()+".stripped");
+                    FileUtil.writeStringToFile("", strippedFile);
+                    includes.add(new CopyRule(parentPath, path+".stripped", excludes));
+                    continue;
+                }
                 if (stripFXFiles && f.getName().startsWith("javafx-") && f.getName().endsWith(".jar")) {
                     continue;
                 }
