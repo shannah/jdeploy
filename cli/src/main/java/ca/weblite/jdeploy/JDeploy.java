@@ -829,13 +829,16 @@ public class JDeploy {
                     // If we are using maven dependencies, then we won't
                     // We add this stripped file placeholder to mark that it was stripped.
                     // This also ensures that the parent directory will be included in distribution.
-                    File strippedFile = new File(f.getAbsoluteFile().getParentFile(), f.getName()+".stripped");
-                    if (strippedFile.getParentFile().exists()) {
-                        FileUtil.writeStringToFile("", strippedFile);
-                        includes.add(new CopyRule(parentPath, path+".stripped", excludes));
+                    if (f.getName().endsWith(".jar")) {
+                        File strippedFile = new File(path + ".stripped");
+                        if (strippedFile.getParentFile().exists()) {
+                            FileUtil.writeStringToFile("", strippedFile);
+                            includes.add(new CopyRule(parentPath, path + ".stripped", excludes));
+                        }
+                        continue;
                     }
 
-                    continue;
+
                 }
                 if (stripFXFiles && f.getName().startsWith("javafx-") && f.getName().endsWith(".jar")) {
                     continue;
