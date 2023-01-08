@@ -825,12 +825,14 @@ public class JDeploy {
             includes.add(new CopyRule(parentPath, jarFile.getName(), null));
             for (String path : findClassPath(jarFile)) {
                 File f = new File(path);
+
                 if (useMavenDependencies) {
                     // If we are using maven dependencies, then we won't
                     // We add this stripped file placeholder to mark that it was stripped.
                     // This also ensures that the parent directory will be included in distribution.
+
                     if (f.getName().endsWith(".jar")) {
-                        File strippedFile = new File(path + ".stripped");
+                        File strippedFile = new File(parentPath,path + ".stripped");
                         if (strippedFile.getParentFile().exists()) {
                             FileUtil.writeStringToFile("", strippedFile);
                             includes.add(new CopyRule(parentPath, path + ".stripped", excludes));
