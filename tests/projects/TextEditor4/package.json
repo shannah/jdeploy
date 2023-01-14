@@ -30,7 +30,10 @@
         "title": "Text Editor"
     },
     "dependencies": {
-        "njre": "^0.2.0",
+        "command-exists-promise": "^2.0.2",
+        "node-fetch": "^2.6.7",
+        "tar": "^4.4.8",
+        "yauzl": "^2.10.0",
         "shelljs": "^0.8.4"
     },
     "license": "ISC",
