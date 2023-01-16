@@ -1218,7 +1218,7 @@ public class JDeploy {
         Map deps = (Map)pj.get("dependencies");
         deps.put("shelljs", "^0.8.4");
         deps.put("command-exists-promise", "^2.0.2");
-        deps.put("node-fetch", "^2.6.7");
+        deps.put("node-fetch", "2.6.7");
         deps.put("tar", "^4.4.8");
         deps.put("yauzl", "^2.10.0");
         
@@ -1321,7 +1321,7 @@ public class JDeploy {
             Map dependencies = new HashMap();
             dependencies.put("shelljs", "^0.8.4");
             dependencies.put("command-exists-promise", "^2.0.2");
-            dependencies.put("node-fetch", "^2.6.7");
+            dependencies.put("node-fetch", "2.6.7");
             dependencies.put("tar", "^4.4.8");
             dependencies.put("yauzl", "^2.10.0");
             m.put("dependencies", dependencies);
