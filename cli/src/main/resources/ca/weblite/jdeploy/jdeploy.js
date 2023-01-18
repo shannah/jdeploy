@@ -409,6 +409,11 @@ function getJavaHomeInPath(basepath) {
 
 function findSupportedRuntime(javaVersion, jdk, javafx) {
     var jdeployDir = path.join(os.homedir(), ".jdeploy");
+    var JAVA_HOME_OVERRIDE = env['JDEPLOY_JAVA_HOME_OVERRIDE'];
+
+    if (JAVA_HOME_OVERRIDE && fs.existsSync(JAVA_HOME_OVERRIDE)) {
+        return JAVA_HOME_OVERRIDE;
+    }
 
     // First check for the full-meal deal
     var _javaHomePath = getJavaHomeInPath(path.join(jdeployDir, 'jdk', javaVersion+'fx', 'jdk'));
