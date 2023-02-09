@@ -10,7 +10,7 @@
   "version": "1.0.0",
   "jdeploy": {
     "jdk": false,
-    "javaVersion": 17,
+    "javaVersion": "17",
     "javafx": true,
     "title": "jdeploy-javafx-starter",
     "jar": "target/classes/jdeploy-javafx-starter-1.0.0.jar"

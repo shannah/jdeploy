@@ -1339,7 +1339,7 @@ public class JDeploy {
                 jdeploy.put("war", getRelativePath(candidate));
             }
 
-            jdeploy.put("javaVersion", javaVersionInt);
+            jdeploy.put("javaVersion", String.valueOf(javaVersionInt));
             jdeploy.put("javafx", false);
             jdeploy.put("jdk", false);
 
