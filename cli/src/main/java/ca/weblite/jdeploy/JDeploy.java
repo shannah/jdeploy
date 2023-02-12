@@ -801,12 +801,12 @@ public class JDeploy {
             
         }
         boolean serverProvidedJavaFX = "true".equals(getString("javafx", "false"));
-        boolean stripFXFiles = serverProvidedJavaFX && "true".equals(getString("stripJavaFXFiles", "true"));
+        boolean stripJavaFXFilesFlag = "true".equals(getString("stripJavaFXFiles", "true"));
+        boolean javafxVersionProvided = !getString("javafxVersion", "").isEmpty();
+        boolean stripFXFiles = stripJavaFXFilesFlag && (serverProvidedJavaFX || javafxVersionProvided);
+
         List<String> mavenDependencies = (List<String>) getList("mavenDependencies", true);
-        boolean useMavenDependencies =!mavenDependencies.isEmpty() && !hasOnlyOpenJFXMavenDependencies(mavenDependencies);
-        if (hasOpenJFXMavenDependencies(mavenDependencies)) {
-            stripFXFiles = true;
-        }
+        boolean useMavenDependencies =!mavenDependencies.isEmpty();
 
         if (doNotStripJavaFXFiles) {
             stripFXFiles = false;
@@ -2476,25 +2476,4 @@ public class JDeploy {
 
         });
     }
-
-    private boolean hasOpenJFXMavenDependencies(List<String> mavenDependencies) {
-        for (String mavenDependency : mavenDependencies) {
-            if (mavenDependency.startsWith("org.openjfx")) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private boolean hasOnlyOpenJFXMavenDependencies(List<String> mavenDependencies) {
-        for (String mavenDependency : mavenDependencies) {
-            if (!mavenDependency.startsWith("org.openjfx")) {
-                return false;
-            }
-        }
-
-        return hasOpenJFXMavenDependencies(mavenDependencies);
-    }
-
 }
