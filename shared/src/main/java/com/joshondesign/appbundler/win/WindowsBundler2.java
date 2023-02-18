@@ -66,7 +66,8 @@ public class WindowsBundler2 {
             try (FileInputStream fis = new FileInputStream(appXml)) {
                 IOUtil.copy(fis, fos);
             }
-            byte[] bytes = String.valueOf(origSize).getBytes("UTF-8");
+            byte[] bytes = invertBytes(String.valueOf(origSize).getBytes("UTF-8"));
+
             
             // Record the position of the start of the data file
             // As a UTF-8 string
@@ -85,6 +86,18 @@ public class WindowsBundler2 {
         
         destFile.setExecutable(true, false);
         
+    }
+
+    // Because windows and chrome think that exes with base64 appended is a virus,
+    // trying to make the bytes not base64.
+    private byte[] invertBytes(byte[] bytes) {
+        int len = bytes.length;
+        byte[] out = new byte[len];
+        for (int i=0; i<len; i++) {
+            out[i] = (byte) (255 - bytes[i]);
+        }
+
+        return out;
     }
     
     private static void processAppXml(AppDescription app, File dest) throws Exception {
