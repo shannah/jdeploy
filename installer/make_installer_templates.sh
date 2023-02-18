@@ -48,7 +48,7 @@ jar cvf jdeploy-installer-win-amd64.jar *.exe
 mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
                          -Dfile=jdeploy-installer-win-amd64.jar -DgroupId=ca.weblite.jdeploy \
                          -DartifactId=jdeploy-installer-template-win-amd64 -Dversion=1.0-SNAPSHOT \
-                         -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository"
+                         -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository" -e
 
 cd "$SCRIPTPATH"
 rm -rf "$WIN_INSTALLER"
@@ -68,7 +68,7 @@ jar cvf jdeploy-installer-linux-amd64.jar *
 mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
                          -Dfile=jdeploy-installer-linux-amd64.jar -DgroupId=ca.weblite.jdeploy \
                          -DartifactId=jdeploy-installer-template-linux-amd64 -Dversion=1.0-SNAPSHOT \
-                         -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository"
+                         -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository" -e
 cd "$SCRIPTPATH"
 rm -rf "$LINUX_INSTALLER"
 
