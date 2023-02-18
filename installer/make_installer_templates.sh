@@ -23,7 +23,7 @@ for MAC_ARCH in "x64" "arm64"; do
   tar -cvf jdeploy-installer-mac-$ARCH_SUFFIX.tar jdeploy-installer
   rm -rf jdeploy-installer
   jar cvf jdeploy-installer-mac-$ARCH_SUFFIX.jar *.tar
-  mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
+  mvn org.apache.maven.plugins:maven-install-plugin:3.1.0:install-file \
                            -Dfile=jdeploy-installer-mac-$ARCH_SUFFIX.jar -DgroupId=ca.weblite.jdeploy \
                            -DartifactId=jdeploy-installer-template-mac-$ARCH_SUFFIX -Dversion=1.0-SNAPSHOT \
                            -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository" -e -X
@@ -45,7 +45,7 @@ cp -rp jdeploy/bundles/windows/jdeploy-installer.exe "$WIN_INSTALLER/jdeploy-ins
 
 cd "$WIN_INSTALLER"
 jar cvf jdeploy-installer-win-amd64.jar *.exe
-mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
+mvn org.apache.maven.plugins:maven-install-plugin:3.1.0:install-file \
                          -Dfile=jdeploy-installer-win-amd64.jar -DgroupId=ca.weblite.jdeploy \
                          -DartifactId=jdeploy-installer-template-win-amd64 -Dversion=1.0-SNAPSHOT \
                          -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository" -e
@@ -65,7 +65,7 @@ cp -rp jdeploy/bundles/linux/jdeploy-installer "$LINUX_INSTALLER/jdeploy-install
 
 cd "$LINUX_INSTALLER"
 jar cvf jdeploy-installer-linux-amd64.jar *
-mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
+mvn org.apache.maven.plugins:maven-install-plugin:3.1.0:install-file \
                          -Dfile=jdeploy-installer-linux-amd64.jar -DgroupId=ca.weblite.jdeploy \
                          -DartifactId=jdeploy-installer-template-linux-amd64 -Dversion=1.0-SNAPSHOT \
                          -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository" -e
