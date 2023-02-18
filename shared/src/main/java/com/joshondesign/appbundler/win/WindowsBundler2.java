@@ -9,10 +9,8 @@ import ca.weblite.jdeploy.appbundler.*;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.IOUtil;
 import com.joshondesign.xml.XMLWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+
+import java.io.*;
 
 /**
  *
@@ -63,9 +61,11 @@ public class WindowsBundler2 {
         File appXml = new File(destFile.getParentFile(), "app.xml");
         processAppXml(app, appXml);
         try (FileOutputStream fos = new FileOutputStream(destFile, true)) {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
             try (FileInputStream fis = new FileInputStream(appXml)) {
-                IOUtil.copy(fis, fos);
+                IOUtil.copy(fis, baos);
             }
+            fos.write(invertBytes(baos.toByteArray()));
             byte[] bytes = invertBytes(String.valueOf(origSize).getBytes("UTF-8"));
 
             
