@@ -26,7 +26,7 @@ for MAC_ARCH in "x64" "arm64"; do
   mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
                            -Dfile=jdeploy-installer-mac-$ARCH_SUFFIX.jar -DgroupId=ca.weblite.jdeploy \
                            -DartifactId=jdeploy-installer-template-mac-$ARCH_SUFFIX -Dversion=1.0-SNAPSHOT \
-                           -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository" -e
+                           -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository" -e -X
 
 
   cd "$SCRIPTPATH"
