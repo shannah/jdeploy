@@ -63,6 +63,26 @@ done
 
 #codesign --test-requirement="=notarized" --verify --verbose "$APP_PATH"
 
+# jdeploy/bundles/windows/jdeploy-installer.exe
+
+echo "-------------------   About to Sign Windows Installer  --------------------------"
+echo "$AUTHENTICODE_SPC" | base64 --decode > authenticode.spc
+echo "$AUTHENTICODE_KEY" | base64 --decode > authenticode.key
+
+osslsigncode \
+  -certs \
+  -spc authenticode.spc \
+  -key authenticode.key \
+  -t http://timestamp.digicert.com \
+  -in jdeploy/bundles/windows/jdeploy-installer.exe \
+  -out jdeploy/bundles/windows/jdeploy-installer-signed.exe \
+  -n "jDeploy Application Installer" \
+  -i https://www.jdeploy.com
+
+mv jdeploy/bundles/windows/jdeploy-installer-signed.exe jdeploy/bundles/windows/jdeploy-installer.exe
+rm authenticode.spc
+rm authenticode.key
+
 echo "-------------------  About to Make Installer Templates --------------------------"
 
 bash make_installer_templates.sh

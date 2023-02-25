@@ -39,6 +39,9 @@ public class LauncherWriterHelper {
             // in the exe
 
             fos.write(bytes.length);
+
+            // Need trailer bytes in case other things are added after this payload, so we can find it.
+            fos.write(generateTrailerBytes());
         }
 
         destFile.setExecutable(true, false);
@@ -79,6 +82,20 @@ public class LauncherWriterHelper {
         byte[] out = new byte[len];
         for (int i=0; i<len; i++) {
             out[i] = (byte) (255 - bytes[i]);
+        }
+
+        return out;
+    }
+
+    private byte[] generateTrailerBytes() {
+        int[] ints = new int[]{
+                0x59, 0x77, 0xab, 0x5a, 0x65, 0xc2, 0xbd, 0x04, 0x44, 0x2b, 0x92, 0x24, 0xeb, 0x80, 0xf7, 0x7d,
+                0xe9, 0xa9, 0x0f, 0x92, 0x47, 0xbb, 0x6c, 0xfb, 0xce, 0x15, 0xc4, 0x44, 0x2b, 0xe9, 0x18, 0x4c
+        };
+        int len = ints.length;
+        byte[] out = new byte[len];
+        for (int i=0; i<len; i++) {
+            out[i] = (byte) ints[i];
         }
 
         return out;

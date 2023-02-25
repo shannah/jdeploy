@@ -38,6 +38,8 @@ jobs:
       with:
         java-version: 11
         maven-version: '3.6.3'
+    - name: Install osslsigncode
+      run: brew install osslsigncode
     - name: Install MacOS Certificates
       uses: apple-actions/import-codesign-certs@v1
       with: 
@@ -53,4 +55,6 @@ jobs:
         MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         JDEPLOY_MAC_DEVELOPER_CERTIFICATE_NAME: ${{ secrets.DEVELOPER_ID_CERTIFICATE_NAME }}
         JDEPLOY_MAC_DEVELOPER_ID: ${{ secrets.APPLE_ID }}
+        AUTHENTICODE_SPC: ${{ secrets.AUTHENTICODE_SPC }}
+        AUTHENTICODE_KEY: ${{ secrets.AUTHENTICODE_KEY }}
       run: bash release.sh
