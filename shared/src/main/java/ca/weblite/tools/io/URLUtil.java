@@ -37,14 +37,15 @@ public class URLUtil {
             throw new RuntimeException(mex);
         }
     }
-    
+
     public static InputStream openStream(URL url) throws IOException {
         if (url.getProtocol().equalsIgnoreCase("file")) {
             return url.openStream();
         }
         HttpURLConnection conn = (HttpURLConnection)url.openConnection();
-        conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.4; en-US; rv:1.9.2.2) Gecko/20100316 Firefox/3.6.2");
         conn.setInstanceFollowRedirects(true);
+
         return conn.getInputStream();
     }
     
