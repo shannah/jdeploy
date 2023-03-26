@@ -865,11 +865,13 @@ public class JDeployProjectEditor {
             jdeploy.put("jdk", mainFields.jdk.isSelected());
             setModified();
         });
-        mainFields.javaVersion = new JComboBox<String>(new String[]{"8", "11", "17"});
+
+        mainFields.javaVersion = new JComboBox<String>(new String[]{"8", "11", "17", "19", "20"});
+        mainFields.javaVersion.setEditable(true);
         if (jdeploy.has("javaVersion")) {
             mainFields.javaVersion.setSelectedItem(String.valueOf(jdeploy.get("javaVersion")));
         } else {
-            mainFields.javaVersion.setSelectedItem("11");
+            mainFields.javaVersion.setSelectedItem("17");
         }
         mainFields.javaVersion.addItemListener(evt -> {
             jdeploy.put("javaVersion", mainFields.javaVersion.getSelectedItem());
