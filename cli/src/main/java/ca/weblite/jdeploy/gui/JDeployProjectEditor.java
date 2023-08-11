@@ -309,13 +309,14 @@ public class JDeployProjectEditor {
 
     public void show() {
         initFrame();
-        String title = packageJSON.getString("name");
+        String title = packageJSON.has("name") ? packageJSON.getString("name") : "";
         if (packageJSON.has("jdeploy")) {
             JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
             if (jdeploy.has("title")) {
                 title = jdeploy.getString("title");
             }
         }
+
         frame.setTitle(title);
         frame.pack();
         frame.setLocationRelativeTo(null);

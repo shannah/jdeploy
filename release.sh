@@ -101,10 +101,3 @@ if [ "$GITHUB_REF_TYPE" == "tag" ]; then
   npm version "$GITHUB_REF_NAME"
   java -jar "$JDEPLOY" publish
 fi
-
-
-
-
-
-
-

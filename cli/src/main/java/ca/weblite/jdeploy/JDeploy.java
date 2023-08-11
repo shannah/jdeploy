@@ -2337,16 +2337,20 @@ public class JDeploy {
                 File packageJSON = new File("package.json");
                 if (packageJSON.exists()) {
                     JSONObject packageJSONObject = new JSONObject(FileUtils.readFileToString(packageJSON, "UTF-8"));
-                    if (packageJSON.exists()) {
+                    boolean hasAllExpectedProperties = packageJSONObject.has("name") &&
+                            packageJSONObject.has("version") &&
+                            packageJSONObject.has("dependencies") &&
+                            packageJSONObject.has("bin") &&
+                            packageJSONObject.has("jdeploy");
+                    if (hasAllExpectedProperties) {
                         EventQueue.invokeLater(() -> {
                             JDeployProjectEditor editor = new JDeployProjectEditor(packageJSON, packageJSONObject);
                             editor.show();
                         });
+                        return;
                     }
-                } else {
-                    prog.guiCreateNew(packageJSON);
                 }
-
+                prog.guiCreateNew(packageJSON);
                 return;
 
             }
