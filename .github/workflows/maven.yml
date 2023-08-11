@@ -39,7 +39,7 @@ jobs:
         java-version: 11
         maven-version: '3.6.3'
     - name: Install osslsigncode
-      run: brew install osslsigncode
+      run: brew install osslsigncode@2.3
     - name: Install MacOS Certificates
       uses: apple-actions/import-codesign-certs@v1
       with: 
