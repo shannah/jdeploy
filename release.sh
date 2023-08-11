@@ -70,7 +70,6 @@ echo "$AUTHENTICODE_SPC" | base64 --decode > authenticode.spc
 echo "$AUTHENTICODE_KEY" | base64 --decode > authenticode.key
 
 osslsigncode \
-  -certs \
   -spc authenticode.spc \
   -key authenticode.key \
   -t http://timestamp.digicert.com \
