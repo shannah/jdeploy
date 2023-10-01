@@ -198,7 +198,10 @@ public class CheerpjService extends BaseService {
             throw new IOException("Github pages publish path is null.");
         }
         File publishPath = new File(packageJSONFile.getParentFile(), githubPagesPublishPath);
+        boolean stashed = false;
         if (!currentBranch.equals(githubPagesBranch)) {
+            executeGitCommand("git", "stash");
+            stashed = true;
             checkoutBranch(githubPagesBranch, true, true);
         }
         try {
@@ -208,6 +211,9 @@ public class CheerpjService extends BaseService {
             publishPath.getParentFile().mkdirs();
             publishToCurrentBranch(publishPath);
         } finally {
+            if (stashed) {
+                executeGitCommand("git", "stash", "pop");
+            }
             if (!currentBranch.equals(githubPagesBranch)) {
                 checkoutBranch(currentBranch, false, false);
             }
