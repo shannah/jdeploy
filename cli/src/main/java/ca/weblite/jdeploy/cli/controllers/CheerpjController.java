@@ -20,6 +20,7 @@ public class CheerpjController extends BaseController implements Runnable {
             cheerpjService = new CheerpjService(packageJSONFile, null);
             if (args != null) cheerpjService.setArgs(args);
             cheerpjService.execute();
+            out.println("Web app created in jdeploy/cheerpj directory");
         } catch (IOException e) {
             e.printStackTrace();
         }
