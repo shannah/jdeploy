@@ -2204,6 +2204,12 @@ public class JDeploy {
         fetchJdeployBundleCode(getFullPackageName(bundlerSettings.getSource(), packageJSON.getString("name")));
         out.println("Release files created in " + getGithubReleaseFilesDir());
 
+        CheerpjController cheerpjController = new CheerpjController(packageJsonFile, new String[0]);
+        if (cheerpjController.isEnabled()) {
+            out.println("CheerpJ detected, uploading to CheerpJ CDN...");
+            cheerpjController.run();
+        }
+
     }
 
     public void publish() throws IOException {
@@ -2226,6 +2232,7 @@ public class JDeploy {
             } catch (Exception ex){}
         }
         uploadResources();
+
     }
 
     public DeveloperIdentityKeyStore getKeyStore() throws IOException {

@@ -14,10 +14,27 @@ public class CheerpjController extends BaseController implements Runnable {
 
     }
 
+    private CheerpjService getCheerpjService() throws IOException {
+        if (cheerpjService == null) {
+            cheerpjService = new CheerpjService(packageJSONFile, null);
+        }
+
+        return cheerpjService;
+    }
+
+    public boolean isEnabled() {
+        try {
+            return getCheerpjService().isEnabled();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     @Override
     public void run() {
         try {
-            cheerpjService = new CheerpjService(packageJSONFile, null);
+            CheerpjService cheerpjService = getCheerpjService();
             if (args != null) cheerpjService.setArgs(args);
             cheerpjService.execute();
             out.println("Web app created in jdeploy/cheerpj directory");
