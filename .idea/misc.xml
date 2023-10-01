@@ -7,6 +7,7 @@
         <option value="$PROJECT_DIR$/shared/pom.xml" />
         <option value="$PROJECT_DIR$/installer/pom.xml" />
         <option value="$PROJECT_DIR$/installer/fx-theme/pom.xml" />
+        <option value="$PROJECT_DIR$/jdeploy-cheerpj/pom.xml" />
       </list>
     </option>
   </component>

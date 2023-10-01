@@ -25,39 +25,21 @@ import java.nio.file.Paths;
 import java.text.MessageFormat;
 import java.util.*;
 
-public class JPackageService {
+public class JPackageService extends BaseService {
     private String jpackagePath="jpackage";
-    private JSONObject packageJSON;
-    private File packageJSONFile;
-    private Map<String,String> args = new LinkedHashMap<>();
-    private Set<String> flags = new LinkedHashSet<>();
 
     public JPackageService(File packageJSONFile, JSONObject packageJSON) throws IOException {
-        this.packageJSONFile = packageJSONFile;
-        if (!packageJSONFile.exists()) throw new IOException("Cannot create jpackage service for non-existent package.json file: "+packageJSONFile);
-        if (packageJSON == null) {
-
-            packageJSON = new JSONObject(FileUtils.readFileToString(packageJSONFile, StandardCharsets.UTF_8));
-        }
-        this.packageJSON = packageJSON;
+        super(packageJSONFile, packageJSON);
         if (System.getenv("JDEPLOY_JPACKAGE") != null) {
             jpackagePath = System.getenv("JDEPLOY_JPACKAGE");
         } else {
             jpackagePath = findJPackage();
         }
 
-
     }
 
     public void execute() throws Exception {
         run();
-    }
-
-    private String getArg(String key, String defaultValue) {
-        if (args.containsKey(key)) {
-            return args.get(key);
-        }
-        return defaultValue;
     }
 
     private void run() throws Exception {
@@ -109,43 +91,10 @@ public class JPackageService {
         }
     }
 
-    private File getProjectDirectory() throws IOException {
-        return packageJSONFile.getCanonicalFile().getParentFile();
-    }
-
-    private File getJDeployBundleDirectory() throws IOException {
-        return new File(getProjectDirectory(), "jdeploy-bundle");
-    }
-
-    private File getMainJarFile() throws IOException {
-        return new File(getJDeployBundleDirectory(), new File(getJDeployObject().getString("jar")).getName());
-    }
-
-    private JSONObject getJDeployObject() {
-        return packageJSON.getJSONObject("jdeploy");
-    }
-
-    private File getDestDirectory() throws IOException {
-        File dest = new File(getProjectDirectory(), "jdeploy" + File.separator + "jpackage");
+    protected File getDestDirectory() throws IOException {
+        File dest = new File(super.getDestDirectory(),  "jpackage");
         dest.mkdirs();
         return dest;
-    }
-
-    private String getDescription() {
-        return packageJSON.has("description") ? packageJSON.getString("description") : "";
-    }
-
-    private String getAppVersion() {
-        return packageJSON.getString("version");
-    }
-
-    private File getIconFile() throws IOException {
-        return new File(getProjectDirectory(), "icon.png");
-    }
-
-    private String getAppName() {
-        return getJDeployObject().has("title") ? getJDeployObject().getString("title") :
-                packageJSON.getString("name");
     }
 
     private File createTempFileAssociationPropertiesFile(DocumentTypeAssociation fileType) throws IOException {
@@ -191,62 +140,6 @@ public class JPackageService {
             }
         }
         return "jpackage";
-    }
-
-
-
-    private Iterable<File> getEnvironmentPath() {
-        ArrayList<File> out = new ArrayList<>();
-        if (System.getenv("JAVA_HOME") != null) {
-            File javaHome = new File(System.getenv("JAVA_HOME"));
-            File bin = new File(javaHome, "bin");
-            if (bin.exists()) {
-                out.add(bin);
-            }
-            if (javaHome.getName().equals("jre")) {
-                javaHome = javaHome.getParentFile();
-                bin = new File(javaHome, "bin");
-                if (bin.exists()) {
-                    out.add(bin);
-                }
-            }
-        }
-        if (System.getProperty("java.home") != null) {
-            File javaHome = new File(System.getProperty("java.home"));
-            File bin = new File(javaHome, "bin");
-            if (bin.exists()) {
-                out.add(bin);
-            }
-            if (javaHome.getName().equals("jre")) {
-                javaHome = javaHome.getParentFile();
-                bin = new File(javaHome, "bin");
-                if (bin.exists()) {
-                    out.add(bin);
-                }
-            }
-        }
-        String path = System.getenv("PATH");
-        if (path != null) {
-            for (String p : path.split(File.pathSeparator)) {
-                File f = new File(p);
-                if (f.exists()) {
-                    out.add(f);
-                }
-            }
-        }
-
-        // Now just do guessing
-        File jvmDir = new File("/Library/Java/JavaVirtualMachines");
-        if (jvmDir.exists()) {
-            for (File jdk : jvmDir.listFiles()) {
-                File bin = new File(jdk, "Contents" + File.separator + "Home" + File.separator + "bin");
-                if (bin.exists()) {
-                    out.add(bin);
-                }
-            }
-        }
-        return out;
-
     }
 
     private File processIcon() throws Exception {
@@ -311,7 +204,6 @@ public class JPackageService {
             throw new IOException("Failed to determine type of icon file.");
         }
 
-
         try (IcnsBuilder builder = IcnsBuilder.getInstance()) {
 
             builder.add(osType, new FileInputStream(iconFile));
@@ -325,27 +217,8 @@ public class JPackageService {
         } finally {
             iconFile.delete();
         }
-
-
-
     }
 
-
-
-    public void setArgs(String[] args) {
-        this.args.clear();
-        for (int i=0; i<args.length; i+=2) {
-            if (args.length <= i+1) {
-                this.flags.add(args[i]);
-            } else if (args[i+1].startsWith("--")) {
-                this.flags.add(args[i]);
-                i--;
-            } else {
-                this.args.put(args[i], args[i + 1]);
-            }
-        }
-
-    }
 
     private static class Icon {
         /**

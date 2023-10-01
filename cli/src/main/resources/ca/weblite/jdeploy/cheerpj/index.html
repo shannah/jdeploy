@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+
+    <title>{{ title }}</title>
+
+    <script src="https://cjrtnc.leaningtech.com/3_20230915_194/cj3loader.js"></script>
+
+    <style>
+      html, body { margin: 0; height: 100%; }
+    </style>
+
+
+    <script>
+
+        function getClassPathPrefix() {
+            let path = window.location.pathname;  // Gets the path name from the current URL
+
+            // Remove file name from path (if present)
+            path = path.replace(/\/[^\/]+\.[^\/]+$/, '/');
+
+            // If the path does not end with '/', append '/'
+            if (!path.endsWith('/')) {
+                path += '/';
+            }
+
+            return '/app' + path;
+        }
+
+        function prefixClassPath(prefix, classPath) {
+            // Split the classPath string into an array of paths
+            let paths = classPath.split(':');
+
+            // Add the prefix to each path in the array
+            paths = paths.map(path => prefix + path);
+
+            // Join the array back into a single string with ':' as the separator
+            classPath = paths.join(':');
+
+            return classPath;
+        }
+
+        async function myInit() {
+            window.cj1 = await cheerpjInit();
+            window.cj2 = await cheerpjCreateDisplay(800, 600);
+            const cj = await cheerpjRunLibrary(prefixClassPath(getClassPathPrefix(), "{{ classPath }}"));
+            const CheerpjSwingUtils = await cj.com.jdeploy.cheerpj.CheerpjSwingUtils;
+            async function onWindowResize() {
+                document.getElementById("cheerpjDisplay").style.height = '100%';
+                document.getElementById("cheerpjDisplay").style.width = '100%';
+                await CheerpjSwingUtils.onResize();
+            }
+            window.addEventListener("resize", onWindowResize);
+            await CheerpjSwingUtils.launchNoArgs('{{ mainClass }}');;
+            await onWindowResize();
+        }
+    </script>
+
+</head>
+
+<body onload="myInit()">
+</body>
+</html>

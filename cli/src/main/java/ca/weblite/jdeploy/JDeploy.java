@@ -8,6 +8,8 @@ package ca.weblite.jdeploy;
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
+import ca.weblite.jdeploy.cheerpj.services.BuildCheerpjAppService;
+import ca.weblite.jdeploy.cli.controllers.CheerpjController;
 import ca.weblite.jdeploy.cli.controllers.JPackageController;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
@@ -1808,6 +1810,29 @@ public class JDeploy {
         return installerZip;
     }
 
+    private void cheerpjCLI(String[] args) {
+        packageJsonFile = new File(directory, "package.json");
+        if (packageJsonFile == null) {
+            throw new IllegalStateException("packageJSONFile not set yet");
+        }
+        CheerpjController cheerpjController = new CheerpjController(packageJsonFile, args);
+
+        try {
+            if (alwaysClean) {
+                File jdeployBundleDirectory = new File(directory, "jdeploy-bundle");
+                if (jdeployBundleDirectory.exists()) {
+                    FileUtils.deleteDirectory(jdeployBundleDirectory);
+                }
+            }
+            copyToBin();
+        } catch (Exception ex) {
+            err.println("Failed to copy files to jdeploy directory.");
+            ex.printStackTrace(err);
+            System.exit(1);
+        }
+
+        cheerpjController.run();
+    }
 
     private void jpackageCLI(String[] args) {
         packageJsonFile = new File(directory, "package.json");
@@ -2392,8 +2417,11 @@ public class JDeploy {
                     System.exit(0);
                 }
             }
-
-            if ("jpackage".equals(args[0])) {
+            if ("cheerpj".equals(args[0])) {
+                String[] cheerpjArgs = new String[args.length-1];
+                System.arraycopy(args, 1, cheerpjArgs, 0, cheerpjArgs.length);
+                prog.cheerpjCLI(cheerpjArgs);
+            } else if ("jpackage".equals(args[0])) {
                 String[] jpackageArgs = new String[args.length-1];
                 System.arraycopy(args, 1, jpackageArgs, 0, jpackageArgs.length);
                 prog.jpackageCLI(jpackageArgs);

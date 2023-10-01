@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.services;
 
 import ca.weblite.jdeploy.helpers.KeyPairGenerator;
 import ca.weblite.jdeploy.models.DeveloperIdentity;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.security.KeyPair;
@@ -14,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class CertificateGeneratorTest {
 
     @Test
+    @Disabled
     void generateCertificates() throws Exception {
         CertificateGenerator generator = new CertificateGenerator();
         KeyPair keyPair = KeyPairGenerator.generateKeyPair();

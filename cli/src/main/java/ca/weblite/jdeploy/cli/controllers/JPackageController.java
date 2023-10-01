@@ -7,19 +7,10 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.concurrent.Callable;
 
-public class JPackageController implements Runnable {
-
-    private File packageJSONFile;
-    private PrintStream out = System.out;
-    private PrintStream err = System.err;
-    private String[] args;
-
+public class JPackageController extends BaseController implements Runnable {
     public JPackageController(File packageJSONFile, String[] args) {
-        this.packageJSONFile = packageJSONFile;
-        this.args = args;
+        super(packageJSONFile, args);
     }
-
-
 
     @Override
     public void run() {
@@ -46,23 +37,4 @@ public class JPackageController implements Runnable {
             return false;
         }
     }
-
-    public PrintStream getOut() {
-        return out;
-    }
-
-    public void setOut(PrintStream out) {
-        this.out = out;
-    }
-
-    public PrintStream getErr() {
-        return err;
-    }
-
-    public void setErr(PrintStream err) {
-        this.err = err;
-    }
-
-
-
 }
