@@ -219,6 +219,7 @@ public class CheerpjService extends BaseService {
     private void executeGitCommand(String... commands) throws IOException, InterruptedException {
         System.out.println("Running git command: " + Arrays.toString(commands));
         ProcessBuilder processBuilder = new ProcessBuilder(commands);
+        processBuilder.inheritIO();
         Process process = processBuilder.start();
         int result = process.waitFor();
 
