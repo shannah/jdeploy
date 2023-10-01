@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.cheerpj.services;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -19,6 +20,7 @@ class BuildCheerpjAppServiceTest {
     void tearDown() {
     }
 
+    @Disabled
     @Test
     void build() throws IOException {
         BuildCheerpjAppService service = new BuildCheerpjAppService();

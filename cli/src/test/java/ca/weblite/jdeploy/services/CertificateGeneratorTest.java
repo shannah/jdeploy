@@ -15,7 +15,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class CertificateGeneratorTest {
 
     @Test
-    @Disabled
     void generateCertificates() throws Exception {
         CertificateGenerator generator = new CertificateGenerator();
         KeyPair keyPair = KeyPairGenerator.generateKeyPair();
