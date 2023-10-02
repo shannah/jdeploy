@@ -51,8 +51,6 @@ runs:
       run: |
         git config user.name "GitHub Actions Bot"
         git config user.email "<>"
-        git config credential.helper cache
-        echo "${{ inputs.github_token }}" | git credential approve
     - name: Set up Node
       uses: actions/setup-node@v2
       with:
@@ -77,7 +75,7 @@ runs:
         npm pkg set jdeploy.commitHash="$GITHUB_SHA"
         GITHUB_REPOSITORY=${{ inputs.target_repository }} npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
       env:
-        GH_TOKEN: ${{ inputs.github_token }}
+        GH_TOKEN: ${{ github.actor }}:${{ inputs.github_token }}
 
     - name: Prepare Installer Bundles for Tag
       if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' }}
@@ -89,7 +87,7 @@ runs:
         npm pkg set jdeploy.gitTag="${{ github.ref_name }}"
         GITHUB_REPOSITORY=${{ inputs.target_repository }} npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
       env:
-        GH_TOKEN: ${{ inputs.github_token }}
+        GH_TOKEN: ${{ github.actor }}:${{ inputs.github_token }}
 
     - name: Publish package-info.json to Github
       uses: marvinpinto/action-automatic-releases@latest
