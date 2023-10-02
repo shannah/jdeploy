@@ -185,4 +185,6 @@ public class CheerpjService extends BaseService {
         publisher.publishToGithubPages(getDestDirectory(), null, getGithubPagesBranch(), getGithubPagesPublishPath());
 
     }
+
+
 }

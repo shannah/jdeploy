@@ -3,6 +3,8 @@ package ca.weblite.jdeploy.services;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 
 public class GithubPagesPublisher {
@@ -24,7 +26,7 @@ public class GithubPagesPublisher {
         try {
             // Create a temporary directory
             tempDir = Files.createTempDirectory("tempRepoDir").toFile();
-
+            System.out.println("Clonikng branch " + branchName + " of " + repoUrl);
             // Clone the repository to a temporary directory
             ProcessBuilder builder = new ProcessBuilder();
             builder.command("git", "clone", "--depth", "1", "-b", branchName, repoUrl, tempDir.getAbsolutePath())
@@ -47,7 +49,14 @@ public class GithubPagesPublisher {
                     .inheritIO()
                     .start()
                     .waitFor();
-            builder.command("git", "push")
+            List<String> pushCommand = new ArrayList<>();
+            pushCommand.add("git");
+            pushCommand.add("push");
+            if (getGithubTokenFromEnvironment() != null) {
+                pushCommand.add("https://" + getGithubTokenFromEnvironment() + "@"
+                        + repoUrl.substring(8));
+            }
+            builder.command(pushCommand)
                     .directory(tempDir)
                     .inheritIO()
                     .start()
@@ -85,12 +94,7 @@ public class GithubPagesPublisher {
         directoryToBeDeleted.delete();
     }
 
-    public static void main(String[] args) {
-        GithubPagesPublisher publisher = new GithubPagesPublisher();
-        try {
-            publisher.publishToGithubPages(new File("sourceDirectory"), "https://github.com/user/repo.git", "gh-pages", "destPath");
-        } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
-        }
+    private String getGithubTokenFromEnvironment() {
+        return System.getenv("GH_TOKEN");
     }
 }

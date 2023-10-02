@@ -74,6 +74,8 @@ runs:
         npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
         npm pkg set jdeploy.commitHash="$GITHUB_SHA"
         GITHUB_REPOSITORY=${{ inputs.target_repository }} npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
 
     - name: Prepare Installer Bundles for Tag
       if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' }}
@@ -84,6 +86,8 @@ runs:
         npm pkg set jdeploy.commitHash="$GITHUB_SHA"
         npm pkg set jdeploy.gitTag="${{ github.ref_name }}"
         GITHUB_REPOSITORY=${{ inputs.target_repository }} npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
 
     - name: Publish package-info.json to Github
       uses: marvinpinto/action-automatic-releases@latest
