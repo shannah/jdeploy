@@ -1,12 +1,8 @@
 package ca.weblite.jdeploy.services;
 
 import ca.weblite.jdeploy.cheerpj.services.BuildCheerpjAppService;
-import ca.weblite.tools.io.FileUtil;
 import org.json.JSONObject;
-
 import java.io.*;
-import java.util.Arrays;
-import java.util.Scanner;
 
 public class CheerpjService extends BaseService {
     private BuildCheerpjAppService buildCheerpjAppService;
@@ -14,9 +10,7 @@ public class CheerpjService extends BaseService {
     public CheerpjService(File packageJSONFile, JSONObject packageJSON) throws IOException {
         super(packageJSONFile, packageJSON);
         buildCheerpjAppService = new BuildCheerpjAppService();
-
     }
-
 
     public boolean isEnabled() {
         return getJDeployObject().has("cheerpj");
@@ -138,10 +132,16 @@ public class CheerpjService extends BaseService {
     }
 
     public boolean isGithubPagesEnabled() {
+        if (!getGithubPagesConfig().has("enabled")) {
+            return false;
+        }
         return getGithubPagesConfig().getBoolean("enabled");
     }
 
     private String getGithubPagesBranch() {
+        if (!getGithubPagesConfig().has("branch")) {
+            return null;
+        }
         return getGithubPagesConfig().getString("branch");
     }
 
@@ -161,20 +161,6 @@ public class CheerpjService extends BaseService {
         return branchName;
     }
 
-    private void checkoutBranch(String branch, boolean fetch, boolean pull) throws IOException, InterruptedException {
-        if (fetch) {
-            executeGitCommand("git", "fetch", "--all");
-        }
-
-        // Checkout gh-pages branch
-        executeGitCommand("git", "checkout", branch);
-
-        // Pull the latest
-        if (pull) {
-            executeGitCommand("git", "pull");
-        }
-    }
-
     public static void generateGitignoreFile(String directoryPath) throws IOException {
         File gitignore = new File(directoryPath, ".gitignore");
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(gitignore))) {
@@ -186,70 +172,17 @@ public class CheerpjService extends BaseService {
             // Do not ignore directories, so we can traverse them
             writer.write("\n");
         }
-        System.out.println(".gitignore file created at: " + gitignore.getAbsolutePath());
     }
-
 
     private void publishToGithubPages() throws IOException, InterruptedException {
-        String currentBranch = getCurrentGitBranch();
-        String githubPagesBranch = getGithubPagesBranch();
-        String githubPagesPublishPath = getGithubPagesPublishPath();
-        if (githubPagesPublishPath == null) {
-            throw new IOException("Github pages publish path is null.");
+        if (getCurrentGitBranch() != null && getCurrentGitBranch().equals(getGithubPagesBranch())) {
+            System.out.println("Cannot publish to github pages from the same branch");
+            return;
         }
-        File publishPath = new File(packageJSONFile.getParentFile(), githubPagesPublishPath);
-        boolean stashed = false;
-        if (!currentBranch.equals(githubPagesBranch)) {
-            executeGitCommand("git", "stash");
-            stashed = true;
-            checkoutBranch(githubPagesBranch, true, true);
-        }
-        try {
-            if (publishPath.exists()) {
-                FileUtil.delTree(publishPath);
-            }
-            publishPath.getParentFile().mkdirs();
-            publishToCurrentBranch(publishPath);
-        } finally {
-            if (stashed) {
-                executeGitCommand("git", "stash", "pop");
-            }
-            if (!currentBranch.equals(githubPagesBranch)) {
-                checkoutBranch(currentBranch, false, false);
-            }
-        }
-
+        GithubPagesPublisher publisher = new GithubPagesPublisher();
+        generateGitignoreFile(getDestDirectory().getAbsolutePath());
+        System.out.println("Publishing to github pages");
+        publisher.publishToGithubPages(getDestDirectory(), null, getGithubPagesBranch(), getGithubPagesPublishPath());
 
     }
-
-    private void executeGitCommand(String... commands) throws IOException, InterruptedException {
-        System.out.println("Running git command: " + Arrays.toString(commands));
-        ProcessBuilder processBuilder = new ProcessBuilder(commands);
-        processBuilder.inheritIO();
-        Process process = processBuilder.start();
-        int result = process.waitFor();
-
-        // Output the command result for debugging purpose
-        try (InputStream inputStream = process.getInputStream();
-             Scanner scanner = new Scanner(inputStream)) {
-            while (scanner.hasNextLine()) {
-                System.out.println(scanner.nextLine());
-            }
-        }
-        if (result != 0) {
-            throw new IOException("Error while executing git command: " + Arrays.toString(commands));
-        }
-    }
-
-    private void publishToCurrentBranch(File publishPath) throws IOException, InterruptedException {
-
-        FileUtil.copy(getDestDirectory(), publishPath);
-        generateGitignoreFile(publishPath.getAbsolutePath());
-
-        executeGitCommand("git", "add", getGithubPagesPublishPath());
-        executeGitCommand("git", "commit", "-m", "Publish to github pages.");
-        executeGitCommand("git", "push", "origin", getCurrentGitBranch());
-
-    }
-
 }
