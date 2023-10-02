@@ -51,6 +51,8 @@ runs:
       run: |
         git config user.name "GitHub Actions Bot"
         git config user.email "<>"
+        git config credential.helper cache
+        echo "${{ inputs.github_token }}" | git credential approve
     - name: Set up Node
       uses: actions/setup-node@v2
       with:
