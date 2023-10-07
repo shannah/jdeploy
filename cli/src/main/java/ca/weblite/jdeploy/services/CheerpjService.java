@@ -28,7 +28,8 @@ public class CheerpjService extends BaseService {
         buildCheerpjAppService.build(
                 new BuildCheerpjAppService.Params()
                         .setAppName(getAppName())
-                        .setAppJar(mainJar).setOutputDir(dest)
+                        .setAppJar(mainJar)
+                        .setOutputDir(dest)
         );
         copyIconToDirectory(dest);
         if (isGithubPagesEnabled()) {

@@ -26,7 +26,7 @@ public class GithubPagesPublisher {
         try {
             // Create a temporary directory
             tempDir = Files.createTempDirectory("tempRepoDir").toFile();
-            System.out.println("Clonikng branch " + branchName + " of " + repoUrl);
+            System.out.println("Cloning branch " + branchName + " of " + repoUrl);
             // Clone the repository to a temporary directory
             ProcessBuilder builder = new ProcessBuilder();
             builder.command("git", "clone", "--depth", "1", "-b", branchName, repoUrl, tempDir.getAbsolutePath())
@@ -40,6 +40,11 @@ public class GithubPagesPublisher {
 
             // Add, commit and push the changes
             builder.command("git", "add", ".")
+                    .directory(tempDir)
+                    .inheritIO()
+                    .start()
+                    .waitFor();
+            builder.command("git", "status", ".")
                     .directory(tempDir)
                     .inheritIO()
                     .start()
