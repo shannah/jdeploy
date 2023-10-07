@@ -25,7 +25,12 @@ public class CheerpjService extends BaseService {
     private void run() throws IOException {
         File mainJar = this.getMainJarFile();
         File dest = this.getDestDirectory();
-        buildCheerpjAppService.build(mainJar, dest);
+        buildCheerpjAppService.build(
+                new BuildCheerpjAppService.Params()
+                        .setAppName(getAppName())
+                        .setAppJar(mainJar).setOutputDir(dest)
+        );
+        copyIconToDirectory(dest);
         if (isGithubPagesEnabled()) {
             try {
                 publishToGithubPages();
@@ -132,7 +137,7 @@ public class CheerpjService extends BaseService {
     }
 
     public boolean isGithubPagesEnabled() {
-        if (!getGithubPagesConfig().has("enabled")) {
+        if (!getGithubPagesConfig().has("enabled") || "true".equals(System.getenv("JDEPLOY_CHEERPJ_SKIP_DEPLOY"))) {
             return false;
         }
         return getGithubPagesConfig().getBoolean("enabled");

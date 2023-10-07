@@ -17,22 +17,67 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
 public class BuildCheerpjAppService {
-    public void build(File appJar, File outputDir) throws IOException {
-        String mainClass = extractMainClass(appJar);
-        String classPath = extractClassPath(appJar) + ":jdeploy-cheerpj.jar";
+
+    public static class Params {
+        private File iconFile;
+        private String appName;
+        private File appJar;
+        private File outputDir;
+
+        public File getOutputDir() {
+            return outputDir;
+        }
+
+        public Params setOutputDir(File outputDir) {
+            this.outputDir = outputDir;
+            return this;
+        }
+
+        public File getAppJar() {
+            return appJar;
+        }
+
+        public Params setAppJar(File appJar) {
+            this.appJar = appJar;
+            return this;
+        }
+
+        public String getAppName() {
+            return appName;
+        }
+
+        public Params setAppName(String appName) {
+            this.appName = appName;
+            return this;
+        }
+
+        public File getIconFile() {
+            return iconFile;
+        }
+
+        public Params setIconFile(File iconFile) {
+            this.iconFile = iconFile;
+            return this;
+        }
+    }
+    public void build(Params params) throws IOException {
+        String mainClass = extractMainClass(params.getAppJar());
+        String classPath = extractClassPath(params.getAppJar()) + ":jdeploy-cheerpj.jar";
         String indexHtml = IOUtil.readToString(
                 this.getClass().getResourceAsStream("/ca/weblite/jdeploy/cheerpj/index.html")
         );
 
         indexHtml = indexHtml.replace("{{ mainClass }}", mainClass);
         indexHtml = indexHtml.replace("{{ classPath }}", classPath);
+        indexHtml = indexHtml.replace("{{ appName }}", params.getAppName());
+        indexHtml = indexHtml.replace("{{ title }}", params.getAppName());
 
-        FileUtil.writeStringToFile(indexHtml, new File(outputDir, "index.html"));
-        copyJarToOutputDirectoryWithDependencies(appJar, outputDir);
+        FileUtil.writeStringToFile(indexHtml, new File(params.getOutputDir(), "index.html"));
+        copyJarToOutputDirectoryWithDependencies(params.getAppJar(), params.getOutputDir());
         IOUtil.copyResourceToFile(
                 getClass(),
                 "/ca/weblite/jdeploy/cheerpj/jdeploy-cheerpj.jar",
-                new File(outputDir, "jdeploy-cheerpj.jar")
+                new File(params.getOutputDir(), "jdeploy-cheerpj.jar")
         );
 
     }

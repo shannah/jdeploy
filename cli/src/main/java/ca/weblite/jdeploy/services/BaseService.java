@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.services;
 
+import ca.weblite.jdeploy.JDeploy;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 
@@ -132,6 +133,29 @@ public class BaseService {
 
     protected File getIconFile() throws IOException {
         return new File(getProjectDirectory(), "icon.png");
+    }
+
+    protected void copyIconToDirectory(File directory) throws IOException {
+        File iconFile = getIconFile();
+        File outputFile = new File(directory, "icon.png");
+
+        if (!iconFile.exists()) {
+            FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("icon.png"), outputFile);
+        } else {
+            FileUtils.copyFile(iconFile, outputFile);
+        }
+    }
+
+    protected void copySplashToDirectory(File directory) throws IOException {
+        String installSplashFileName = "splash.png";
+        File iconFile = new File(getProjectDirectory(), installSplashFileName);
+        File outputFile = new File(directory, installSplashFileName);
+
+        if (!iconFile.exists()) {
+            FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream(installSplashFileName), outputFile);
+        } else {
+            FileUtils.copyFile(iconFile, outputFile);
+        }
     }
 
     protected String getAppName() {

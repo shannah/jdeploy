@@ -26,9 +26,10 @@ class BuildCheerpjAppServiceTest {
         BuildCheerpjAppService service = new BuildCheerpjAppService();
         File dest = new File("/tmp/cheerpj/swingset2");
         dest.mkdirs();
-        service.build(
-                new File("/Users/shannah/.jdeploy/gh-packages/a1a64da2fae5f93e2ae203fff1d742f9.jdeploy-demo-swingset2/0.0.0-master/jdeploy-bundle/swingset2-1.0-SNAPSHOT.jar"),
-                dest
+        service.build(new BuildCheerpjAppService.Params()
+                        .setAppName("SwingSet 2")
+                .setAppJar(new File("/Users/shannah/.jdeploy/gh-packages/a1a64da2fae5f93e2ae203fff1d742f9.jdeploy-demo-swingset2/0.0.0-master/jdeploy-bundle/swingset2-1.0-SNAPSHOT.jar"))
+                .setOutputDir(dest)
         );
     }
 }
