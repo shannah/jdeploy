@@ -36,24 +36,35 @@ public class GithubPagesPublisher {
 
             // Copy the contents of sourceDirectory to the temporary directory at destPath
             File destDir = new File(tempDir, destPath);
+            System.out.println("Copying files from " + sourceDirectory.getAbsolutePath() + " to " + destDir.getAbsolutePath() + "...");
+            deleteDirectory(destDir);
             copyDirectory(sourceDirectory, destDir);
 
             // Add, commit and push the changes
-            builder.command("git", "add", ".")
+            int result = builder.command("git", "add", ".")
+                    .directory(destDir)
+                    .inheritIO()
+                    .start()
+                    .waitFor();
+            if (result != 0) {
+                throw new IOException("Failed to add files to git");
+            }
+            result = builder.command("git", "status", ".")
+                    .directory(destDir)
+                    .inheritIO()
+                    .start()
+                    .waitFor();
+            if (result != 0) {
+                throw new IOException("Failed to get git status");
+            }
+            result = builder.command("git", "commit", "-m", "Update GitHub Pages")
                     .directory(tempDir)
                     .inheritIO()
                     .start()
                     .waitFor();
-            builder.command("git", "status", ".")
-                    .directory(tempDir)
-                    .inheritIO()
-                    .start()
-                    .waitFor();
-            builder.command("git", "commit", "-m", "Update GitHub Pages")
-                    .directory(tempDir)
-                    .inheritIO()
-                    .start()
-                    .waitFor();
+            if (result != 0) {
+                throw new IOException("Failed to commit files to git");
+            }
             List<String> pushCommand = new ArrayList<>();
             pushCommand.add("git");
             pushCommand.add("push");
@@ -61,11 +72,14 @@ public class GithubPagesPublisher {
                 pushCommand.add("https://" + getGithubTokenFromEnvironment() + "@"
                         + repoUrl.substring(8));
             }
-            builder.command(pushCommand)
+            result = builder.command(pushCommand)
                     .directory(tempDir)
                     .inheritIO()
                     .start()
                     .waitFor();
+            if (result != 0) {
+                throw new IOException("Failed to push files to git");
+            }
         } finally {
             // Delete the temporary directory
             if (tempDir != null) {
@@ -84,6 +98,7 @@ public class GithubPagesPublisher {
                 copyDirectory(new File(source, child), new File(dest, child));
             }
         } else {
+            System.out.println("Copying " + source.getAbsolutePath() + " to " + dest.getAbsolutePath() + "...");
             Files.copy(source.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
     }

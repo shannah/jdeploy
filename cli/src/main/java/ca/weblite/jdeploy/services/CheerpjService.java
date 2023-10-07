@@ -186,7 +186,7 @@ public class CheerpjService extends BaseService {
             return;
         }
         GithubPagesPublisher publisher = new GithubPagesPublisher();
-        generateGitignoreFile(getDestDirectory().getAbsolutePath());
+        //generateGitignoreFile(getDestDirectory().getAbsolutePath());
         System.out.println("Publishing to github pages");
         publisher.publishToGithubPages(getDestDirectory(), null, getGithubPagesBranch(), getGithubPagesPublishPath());
 
