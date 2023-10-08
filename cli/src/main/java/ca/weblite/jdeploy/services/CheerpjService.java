@@ -1,8 +1,15 @@
 package ca.weblite.jdeploy.services;
 
 import ca.weblite.jdeploy.cheerpj.services.BuildCheerpjAppService;
+import net.coobird.thumbnailator.Thumbnails;
+import net.sf.image4j.codec.ico.ICOEncoder;
+import org.json.JSONArray;
 import org.json.JSONObject;
+
+import java.awt.image.BufferedImage;
 import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class CheerpjService extends BaseService {
     private BuildCheerpjAppService buildCheerpjAppService;
@@ -32,6 +39,8 @@ public class CheerpjService extends BaseService {
                         .setOutputDir(dest)
         );
         copyIconToDirectory(dest);
+        createFavicon(new File(dest, "icon.png"), new File(dest, "favicon.ico"));
+        createManifest(new File(dest, "manifest.json"));
         if (isGithubPagesEnabled()) {
             try {
                 publishToGithubPages();
@@ -40,6 +49,28 @@ public class CheerpjService extends BaseService {
                 throw new IOException(e);
             }
         }
+    }
+
+    private File createFavicon(File srcPng, File destIco) throws IOException {
+        List<BufferedImage> images = new ArrayList<>();
+        List<Integer> bppList = new ArrayList<>();
+        for (int i : new int[]{16, 24, 32, 48, 64, 128, 256, 512}) {
+            BufferedImage img = Thumbnails.of(srcPng).size(i, i).asBufferedImage();
+            images.add(img);
+            bppList.add(32);
+            if (i <= 48) {
+                images.add(img);
+                bppList.add(8);
+                images.add(img);
+                bppList.add(4);
+            }
+        }
+        int[] bppArray = bppList.stream().mapToInt(i->i).toArray();
+        try (FileOutputStream fileOutputStream = new FileOutputStream(destIco)) {
+            ICOEncoder.write(images,bppArray, fileOutputStream);
+        }
+        return destIco;
+
     }
 
     public void execute() throws IOException {
@@ -192,5 +223,25 @@ public class CheerpjService extends BaseService {
 
     }
 
-
+    private void createManifest(File destFile) {
+        JSONObject manifest = new JSONObject();
+        manifest.put("name", getAppName());
+        manifest.put("short_name", getAppName());
+        manifest.put("start_url", ".");
+        manifest.put("display", "standalone");
+        manifest.put("background_color", "#fff");
+        manifest.put("description", getDescription());
+        JSONArray icons = new JSONArray();
+        JSONObject icon512 = new JSONObject();
+        icon512.put("src", "icon.png");
+        icon512.put("sizes", "512x512");
+        icon512.put("type", "image/png");
+        icons.put(0, icon512);
+        manifest.put("icons", icons);
+        try (FileWriter file = new FileWriter(destFile)) {
+            file.write(manifest.toString(4));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }

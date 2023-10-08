@@ -36,8 +36,16 @@ public class GithubPagesPublisher {
 
             // Copy the contents of sourceDirectory to the temporary directory at destPath
             File destDir = new File(tempDir, destPath);
+            if (!isSubdirectoryOrFile(tempDir, destDir)) {
+                throw new IOException("Destination path " + destPath + " is not a subdirectory of the repository");
+            }
             System.out.println("Copying files from " + sourceDirectory.getAbsolutePath() + " to " + destDir.getAbsolutePath() + "...");
-            deleteDirectory(destDir);
+            if (!this.isRepoRootDirectory(destDir)) {
+                // For subdirectories, delete the old one.
+                // Can't do that for the root directory, because that would delete the .git directory.
+                deleteDirectory(destDir);
+            }
+
             copyDirectory(sourceDirectory, destDir);
 
             // Add, commit and push the changes
@@ -116,5 +124,16 @@ public class GithubPagesPublisher {
 
     private String getGithubTokenFromEnvironment() {
         return System.getenv("GH_TOKEN");
+    }
+
+    private boolean isRepoRootDirectory(File directory) {
+        return new File(directory, ".git").exists();
+    }
+
+    private boolean isSubdirectoryOrFile(File parent, File child) {
+        Path parentPath = parent.toPath().normalize().toAbsolutePath();
+        Path childPath = child.toPath().normalize().toAbsolutePath();
+
+        return childPath.startsWith(parentPath);
     }
 }
