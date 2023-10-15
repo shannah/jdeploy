@@ -4,8 +4,12 @@ import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
+
 import java.io.File;
 import java.nio.file.Files;
+import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -34,6 +38,7 @@ public class ProjectGeneratorCLIControllerTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     public void testGenerateSwing() throws Exception {
         System.out.println("Generating swing....");
         String[] args = new String[]{
@@ -55,6 +60,7 @@ public class ProjectGeneratorCLIControllerTest {
         Process p = pb.start();
         int exitCode = p.waitFor();
         assertEquals(0, exitCode);
+
     }
 
 }

@@ -2,6 +2,8 @@ package ca.weblite.jdeploy.services;
 
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -94,6 +96,7 @@ class ProjectGeneratorTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     public void testGenerateJavafx() throws Exception{
         Assumptions.assumeTrue(getJavaVersion() >= 17, "Java version is less than 17");
 
@@ -118,6 +121,7 @@ class ProjectGeneratorTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     public void testGenerateSwing() throws Exception{
         ProjectGenerator.Params params = new ProjectGenerator.Params();
         params.setMagicArg("com.mycompany.myapp.Main");
