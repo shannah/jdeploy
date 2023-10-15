@@ -11,6 +11,7 @@ import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.cheerpj.services.BuildCheerpjAppService;
 import ca.weblite.jdeploy.cli.controllers.CheerpjController;
 import ca.weblite.jdeploy.cli.controllers.JPackageController;
+import ca.weblite.jdeploy.cli.controllers.ProjectGeneratorCLIController;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
 import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
@@ -2338,7 +2339,10 @@ public class JDeploy {
                 + "  init : Initialize the project\n"
                 + "  package : Prepare for install.  This copies necessary files into bin directory.\n"
                 + "  install : Installs the app locally (links to PATH)\n"
-                + "  publish : Publishes to NPM\n", opts);
+                + "  publish : Publishes to NPM\n"
+                + "  generate: Generates a new project\n",
+                opts);
+
     }
     
     private void _run() {
@@ -2351,6 +2355,12 @@ public class JDeploy {
     public static void main(String[] args) {
         try {
             JDeploy prog = new JDeploy(new File(".").getAbsoluteFile());
+            if ("generate".equals(args[0])) {
+                String[] generateArgs = new String[args.length-1];
+                System.arraycopy(args, 1, generateArgs, 0, generateArgs.length);
+                prog.generate(generateArgs);
+                return;
+            }
             Options opts = new Options();
             opts.addOption("y", "no-prompt", false,"Indicates not to prompt user ");
             opts.addOption("W", "no-workflow", false,"Indicates not to create a github workflow if true");
@@ -2386,7 +2396,6 @@ public class JDeploy {
                 return;
 
             }
-
             if ("gui-main".equals(args[0])) {
                 EventQueue.invokeLater(()->{
                     JDeployMainMenu menu = new JDeployMainMenu();
@@ -2395,10 +2404,6 @@ public class JDeploy {
                 return;
 
             }
-
-
-
-
             if ("upload-resources".equals(args[0])) {
                 prog.uploadResources();
                 System.exit(0);
@@ -2460,6 +2465,8 @@ public class JDeploy {
                 prog.scan();
             } else if ("run".equals(args[0])) {
                 prog._run();
+            } else if ("help".equals(args[0])) {
+                prog.help(opts);
             } else {
                 prog.help(opts);
                 System.exit(1);
@@ -2468,6 +2475,11 @@ public class JDeploy {
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    private void generate(String[] args) {
+        ProjectGeneratorCLIController controller = new ProjectGeneratorCLIController(args);
+        controller.run();
     }
 
     private void guiCreateNew(File packageJSON) {

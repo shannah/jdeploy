@@ -25,13 +25,15 @@
     <orderEntry type="library" name="Maven: org.xeustechnologies:jtar:1.1" level="project" />
     <orderEntry type="library" name="Maven: ca.weblite.jdeploy:jetty-runner:1.0-SNAPSHOT" level="project" />
     <orderEntry type="library" name="Maven: ca.weblite.jdeploy:cn1-compatlib:1.0-SNAPSHOT" level="project" />
-    <orderEntry type="library" name="Maven: commons-cli:commons-cli:1.4" level="project" />
+    <orderEntry type="library" name="Maven: commons-cli:commons-cli:1.5.0" level="project" />
     <orderEntry type="library" name="Maven: commons-io:commons-io:2.11.0" level="project" />
     <orderEntry type="library" name="Maven: ca.weblite.jdeploy:jdeploy-installer-template-win-amd64:1.0-SNAPSHOT" level="project" />
     <orderEntry type="library" name="Maven: ca.weblite.jdeploy:jdeploy-installer-template-mac-amd64:1.0-SNAPSHOT" level="project" />
     <orderEntry type="library" name="Maven: ca.weblite.jdeploy:jdeploy-installer-template-mac-arm64:1.0-SNAPSHOT" level="project" />
     <orderEntry type="library" name="Maven: ca.weblite.jdeploy:jdeploy-installer-template-linux-amd64:1.0-SNAPSHOT" level="project" />
     <orderEntry type="library" name="Maven: net.lingala.zip4j:zip4j:2.9.1" level="project" />
+    <orderEntry type="library" name="Maven: org.eclipse.jgit:org.eclipse.jgit:5.13.0.202109080827-r" level="project" />
+    <orderEntry type="library" name="Maven: com.googlecode.javaewah:JavaEWAH:1.1.12" level="project" />
     <orderEntry type="library" name="Maven: org.json:json:20211205" level="project" />
     <orderEntry type="library" name="Maven: ca.weblite:PanelMatic:0.9.9" level="project" />
     <orderEntry type="library" name="Maven: org.apache.httpcomponents:httpclient:4.5.13" level="project" />

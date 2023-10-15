@@ -46,10 +46,12 @@ public class ProjectGeneratorCLIController {
         }
 
         try {
-            new ProjectGenerator(params).generate();
+            File projectDirectory = new ProjectGenerator(params).generate();
+            out.println("Project generated at: " + projectDirectory.getAbsolutePath());
         } catch (Exception ex) {
             err.println("Error generating project: " + ex.getMessage());
             ex.printStackTrace(err);
+            new CommandLineParser().printHelp(params);
         }
     }
 

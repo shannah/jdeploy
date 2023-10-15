@@ -1,0 +1,34 @@
+# This workflow will build a Java project with Maven and bundle them as native app installers with jDeploy
+# See https://www.jdeploy.com for more information.
+
+name: jDeploy CI with Maven
+
+on:
+  push:
+    branches: ['*', '!gh-pages']
+    tags: ['*']
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Git
+        run: |
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+          git config --global user.name "${{ github.actor }}"
+      - uses: actions/checkout@v3
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          cache: maven
+      - name: Build with Maven
+        run: mvn -B package --file pom.xml
+      - name: Build App Installer Bundles
+        uses: shannah/jdeploy@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,14 +1,14 @@
 package ca.weblite.jdeploy.services;
 
 import org.apache.commons.io.FileUtils;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 
 import java.io.File;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
+import java.util.Map;
 
+import static ca.weblite.jdeploy.cli.util.JavaVersionHelper.getJavaVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ProjectGeneratorTest {
@@ -24,6 +24,7 @@ class ProjectGeneratorTest {
 
     }
 
+    @AfterEach
     public void tearDown() throws Exception {
         if (parentDirectory != null && parentDirectory.exists()) {
             FileUtils.deleteDirectory(parentDirectory);
@@ -79,6 +80,8 @@ class ProjectGeneratorTest {
     @Test
     @Disabled
     public void testGenerateJavafxOnStevesComputer() throws Exception{
+        Assumptions.assumeTrue(getJavaVersion() >= 17, "Java version is less than 17");
+
         File javafxTemplate = new File("/Users/shannah/cn1_files/jdeploy-project-templates/javafx");
         ProjectGenerator.Params params = new ProjectGenerator.Params();
         params.setMagicArg("com.mycompany.myapp.Main");
@@ -92,6 +95,7 @@ class ProjectGeneratorTest {
 
     @Test
     public void testGenerateJavafx() throws Exception{
+        Assumptions.assumeTrue(getJavaVersion() >= 17, "Java version is less than 17");
 
         ProjectGenerator.Params params = new ProjectGenerator.Params();
         params.setMagicArg("com.mycompany.myapp.Main");
@@ -106,6 +110,8 @@ class ProjectGeneratorTest {
         ProcessBuilder pb = new ProcessBuilder("mvn", "package")
                 .directory(projectDirectory)
                 .inheritIO();
+        Map<String, String> environment = pb.environment();
+        environment.put("JAVA_HOME", System.getProperty("java.home"));
         Process p = pb.start();
         int exitCode = p.waitFor();
         assertEquals(0, exitCode);
@@ -113,7 +119,6 @@ class ProjectGeneratorTest {
 
     @Test
     public void testGenerateSwing() throws Exception{
-
         ProjectGenerator.Params params = new ProjectGenerator.Params();
         params.setMagicArg("com.mycompany.myapp.Main");
         params.setParentDirectory(parentDirectory);
@@ -269,5 +274,7 @@ class ProjectGeneratorTest {
             fail(ex.getMessage());
         }
     }
+
+
 }
 

@@ -3,8 +3,12 @@ package ca.weblite.jdeploy.services;
 import java.io.File;
 
 
+import ca.weblite.jdeploy.cli.util.CommandLineParser;
 import ca.weblite.jdeploy.helpers.StringUtils;
 import org.apache.commons.io.FileUtils;
+
+import static ca.weblite.jdeploy.cli.util.JavaVersionHelper.getJavaVersion;
+
 
 public class ProjectGenerator {
 
@@ -26,19 +30,42 @@ public class ProjectGenerator {
 
     public static class Params {
 
+        @CommandLineParser.PositionalArg(1)
+        @CommandLineParser.Help("The fully-qualified main class name.  If not specified, will be inferred from the package name and project name.")
         private String magicArg;
 
+        @CommandLineParser.Alias("d")
+        @CommandLineParser.Help("Parent directory to create project in.  Defaults to current directory.")
         private File parentDirectory;
+
+        @CommandLineParser.Alias("n")
+        @CommandLineParser.Help("The name of the project. Defaults to the main class name")
         private String projectName;
+
+        @CommandLineParser.Help("The title of the application.  Defaults to the project name.")
         private String appTitle;
+
+        @CommandLineParser.Help("The directory containing the template to use for the project.  Defaults to the built-in templates.")
+        @CommandLineParser.Alias("td")
         private String templateDirectory;
 
+        @CommandLineParser.Help("The name of the template to use.  E.g. \"swing\" or \"javafx\".  Defaults to \"swing\".")
+        @CommandLineParser.Alias("t")
         private String templateName;
+
+        @CommandLineParser.Help("The group ID for the project. If omitted, will be derived from the package name.")
+        @CommandLineParser.Alias("g")
         private String groupId;
+
+        @CommandLineParser.Help("The artifact ID for the project.  If omitted, will be derived from the package name.")
+        @CommandLineParser.Alias("a")
         private String artifactId;
 
+        @CommandLineParser.Help("The package name for the project.  If omitted, will be derived from fully-qualified main class name")
+        @CommandLineParser.Alias("pkg")
         private String packageName;
 
+        @CommandLineParser.Help("The main class name (not fully-qualified)")
         private String mainClassName;
 
 
@@ -307,7 +334,7 @@ public class ProjectGenerator {
         buildFileSource = buildFileSource.replace("{{ mainClass }}", mainClassName);
         buildFileSource = buildFileSource.replace("{{ packageName }}", packageName);
         buildFileSource = buildFileSource.replace("{{ packagePath }}", packageName.replace(".", "/"));
-
+        buildFileSource = buildFileSource.replace("{{ javaVersion }}", String.valueOf(getJavaVersion()));
         return buildFileSource;
     }
 

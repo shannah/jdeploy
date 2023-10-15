@@ -1,0 +1,40 @@
+{
+  "bin": {
+    "myapp": "jdeploy-bundle/jdeploy.js"
+  },
+  "author": "",
+  "description": "jDeploy Swing Starter Project",
+  "main": "index.js",
+  "preferGlobal": true,
+  "repository": "",
+  "version": "1.0-SNAPSHOT",
+  "jdeploy": {
+    "jdk": false,
+    "javaVersion": "8",
+    "jar": "target/myapp-1.0-SNAPSHOT.jar",
+    "javafx": false,
+    "title": "Main",
+    "cheerpj": {
+      "githubPages": {
+        "enabled": true,
+        "path": "app",
+        "branch" : "gh-pages"
+      }
+    }
+  },
+  "dependencies": {
+    "command-exists-promise": "^2.0.2",
+    "node-fetch": "2.6.7",
+    "shelljs": "^0.8.4",
+    "tar": "^4.4.8",
+    "yauzl": "^2.10.0"
+  },
+  "license": "ISC",
+  "name": "myapp",
+  "files": [
+    "jdeploy-bundle"
+  ],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
