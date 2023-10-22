@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.services;
 
 import org.apache.commons.io.FileUtils;
+import org.json.JSONObject;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -140,6 +141,28 @@ class ProjectGeneratorTest {
         Process p = pb.start();
         int exitCode = p.waitFor();
         assertEquals(0, exitCode);
+    }
+
+    @Test
+    public void testGenerateWithCheerpj() throws Exception{
+        ProjectGenerator.Params params = new ProjectGenerator.Params();
+        params.setMagicArg("com.mycompany.myapp.Main");
+        params.setParentDirectory(parentDirectory);
+        params.setTemplateName("swing");
+        params.setWithCheerpj(true);
+        ProjectGenerator generator = new ProjectGenerator(params);
+        generator.generate();
+        File projectDirectory = new File(parentDirectory, "myapp");
+        JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File(projectDirectory, "package.json"), "UTF-8"));
+        assertTrue(packageJSON.has("jdeploy"));
+        JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
+        assertTrue(jdeploy.has("cheerpj"));
+        JSONObject cheerpj = jdeploy.getJSONObject("cheerpj");
+        assertTrue(cheerpj.has("githubPages"));
+        JSONObject githubPages = cheerpj.getJSONObject("githubPages");
+        assertTrue(githubPages.has("enabled") && githubPages.getBoolean("enabled"));
+        assertTrue(githubPages.has("branch") && githubPages.getString("branch").equals("gh-pages"));
+        assertTrue(githubPages.has("path") && githubPages.getString("path").equals("app"));
     }
 
     private void createTemplate(File templateDirectory) {

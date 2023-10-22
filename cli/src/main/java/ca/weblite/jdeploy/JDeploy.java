@@ -10,6 +10,7 @@ import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.cheerpj.services.BuildCheerpjAppService;
 import ca.weblite.jdeploy.cli.controllers.CheerpjController;
+import ca.weblite.jdeploy.cli.controllers.GitHubRepositoryInitializerCLIController;
 import ca.weblite.jdeploy.cli.controllers.JPackageController;
 import ca.weblite.jdeploy.cli.controllers.ProjectGeneratorCLIController;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
@@ -2340,7 +2341,8 @@ public class JDeploy {
                 + "  package : Prepare for install.  This copies necessary files into bin directory.\n"
                 + "  install : Installs the app locally (links to PATH)\n"
                 + "  publish : Publishes to NPM\n"
-                + "  generate: Generates a new project\n",
+                + "  generate: Generates a new project\n"
+                + "  github init -n <repo-name>:  Initializes commits, and pushes to github\n",
                 opts);
 
     }
@@ -2355,12 +2357,19 @@ public class JDeploy {
     public static void main(String[] args) {
         try {
             JDeploy prog = new JDeploy(new File(".").getAbsoluteFile());
-            if ("generate".equals(args[0])) {
+            if (args.length > 0 && "generate".equals(args[0])) {
                 String[] generateArgs = new String[args.length-1];
                 System.arraycopy(args, 1, generateArgs, 0, generateArgs.length);
                 prog.generate(generateArgs);
                 return;
             }
+            if (args.length > 0 && "github".equals(args[0]) && args.length> 1 && "init".equals(args[1])) {
+                String[] githubInitArgs = new String[args.length-2];
+                System.arraycopy(args, 2, githubInitArgs, 0, githubInitArgs.length);
+                prog.githubInit(githubInitArgs);
+                return;
+            }
+
             Options opts = new Options();
             opts.addOption("y", "no-prompt", false,"Indicates not to prompt user ");
             opts.addOption("W", "no-workflow", false,"Indicates not to create a github workflow if true");
@@ -2429,6 +2438,7 @@ public class JDeploy {
                     System.exit(0);
                 }
             }
+
             if ("cheerpj".equals(args[0])) {
                 String[] cheerpjArgs = new String[args.length-1];
                 System.arraycopy(args, 1, cheerpjArgs, 0, cheerpjArgs.length);
@@ -2474,6 +2484,14 @@ public class JDeploy {
 
         } catch (Exception ex) {
             throw new RuntimeException(ex);
+        }
+    }
+
+    private void githubInit(String[] githubInitArgs) {
+        GitHubRepositoryInitializerCLIController controller = new GitHubRepositoryInitializerCLIController(getPackageJsonFile(), githubInitArgs);
+        controller.run();
+        if (controller.getExitCode() != 0) {
+            fail("Failed to initialize github repository", controller.getExitCode());
         }
     }
 

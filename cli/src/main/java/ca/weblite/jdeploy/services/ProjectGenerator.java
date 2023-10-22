@@ -1,25 +1,39 @@
 package ca.weblite.jdeploy.services;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 
 import ca.weblite.jdeploy.cli.util.CommandLineParser;
+import ca.weblite.jdeploy.helpers.filemergers.DirectoryMerger;
+import ca.weblite.jdeploy.helpers.filemergers.JSONFileMerger;
+import ca.weblite.jdeploy.helpers.filemergers.PackageJsonFileMerger;
+import ca.weblite.jdeploy.helpers.filemergers.PomFileMerger;
 import ca.weblite.jdeploy.helpers.StringUtils;
 import org.apache.commons.io.FileUtils;
+import org.xml.sax.SAXException;
+
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.TransformerException;
 
 import static ca.weblite.jdeploy.cli.util.JavaVersionHelper.getJavaVersion;
 
 
 public class ProjectGenerator {
 
+    private GitHubRepositoryInitializer gitHubRepositoryInitializer;
+
     private StringUtils stringUtils = new StringUtils();
     private File parentDirectory;
     private String projectName;
     private String appTitle;
     private String templateDirectory;
-
-
     private String templateName;
+
+    private String[] extensions;
     private String groupId;
     private String artifactId;
 
@@ -27,8 +41,14 @@ public class ProjectGenerator {
 
     private String mainClassName;
 
+    private String githubRepository;
+
 
     public static class Params {
+
+
+        @CommandLineParser.Help("The github repository to use.  E.g. \"username/repo\".  If not specified, will be inferred from the package name and project name.")
+        private String githubRepository;
 
         @CommandLineParser.PositionalArg(1)
         @CommandLineParser.Help("The fully-qualified main class name.  If not specified, will be inferred from the package name and project name.")
@@ -68,6 +88,11 @@ public class ProjectGenerator {
         @CommandLineParser.Help("The main class name (not fully-qualified)")
         private String mainClassName;
 
+        @CommandLineParser.Help("The extensions to include in the project. This is a comma-separated list of extensions. ")
+        private String[] extensions;
+
+        @CommandLineParser.Help("Whether to include cheerpj deployment to github actions")
+        private boolean withCheerpj = false;
 
         public Params setTemplateName(String templateName) {
             this.templateName = templateName;
@@ -90,6 +115,12 @@ public class ProjectGenerator {
                 return projectName;
             }
             StringUtils stringUtils = new StringUtils();
+
+            String githubRepo = getGithubRepository();
+            if (githubRepo != null) {
+                return getGithubRepositoryName();
+            }
+
             if (magicArg != null && isPackageAndClassName(stringUtils, magicArg)) {
                 if (stringUtils.countCharInstances(magicArg, '.') > 2) {
                     String pkg = splitPackageIntoPackageAndClassName(magicArg)[0];
@@ -125,6 +156,13 @@ public class ProjectGenerator {
             }
 
             StringUtils stringUtils = new StringUtils();
+
+            String githubRepo = getGithubRepository();
+            if (githubRepo != null) {
+                return stringUtils.ucWords(
+                        getGithubRepositoryName().replaceAll("[\\-_\\.]", " ")
+                );
+            }
             if (magicArg != null && isPackageAndClassName(stringUtils, magicArg)) {
                 return stringUtils.ucWords(
                         stringUtils.camelCaseToLowerCaseWithSeparator(
@@ -163,6 +201,10 @@ public class ProjectGenerator {
             if (groupId != null) {
                 return groupId;
             }
+            String githubRepository = getGithubRepository();
+            if (githubRepository != null) {
+                return "com.github." + getGithubUser();
+            }
             StringUtils stringUtils = new StringUtils();
             if (magicArg != null && isPackageAndClassName(stringUtils, magicArg)) {
 
@@ -194,6 +236,10 @@ public class ProjectGenerator {
         private String getArtifactId() {
             if (artifactId != null) {
                 return artifactId;
+            }
+            String githubRepository = getGithubRepository();
+            if (githubRepository != null) {
+                return getGithubRepositoryName();
             }
             StringUtils stringUtils = new StringUtils();
             if (magicArg != null && isPackageAndClassName(stringUtils, magicArg)) {
@@ -233,6 +279,14 @@ public class ProjectGenerator {
                 return mainClassName;
             }
             StringUtils stringUtils = new StringUtils();
+
+            String githubRepository = getGithubRepository();
+            if (githubRepository != null) {
+                return stringUtils.ucFirst(
+                        stringUtils.lowerCaseWithSeparatorToCamelCase(getGithubRepositoryName(), "-")
+                );
+            }
+
             if (magicArg != null && isPackageAndClassName(stringUtils, magicArg)) {
                 return splitPackageIntoPackageAndClassName(magicArg)[1];
             }
@@ -244,7 +298,18 @@ public class ProjectGenerator {
             if (packageName != null) {
                 return packageName;
             }
+
+            String githubRepository = getGithubRepository();
             StringUtils stringUtils = new StringUtils();
+            if (githubRepository != null) {
+                String pkg = "com.github."
+                        + stringUtils.lowerCaseWithSeparatorToCamelCase(getGithubUser(), "-")
+                        + "." + stringUtils.lowerCaseWithSeparatorToCamelCase(getGithubRepositoryName(), "-");
+
+                return pkg.toLowerCase();
+            }
+
+
             if (magicArg != null && isPackageAndClassName(stringUtils, magicArg)) {
                 return splitPackageIntoPackageAndClassName(magicArg)[0];
             }
@@ -281,6 +346,62 @@ public class ProjectGenerator {
             return this;
         }
 
+        public String[] getExtensions() {
+            List<String> extensionsList = extensions == null
+                    ? new ArrayList<>()
+                    : new ArrayList<>(Arrays.asList(extensions));
+            if (withCheerpj) {
+                extensionsList.add("cheerpj");
+            }
+            return extensionsList.toArray(new String[extensionsList.size()]);
+        }
+
+        public Params setExtensions(String[] extensions) {
+            this.extensions = extensions;
+
+            return this;
+        }
+
+        public boolean isWithCheerpj() {
+            return withCheerpj;
+        }
+
+        public Params setWithCheerpj(boolean withCheerpj) {
+            this.withCheerpj = withCheerpj;
+
+            return this;
+        }
+
+        public Params setGithubRepository(String githubRepository) {
+            this.githubRepository = githubRepository;
+            return this;
+        }
+
+        private String getGithubRepository() {
+            if (githubRepository != null) {
+                return githubRepository;
+            }
+            if (magicArg != null && magicArg.matches("^[a-zA-Z0-9\\-]+/[a-zA-Z0-9\\-]+$")) {
+                return magicArg;
+            }
+            return null;
+        }
+
+        private String getGithubUser() {
+            String repo = getGithubRepository();
+            if (repo != null) {
+                return repo.split("/")[0];
+            }
+            return null;
+        }
+
+        private String getGithubRepositoryName() {
+            String repo = getGithubRepository();
+            if (repo != null) {
+                return repo.split("/")[1];
+            }
+            return null;
+        }
 
     }
 
@@ -294,6 +415,8 @@ public class ProjectGenerator {
         this.artifactId = params.getArtifactId();
         this.mainClassName = params.getMainClassName();
         this.packageName = params.getPackageName();
+        this.extensions = params.getExtensions();
+        this.githubRepository = params.getGithubRepository();
     }
 
     public File generate() throws Exception {
@@ -302,10 +425,10 @@ public class ProjectGenerator {
             throw new Exception("Project directory already exists: " + projectDir.getAbsolutePath());
         }
         projectDir.mkdirs();
+        ProjectTemplateCatalog catalog = new ProjectTemplateCatalog();
+        catalog.update();
         if (templateDirectory == null && templateName != null) {
-            ProjectTemplateCatalog catalog = new ProjectTemplateCatalog();
-            catalog.update();
-            templateDirectory = catalog.getTemplate(templateName).getAbsolutePath();
+            templateDirectory = catalog.getProjectTemplate(templateName).getAbsolutePath();
         }
         if (templateDirectory == null) {
             throw new Exception("Template directory is not set");
@@ -322,7 +445,16 @@ public class ProjectGenerator {
                 FileUtils.copyFileToDirectory(file, projectDir);
             }
         }
+
+        if (extensions != null) {
+            for (String extension : extensions) {
+                File extensionDir = catalog.getExtensionTemplate(extension);
+                applyExtensionToProject(projectDir, extensionDir);
+
+            }
+        }
         updateFilesInDirectory(projectDir);
+        initializeAndPushGitRepository(projectDir);
         return projectDir;
     }
 
@@ -332,6 +464,7 @@ public class ProjectGenerator {
         buildFileSource = buildFileSource.replace("{{ groupId }}", groupId);
         buildFileSource = buildFileSource.replace("{{ artifactId }}", artifactId);
         buildFileSource = buildFileSource.replace("{{ mainClass }}", mainClassName);
+        buildFileSource = buildFileSource.replace("{{ mainClassName }}", mainClassName);
         buildFileSource = buildFileSource.replace("{{ packageName }}", packageName);
         buildFileSource = buildFileSource.replace("{{ packagePath }}", packageName.replace(".", "/"));
         buildFileSource = buildFileSource.replace("{{ javaVersion }}", String.valueOf(getJavaVersion()));
@@ -356,6 +489,25 @@ public class ProjectGenerator {
             moveFile(file);
         }
         return dir;
+    }
+
+    private File initializeAndPushGitRepository(File projectDirectory) throws Exception {
+        if (githubRepository == null) {
+            return projectDirectory;
+        }
+        GithubTokenService githubTokenService = new GithubTokenService();
+        GitHubRepositoryInitializer gitHubRepositoryInitializer = new GitHubRepositoryInitializer(
+                new File(projectDirectory, "package.json"),
+                null,
+                githubTokenService,
+                new GitHubUsernameService(githubTokenService)
+        );
+        gitHubRepositoryInitializer.initAndPublish(
+                new GitHubRepositoryInitializer.Params()
+                    .setRepoName(githubRepository)
+        );
+
+        return projectDirectory;
     }
 
 
@@ -405,5 +557,12 @@ public class ProjectGenerator {
         }
 
         return (Character.isUpperCase(parts[parts.length - 1].charAt(0)));
+    }
+
+    private void applyExtensionToProject(File projectDirectory, File extensionDirectory) throws Exception {
+        new DirectoryMerger(
+                new PomFileMerger(),
+                new PackageJsonFileMerger()
+        ).merge(projectDirectory, extensionDirectory);
     }
 }

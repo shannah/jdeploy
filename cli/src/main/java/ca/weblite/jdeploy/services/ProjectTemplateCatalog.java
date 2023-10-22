@@ -17,23 +17,6 @@ public class ProjectTemplateCatalog {
         githubRepository = "https://github.com/shannah/jdeploy-project-templates.git";
     }
 
-    public void updateOld() throws Exception {
-        if ( !new java.io.File(localPath).exists() ){
-            System.out.println("Cloning "+githubRepository+" to "+localPath);
-            ProcessBuilder pb = new ProcessBuilder("git", "clone", "--depth", "1", githubRepository, localPath);
-            pb.inheritIO();
-            Process p = pb.start();
-            p.waitFor();
-        } else {
-            System.out.println("Updating "+localPath);
-            ProcessBuilder pb = new ProcessBuilder("git", "pull");
-            pb.directory(new java.io.File(localPath));
-            pb.inheritIO();
-            Process p = pb.start();
-            p.waitFor();
-        }
-    }
-
     public void update() throws IOException {
         try {
             updateInternal();
@@ -44,10 +27,7 @@ public class ProjectTemplateCatalog {
 
     private void updateInternal() throws IOException, GitAPIException {
         java.io.File repoDir = new java.io.File(localPath);
-
         if (!repoDir.exists()) {
-            System.out.println("Cloning " + githubRepository + " to " + localPath);
-
             Git.cloneRepository()
                     .setURI(githubRepository)
                     .setDirectory(repoDir)
@@ -55,8 +35,6 @@ public class ProjectTemplateCatalog {
                     .setCloneSubmodules(false)   // No submodules
                     .call();
         } else {
-            System.out.println("Updating " + localPath);
-
             FileRepositoryBuilder builder = new FileRepositoryBuilder();
             Repository repo = builder.setGitDir(new java.io.File(repoDir, ".git"))
                     .readEnvironment() // Scan environment GIT_* variables
@@ -71,11 +49,27 @@ public class ProjectTemplateCatalog {
         }
     }
 
-    public File getTemplate(String name) throws Exception {
-        File f = new File(localPath, name);
+    public File getProjectTemplate(String name) throws Exception {
+        File f = new File(getProjectsDir(), name);
         if ( !f.exists() ){
             throw new Exception("Template "+name+" not found");
         }
         return f;
+    }
+
+    public File getExtensionTemplate(String name) throws Exception {
+        File f = new File(getExtensionsDir(), name);
+        if ( !f.exists() ){
+            throw new Exception("Template "+name+" not found");
+        }
+        return f;
+    }
+
+    private File getProjectsDir() {
+        return new File(localPath, "projects");
+    }
+
+    private File getExtensionsDir() {
+        return new File(localPath, "extensions");
     }
 }

@@ -36,6 +36,9 @@ public class CommandLineParser {
                     String property = parts[0];
                     String value = parts[1];
                     setProperty(params, property, value);
+                } else {
+                    String property = parts[0];
+                    setProperty(params, property, "true");
                 }
             } else if (arg.startsWith("-")) {
                 String alias = arg.substring(1);
@@ -76,6 +79,8 @@ public class CommandLineParser {
                     field.set(object, new File(value));
                 } else if (type == int.class || type == Integer.class) {
                     field.set(object, Integer.parseInt(value));
+                } else if (type == boolean.class || type == Boolean.class) {
+                    field.set(object, Boolean.parseBoolean(value));
                 } else {
                     field.set(object, value);
                 }

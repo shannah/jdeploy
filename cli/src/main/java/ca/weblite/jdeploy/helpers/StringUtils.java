@@ -110,4 +110,12 @@ public class StringUtils {
         }
         return count;
     }
+
+    public String ucFirst(String lowerCaseWithSeparatorToCamelCase) {
+        if (lowerCaseWithSeparatorToCamelCase == null || lowerCaseWithSeparatorToCamelCase.isEmpty()) {
+            return lowerCaseWithSeparatorToCamelCase;
+        }
+
+        return Character.toUpperCase(lowerCaseWithSeparatorToCamelCase.charAt(0)) + lowerCaseWithSeparatorToCamelCase.substring(1);
+    }
 }
