@@ -5,6 +5,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import javax.inject.Singleton;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.Transformer;
@@ -14,6 +15,7 @@ import javax.xml.transform.stream.StreamResult;
 import java.io.File;
 import java.io.FileOutputStream;
 
+@Singleton
 public class PomFileMerger implements FileMerger {
     public void merge(File pomXml, File pomXmlPatch) throws Exception {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();

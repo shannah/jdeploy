@@ -1,5 +1,8 @@
 package ca.weblite.jdeploy.helpers;
 
+import javax.inject.Singleton;
+
+@Singleton
 public class StringUtils {
     public String camelCaseToCliFlag(String input) {
         StringBuilder builder = new StringBuilder();

@@ -1,5 +1,8 @@
 package ca.weblite.jdeploy.services;
 
+import ca.weblite.jdeploy.DIContext;
+import ca.weblite.jdeploy.builders.ProjectGeneratorRequestBuilder;
+import ca.weblite.jdeploy.dtos.ProjectGeneratorRequest;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.junit.jupiter.api.*;
@@ -19,10 +22,13 @@ class ProjectGeneratorTest {
 
     private File templateDirectory;
 
+    private ProjectGenerator projectGenerator;
+
     @BeforeEach
     public void setUp() throws Exception {
         parentDirectory = Files.createTempDirectory("jdeploy-test").toFile();
         templateDirectory = Files.createTempDirectory("jdeploy-test-template").toFile();
+        projectGenerator = new DIContext().getInstance(ProjectGenerator.class);
         createTemplate(templateDirectory);
 
     }
@@ -40,7 +46,7 @@ class ProjectGeneratorTest {
 
     @Test
     public void testGenerate() {
-        ProjectGenerator.Params params = new ProjectGenerator.Params();
+        ProjectGeneratorRequestBuilder params = new ProjectGeneratorRequestBuilder();
         params.setParentDirectory(parentDirectory);
         params.setTemplateDirectory(templateDirectory.getPath());
         String mainClass = "MyClass";
@@ -48,16 +54,16 @@ class ProjectGeneratorTest {
         String expectedGroupId = "com.mycompany";
         String expectedArtifactId = "myapp";
         params.setMagicArg(packageName + "." + mainClass);
-        ProjectGenerator generator = new ProjectGenerator(params);
-        assertPrivateFieldEquals(generator, "mainClassName", mainClass);
-        assertPrivateFieldEquals(generator, "packageName", packageName);
-        assertPrivateFieldEquals(generator, "parentDirectory", parentDirectory);
-        assertPrivateFieldEquals(generator, "templateDirectory", templateDirectory.getPath());
-        assertPrivateFieldEquals(generator, "groupId", expectedGroupId);
-        assertPrivateFieldEquals(generator, "artifactId", expectedArtifactId);
-        assertPrivateFieldEquals(generator, "projectName", "myapp");
+        ProjectGeneratorRequest request = params.build();
+        assertPrivateFieldEquals(request, "mainClassName", mainClass);
+        assertPrivateFieldEquals(request, "packageName", packageName);
+        assertPrivateFieldEquals(request, "parentDirectory", parentDirectory);
+        assertPrivateFieldEquals(request, "templateDirectory", templateDirectory.getPath());
+        assertPrivateFieldEquals(request, "groupId", expectedGroupId);
+        assertPrivateFieldEquals(request, "artifactId", expectedArtifactId);
+        assertPrivateFieldEquals(request, "projectName", "myapp");
         try {
-            generator.generate();
+            projectGenerator.generate(params.build());
 
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -86,12 +92,12 @@ class ProjectGeneratorTest {
         Assumptions.assumeTrue(getJavaVersion() >= 17, "Java version is less than 17");
 
         File javafxTemplate = new File("/Users/shannah/cn1_files/jdeploy-project-templates/javafx");
-        ProjectGenerator.Params params = new ProjectGenerator.Params();
+        ProjectGeneratorRequestBuilder params = new ProjectGeneratorRequestBuilder();
         params.setMagicArg("com.mycompany.myapp.Main");
         params.setParentDirectory(parentDirectory);
         params.setTemplateDirectory(javafxTemplate.getPath());
-        ProjectGenerator generator = new ProjectGenerator(params);
-        generator.generate();
+        ProjectGenerator generator = projectGenerator;
+        generator.generate(params.build());
         File projectDirectory = new File(parentDirectory, "myapp");
         FileUtils.copyDirectory(projectDirectory, new File(System.getProperty("user.home") + "/Desktop/myapp"));
     }
@@ -101,12 +107,12 @@ class ProjectGeneratorTest {
     public void testGenerateJavafx() throws Exception{
         Assumptions.assumeTrue(getJavaVersion() >= 17, "Java version is less than 17");
 
-        ProjectGenerator.Params params = new ProjectGenerator.Params();
+        ProjectGeneratorRequestBuilder params = new ProjectGeneratorRequestBuilder();
         params.setMagicArg("com.mycompany.myapp.Main");
         params.setParentDirectory(parentDirectory);
         params.setTemplateName("javafx");
-        ProjectGenerator generator = new ProjectGenerator(params);
-        generator.generate();
+        ProjectGenerator generator = projectGenerator;
+        generator.generate(params.build());
         File projectDirectory = new File(parentDirectory, "myapp");
         File pomFile = new File(projectDirectory, "pom.xml");
 
@@ -124,12 +130,12 @@ class ProjectGeneratorTest {
     @Test
     @DisabledOnOs(OS.WINDOWS)
     public void testGenerateSwing() throws Exception{
-        ProjectGenerator.Params params = new ProjectGenerator.Params();
+        ProjectGeneratorRequestBuilder params = new ProjectGeneratorRequestBuilder();
         params.setMagicArg("com.mycompany.myapp.Main");
         params.setParentDirectory(parentDirectory);
         params.setTemplateName("swing");
-        ProjectGenerator generator = new ProjectGenerator(params);
-        generator.generate();
+        ProjectGenerator generator = projectGenerator;
+        generator.generate(params.build());
         File projectDirectory = new File(parentDirectory, "myapp");
 
         File pomFile = new File(projectDirectory, "pom.xml");
@@ -145,13 +151,13 @@ class ProjectGeneratorTest {
 
     @Test
     public void testGenerateWithCheerpj() throws Exception{
-        ProjectGenerator.Params params = new ProjectGenerator.Params();
+        ProjectGeneratorRequestBuilder params = new ProjectGeneratorRequestBuilder();
         params.setMagicArg("com.mycompany.myapp.Main");
         params.setParentDirectory(parentDirectory);
         params.setTemplateName("swing");
         params.setWithCheerpj(true);
-        ProjectGenerator generator = new ProjectGenerator(params);
-        generator.generate();
+
+        projectGenerator.generate(params.build());
         File projectDirectory = new File(parentDirectory, "myapp");
         JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File(projectDirectory, "package.json"), "UTF-8"));
         assertTrue(packageJSON.has("jdeploy"));

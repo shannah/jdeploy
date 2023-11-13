@@ -13,6 +13,7 @@ import ca.weblite.jdeploy.cli.controllers.CheerpjController;
 import ca.weblite.jdeploy.cli.controllers.GitHubRepositoryInitializerCLIController;
 import ca.weblite.jdeploy.cli.controllers.JPackageController;
 import ca.weblite.jdeploy.cli.controllers.ProjectGeneratorCLIController;
+import ca.weblite.jdeploy.di.JDeployModule;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
 import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
@@ -58,6 +59,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
+import org.codejargon.feather.Feather;
 import org.json.JSONObject;
 import org.w3c.dom.Document;
 
@@ -2356,6 +2358,7 @@ public class JDeploy {
      */
     public static void main(String[] args) {
         try {
+            Feather feather = Feather.with(new JDeployModule());
             JDeploy prog = new JDeploy(new File(".").getAbsoluteFile());
             if (args.length > 0 && "generate".equals(args[0])) {
                 String[] generateArgs = new String[args.length-1];

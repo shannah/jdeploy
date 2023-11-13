@@ -232,6 +232,11 @@
             <artifactId>logback-classic</artifactId>
             <version>1.2.6</version> <!-- Use the appropriate version -->
         </dependency>
+        <dependency>
+            <groupId>com.theokanning.openai-gpt3-java</groupId>
+            <artifactId>service</artifactId>
+            <version>LATEST</version>
+        </dependency>
 
 
     </dependencies>

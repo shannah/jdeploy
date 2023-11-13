@@ -1,10 +1,11 @@
 package ca.weblite.jdeploy.services;
 
 import ca.weblite.jdeploy.cli.util.CommandLineParser;
+import ca.weblite.jdeploy.dtos.GitHubRepositoryIntializationRequest;
 import ca.weblite.jdeploy.dtos.GithubRepositoryDto;
+import ca.weblite.jdeploy.factories.GitHubRepositoryDtoFactory;
+import ca.weblite.jdeploy.models.JDeployProject;
 import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.revwalk.RevCommit;
-import org.json.JSONObject;
 
 import java.io.*;
 
@@ -16,59 +17,53 @@ import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 
+import javax.inject.Inject;
+import javax.inject.Singleton;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 
-public class GitHubRepositoryInitializer extends BaseService {
+@Singleton
+public class GitHubRepositoryInitializer {
 
     private static final String GITHUB_API_URL = "https://api.github.com/user/repos";
 
-    private GithubTokenService githubTokenService;
+    private final GithubTokenService githubTokenService;
 
-    private GitHubUsernameService gitHubUsernameService;
+    private final GitHubUsernameService gitHubUsernameService;
 
+    private final GitHubRepositoryDtoFactory githubRepositoryDtoFactory;
+
+    private final JDeployProjectCache jDeployProjectCache;
+
+    @Inject
     public GitHubRepositoryInitializer(
-            File packageJSONFile,
-            JSONObject packageJSON,
             GithubTokenService githubTokenService,
-            GitHubUsernameService gitHubUsernameService) throws IOException {
-        super(packageJSONFile, packageJSON);
+            GitHubUsernameService gitHubUsernameService,
+            GitHubRepositoryDtoFactory gitHubRepositoryDtoFactory,
+            JDeployProjectCache jDeployProjectCache
+    ) {
         this.githubTokenService = githubTokenService;
         this.gitHubUsernameService = gitHubUsernameService;
+        this.githubRepositoryDtoFactory = gitHubRepositoryDtoFactory;
+        this.jDeployProjectCache = jDeployProjectCache;
     }
 
-    public static class Params {
-        @CommandLineParser.Help("The name of the repository to create")
-        @CommandLineParser.PositionalArg(1)
-        @CommandLineParser.Alias("n")
-        String repoName;
 
-        @CommandLineParser.Help("Whether the repository should be private")
-        @CommandLineParser.Alias("p")
-        boolean isPrivate;
-
-        public Params setRepoName(String repoName) {
-            this.repoName = repoName;
-            return this;
-        }
-
-        public Params setPrivate(boolean aPrivate) {
-            isPrivate = aPrivate;
-
-            return this;
-        }
+    public void initAndPublish(GitHubRepositoryIntializationRequest request)
+            throws GitAPIException, URISyntaxException, IOException {
+        createGitHubRepository(request);
+        setupAndPushRemote(request);
     }
 
-    public void initAndPublish(Params params) throws GitAPIException, URISyntaxException, IOException, InterruptedException {
-        GithubRepositoryDto githubRepositoryDto = new GithubRepositoryDto(params.repoName, params.isPrivate);
-        createGitHubRepository(githubRepositoryDto);
-        setupAndPushRemote(githubRepositoryDto);
-    }
-
-    public void createGitHubRepository(GithubRepositoryDto githubRepositoryDto) throws IOException {
+    public void createGitHubRepository(GitHubRepositoryIntializationRequest request) throws IOException {
+        GithubRepositoryDto githubRepositoryDto = githubRepositoryDtoFactory.newGithubRepository(
+                request.getRepoName(),
+                request.isPrivate()
+        );
         String githubToken = githubTokenService.getToken();
         URL url = new URL(GITHUB_API_URL);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
@@ -81,24 +76,30 @@ public class GitHubRepositoryInitializer extends BaseService {
             connection.setDoOutput(true);
 
             // Create a JSON request body with the repository name and visibility (private/public)
-            String json = "{\"name\": \"" + githubRepositoryDto.getRepositoryName() + "\", \"private\": " + githubRepositoryDto.isPrivate() + "}";
+            String json = "{\"name\": \"" + githubRepositoryDto.getRepositoryName() + "\", " +
+                    "\"private\": " + githubRepositoryDto.isPrivate() + "}";
             try (OutputStream os = connection.getOutputStream()) {
-                byte[] input = json.getBytes("utf-8");
+                byte[] input = json.getBytes(StandardCharsets.UTF_8);
                 os.write(input, 0, input.length);
             }
 
             // Check the response status
             int responseCode = connection.getResponseCode();
             if (responseCode == HttpURLConnection.HTTP_CREATED) {
-                System.out.println("Repository '" + githubRepositoryDto.getFullRepositoryName() + "' created successfully.");
+                System.out.println(
+                        "Repository '" + githubRepositoryDto.getFullRepositoryName() + "' created successfully."
+                );
             } else {
-                try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(connection.getErrorStream()))) {
+                try (BufferedReader errorReader = new BufferedReader(
+                        new InputStreamReader(connection.getErrorStream()))
+                ) {
                     StringBuilder errorMessage = new StringBuilder();
                     String line;
                     while ((line = errorReader.readLine()) != null) {
                         errorMessage.append(line);
                     }
-                    throw new IOException("Failed to create the repository. Response code: " + responseCode + ", Error message: " + errorMessage.toString());
+                    throw new IOException("Failed to create the repository. " +
+                            "Response code: " + responseCode + ", Error message: " + errorMessage);
                 }
             }
         } finally {
@@ -106,41 +107,41 @@ public class GitHubRepositoryInitializer extends BaseService {
         }
     }
 
-    private File getGitDirectory() {
-        return new File(packageJSONFile.getParentFile(), ".git");
-    }
+    private void setupAndPushRemote(GitHubRepositoryIntializationRequest request)
+            throws GitAPIException, URISyntaxException, IOException {
+        JDeployProject project = jDeployProjectCache.findByPath(request.getProjectPath());
+        GithubRepositoryDto githubRepositoryDto = githubRepositoryDtoFactory.newGithubRepository(
+                request.getRepoName(),
+                request.isPrivate()
+        );
+        File localPath = project.getPackageJSONFile().toFile().getParentFile();
+        Git git;
+        try (Repository repository = Git.init().setDirectory(localPath).call().getRepository()) {
 
-    private void setupAndPushRemote(GithubRepositoryDto githubRepositoryDto) throws GitAPIException, URISyntaxException, IOException {
-        String repoName = githubRepositoryDto.getFullRepositoryName();
+            // Add the GitHub repository as the origin (if not already added)
+            String githubRepositoryUrl = "https://github.com/"
+                    + githubRepositoryDto.getRepositoryUsername(gitHubUsernameService)
+                    + "/" + githubRepositoryDto.getRepositoryName() + ".git";
+            boolean originExists = false;
 
-        // Initialize the current directory as a Git repository (if not already)
+            RemoteConfig remoteConfig = new RemoteConfig(repository.getConfig(), "origin");
+            List<URIish> uriList = remoteConfig.getURIs();
 
-        File localPath = packageJSONFile.getParentFile();
-        Repository repository = Git.init().setDirectory(localPath).call().getRepository();
-
-        // Add the GitHub repository as the origin (if not already added)
-        String githubRepositoryUrl = "https://github.com/"
-                + githubRepositoryDto.getRepositoryUsername(gitHubUsernameService)
-                + "/" + githubRepositoryDto.getRepositoryName() + ".git";
-        boolean originExists = false;
-
-        RemoteConfig remoteConfig = new RemoteConfig(repository.getConfig(), "origin");
-        List<URIish> uriList = remoteConfig.getURIs();
-
-        for (URIish uri : uriList) {
-            if (uri.toString().equals(githubRepositoryUrl)) {
-                originExists = true;
-                break;
+            for (URIish uri : uriList) {
+                if (uri.toString().equals(githubRepositoryUrl)) {
+                    originExists = true;
+                    break;
+                }
             }
-        }
 
-        if (!originExists) {
-            remoteConfig.addURI(new URIish(githubRepositoryUrl));
-            remoteConfig.update(repository.getConfig());
-            repository.getConfig().save();
-        }
+            if (!originExists) {
+                remoteConfig.addURI(new URIish(githubRepositoryUrl));
+                remoteConfig.update(repository.getConfig());
+                repository.getConfig().save();
+            }
 
-        Git git = new Git(repository);
+            git = new Git(repository);
+        }
 
         // Add files to the staging area
         AddCommand add = git.add();
@@ -149,11 +150,13 @@ public class GitHubRepositoryInitializer extends BaseService {
         // Commit the changes
         CommitCommand commit = git.commit();
         commit.setMessage("Commit message goes here");
-        RevCommit revCommit = commit.call();
+        commit.call();
 
         // Push the repository to the origin
-
-        CredentialsProvider credentialsProvider = new UsernamePasswordCredentialsProvider(githubTokenService.getToken(), "");
+        CredentialsProvider credentialsProvider = new UsernamePasswordCredentialsProvider(
+                githubTokenService.getToken(),
+                ""
+        );
         Iterable<PushResult> results = git.push()
                 .setRemote("origin")
                 .setCredentialsProvider(credentialsProvider)

@@ -1,15 +1,14 @@
 package ca.weblite.jdeploy.cli.controllers;
 
+import ca.weblite.jdeploy.DIContext;
+import ca.weblite.jdeploy.builders.ProjectGeneratorRequestBuilder;
 import ca.weblite.jdeploy.cli.util.CommandLineParser;
-import ca.weblite.jdeploy.helpers.StringUtils;
 import ca.weblite.jdeploy.services.ProjectGenerator;
-
 import java.io.File;
 import java.io.PrintStream;
-import java.lang.reflect.Field;
 
 public class ProjectGeneratorCLIController {
-    private StringUtils stringUtils = new StringUtils();
+
     protected PrintStream out = System.out;
     protected PrintStream err = System.err;
     protected String[] args;
@@ -35,43 +34,22 @@ public class ProjectGeneratorCLIController {
     }
 
     public void run() {
-        ProjectGenerator.Params params = new ProjectGenerator.Params();
+        DIContext context = DIContext.getInstance();
+        ProjectGeneratorRequestBuilder params = new ProjectGeneratorRequestBuilder();
         params.setParentDirectory(new File("."));
         new CommandLineParser().parseArgsToParams(params, args);
-
         String[] filteredArgs = filterFlags(args);
         if (filteredArgs.length > 0) {
             String firstArg = filteredArgs[0];
             params.setMagicArg(firstArg);
         }
-
         try {
-            File projectDirectory = new ProjectGenerator(params).generate();
+            File projectDirectory = context.getInstance(ProjectGenerator.class).generate(params.build());
             out.println("Project generated at: " + projectDirectory.getAbsolutePath());
         } catch (Exception ex) {
             err.println("Error generating project: " + ex.getMessage());
             ex.printStackTrace(err);
             new CommandLineParser().printHelp(params);
-        }
-    }
-
-    public void requireNonNullProperty(Object object, String propertyName) throws Exception {
-        if (object == null || propertyName == null || propertyName.isEmpty()) {
-            throw new IllegalArgumentException("Object and propertyName must not be null or empty");
-        }
-
-        Field field;
-        try {
-            field = object.getClass().getDeclaredField(propertyName);
-            field.setAccessible(true);
-            if (field.get(object) == null) {
-                String cliFlag = stringUtils.camelCaseToCliFlag(propertyName);
-                throw new IllegalArgumentException("--" + cliFlag + " is required");
-            }
-        } catch (NoSuchFieldException e) {
-            throw new IllegalArgumentException("No such property: " + propertyName);
-        } catch (IllegalAccessException e) {
-            throw new IllegalArgumentException("Cannot access property: " + propertyName);
         }
     }
 
