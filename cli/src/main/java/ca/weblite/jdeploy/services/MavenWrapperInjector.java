@@ -1,18 +1,15 @@
 package ca.weblite.jdeploy.services;
 
 import ca.weblite.jdeploy.io.FileSystemInterface;
-import ca.weblite.tools.io.IOUtil;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Path;
 
 @Singleton
 public class MavenWrapperInjector {
-    private FileSystemInterface fileSystem;
+    private final FileSystemInterface fileSystem;
 
     private static final String RESOURCES_BASE = "/ca/weblite/jdeploy/mavenWrapper/";
 
@@ -64,11 +61,7 @@ public class MavenWrapperInjector {
         }
 
         Path pomFile = projectDirectory.resolve("pom.xml");
-        if (!fileSystem.exists(pomFile)) {
-            return false;
-        }
-
-        return true;
+        return fileSystem.exists(pomFile);
     }
 
     private void copyResourceTo(String resource, Path target) throws IOException {
