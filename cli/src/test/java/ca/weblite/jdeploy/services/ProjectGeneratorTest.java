@@ -3,6 +3,7 @@ package ca.weblite.jdeploy.services;
 import ca.weblite.jdeploy.DIContext;
 import ca.weblite.jdeploy.builders.ProjectGeneratorRequestBuilder;
 import ca.weblite.jdeploy.dtos.ProjectGeneratorRequest;
+import ca.weblite.jdeploy.tests.helpers.MavenBuilder;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.junit.jupiter.api.*;
@@ -103,7 +104,6 @@ class ProjectGeneratorTest {
     }
 
     @Test
-    @DisabledOnOs(OS.WINDOWS)
     public void testGenerateJavafx() throws Exception{
         Assumptions.assumeTrue(getJavaVersion() >= 17, "Java version is less than 17");
 
@@ -114,21 +114,10 @@ class ProjectGeneratorTest {
         ProjectGenerator generator = projectGenerator;
         generator.generate(params.build());
         File projectDirectory = new File(parentDirectory, "myapp");
-        File pomFile = new File(projectDirectory, "pom.xml");
-
-        // Build Maven project
-        ProcessBuilder pb = new ProcessBuilder("mvn", "package")
-                .directory(projectDirectory)
-                .inheritIO();
-        Map<String, String> environment = pb.environment();
-        environment.put("JAVA_HOME", System.getProperty("java.home"));
-        Process p = pb.start();
-        int exitCode = p.waitFor();
-        assertEquals(0, exitCode);
+        DIContext.getInstance().getInstance(MavenBuilder.class).buildMavenProject(projectDirectory.getAbsolutePath());
     }
 
     @Test
-    @DisabledOnOs(OS.WINDOWS)
     public void testGenerateSwing() throws Exception{
         ProjectGeneratorRequestBuilder params = new ProjectGeneratorRequestBuilder();
         params.setMagicArg("com.mycompany.myapp.Main");
@@ -137,16 +126,8 @@ class ProjectGeneratorTest {
         ProjectGenerator generator = projectGenerator;
         generator.generate(params.build());
         File projectDirectory = new File(parentDirectory, "myapp");
-
-        File pomFile = new File(projectDirectory, "pom.xml");
-
         // Build Maven project
-        ProcessBuilder pb = new ProcessBuilder("mvn", "package")
-                .directory(projectDirectory)
-                .inheritIO();
-        Process p = pb.start();
-        int exitCode = p.waitFor();
-        assertEquals(0, exitCode);
+        DIContext.getInstance().getInstance(MavenBuilder.class).buildMavenProject(projectDirectory.getAbsolutePath());
     }
 
     @Test

@@ -25,17 +25,21 @@ public class ProjectGenerator {
 
     private final GitHubRepositoryInitializer gitHubRepositoryInitializer;
 
+    private final MavenWrapperInjector mavenWrapperInjector;
+
     @Inject
     public ProjectGenerator(
             StringUtils stringUtils,
             ProjectTemplateCatalog projectTemplateCatalog,
             ProjectDirectoryExtensionMerger directoryMerger,
-            GitHubRepositoryInitializer gitHubRepositoryInitializer
+            GitHubRepositoryInitializer gitHubRepositoryInitializer,
+            MavenWrapperInjector mavenWrapperInjector
     ) {
         this.stringUtils = stringUtils;
         this.projectTemplateCatalog = projectTemplateCatalog;
         this.directoryMerger = directoryMerger;
         this.gitHubRepositoryInitializer = gitHubRepositoryInitializer;
+        this.mavenWrapperInjector = mavenWrapperInjector;
     }
 
 
@@ -51,6 +55,7 @@ public class ProjectGenerator {
         if (!projectDir.exists()) {
             throw new IOException("Failed to create project directory: " + projectDir.getAbsolutePath());
         }
+
         String templateDirectory = request.getTemplateDirectory();
         if (templateDirectory == null && request.getTemplateName() != null) {
             projectTemplateCatalog.update();
@@ -84,6 +89,11 @@ public class ProjectGenerator {
         }
 
         updateFilesInDirectory(projectDir, request);
+
+        if (mavenWrapperInjector.isMavenProject(projectDir.getPath())) {
+            mavenWrapperInjector.installIntoProject(projectDir.getPath());
+        }
+
         initializeAndPushGitRepository(projectDir, request);
         return projectDir;
 
