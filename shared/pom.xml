@@ -32,6 +32,12 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>com.theokanning.openai-gpt3-java</groupId>
+            <artifactId>service</artifactId>
+            <version>LATEST</version>
+        </dependency>
+
         <!-- add support for Mockito extensions in tests -->
         <dependency>
             <groupId>org.mockito</groupId>

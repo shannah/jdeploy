@@ -17,7 +17,7 @@ class GitHubRepositoryInitializerTest {
 
     private final String repoName = "test-jdeploy-repo-" + System.currentTimeMillis() + "-test";
 
-    private final GithubTokenService githubTokenService = new GithubTokenService();
+    private final GithubTokenService githubTokenService = DIContext.getInstance().getInstance(GithubTokenService.class);
 
     private final GitHubUsernameService gitHubUsernameService = new GitHubUsernameService(githubTokenService);
 

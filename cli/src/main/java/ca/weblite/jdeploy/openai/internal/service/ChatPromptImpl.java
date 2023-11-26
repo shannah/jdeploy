@@ -1,9 +1,12 @@
-package ca.weblite.jdeploy.openai.services;
+package ca.weblite.jdeploy.openai.internal.service;
 
-import ca.weblite.jdeploy.DIContext;
 import ca.weblite.jdeploy.openai.chat.PromptHandler;
+import ca.weblite.jdeploy.openai.config.OpenAiChatConfig;
 import ca.weblite.jdeploy.openai.functions.GenerateProjectFunction;
 import ca.weblite.jdeploy.openai.functions.GetMainClassSourceFunction;
+import ca.weblite.jdeploy.openai.internal.model.ChatMessageImpl;
+import ca.weblite.jdeploy.openai.internal.model.ChatThreadImpl;
+import ca.weblite.jdeploy.openai.interop.ChatThreadDispatcher;
 import ca.weblite.jdeploy.openai.interop.UiThreadDispatcher;
 import ca.weblite.jdeploy.openai.model.ChatPromptRequest;
 import ca.weblite.jdeploy.openai.model.ChatPromptResponse;
@@ -21,44 +24,61 @@ import java.time.Duration;
 import java.util.*;
 
 @Singleton
-public class ChatPrompt implements PromptHandler{
+public class ChatPromptImpl implements PromptHandler {
 
     private final GenerateProjectFunction generateProjectFunction;
 
     private final GetMainClassSourceFunction getMainClassSourceFunction;
 
-    private final UiThreadDispatcher dispatchThread;
+    private final UiThreadDispatcher uiThreadDispatcher;
+
+    private final ChatThreadDispatcher chatThreadDispatcher;
+
+    private final OpenAiChatConfig config;
 
     @Inject
-    public ChatPrompt(
+    public ChatPromptImpl(
             GenerateProjectFunction generateProjectFunction,
             GetMainClassSourceFunction getMainClassSourceFunction,
-            UiThreadDispatcher dispatchThread
+            UiThreadDispatcher dispatchThread,
+            ChatThreadDispatcher chatThreadDispatcher,
+            OpenAiChatConfig config
     ) {
         this.generateProjectFunction = generateProjectFunction;
         this.getMainClassSourceFunction = getMainClassSourceFunction;
-        this.dispatchThread = dispatchThread;
+        this.uiThreadDispatcher = dispatchThread;
+        this.chatThreadDispatcher = chatThreadDispatcher;
+        this.config = config;
     }
 
-    public void run() {
-        String token = System.getenv("OPENAI_TOKEN");
+    @Override
+    public void onPrompt(
+            ChatThread chatThread,
+            ChatPromptRequest request,
+            ChatPromptResponse response
+    ) {
+        chatThreadDispatcher.run(() -> onPromptImpl(chatThread, request, response));
+    }
+
+    private void onPromptImpl(
+            ChatThread chatThread,
+            ChatPromptRequest chatPromptRequest,
+            ChatPromptResponse chatPromptResponse
+    ) {
+        final ChatThreadImpl chatThreadImpl = (ChatThreadImpl) chatThread;
+        chatThreadImpl.addMessage(chatPromptRequest.getUserInput());
+        String token = config.getOpenAiApiKey();
         OpenAiService service = new OpenAiService(token, Duration.ZERO);
+
 
         FunctionExecutor functionExecutor = new FunctionExecutor(Arrays.asList(
                 generateProjectFunction.asChatFunction(),
                 getMainClassSourceFunction.asChatFunction()
         ));
 
-        List<ChatMessage> messages = new ArrayList<>();
-
-        System.out.print("First Query: ");
-
-        Scanner scanner = new Scanner(System.in);
-        ChatMessage firstMsg = new ChatMessage(ChatMessageRole.USER.value(), scanner.nextLine());
-        messages.add(firstMsg);
-
         while (true) {
-
+            final List<ChatMessage> messages = new ArrayList<>();
+            messages.addAll(((ChatThreadImpl) chatThread).getInternalMessages());
             ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest
                     .builder()
                     .model("gpt-3.5-turbo-16k")
@@ -70,7 +90,7 @@ public class ChatPrompt implements PromptHandler{
                     .logitBias(new HashMap<>())
                     .build();
             ChatMessage responseMessage = service.createChatCompletion(chatCompletionRequest).getChoices().get(0).getMessage();
-            messages.add(responseMessage); // don't forget to update the conversation with the latest response
+            chatThreadImpl.addMessage(new ChatMessageImpl(responseMessage));
 
             ChatFunctionCall functionCall = responseMessage.getFunctionCall();
             if (functionCall != null) {
@@ -80,47 +100,23 @@ public class ChatPrompt implements PromptHandler{
                     message = Optional.of(functionExecutor.executeAndConvertToMessage(functionCall));
                 } catch (Exception ex) {
                     ex.printStackTrace();
-                    messages.add(new ChatMessage(ChatMessageRole.SYSTEM.value(), "Something went wrong with the execution of " + functionCall.getName() + ".  Try a different function"));
-                    continue;
+                    ChatMessageImpl errorMessage = new ChatMessageImpl(
+                            new ChatMessage(ChatMessageRole.SYSTEM.value(), "Something went wrong with the execution of " + functionCall.getName() + ".  Try a different function")
+                    );
+                    chatThreadImpl.addMessage(errorMessage);
+                    uiThreadDispatcher.run(() -> chatPromptResponse.responseReceived(errorMessage));
+                    return;
                 }
-                /* You can also try 'executeAndConvertToMessage' inside a try-catch block, and add the following line inside the catch:
-                "message = executor.handleException(exception);"
-                The content of the message will be the exception itself, so the flow of the conversation will not be interrupted, and you will still be able to log the issue. */
 
-                if (message.isPresent()) {
-                    /* At this point:
-                    1. The function requested was found
-                    2. The request was converted to its specified object for execution (Weather.class in this case)
-                    3. It was executed
-                    4. The response was finally converted to a ChatMessage object. */
+                System.out.println("Executed " + functionCall.getName() + ".");
+                ChatMessageImpl functionResultMessage = new ChatMessageImpl(message.get());
+                chatThreadImpl.addMessage(functionResultMessage);
 
-                    System.out.println("Executed " + functionCall.getName() + ".");
-                    messages.add(message.get());
-                    continue;
-                } else {
-                    System.out.println("Something went wrong with the execution of " + functionCall.getName() + "...");
-                    break;
-                }
+                //uiThreadDispatcher.run(() -> chatPromptResponse.responseReceived(functionResultMessage));
+            } else {
+                uiThreadDispatcher.run(() -> chatPromptResponse.responseReceived(new ChatMessageImpl(responseMessage)));
+                return;
             }
-
-            System.out.println("Response: " + responseMessage.getContent());
-            System.out.print("Next Query: ");
-            String nextLine = scanner.nextLine();
-            if (nextLine.equalsIgnoreCase("exit")) {
-                System.exit(0);
-            }
-            messages.add(new ChatMessage(ChatMessageRole.USER.value(), nextLine));
         }
-    }
-
-    public static void main(String[] args) {
-
-        ChatPrompt chatPrompt = DIContext.getInstance().getInstance(ChatPrompt.class);
-        chatPrompt.run();
-    }
-
-    @Override
-    public void onPrompt(ChatThread chatThread, ChatPromptRequest request, ChatPromptResponse response) {
-
     }
 }

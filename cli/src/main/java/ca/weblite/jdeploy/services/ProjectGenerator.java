@@ -105,6 +105,7 @@ public class ProjectGenerator {
         buildFileSource = buildFileSource.replace("{{ groupId }}", request.getGroupId());
         buildFileSource = buildFileSource.replace("{{ artifactId }}", request.getArtifactId());
         buildFileSource = buildFileSource.replace("{{ mainClass }}", request.getMainClassName());
+        buildFileSource = buildFileSource.replace("{{ mainClassName }}", request.getMainClassName());
         buildFileSource = buildFileSource.replace("{{ packageName }}", request.getPackageName());
         buildFileSource = buildFileSource.replace("{{ packagePath }}", request.getPackageName().replace(".", "/"));
         buildFileSource = buildFileSource.replace("{{ javaVersion }}", String.valueOf(getJavaVersion()));

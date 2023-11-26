@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.cli.controllers;
 
+import ca.weblite.jdeploy.DIContext;
 import ca.weblite.jdeploy.services.GitHubRepositoryDeleter;
 import ca.weblite.jdeploy.services.GitHubUsernameService;
 import ca.weblite.jdeploy.services.GithubTokenService;
@@ -20,9 +21,9 @@ class GitHubRepositoryInitializerCLIControllerTest {
 
     private String repoName = "test-jdeploy-repo-" + System.currentTimeMillis() + "-test";
 
-    private GithubTokenService githubTokenService = new GithubTokenService();
+    private GithubTokenService githubTokenService = DIContext.getInstance().getInstance(GithubTokenService.class);
 
-    private GitHubUsernameService gitHubUsernameService = new GitHubUsernameService(githubTokenService);
+    private GitHubUsernameService gitHubUsernameService = DIContext.getInstance().getInstance(GitHubUsernameService.class);
 
     @BeforeEach
     public void setUp() throws Exception {

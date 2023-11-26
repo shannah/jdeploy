@@ -1,4 +1,4 @@
-package ca.weblite.jdeploy.openai.dtos;
+package ca.weblite.jdeploy.openai.dto;
 
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 

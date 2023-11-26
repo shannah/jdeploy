@@ -1,11 +1,13 @@
 package ca.weblite.jdeploy;
 
+import ca.weblite.jdeploy.cli.di.JDeployCliModule;
 import ca.weblite.jdeploy.di.JDeployModule;
+import ca.weblite.jdeploy.openai.di.OpenAiModule;
 import org.codejargon.feather.Feather;
 
 public class DIContext {
 
-    private final Feather feather = Feather.with(new JDeployModule());
+    private final Feather feather = Feather.with(new JDeployModule(), new OpenAiModule(), new JDeployCliModule());
 
     private static DIContext instance;
 

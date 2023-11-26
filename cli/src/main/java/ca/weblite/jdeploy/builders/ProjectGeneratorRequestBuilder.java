@@ -82,6 +82,12 @@ public class ProjectGeneratorRequestBuilder implements ProjectGeneratorRequest.P
             return projectName;
         }
         StringUtils stringUtils = new StringUtils();
+
+        String githubRepo = getGithubRepository();
+        if (githubRepo != null) {
+            return stringUtils.camelCaseToLowerCaseWithSeparator(getGithubRepositoryName(), "-");
+        }
+
         if (magicArg != null && isPackageAndClassName(stringUtils, magicArg)) {
             if (stringUtils.countCharInstances(magicArg, '.') > 2) {
                 String pkg = splitPackageIntoPackageAndClassName(magicArg)[0];
