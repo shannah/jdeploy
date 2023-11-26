@@ -2,8 +2,6 @@ package ca.weblite.jdeploy.openai.internal.service;
 
 import ca.weblite.jdeploy.openai.chat.PromptHandler;
 import ca.weblite.jdeploy.openai.config.OpenAiChatConfig;
-import ca.weblite.jdeploy.openai.functions.GenerateProjectFunction;
-import ca.weblite.jdeploy.openai.functions.GetMainClassSourceFunction;
 import ca.weblite.jdeploy.openai.internal.model.ChatMessageImpl;
 import ca.weblite.jdeploy.openai.internal.model.ChatThreadImpl;
 import ca.weblite.jdeploy.openai.interop.ChatThreadDispatcher;
@@ -15,7 +13,6 @@ import com.theokanning.openai.completion.chat.ChatCompletionRequest;
 import com.theokanning.openai.completion.chat.ChatFunctionCall;
 import com.theokanning.openai.completion.chat.ChatMessage;
 import com.theokanning.openai.completion.chat.ChatMessageRole;
-import com.theokanning.openai.service.FunctionExecutor;
 import com.theokanning.openai.service.OpenAiService;
 
 import javax.inject.Inject;
@@ -26,26 +23,22 @@ import java.util.*;
 @Singleton
 public class ChatPromptImpl implements PromptHandler {
 
-    private final GenerateProjectFunction generateProjectFunction;
-
-    private final GetMainClassSourceFunction getMainClassSourceFunction;
-
     private final UiThreadDispatcher uiThreadDispatcher;
 
     private final ChatThreadDispatcher chatThreadDispatcher;
 
     private final OpenAiChatConfig config;
 
+    private final JDeployFunctionExecutor  functionExecutor;
+
     @Inject
     public ChatPromptImpl(
-            GenerateProjectFunction generateProjectFunction,
-            GetMainClassSourceFunction getMainClassSourceFunction,
+            JDeployFunctionExecutor functionExecutor,
             UiThreadDispatcher dispatchThread,
             ChatThreadDispatcher chatThreadDispatcher,
             OpenAiChatConfig config
     ) {
-        this.generateProjectFunction = generateProjectFunction;
-        this.getMainClassSourceFunction = getMainClassSourceFunction;
+        this.functionExecutor = functionExecutor;
         this.uiThreadDispatcher = dispatchThread;
         this.chatThreadDispatcher = chatThreadDispatcher;
         this.config = config;
@@ -66,36 +59,36 @@ public class ChatPromptImpl implements PromptHandler {
             ChatPromptResponse chatPromptResponse
     ) {
         final ChatThreadImpl chatThreadImpl = (ChatThreadImpl) chatThread;
+        System.out.println(">>>>>> Received user input <<<<<<<<<<");
+        System.out.println(chatPromptRequest.getUserInput().getContent());
+        System.out.println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
         chatThreadImpl.addMessage(chatPromptRequest.getUserInput());
         String token = config.getOpenAiApiKey();
         OpenAiService service = new OpenAiService(token, Duration.ZERO);
 
-
-        FunctionExecutor functionExecutor = new FunctionExecutor(Arrays.asList(
-                generateProjectFunction.asChatFunction(),
-                getMainClassSourceFunction.asChatFunction()
-        ));
-
         while (true) {
-            final List<ChatMessage> messages = new ArrayList<>();
-            messages.addAll(((ChatThreadImpl) chatThread).getInternalMessages());
+            final List<ChatMessage> messages = new ArrayList<>(((ChatThreadImpl) chatThread).getInternalMessages());
             ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest
                     .builder()
-                    .model("gpt-3.5-turbo-16k")
+                    .model("gpt-4-1106-preview")
+                    //.model("gpt-3.5-turbo-16k")
                     .messages(messages)
                     .functions(functionExecutor.getFunctions())
                     .functionCall(ChatCompletionRequest.ChatCompletionRequestFunctionCall.of("auto"))
                     .n(1)
-                    .maxTokens(7000)
+                    .maxTokens(4096)
                     .logitBias(new HashMap<>())
                     .build();
-            ChatMessage responseMessage = service.createChatCompletion(chatCompletionRequest).getChoices().get(0).getMessage();
+            ChatMessage responseMessage = service.createChatCompletion(chatCompletionRequest)
+                    .getChoices()
+                    .get(0)
+                    .getMessage();
             chatThreadImpl.addMessage(new ChatMessageImpl(responseMessage));
 
             ChatFunctionCall functionCall = responseMessage.getFunctionCall();
             if (functionCall != null) {
                 System.out.println("Trying to execute " + functionCall.getName() + "...");
-                Optional<ChatMessage> message = Optional.empty();
+                Optional<ChatMessage> message;
                 try {
                     message = Optional.of(functionExecutor.executeAndConvertToMessage(functionCall));
                 } catch (Exception ex) {

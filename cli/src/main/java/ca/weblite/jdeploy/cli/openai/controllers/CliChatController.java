@@ -54,7 +54,7 @@ public class CliChatController {
         System.out.println("Type 'exit' to exit.");
         while (true) {
             System.out.print("> ");
-            String nextLine = scanner.nextLine();
+            String nextLine = nextUserInput(scanner);
             if (nextLine.equals("exit")) {
                 break;
             }
@@ -74,5 +74,27 @@ public class CliChatController {
         ConfigLoader configLoader = DIContext.getInstance().getInstance(CliConfigLoader.class);
         configLoader.loadConfig(CliChatController.class);
         DIContext.getInstance().getInstance(CliChatController.class).run();
+    }
+
+    private String nextUserInput(Scanner scanner) {
+        final StringBuilder sb = new StringBuilder();
+        String stopCode = null;
+        while (true) {
+            String nextLine = scanner.nextLine();
+            if (sb.length() == 0 && (nextLine.startsWith("<<<") || nextLine.startsWith(">>>"))) {
+                stopCode = nextLine.substring(3);
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append(System.getProperty("line.separator"));
+            }
+            sb.append(nextLine);
+
+            if (stopCode == null || (stopCode != null && nextLine.equals(stopCode))) {
+                break;
+            }
+
+        }
+        return sb.toString();
     }
 }
