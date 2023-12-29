@@ -9,12 +9,17 @@
     <remote-repository>
       <option name="id" value="my-local-repo" />
       <option name="name" value="my-local-repo" />
-      <option name="url" value="file://$PROJECT_DIR$/cli/../maven-repository" />
+      <option name="url" value="file://C:\Users\steve\jdeploy\installer/../maven-repository" />
     </remote-repository>
     <remote-repository>
       <option name="id" value="my-local-repo" />
       <option name="name" value="my-local-repo" />
-      <option name="url" value="file://$PROJECT_DIR$/shared/../maven-repository" />
+      <option name="url" value="file://C:\Users\steve\jdeploy\cli/../maven-repository" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="my-local-repo" />
+      <option name="name" value="my-local-repo" />
+      <option name="url" value="file://$PROJECT_DIR$/cli/../maven-repository" />
     </remote-repository>
     <remote-repository>
       <option name="id" value="central" />
@@ -30,6 +35,21 @@
       <option name="id" value="my-local-repo" />
       <option name="name" value="my-local-repo" />
       <option name="url" value="file://$PROJECT_DIR$/installer/../maven-repository" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="my-local-repo" />
+      <option name="name" value="my-local-repo" />
+      <option name="url" value="file://C:\Users\steve\jdeploy\shared/../maven-repository" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="my-local-repo" />
+      <option name="name" value="my-local-repo" />
+      <option name="url" value="file://$PROJECT_DIR$/shared/../maven-repository" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="sci-java" />
+      <option name="name" value="sci-java" />
+      <option name="url" value="https://maven.scijava.org/content/repositories/public" />
     </remote-repository>
   </component>
 </project>

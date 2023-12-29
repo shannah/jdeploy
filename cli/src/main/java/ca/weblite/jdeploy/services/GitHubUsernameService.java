@@ -2,15 +2,19 @@ package ca.weblite.jdeploy.services;
 
 import org.json.JSONObject;
 
+import javax.inject.Inject;
+import javax.inject.Singleton;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+@Singleton
 public class GitHubUsernameService {
-    private GithubTokenService githubTokenService;
+    private final GithubTokenService githubTokenService;
 
+    @Inject
     public GitHubUsernameService(GithubTokenService githubTokenService) {
         this.githubTokenService = githubTokenService;
     }

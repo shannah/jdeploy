@@ -9,16 +9,13 @@
         <module name="jdeploy-shared" />
         <module name="jdeploy-cli" />
         <module name="jdeploy-cheerpj" />
+        <module name="jdeploy-maven-plugin" />
         <module name="jdeploy-installer" />
         <module name="jdeploy-installer-theme-fx" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
-      <module name="jdeploy-cheerpj" target="1.8" />
-      <module name="jdeploy-cli" target="1.8" />
-      <module name="jdeploy-installer" target="1.8" />
       <module name="jdeploy-installer-theme-fx" target="11" />
-      <module name="jdeploy-shared" target="1.8" />
     </bytecodeTargetLevel>
   </component>
 </project>

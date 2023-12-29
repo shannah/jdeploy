@@ -8,13 +8,18 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 
+import javax.inject.Singleton;
+
+@Singleton
 public class ProjectTemplateCatalog {
     private String githubRepository;
     private String localPath;
 
+    private static final String REPO_URL = "https://github.com/shannah/jdeploy-project-templates.git";
+
     public ProjectTemplateCatalog() {
-        localPath = System.getProperty("user.home") + "/.jdeploy/templates";
-        githubRepository = "https://github.com/shannah/jdeploy-project-templates.git";
+        localPath = System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "templates";
+        githubRepository = REPO_URL;
     }
 
     public void update() throws IOException {

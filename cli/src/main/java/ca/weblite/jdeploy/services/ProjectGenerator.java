@@ -2,442 +2,94 @@ package ca.weblite.jdeploy.services;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.net.URISyntaxException;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Scanner;
 
-
-import ca.weblite.jdeploy.cli.util.CommandLineParser;
-import ca.weblite.jdeploy.helpers.filemergers.DirectoryMerger;
-import ca.weblite.jdeploy.helpers.filemergers.JSONFileMerger;
-import ca.weblite.jdeploy.helpers.filemergers.PackageJsonFileMerger;
-import ca.weblite.jdeploy.helpers.filemergers.PomFileMerger;
+import ca.weblite.jdeploy.builders.GitHubRepositoryInitializationRequestBuilder;
+import ca.weblite.jdeploy.dtos.ProjectGeneratorRequest;
 import ca.weblite.jdeploy.helpers.StringUtils;
+import ca.weblite.jdeploy.helpers.filemergers.ProjectDirectoryExtensionMerger;
+import ca.weblite.tools.io.IOUtil;
 import org.apache.commons.io.FileUtils;
-import org.xml.sax.SAXException;
+import org.eclipse.jgit.api.errors.GitAPIException;
 
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.transform.TransformerException;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 
 import static ca.weblite.jdeploy.cli.util.JavaVersionHelper.getJavaVersion;
 
-
+@Singleton
 public class ProjectGenerator {
 
-    private GitHubRepositoryInitializer gitHubRepositoryInitializer;
+    private static final String JDEPLOY_TOKEN_SECRET_NAME = "JDEPLOY_RELEASES_TOKEN";
 
-    private StringUtils stringUtils = new StringUtils();
-    private File parentDirectory;
-    private String projectName;
-    private String appTitle;
-    private String templateDirectory;
-    private String templateName;
+    private static final String GITHUB_URL = "https://github.com/";
 
-    private String[] extensions;
-    private String groupId;
-    private String artifactId;
+    private final StringUtils stringUtils;
 
-    private String packageName;
+    private final ProjectTemplateCatalog projectTemplateCatalog;
 
-    private String mainClassName;
+    private final ProjectDirectoryExtensionMerger directoryMerger;
 
-    private String githubRepository;
+    private final GitHubRepositoryInitializer gitHubRepositoryInitializer;
 
+    private final MavenWrapperInjector mavenWrapperInjector;
 
-    public static class Params {
+    private final GithubSecretSetter githubSecretSetter;
 
+    private final GithubTokenService githubTokenService;
 
-        @CommandLineParser.Help("The github repository to use.  E.g. \"username/repo\".  If not specified, will be inferred from the package name and project name.")
-        private String githubRepository;
-
-        @CommandLineParser.PositionalArg(1)
-        @CommandLineParser.Help("The fully-qualified main class name.  If not specified, will be inferred from the package name and project name.")
-        private String magicArg;
-
-        @CommandLineParser.Alias("d")
-        @CommandLineParser.Help("Parent directory to create project in.  Defaults to current directory.")
-        private File parentDirectory;
-
-        @CommandLineParser.Alias("n")
-        @CommandLineParser.Help("The name of the project. Defaults to the main class name")
-        private String projectName;
-
-        @CommandLineParser.Help("The title of the application.  Defaults to the project name.")
-        private String appTitle;
-
-        @CommandLineParser.Help("The directory containing the template to use for the project.  Defaults to the built-in templates.")
-        @CommandLineParser.Alias("td")
-        private String templateDirectory;
-
-        @CommandLineParser.Help("The name of the template to use.  E.g. \"swing\" or \"javafx\".  Defaults to \"swing\".")
-        @CommandLineParser.Alias("t")
-        private String templateName;
-
-        @CommandLineParser.Help("The group ID for the project. If omitted, will be derived from the package name.")
-        @CommandLineParser.Alias("g")
-        private String groupId;
-
-        @CommandLineParser.Help("The artifact ID for the project.  If omitted, will be derived from the package name.")
-        @CommandLineParser.Alias("a")
-        private String artifactId;
-
-        @CommandLineParser.Help("The package name for the project.  If omitted, will be derived from fully-qualified main class name")
-        @CommandLineParser.Alias("pkg")
-        private String packageName;
-
-        @CommandLineParser.Help("The main class name (not fully-qualified)")
-        private String mainClassName;
-
-        @CommandLineParser.Help("The extensions to include in the project. This is a comma-separated list of extensions. ")
-        private String[] extensions;
-
-        @CommandLineParser.Help("Whether to include cheerpj deployment to github actions")
-        private boolean withCheerpj = false;
-
-        public Params setTemplateName(String templateName) {
-            this.templateName = templateName;
-
-            return this;
-        }
-
-        public Params setParentDirectory(File parentDirectory) {
-            this.parentDirectory = parentDirectory;
-            return this;
-        }
-
-        public Params setProjectName(String projectName) {
-            this.projectName = projectName;
-            return this;
-        }
-
-        private String getProjectName() {
-            if (projectName != null) {
-                return projectName;
-            }
-            StringUtils stringUtils = new StringUtils();
-
-            String githubRepo = getGithubRepository();
-            if (githubRepo != null) {
-                return getGithubRepositoryName();
-            }
-
-            if (magicArg != null && isPackageAndClassName(stringUtils, magicArg)) {
-                if (stringUtils.countCharInstances(magicArg, '.') > 2) {
-                    String pkg = splitPackageIntoPackageAndClassName(magicArg)[0];
-                    return stringUtils.camelCaseToLowerCaseWithSeparator(
-                            pkg.substring(pkg.lastIndexOf(".")+1),
-                            "-"
-                    );
-                }
-                return  stringUtils.camelCaseToLowerCaseWithSeparator(
-                        splitPackageIntoPackageAndClassName(magicArg)[1],
-                        "-"
-                );
-            }
-
-            if (magicArg != null && stringUtils.isValidJavaClassName(magicArg)) {
-                if (magicArg.contains(".")) {
-                    return stringUtils.camelCaseToLowerCaseWithSeparator(magicArg.substring(magicArg.lastIndexOf(".")+1), "-");
-                }
-                return stringUtils.camelCaseToLowerCaseWithSeparator(magicArg, "-");
-            }
-
-            return "my-app";
-        }
-
-        public Params setAppTitle(String appTitle) {
-            this.appTitle = appTitle;
-            return this;
-        }
-
-        private String getAppTitle() {
-            if (appTitle != null) {
-                return appTitle;
-            }
-
-            StringUtils stringUtils = new StringUtils();
-
-            String githubRepo = getGithubRepository();
-            if (githubRepo != null) {
-                return stringUtils.ucWords(
-                        getGithubRepositoryName().replaceAll("[\\-_\\.]", " ")
-                );
-            }
-            if (magicArg != null && isPackageAndClassName(stringUtils, magicArg)) {
-                return stringUtils.ucWords(
-                        stringUtils.camelCaseToLowerCaseWithSeparator(
-                                splitPackageIntoPackageAndClassName(magicArg)[1],
-                                " "
-                        )
-                );
-            }
-
-            if (magicArg != null && stringUtils.isValidJavaClassName(magicArg)) {
-                if (magicArg.contains(".")) {
-                    return stringUtils.ucWords(
-                            stringUtils.camelCaseToLowerCaseWithSeparator(
-                                    magicArg.substring(magicArg.lastIndexOf(".")+1),
-                                    " "
-                            )
-                    );
-                }
-                return stringUtils.camelCaseToLowerCaseWithSeparator(magicArg, " ");
-            }
-
-            return "My App";
-        }
-
-        public Params setTemplateDirectory(String templateDirectory) {
-            this.templateDirectory = templateDirectory;
-            return this;
-        }
-
-        public Params setGroupId(String groupId) {
-            this.groupId = groupId;
-            return this;
-        }
-
-        private String getGroupId() {
-            if (groupId != null) {
-                return groupId;
-            }
-            String githubRepository = getGithubRepository();
-            if (githubRepository != null) {
-                return "com.github." + getGithubUser();
-            }
-            StringUtils stringUtils = new StringUtils();
-            if (magicArg != null && isPackageAndClassName(stringUtils, magicArg)) {
-
-                String out =  splitPackageIntoPackageAndClassName(magicArg)[0];
-                if (stringUtils.countCharInstances(out, '.') > 1) {
-                    out = out.substring(0, out.lastIndexOf("."));
-                }
-
-                return stringUtils.camelCaseToLowerCaseWithSeparator(out, "-");
-            }
-
-            if (magicArg != null && stringUtils.isValidJavaClassName(magicArg)) {
-                String out =  magicArg;
-                if (stringUtils.countCharInstances(out, '.') > 1) {
-                    out = out.substring(0, out.lastIndexOf("."));
-                }
-
-                return stringUtils.camelCaseToLowerCaseWithSeparator(out, "-");
-            }
-
-            return "com.example";
-        }
-
-        public Params setArtifactId(String artifactId) {
-            this.artifactId = artifactId;
-            return this;
-        }
-
-        private String getArtifactId() {
-            if (artifactId != null) {
-                return artifactId;
-            }
-            String githubRepository = getGithubRepository();
-            if (githubRepository != null) {
-                return getGithubRepositoryName();
-            }
-            StringUtils stringUtils = new StringUtils();
-            if (magicArg != null && isPackageAndClassName(stringUtils, magicArg)) {
-                String pkg = splitPackageIntoPackageAndClassName(magicArg)[0];
-                String out;
-                if (stringUtils.countCharInstances(pkg, '.') > 1) {
-                    out = pkg.substring(pkg.lastIndexOf(".")+1);
-                } else {
-                    out = splitPackageIntoPackageAndClassName(magicArg)[1];
-                }
-
-                return stringUtils.camelCaseToLowerCaseWithSeparator(out, "-");
-            }
-
-            if (magicArg != null && stringUtils.isValidJavaClassName(magicArg)) {
-                String pkg = magicArg;
-                String out;
-                if (stringUtils.countCharInstances(pkg, '.') > 0) {
-                    out = pkg.substring(pkg.lastIndexOf(".")+1);
-
-                } else {
-                    out = magicArg;
-                }
-
-                return stringUtils.camelCaseToLowerCaseWithSeparator(out, "-");
-            }
-
-            if (projectName != null) {
-                return stringUtils.camelCaseToLowerCaseWithSeparator(projectName, "-");
-            }
-
-            return "my-app";
-        }
-
-        private String getMainClassName() {
-            if (mainClassName != null) {
-                return mainClassName;
-            }
-            StringUtils stringUtils = new StringUtils();
-
-            String githubRepository = getGithubRepository();
-            if (githubRepository != null) {
-                return stringUtils.ucFirst(
-                        stringUtils.lowerCaseWithSeparatorToCamelCase(getGithubRepositoryName(), "-")
-                );
-            }
-
-            if (magicArg != null && isPackageAndClassName(stringUtils, magicArg)) {
-                return splitPackageIntoPackageAndClassName(magicArg)[1];
-            }
-
-            return "Main";
-        }
-
-        private String getPackageName() {
-            if (packageName != null) {
-                return packageName;
-            }
-
-            String githubRepository = getGithubRepository();
-            StringUtils stringUtils = new StringUtils();
-            if (githubRepository != null) {
-                String pkg = "com.github."
-                        + stringUtils.lowerCaseWithSeparatorToCamelCase(getGithubUser(), "-")
-                        + "." + stringUtils.lowerCaseWithSeparatorToCamelCase(getGithubRepositoryName(), "-");
-
-                return pkg.toLowerCase();
-            }
-
-
-            if (magicArg != null && isPackageAndClassName(stringUtils, magicArg)) {
-                return splitPackageIntoPackageAndClassName(magicArg)[0];
-            }
-
-            if (magicArg != null && stringUtils.isValidJavaClassName(magicArg)) {
-                return magicArg;
-            }
-
-            if (groupId != null) {
-                String pkg = stringUtils.lowerCaseWithSeparatorToCamelCase(groupId, "-");
-                if (artifactId != null) {
-                    pkg += "." + stringUtils.lowerCaseWithSeparatorToCamelCase(artifactId, "-");
-                }
-                return pkg;
-            }
-
-            if (artifactId != null) {
-                return "com.example." + stringUtils.lowerCaseWithSeparatorToCamelCase(artifactId, "-");
-            }
-
-            return "com.example.myapp";
-        }
-
-        public ProjectGenerator build() {
-            return new ProjectGenerator(this);
-        }
-
-        public String getMagicArg() {
-            return magicArg;
-        }
-
-        public Params setMagicArg(String magicArg) {
-            this.magicArg = magicArg;
-            return this;
-        }
-
-        public String[] getExtensions() {
-            List<String> extensionsList = extensions == null
-                    ? new ArrayList<>()
-                    : new ArrayList<>(Arrays.asList(extensions));
-            if (withCheerpj) {
-                extensionsList.add("cheerpj");
-            }
-            return extensionsList.toArray(new String[extensionsList.size()]);
-        }
-
-        public Params setExtensions(String[] extensions) {
-            this.extensions = extensions;
-
-            return this;
-        }
-
-        public boolean isWithCheerpj() {
-            return withCheerpj;
-        }
-
-        public Params setWithCheerpj(boolean withCheerpj) {
-            this.withCheerpj = withCheerpj;
-
-            return this;
-        }
-
-        public Params setGithubRepository(String githubRepository) {
-            this.githubRepository = githubRepository;
-            return this;
-        }
-
-        private String getGithubRepository() {
-            if (githubRepository != null) {
-                return githubRepository;
-            }
-            if (magicArg != null && magicArg.matches("^[a-zA-Z0-9\\-]+/[a-zA-Z0-9\\-]+$")) {
-                return magicArg;
-            }
-            return null;
-        }
-
-        private String getGithubUser() {
-            String repo = getGithubRepository();
-            if (repo != null) {
-                return repo.split("/")[0];
-            }
-            return null;
-        }
-
-        private String getGithubRepositoryName() {
-            String repo = getGithubRepository();
-            if (repo != null) {
-                return repo.split("/")[1];
-            }
-            return null;
-        }
-
+    @Inject
+    public ProjectGenerator(
+            StringUtils stringUtils,
+            ProjectTemplateCatalog projectTemplateCatalog,
+            ProjectDirectoryExtensionMerger directoryMerger,
+            GitHubRepositoryInitializer gitHubRepositoryInitializer,
+            MavenWrapperInjector mavenWrapperInjector,
+            GithubSecretSetter githubSecretSetter,
+            GithubTokenService githubTokenService
+    ) {
+        this.stringUtils = stringUtils;
+        this.projectTemplateCatalog = projectTemplateCatalog;
+        this.directoryMerger = directoryMerger;
+        this.gitHubRepositoryInitializer = gitHubRepositoryInitializer;
+        this.mavenWrapperInjector = mavenWrapperInjector;
+        this.githubSecretSetter = githubSecretSetter;
+        this.githubTokenService = githubTokenService;
     }
 
-    public ProjectGenerator(Params params) {
-        this.parentDirectory = params.parentDirectory;
-        this.projectName = params.getProjectName();
-        this.appTitle = params.getAppTitle();
-        this.templateDirectory = params.templateDirectory;
-        this.templateName = params.templateName;
-        this.groupId = params.getGroupId();
-        this.artifactId = params.getArtifactId();
-        this.mainClassName = params.getMainClassName();
-        this.packageName = params.getPackageName();
-        this.extensions = params.getExtensions();
-        this.githubRepository = params.getGithubRepository();
-    }
 
-    public File generate() throws Exception {
-        File projectDir = new File(parentDirectory, stringUtils.camelCaseToLowerCaseWithSeparator(projectName, "-"));
+    public File generate(ProjectGeneratorRequest request) throws Exception {
+        File projectDir = new File(
+                request.getParentDirectory(),
+                stringUtils.camelCaseToLowerCaseWithSeparator(request.getProjectName(), "-")
+        );
         if ( projectDir.exists() ) {
             throw new Exception("Project directory already exists: " + projectDir.getAbsolutePath());
         }
         projectDir.mkdirs();
-        ProjectTemplateCatalog catalog = new ProjectTemplateCatalog();
-        catalog.update();
-        if (templateDirectory == null && templateName != null) {
-            templateDirectory = catalog.getProjectTemplate(templateName).getAbsolutePath();
+        if (!projectDir.exists()) {
+            throw new IOException("Failed to create project directory: " + projectDir.getAbsolutePath());
+        }
+
+        String templateDirectory = request.getTemplateDirectory();
+        if (templateDirectory == null && request.getTemplateName() != null) {
+            projectTemplateCatalog.update();
+            templateDirectory = projectTemplateCatalog.getProjectTemplate(request.getTemplateName()).getAbsolutePath();
         }
         if (templateDirectory == null) {
             throw new Exception("Template directory is not set");
         }
+
         File templateDir = new File(templateDirectory);
         if ( !templateDir.exists() ) {
             throw new Exception("Template directory does not exist: " + templateDir.getAbsolutePath());
         }
         File[] files = templateDir.listFiles();
+        if (files == null) {
+            throw new IOException("Failed to get files in template directory: " + templateDir.getAbsolutePath());
+        }
         for ( File file : files) {
             if ( file.isDirectory() ) {
                 FileUtils.copyDirectory(file, new File(projectDir, file.getName()));
@@ -445,74 +97,107 @@ public class ProjectGenerator {
                 FileUtils.copyFileToDirectory(file, projectDir);
             }
         }
-
-        if (extensions != null) {
-            for (String extension : extensions) {
-                File extensionDir = catalog.getExtensionTemplate(extension);
+        if (request.getExtensions() != null) {
+            for (String extension : request.getExtensions()) {
+                File extensionDir = projectTemplateCatalog.getExtensionTemplate(extension);
                 applyExtensionToProject(projectDir, extensionDir);
 
             }
         }
-        updateFilesInDirectory(projectDir);
-        initializeAndPushGitRepository(projectDir);
+
+        updateFilesInDirectory(projectDir, request);
+
+        if (mavenWrapperInjector.isMavenProject(projectDir.getPath())) {
+            mavenWrapperInjector.installIntoProject(projectDir.getPath());
+        }
+
+        initializeAndPushGitRepository(projectDir, request);
         return projectDir;
+
     }
 
-    private String updateApplicationProperties(String buildFileSource) throws Exception {
-        buildFileSource = buildFileSource.replace("{{ appName }}", projectName);
-        buildFileSource = buildFileSource.replace("{{ appTitle }}", appTitle);
-        buildFileSource = buildFileSource.replace("{{ groupId }}", groupId);
-        buildFileSource = buildFileSource.replace("{{ artifactId }}", artifactId);
-        buildFileSource = buildFileSource.replace("{{ mainClass }}", mainClassName);
-        buildFileSource = buildFileSource.replace("{{ mainClassName }}", mainClassName);
-        buildFileSource = buildFileSource.replace("{{ packageName }}", packageName);
-        buildFileSource = buildFileSource.replace("{{ packagePath }}", packageName.replace(".", "/"));
+    private String updateApplicationProperties(String buildFileSource, ProjectGeneratorRequest request) {
+        buildFileSource = buildFileSource.replace("{{ appName }}", request.getProjectName());
+        buildFileSource = buildFileSource.replace("{{ appTitle }}", request.getAppTitle());
+        buildFileSource = buildFileSource.replace("{{ groupId }}", request.getGroupId());
+        buildFileSource = buildFileSource.replace("{{ artifactId }}", request.getArtifactId());
+        buildFileSource = buildFileSource.replace("{{ mainClass }}", request.getMainClassName());
+        buildFileSource = buildFileSource.replace("{{ mainClassName }}", request.getMainClassName());
+        buildFileSource = buildFileSource.replace("{{ packageName }}", request.getPackageName());
+        buildFileSource = buildFileSource.replace("{{ packagePath }}", request.getPackageName().replace(".", "/"));
         buildFileSource = buildFileSource.replace("{{ javaVersion }}", String.valueOf(getJavaVersion()));
+        buildFileSource = buildFileSource.replace("{{ githubRepository }}", String.valueOf(request.getGithubRepository()));
+        buildFileSource = buildFileSource.replace("{{ githubReleasesRepository }}", getReleasesRepository(request));
+        buildFileSource = buildFileSource.replace("{{ releasesUrl }}", getReleasesUrl(request));
         return buildFileSource;
     }
 
-    private File updateFilesInDirectory(File dir) throws Exception {
+    private File updateFilesInDirectory(File dir, ProjectGeneratorRequest request) throws Exception {
         File[] files = dir.listFiles();
+        if (files == null) {
+            throw new IOException("Failed to get files in directory: " + dir.getAbsolutePath());
+        }
         for ( File file : files) {
             if ( file.isDirectory() ) {
-                updateFilesInDirectory(file);
+                updateFilesInDirectory(file, request);
             } else {
                 String name = file.getName();
-                if ( name.endsWith(".java") || name.endsWith(".properties") || name.endsWith(".xml") || name.endsWith(".gradle") || name.endsWith(".json") ) {
-                    String source = FileUtils.readFileToString(file);
-                    String updated = updateApplicationProperties(source);
+                String[] processExtensions = new String[]{
+                        ".java",
+                        ".properties",
+                        ".xml",
+                        ".gradle",
+                        ".json",
+                        ".yml",
+                        ".yaml",
+                        ".md",
+                        ".adoc"
+                };
+                boolean shouldProcessFile = Arrays.asList(processExtensions).stream().filter(ext -> name.endsWith(ext)).count() > 0;
+                if (shouldProcessFile) {
+                    String source = FileUtils.readFileToString(file, "UTF-8");
+                    String updated = updateApplicationProperties(source, request);
                     if ( !updated.equals(source) ) {
-                        FileUtils.writeStringToFile(file, updated);
+                        FileUtils.writeStringToFile(file, updated, "UTF-8");
                     }
                 }
             }
-            moveFile(file);
+            moveFile(file, request);
         }
         return dir;
     }
 
-    private File initializeAndPushGitRepository(File projectDirectory) throws Exception {
-        if (githubRepository == null) {
+
+    private File initializeAndPushGitRepository(
+            File projectDirectory,
+            ProjectGeneratorRequest request
+    ) throws Exception {
+        if (request.getGithubRepository() == null) {
             return projectDirectory;
         }
-        GithubTokenService githubTokenService = new GithubTokenService();
-        GitHubRepositoryInitializer gitHubRepositoryInitializer = new GitHubRepositoryInitializer(
-                new File(projectDirectory, "package.json"),
-                null,
-                githubTokenService,
-                new GitHubUsernameService(githubTokenService)
-        );
-        gitHubRepositoryInitializer.initAndPublish(
-                new GitHubRepositoryInitializer.Params()
-                    .setRepoName(githubRepository)
-        );
+        GitHubRepositoryInitializationRequestBuilder requestBuilder;
+        if (request.isPrivateRepository()) {
+            generateReleasesProject(projectDirectory, request);
+        }
+
+        requestBuilder = new GitHubRepositoryInitializationRequestBuilder();
+        requestBuilder.setRepoName(request.getGithubRepository())
+                .setProjectPath(projectDirectory.getAbsolutePath())
+                .setPrivate(request.isPrivateRepository());
+        gitHubRepositoryInitializer.createGitHubRepository(requestBuilder.build());
+
+        if (request.isPrivateRepository()) {
+            addSecretToWorkflow(request);
+        }
+
+        gitHubRepositoryInitializer.setupAndPushRemote(requestBuilder.build());
+
 
         return projectDirectory;
     }
 
-
-    private File moveFile(File file) throws Exception {
-        String name = updateApplicationProperties(file.getName());
+    private File moveFile(File file, ProjectGeneratorRequest request) throws Exception {
+        String name = updateApplicationProperties(file.getName(), request);
         if (!file.getName().equals(name)) {
             File destFile = new File(file.getParentFile(), name);
             if (file.isDirectory()) {
@@ -527,42 +212,120 @@ public class ProjectGenerator {
         return file;
     }
 
-    private String capitalizeFirstLetter(String input) {
-        if (input == null || input.isEmpty()) {
-            return input;
-        }
-        return input.substring(0, 1).toUpperCase() + input.substring(1);
+    private void applyExtensionToProject(
+            File projectDirectory,
+            File extensionDirectory
+    ) throws Exception {
+       directoryMerger.merge(projectDirectory, extensionDirectory);
     }
 
-    private static String[] splitPackageIntoPackageAndClassName(String packageName) {
-        String[] parts = packageName.split("\\.");
-        String className = parts[parts.length - 1];
-        String[] packageParts = new String[parts.length - 1];
-        System.arraycopy(parts, 0, packageParts, 0, parts.length - 1);
-        return new String[]{String.join(".", packageParts), className};
+    private void setReleasesRepositoryInWorkflow(File projectDirectory, String releasesRepository) {
+        File jdeployYml = new File(
+                projectDirectory,
+                ".github" + File.separator + "workflows" + File.separator + "jdeploy.yml"
+        );
+        if (jdeployYml.exists()) {
+            try {
+                String content = FileUtils.readFileToString(jdeployYml, "UTF-8");
+                content = content.replace(
+                        "${{ secrets.GITHUB_TOKEN }}",
+                        "${{ secrets." + JDEPLOY_TOKEN_SECRET_NAME + " }}"
+                );
+                String indent = getIndentOfLineWith(content, "github_token:");
+                String indentedGithubToken = indent + "github_token:";
+                String indentedTargetRepository = indent + "target_repository: '" + releasesRepository + "'\n";
+
+                content = content.replace(
+                        indentedGithubToken,
+                indentedTargetRepository + indentedGithubToken
+                );
+                FileUtils.writeStringToFile(jdeployYml, content, "UTF-8");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
-    private static boolean isPackageAndClassName(StringUtils stringUtils, String packageName) {
-        if (!stringUtils.isValidJavaClassName(packageName)) {
-            return false;
+    private String getIndentOfLineWith(String haystack, String needle) {
+        Scanner scanner = new Scanner(haystack);
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine();
+            if (line.contains(needle)) {
+                return line.substring(0, line.indexOf(needle));
+            }
         }
-
-        String[] parts = packageName.split("\\.");
-        if (parts.length < 2) {
-            return false;
-        }
-
-        if (parts[parts.length - 1].isEmpty()) {
-            return false;
-        }
-
-        return (Character.isUpperCase(parts[parts.length - 1].charAt(0)));
+        return "";
     }
 
-    private void applyExtensionToProject(File projectDirectory, File extensionDirectory) throws Exception {
-        new DirectoryMerger(
-                new PomFileMerger(),
-                new PackageJsonFileMerger()
-        ).merge(projectDirectory, extensionDirectory);
+    private void setupReleasesProject(
+            File releasesProjectDir,
+            ProjectGeneratorRequest request
+    ) throws IOException {
+        String readme = IOUtil.readToString(
+                getClass().getResourceAsStream(
+                        "/ca/weblite/jdeploy/github/Releases_Readme_Template.md"
+                )
+        );
+
+        readme = readme.replace("{{ appName }}", request.getProjectName());
+        readme = readme.replace("{{ appTitle }}", request.getAppTitle());
+        readme = readme.replace("{{ githubRepository }}", request.getGithubRepository());
+        readme = readme.replace("{{ githubReleasesRepository }}", getReleasesRepository(request));
+        readme = readme.replace("{{ releasesUrl }}", getReleasesUrl(request));
+        FileUtils.writeStringToFile(new File(releasesProjectDir, "README.md"), readme, "UTF-8");
+
+    }
+
+    private void initAndPublishReleasesProject(
+            String releasesRepository,
+            String releasesProjectPath
+    ) throws IOException, GitAPIException, URISyntaxException {
+        GitHubRepositoryInitializationRequestBuilder requestBuilder =
+                new GitHubRepositoryInitializationRequestBuilder();
+        requestBuilder.setRepoName(releasesRepository)
+                .setProjectPath(releasesProjectPath)
+                .setPrivate(false);
+        gitHubRepositoryInitializer.initAndPublish(requestBuilder.build());
+    }
+
+    private void addSecretToWorkflow(ProjectGeneratorRequest request) throws Exception {
+        String owner = request.getGithubRepository().split("/")[0];
+        String repo = request.getGithubRepository().split("/")[1];
+        githubSecretSetter.setSecret(
+                owner,
+                repo,
+                githubTokenService.getToken(),
+                JDEPLOY_TOKEN_SECRET_NAME,
+                githubTokenService.getToken()
+        );
+    }
+
+    private void generateReleasesProject(
+            File projectDirectory,
+            ProjectGeneratorRequest request
+    ) throws Exception {
+        String releasesRepository = getReleasesRepository(request);
+        String releasesProjectPath = getReleasesProjetPath(projectDirectory, request);
+        new File(releasesProjectPath).mkdirs();
+        setupReleasesProject(new File(releasesProjectPath), request);
+        initAndPublishReleasesProject(releasesRepository, releasesProjectPath);
+        setReleasesRepositoryInWorkflow(projectDirectory, releasesRepository);
+    }
+
+    private String getReleasesRepository(ProjectGeneratorRequest request) {
+        return request.getGithubRepository() + "-releases";
+    }
+
+    private String getReleasesProjetPath(File projectDirectory, ProjectGeneratorRequest request) {
+        return projectDirectory.getAbsolutePath() + "-releases";
+    }
+
+    private String getReleasesUrl(ProjectGeneratorRequest request) {
+        if (request.isPrivateRepository()) {
+            return GITHUB_URL + getReleasesRepository(request) + "/releases";
+        } else {
+            return GITHUB_URL + request.getGithubRepository() + "/releases";
+        }
     }
 }
+

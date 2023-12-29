@@ -16,6 +16,35 @@
 
     </build>
     <dependencies>
+        <!-- add junit 5 dependencies -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>5.8.1</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- add mockito dependency -->
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>3.12.4</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.theokanning.openai-gpt3-java</groupId>
+            <artifactId>service</artifactId>
+            <version>LATEST</version>
+        </dependency>
+
+        <!-- add support for Mockito extensions in tests -->
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>3.12.4</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>ca.weblite.jdeploy</groupId>
             <artifactId>cn1-compatlib</artifactId>
@@ -121,6 +150,12 @@
             <artifactId>json</artifactId>
             <version>20211205</version>
             <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.codejargon.feather</groupId>
+            <artifactId>feather</artifactId>
+            <version>1.0</version>
         </dependency>
 
     </dependencies>

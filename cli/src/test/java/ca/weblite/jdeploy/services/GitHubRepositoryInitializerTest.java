@@ -1,5 +1,7 @@
 package ca.weblite.jdeploy.services;
 
+import ca.weblite.jdeploy.DIContext;
+import ca.weblite.jdeploy.builders.GitHubRepositoryInitializationRequestBuilder;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
@@ -9,23 +11,23 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.nio.file.Files;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 class GitHubRepositoryInitializerTest {
 
     private File parentDirectory;
 
-    private String repoName = "test-jdeploy-repo-" + System.currentTimeMillis() + "-test";
+    private final String repoName = "test-jdeploy-repo-" + System.currentTimeMillis() + "-test";
 
-    private GithubTokenService githubTokenService = new GithubTokenService();
+    private final GithubTokenService githubTokenService = DIContext.getInstance().getInstance(GithubTokenService.class);
 
-    private GitHubUsernameService gitHubUsernameService = new GitHubUsernameService(githubTokenService);
+    private final GitHubUsernameService gitHubUsernameService = new GitHubUsernameService(githubTokenService);
+
+    private GitHubRepositoryInitializer gitHubRepositoryInitializer;
 
     @BeforeEach
     public void setUp() throws Exception {
         parentDirectory = Files.createTempDirectory("jdeploy-test").toFile();
         FileUtils.writeStringToFile(new File(parentDirectory, "package.json"), "{}", "UTF-8");
-
+        gitHubRepositoryInitializer = DIContext.getInstance().getInstance(GitHubRepositoryInitializer.class);
     }
 
     @AfterEach
@@ -45,14 +47,11 @@ class GitHubRepositoryInitializerTest {
                 System.getenv("GH_TOKEN").startsWith("ghp_"),
                 "GH_TOKEN is not personal access token");
 
-        GitHubRepositoryInitializer.Params params = new GitHubRepositoryInitializer.Params();
-        params.setRepoName(repoName);
-        GitHubRepositoryInitializer initializer = new GitHubRepositoryInitializer(
-                new File(parentDirectory, "package.json"),
-                null,
-                githubTokenService,
-                gitHubUsernameService
-        );
-        initializer.initAndPublish(params);
+        GitHubRepositoryInitializationRequestBuilder params = (GitHubRepositoryInitializationRequestBuilder)
+                new GitHubRepositoryInitializationRequestBuilder()
+                .setRepoName(repoName)
+                .setProjectPath(parentDirectory.getPath());
+
+        gitHubRepositoryInitializer.initAndPublish(params.build());
     }
 }

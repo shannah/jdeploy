@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.helpers.filemergers;
 
 import org.apache.commons.io.FileUtils;
 
+import javax.inject.Singleton;
 import java.io.File;
 import java.io.IOException;
 
