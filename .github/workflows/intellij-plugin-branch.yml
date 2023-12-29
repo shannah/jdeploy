@@ -32,10 +32,21 @@ jobs:
         cd ../cli
         mvn package
         cd ../jdeploy-intellij-plugin
-        gradle buildPlugin
         
-    - name: Upload a Build Artifact
-      uses: actions/upload-artifact@v2.2.4
+    - name: Grant execute permission for gradlew
+      run: |
+        cd jdeploy-intellij-plugin
+        chmod +x ./gradlew
+
+    - name: Build Plugin
+      run: |
+        cd jdeploy-intellij-plugin
+        ./gradlew buildPlugin
+
+    - name: Archive production artifacts
+      uses: actions/upload-artifact@v2
       with:
-        name: jdeploy-intellij-plugin-1.0.0-SNAPSHOT.zip
-        path: jdeploy-intellij-plugin/build/distributions/jdeploy-intellij-plugin-1.0.0-SNAPSHOT.zip
+        name: plugin
+        path: |
+          jdeploy-intellij-plugin/build/distributions/*.zip
+          jdeploy-intellij-plugin/build/idea-sandbox/plugins
