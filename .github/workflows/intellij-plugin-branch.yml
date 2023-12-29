@@ -45,10 +45,9 @@ jobs:
     - name: Archive production artifacts
       uses: actions/upload-artifact@v2
       with:
-        name: jdeploy-intellij-plugin.zip
+        name: plugin
         path: |
           jdeploy-intellij-plugin/build/distributions/*.zip
-          jdeploy-intellij-plugin/build/idea-sandbox/plugins
           
   release:
     needs: build
@@ -60,7 +59,11 @@ jobs:
     - name: Download Artifact
       uses: actions/download-artifact@v2
       with:
-        name: jdeploy-intellij-plugin.zip
+        name: plugin
+
+    - name: List plugin contents
+      run: ls -la ./plugin
+      shell: bash
 
     - name: Get the version
       id: get_version
@@ -93,6 +96,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./jdeploy-intellij-plugin.zip
+        asset_path: ./plugin/jdeploy-intellij-plugin.zip
         asset_name: jdeploy-intellij-plugin-${{ steps.get_version.outputs.version }}.zip
         asset_content_type: application/zip
