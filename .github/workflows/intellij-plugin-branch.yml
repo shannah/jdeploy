@@ -30,8 +30,7 @@ jobs:
         cd shared
         mvn install
         cd ../cli
-        mvn package
-        cd ../jdeploy-intellij-plugin
+        mvn install
         
     - name: Grant execute permission for gradlew
       run: |
