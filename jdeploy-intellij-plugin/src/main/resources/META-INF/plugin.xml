@@ -28,4 +28,12 @@
             id="JDEPLOY_MODULE_TYPE"
             implementationClass="ca.weblite.intellij.jdeployintellijplugin.JdeployModuleType"/>
   </extensions>
+  <actions>
+    <action id="ca.weblite.intellij.jdeployintellijplugin.JDeploySettingsAction"
+            class="ca.weblite.intellij.jdeployintellijplugin.JDeploySettingsAction" text="jDeploy Settings"
+            description="Configure application deployment settings through jDeploy">
+      <add-to-group group-id="ProjectViewPopupMenu" anchor="after"
+                    relative-to-action="ProjectViewPopupMenuSettingsGroup"/>
+    </action>
+  </actions>
 </idea-plugin>

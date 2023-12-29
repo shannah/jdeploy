@@ -1,17 +1,29 @@
 package ca.weblite.jdeploy.gui.controllers;
 
+import ca.weblite.jdeploy.interop.DesktopInterop;
 import ca.weblite.jdeploy.services.GithubWorkflowGenerator;
 
 import javax.swing.*;
-import java.awt.*;
 
 public class EditGithubWorkflowController implements Runnable {
 
     private final GithubWorkflowGenerator githubWorkflowGenerator;
-
     private final JFrame parentFrame;
 
-    public EditGithubWorkflowController(JFrame parentFrame, GithubWorkflowGenerator githubWorkflowGenerator) {
+    private final DesktopInterop desktopInterop;
+
+    public EditGithubWorkflowController(JFrame parentFrame,
+                                 GithubWorkflowGenerator githubWorkflowGenerator
+    ) {
+        this(parentFrame, githubWorkflowGenerator, new DesktopInterop());
+    }
+
+    public EditGithubWorkflowController(
+            JFrame parentFrame,
+            GithubWorkflowGenerator githubWorkflowGenerator,
+            DesktopInterop desktopInterop
+    ) {
+        this.desktopInterop = desktopInterop;
         this.parentFrame = parentFrame;
         this.githubWorkflowGenerator = githubWorkflowGenerator;
     }
@@ -21,9 +33,9 @@ public class EditGithubWorkflowController implements Runnable {
             JOptionPane.showMessageDialog(parentFrame, "The workflow file was not found.", "Not found", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        if (Desktop.isDesktopSupported()) {
+        if (desktopInterop.isDesktopSupported()) {
             try {
-                Desktop.getDesktop().edit(githubWorkflowGenerator.getGithubWorkflowFile());
+                desktopInterop.edit(githubWorkflowGenerator.getGithubWorkflowFile());
             } catch (Exception ex) {
                 ex.printStackTrace();
                 JOptionPane.showMessageDialog(parentFrame, "Failed to open workflow file.\nMessage: " + ex.getMessage(), "Not found", JOptionPane.ERROR_MESSAGE);

@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.gui;
 
+import ca.weblite.jdeploy.DIContext;
 import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
@@ -8,15 +9,16 @@ import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.services.ExportIdentityService;
+import ca.weblite.jdeploy.services.GithubService;
 import ca.weblite.jdeploy.services.GithubWorkflowGenerator;
 import ca.weblite.jdeploy.services.WebsiteVerifier;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.MD5;
-import ca.weblite.tools.platform.Platform;
 import com.sun.nio.file.SensitivityWatchEventModifier;
 import io.codeworth.panelmatic.PanelBuilder;
 import io.codeworth.panelmatic.PanelMatic;
 import io.codeworth.panelmatic.util.Groupings;
+import io.codeworth.panelmatic.util.PanelPostProcessors;
 import net.coobird.thumbnailator.Thumbnails;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONArray;
@@ -25,16 +27,12 @@ import org.kordamp.ikonli.material.Material;
 import org.kordamp.ikonli.swing.FontIcon;
 
 import javax.swing.*;
-import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.LineBorder;
 import javax.swing.border.MatteBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.JTextComponent;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.InputEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
@@ -49,8 +47,6 @@ import java.util.jar.JarFile;
 
 import static ca.weblite.jdeploy.PathUtil.fromNativePath;
 import static ca.weblite.jdeploy.PathUtil.toNativePath;
-import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
-import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
 
 public class JDeployProjectEditor {
 
@@ -65,6 +61,8 @@ public class JDeployProjectEditor {
     private WatchService watchService;
     private boolean pollWatchService = true;
     private boolean processingPackageJSONChange = false;
+
+    private JDeployProjectEditorContext context = new JDeployProjectEditorContext();
 
     private JMenuItem generateGithubWorkflowMenuItem;
     private JMenuItem editGithubWorkflowMenuItem;
@@ -221,8 +219,18 @@ public class JDeployProjectEditor {
         return null;
     }
 
-
     public JDeployProjectEditor(File packageJSONFile, JSONObject packageJSON) {
+        this(packageJSONFile, packageJSON, null);
+    }
+
+    public JDeployProjectEditor(
+            File packageJSONFile,
+            JSONObject packageJSON,
+            JDeployProjectEditorContext context
+    ) {
+        if (context != null) {
+            this.context = context;
+        }
         this.packageJSONFile = packageJSONFile;
         this.packageJSON = packageJSON;
         try {
@@ -319,8 +327,20 @@ public class JDeployProjectEditor {
 
         frame.setTitle(title);
         frame.pack();
-        frame.setLocationRelativeTo(null);
+        frame.setLocationRelativeTo(context.getParentFrame());
         frame.setVisible(true);
+    }
+
+    public boolean isShowing() {
+        return frame != null && frame.isVisible();
+    }
+
+    public boolean focus() {
+        if (frame != null && frame.isVisible()) {
+            frame.requestFocus();
+            return true;
+        }
+        return false;
     }
 
     private void setModified() {
@@ -1085,7 +1105,7 @@ public class JDeployProjectEditor {
         JButton viewCLITutorial = new JButton("Open CLI Tutorial");
         viewCLITutorial.addActionListener(evt->{
             try {
-                Desktop.getDesktop().browse(new URI("https://www.jdeploy.com/docs/getting-started-tutorial-cli/"));
+                context.browse(new URI("https://www.jdeploy.com/docs/getting-started-tutorial-cli/"));
             } catch (Exception ex) {
                 System.err.println("Failed to open cli tutorial.");
                 ex.printStackTrace(System.err);
@@ -1167,11 +1187,28 @@ public class JDeployProjectEditor {
                 JSONObject packageInfo = new NPM(System.out, System.err).fetchPackageInfoFromNpm(packageName, source);
 
             } catch (Exception ex) {
+                GithubService githubService = DIContext.getInstance().getInstance(GithubService.class);
+                String githubUrl = githubService.getFirstRemoteHttpsUrl(
+                        packageJSONFile.getParentFile().getAbsolutePath()
+                );
+                if (githubUrl != null) {
+                    String releasesUrl = githubUrl + "/releases";
+                    if (githubService.isRepoPrivateOrDoesNotExist(githubUrl)) {
+                        releasesUrl = githubUrl + "-releases/releases";
+                    }
+                    try {
+                        context.browse(new URI(releasesUrl));
+                        return;
+                    } catch (Exception ex2) {
+                        showError("Failed to open download page.  "+ex2.getMessage(), ex2);
+                        return;
+                    }
+                }
                 showError("Unable to load your package details from NPM.  Either you haven't published your app yet, or there was a network error.", ex);
                 return;
             }
             try {
-                Desktop.getDesktop().browse(new URI("https://www.jdeploy.com/~" + packageName));
+                context.browse(new URI("https://www.jdeploy.com/~" + packageName));
             } catch (Exception ex) {
                 showError("Failed to open download page.  "+ex.getMessage(), ex);
             }
@@ -1197,8 +1234,23 @@ public class JDeployProjectEditor {
                 handlePublish();
             }).start();
         });
+
+        JButton apply = new JButton("Apply");
+        apply.addActionListener(evt -> handleSave());
+
+        JButton cancel = new JButton("Cancel");
+        cancel.addActionListener(evt -> handleClosing());
+
         bottomButtons.add(viewDownloadPage);
-        bottomButtons.add(publish);
+        if (context.shouldShowPublishButton()) {
+            bottomButtons.add(publish);
+        }
+        if (context.shouldDisplayApplyButton()) {
+            bottomButtons.add(apply);
+        }
+        if (context.shouldDisplayCancelButton()) {
+            bottomButtons.add(cancel);
+        }
         cnt.add(bottomButtons, BorderLayout.SOUTH);
 
 
@@ -1277,7 +1329,7 @@ public class JDeployProjectEditor {
         file.addSeparator();
         file.add(verifyHomepage);
 
-        if (!Platform.getSystemPlatform().isMac()) {
+        if (context.shouldDisplayExitMenu()) {
             file.addSeparator();
             JMenuItem quit = new JMenuItem("Exit");
             quit.setAccelerator(KeyStroke.getKeyStroke('Q', Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
@@ -1327,7 +1379,8 @@ public class JDeployProjectEditor {
         EventQueue.invokeLater(
                 new EditGithubWorkflowController(
                         frame,
-                        new GithubWorkflowGenerator(projectDirectory)
+                        new GithubWorkflowGenerator(projectDirectory),
+                        context.getDesktopInterop()
                 )
         );
     }
@@ -1337,9 +1390,9 @@ public class JDeployProjectEditor {
         btn.setText(label);
         btn.setToolTipText(tooltipText);
         btn.addActionListener(evt->{
-            if (Desktop.isDesktopSupported()) {
+            if (context.getDesktopInterop().isDesktopSupported()) {
                 try {
-                    Desktop.getDesktop().browse(new URI(url));
+                    context.browse(new URI(url));
                 } catch (Exception ex) {
                     showError("Failed to open web browser to "+url, ex);
                 }
@@ -1356,9 +1409,9 @@ public class JDeployProjectEditor {
         btn.setText(label);
         btn.setToolTipText(tooltipText);
         btn.addActionListener(evt->{
-            if (Desktop.isDesktopSupported()) {
+            if (context.getDesktopInterop().isDesktopSupported()) {
                 try {
-                    Desktop.getDesktop().browse(new URI(url));
+                    context.browse(new URI(url));
                 } catch (Exception ex) {
                     showError("Failed to open web browser to "+url, ex);
                 }
@@ -1370,9 +1423,9 @@ public class JDeployProjectEditor {
     }
 
     private void handleOpenInTextEditor() {
-        if (Desktop.isDesktopSupported()) {
+        if (context.getDesktopInterop().isDesktopSupported()) {
             try {
-                Desktop.getDesktop().edit(packageJSONFile);
+                context.edit(packageJSONFile);
             } catch (Exception ex) {
                 showError("Failed to open package.json in a text editor. "+ex.getMessage(), ex);
             }
@@ -1388,6 +1441,7 @@ public class JDeployProjectEditor {
             FileUtil.writeStringToFile(packageJSON.toString(4), packageJSONFile);
             packageJSONMD5 = MD5.getMD5Checksum(packageJSONFile);
             clearModified();
+            context.onFileUpdated(packageJSONFile);
         } catch (Exception ex) {
             System.err.println("Failed to save "+packageJSONFile+": "+ex.getMessage());
             ex.printStackTrace(System.err);
