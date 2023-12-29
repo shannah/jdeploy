@@ -65,7 +65,7 @@ public class ProjectGenerator {
                 request.getParentDirectory(),
                 stringUtils.camelCaseToLowerCaseWithSeparator(request.getProjectName(), "-")
         );
-        if ( projectDir.exists() ) {
+        if (!request.isUseExistingDirectory() && projectDir.exists() ) {
             throw new Exception("Project directory already exists: " + projectDir.getAbsolutePath());
         }
         projectDir.mkdirs();
