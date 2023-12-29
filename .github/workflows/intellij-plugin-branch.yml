@@ -3,9 +3,9 @@
 
 name: IntelliJ Plugin Branch Release
 on:
-  #push:
-  #  tags: '*'
-  #  branches: [master]
+  push:
+    tags: '*'
+    branches: '*'
   workflow_dispatch:
 
 jobs:
@@ -45,7 +45,46 @@ jobs:
     - name: Archive production artifacts
       uses: actions/upload-artifact@v2
       with:
-        name: plugin
+        name: jdeploy-intellij-plugin.zip
         path: |
           jdeploy-intellij-plugin/build/distributions/*.zip
           jdeploy-intellij-plugin/build/idea-sandbox/plugins
+          
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/pull/')
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Download Artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: jdeploy-intellij-plugin.zip
+
+    - name: Get the version
+      id: get_version
+      run: |
+        echo "##[set-output name=version;]$(echo ${GITHUB_REF#refs/*/})"
+      shell: bash
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_version.outputs.version }}
+        release_name: jdeploy-intellij-plugin-${{ steps.get_version.outputs.version }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./plugin/jdeploy-intellij-plugin.zip
+        asset_name: jdeploy-intellij-plugin-${{ steps.get_version.outputs.version }}.zip
+        asset_content_type: application/zip
