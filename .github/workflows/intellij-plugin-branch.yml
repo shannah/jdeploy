@@ -62,7 +62,7 @@ jobs:
         name: plugin
 
     - name: List plugin contents
-      run: ls -la ./plugin
+      run: find .
       shell: bash
 
     - name: Get the version
