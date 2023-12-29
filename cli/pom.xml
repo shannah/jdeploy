@@ -213,6 +213,19 @@
             <artifactId>bcprov-jdk15on</artifactId>
             <version>1.70</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/org.purejava/tweetnacl-java -->
+        <dependency>
+            <groupId>org.purejava</groupId>
+            <artifactId>tweetnacl-java</artifactId>
+            <version>1.1.2</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/com.github.alphazero/Blake2b -->
+        <dependency>
+            <groupId>com.github.alphazero</groupId>
+            <artifactId>Blake2b</artifactId>
+            <version>bbf094983c</version>
+        </dependency>
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -274,6 +287,10 @@
                 <updatePolicy>always</updatePolicy>
             </snapshots>
             <url>file://${basedir}/../maven-repository</url>
+        </repository>
+        <repository>
+            <id>sci-java</id>
+            <url>https://maven.scijava.org/content/repositories/public</url>
         </repository>
 
     </repositories>

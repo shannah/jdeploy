@@ -1,6 +1,5 @@
 package ca.weblite.jdeploy.services;
 
-import ca.weblite.jdeploy.cli.util.CommandLineParser;
 import ca.weblite.jdeploy.dtos.GitHubRepositoryIntializationRequest;
 import ca.weblite.jdeploy.dtos.GithubRepositoryDto;
 import ca.weblite.jdeploy.factories.GitHubRepositoryDtoFactory;
@@ -107,14 +106,13 @@ public class GitHubRepositoryInitializer {
         }
     }
 
-    private void setupAndPushRemote(GitHubRepositoryIntializationRequest request)
+    public void setupAndPushRemote(GitHubRepositoryIntializationRequest request)
             throws GitAPIException, URISyntaxException, IOException {
-        JDeployProject project = jDeployProjectCache.findByPath(request.getProjectPath());
         GithubRepositoryDto githubRepositoryDto = githubRepositoryDtoFactory.newGithubRepository(
                 request.getRepoName(),
                 request.isPrivate()
         );
-        File localPath = project.getPackageJSONFile().toFile().getParentFile();
+        File localPath = getLocalPath(request);
         Git git;
         try (Repository repository = Git.init().setDirectory(localPath).call().getRepository()) {
 
@@ -169,5 +167,14 @@ public class GitHubRepositoryInitializer {
 
         git.close();
 
+    }
+
+    private File getLocalPath(GitHubRepositoryIntializationRequest request) {
+        try {
+            JDeployProject project = jDeployProjectCache.findByPath(request.getProjectPath());
+            return project.getPackageJSONFile().toFile().getParentFile();
+        } catch (IOException e) {
+            return new File(request.getProjectPath());
+        }
     }
 }

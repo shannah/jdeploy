@@ -21,6 +21,8 @@ public class ProjectGeneratorRequest {
 
     private final String githubRepository;
 
+    private final boolean privateRepository;
+
     public File getParentDirectory() {
         return parentDirectory;
     }
@@ -65,10 +67,18 @@ public class ProjectGeneratorRequest {
         return githubRepository;
     }
 
+    public boolean isPrivateRepository() {
+        return privateRepository;
+    }
+
     public interface Params {
 
         @CommandLineParser.Help("The github repository to use.  E.g. \"username/repo\".  If not specified, will be inferred from the package name and project name.")
         String getGithubRepository();
+
+        @CommandLineParser.Help("Whether the repository should be private")
+        @CommandLineParser.Alias("p")
+        boolean isPrivateRepository();
 
         @CommandLineParser.PositionalArg(1)
         @CommandLineParser.Help("The fully-qualified main class name.  If not specified, will be inferred from the package name and project name.")
@@ -139,6 +149,8 @@ public class ProjectGeneratorRequest {
 
         Params setGithubRepository(String githubRepository);
 
+        Params setPrivateRepository(boolean privateRepository);
+
         Params setExtensions(String[] extensions);
 
         Params setWithCheerpj(boolean withCheerpj);
@@ -157,6 +169,7 @@ public class ProjectGeneratorRequest {
         this.packageName = params.getPackageName();
         this.extensions = params.getExtensions();
         this.githubRepository = params.getGithubRepository();
+        this.privateRepository = params.isPrivateRepository();
     }
 }
 

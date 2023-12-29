@@ -46,5 +46,10 @@
       <option name="name" value="my-local-repo" />
       <option name="url" value="file://$PROJECT_DIR$/shared/../maven-repository" />
     </remote-repository>
+    <remote-repository>
+      <option name="id" value="sci-java" />
+      <option name="name" value="sci-java" />
+      <option name="url" value="https://maven.scijava.org/content/repositories/public" />
+    </remote-repository>
   </component>
 </project>

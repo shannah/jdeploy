@@ -16,6 +16,9 @@ public class ProjectGeneratorRequestBuilder implements ProjectGeneratorRequest.P
     @CommandLineParser.Help("The github repository to use.  E.g. \"username/repo\".  If not specified, will be inferred from the package name and project name.")
     private String githubRepository;
 
+    @CommandLineParser.Help("Whether the repository should be private")
+    private boolean privateRepository;
+
     @CommandLineParser.PositionalArg(1)
     @CommandLineParser.Help("The fully-qualified main class name.  If not specified, will be inferred from the package name and project name.")
     private String magicArg;
@@ -376,6 +379,13 @@ public class ProjectGeneratorRequestBuilder implements ProjectGeneratorRequest.P
         return this;
     }
 
+    @Override
+    public ProjectGeneratorRequest.Params setPrivateRepository(boolean privateRepository) {
+        this.privateRepository = privateRepository;
+
+        return this;
+    }
+
     public String getGithubRepository() {
         if (githubRepository != null) {
             return githubRepository;
@@ -384,6 +394,10 @@ public class ProjectGeneratorRequestBuilder implements ProjectGeneratorRequest.P
             return magicArg;
         }
         return null;
+    }
+
+    public boolean isPrivateRepository() {
+        return privateRepository;
     }
 
     private String getGithubUser() {
