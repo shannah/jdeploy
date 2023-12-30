@@ -1261,25 +1261,7 @@ public class JDeployProjectEditor {
         return showFileChooser(title, new HashSet<String>(Arrays.asList(extensions)));
     }
     private File showFileChooser(String title, Set<String> extensions) {
-        FileDialog fd = new FileDialog(frame, title, FileDialog.LOAD);
-        fd.setFilenameFilter(new FilenameFilter() {
-            @Override
-            public boolean accept(File dir, String name) {
-                if (extensions == null) {
-                    return true;
-                }
-                int pos = name.lastIndexOf(".");
-                if (pos >= 0) {
-                    String extension = name.substring(pos+1);
-                    return extensions.contains(extension);
-                }
-                return false;
-            }
-        });
-        fd.setVisible(true);
-        File[] files = fd.getFiles();
-        if (files == null || files.length == 0) return null;
-        return files[0];
+        return context.getFileChooserInterop().showFileChooser(frame, title, extensions);
     }
 
 

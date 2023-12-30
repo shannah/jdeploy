@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.gui;
 
 import ca.weblite.jdeploy.DIContext;
 import ca.weblite.jdeploy.interop.DesktopInterop;
+import ca.weblite.jdeploy.interop.FileChooserInterop;
 import ca.weblite.tools.platform.Platform;
 
 import javax.swing.*;
@@ -12,6 +13,10 @@ import java.net.URI;
 public class JDeployProjectEditorContext {
     public DesktopInterop getDesktopInterop() {
         return DIContext.getInstance().getInstance(DesktopInterop.class);
+    }
+
+    public FileChooserInterop getFileChooserInterop() {
+        return DIContext.getInstance().getInstance(FileChooserInterop.class);
     }
 
     public boolean shouldDisplayExitMenu() {
