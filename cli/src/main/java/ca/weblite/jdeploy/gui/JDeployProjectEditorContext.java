@@ -35,6 +35,10 @@ public class JDeployProjectEditorContext {
         return true;
     }
 
+    public boolean shouldDisplayMenuBar() {
+        return true;
+    }
+
     public void edit(File file) throws Exception {
         getDesktopInterop().edit(file);
     }

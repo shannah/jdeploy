@@ -1238,8 +1238,8 @@ public class JDeployProjectEditor {
         JButton apply = new JButton("Apply");
         apply.addActionListener(evt -> handleSave());
 
-        JButton cancel = new JButton("Cancel");
-        cancel.addActionListener(evt -> handleClosing());
+        JButton closeBtn = new JButton("Close");
+        closeBtn.addActionListener(evt -> handleClosing());
 
         bottomButtons.add(viewDownloadPage);
         if (context.shouldShowPublishButton()) {
@@ -1249,7 +1249,7 @@ public class JDeployProjectEditor {
             bottomButtons.add(apply);
         }
         if (context.shouldDisplayCancelButton()) {
-            bottomButtons.add(cancel);
+            bottomButtons.add(closeBtn);
         }
         cnt.add(bottomButtons, BorderLayout.SOUTH);
 
@@ -1333,7 +1333,9 @@ public class JDeployProjectEditor {
 
         jmb.add(file);
         jmb.add(help);
-        frame.setJMenuBar(jmb);
+        if (context.shouldDisplayMenuBar()) {
+            frame.setJMenuBar(jmb);
+        }
     }
 
     private void handleVerifyHomepage() {
