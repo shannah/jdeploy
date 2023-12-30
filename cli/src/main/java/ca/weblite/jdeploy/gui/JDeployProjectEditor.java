@@ -5,6 +5,7 @@ import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
+import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
@@ -529,7 +530,8 @@ public class JDeployProjectEditor {
 
     private void initMainFields(Container cnt) {
         mainFields = new MainFields();
-        mainFields.name = new JTextField();
+        DetailsPanel detailsPanel = new DetailsPanel();
+        mainFields.name = detailsPanel.getName();
         if (packageJSON.has("name")) {
             mainFields.name.setText(packageJSON.getString("name"));
         }
@@ -542,7 +544,7 @@ public class JDeployProjectEditor {
             setModified();
         }
 
-        mainFields.author = new JTextField();
+        mainFields.author = detailsPanel.getAuthor();
         if (packageJSON.has("author")) {
             Object authorO = packageJSON.get("author");
             String authorString = "";
@@ -569,7 +571,7 @@ public class JDeployProjectEditor {
 
 
 
-        mainFields.description = new JTextArea();
+        mainFields.description = detailsPanel.getDescription();
         mainFields.description.setLineWrap(true);
         mainFields.description.setWrapStyleWord(true);
         mainFields.description.setRows(4);
@@ -617,7 +619,7 @@ public class JDeployProjectEditor {
             setModified();
         });
 
-        mainFields.title = new JTextField();
+        mainFields.title = detailsPanel.getTitle();
         if (jdeploy.has("title")) {
             mainFields.title.setText(jdeploy.getString("title"));
         }
@@ -630,7 +632,7 @@ public class JDeployProjectEditor {
             setModified();
         });
 
-        mainFields.version = new JTextField();
+        mainFields.version = detailsPanel.getVersion();
         if (packageJSON.has("version")) {
             mainFields.version.setText(packageJSON.getString("version"));
         }
@@ -648,10 +650,10 @@ public class JDeployProjectEditor {
             setModified();
         });
 
-        mainFields.repository = new JTextField();
+        mainFields.repository = detailsPanel.getRepositoryUrl();
         mainFields.repository.setColumns(30);
         mainFields.repository.setMinimumSize(new Dimension(100, mainFields.repository.getPreferredSize().height));
-        mainFields.repositoryDirectory = new JTextField();
+        mainFields.repositoryDirectory = detailsPanel.getRepositoryDirectory();
         mainFields.repositoryDirectory.setMinimumSize(new Dimension(100, mainFields.repositoryDirectory.getPreferredSize().height));
         mainFields.repositoryDirectory.setColumns(20);
         if (packageJSON.has("repository")) {
@@ -679,7 +681,7 @@ public class JDeployProjectEditor {
         addChangeListenerTo(mainFields.repository, onRepoChange);
         addChangeListenerTo(mainFields.repositoryDirectory, onRepoChange);
 
-        mainFields.license = new JTextField();
+        mainFields.license = detailsPanel.getLicense();
         if (packageJSON.has("license")) {
             mainFields.license.setText(packageJSON.getString("license"));
         }
@@ -705,7 +707,7 @@ public class JDeployProjectEditor {
             setModified();
         });
 
-        mainFields.verifyHomepageButton = new JButton("Verify");
+        mainFields.verifyHomepageButton = detailsPanel.getVerifyButton();
         mainFields.verifyHomepageButton.setToolTipText("Verify that you own this page");
         mainFields.verifyHomepageButton.addActionListener(evt->{
             handleVerifyHomepage();
@@ -718,7 +720,7 @@ public class JDeployProjectEditor {
         queueHomepageVerification();
 
 
-        mainFields.homepage = new JTextField();
+        mainFields.homepage = detailsPanel.getHomepage();
         if (packageJSON.has("homepage")) {
             mainFields.homepage.setText(packageJSON.getString("homepage"));
         }
@@ -791,7 +793,7 @@ public class JDeployProjectEditor {
 
             }
         });
-        mainFields.icon = new JButton();
+        mainFields.icon = detailsPanel.getIcon();
         if (getIconFile().exists()) {
             try {
                 mainFields.icon.setIcon(new ImageIcon(Thumbnails.of(getIconFile()).size(128, 128).asBufferedImage()));
@@ -820,7 +822,7 @@ public class JDeployProjectEditor {
             }
         });
 
-        mainFields.jar = new JTextField();
+        mainFields.jar = detailsPanel.getJarFile();
         mainFields.jar.setColumns(30);
         if (jdeploy.has("jar")) {
             mainFields.jar.setText(jdeploy.getString("jar"));
@@ -830,7 +832,7 @@ public class JDeployProjectEditor {
             setModified();
         });
 
-        mainFields.selectJar = new JButton("Select...");
+        mainFields.selectJar = detailsPanel.getSelectJarFile();
         mainFields.selectJar.addActionListener(evt->{
             FileDialog dlg = new FileDialog(frame, "Select jar file", FileDialog.LOAD);
             if (mainFields.jar.getText().isEmpty()) {
@@ -870,7 +872,7 @@ public class JDeployProjectEditor {
 
         });
 
-        mainFields.javafx = new JCheckBox("Requires JavaFX");
+        mainFields.javafx = detailsPanel.getRequiresJavaFX();
         if (jdeploy.has("javafx") && jdeploy.getBoolean("javafx")) {
             mainFields.javafx.setSelected(true);
         }
@@ -878,7 +880,7 @@ public class JDeployProjectEditor {
             jdeploy.put("javafx", mainFields.javafx.isSelected());
             setModified();
         });
-        mainFields.jdk = new JCheckBox("Requires Full JDK");
+        mainFields.jdk = detailsPanel.getRequiresFullJDK();
         if (jdeploy.has("jdk") && jdeploy.getBoolean("jdk")) {
             mainFields.jdk.setSelected(true);
         }
@@ -887,7 +889,7 @@ public class JDeployProjectEditor {
             setModified();
         });
 
-        mainFields.javaVersion = new JComboBox<String>(new String[]{"8", "11", "17", "19", "20"});
+        mainFields.javaVersion = detailsPanel.getJavaVersion();
         mainFields.javaVersion.setEditable(true);
         if (jdeploy.has("javaVersion")) {
             mainFields.javaVersion.setSelectedItem(String.valueOf(jdeploy.get("javaVersion")));
@@ -981,7 +983,8 @@ public class JDeployProjectEditor {
 
 
         JTabbedPane tabs = new JTabbedPane();
-
+        JPanel detailsPanelRoot = detailsPanel.getRoot();
+        /*
         JComponent detailsPanel = PanelMatic.begin()
                 .add(Groupings.lineGroup(mainFields.icon,
                         (JComponent)Box.createRigidArea(new Dimension(10, 10)),
@@ -1003,38 +1006,38 @@ public class JDeployProjectEditor {
                 .addHeader(PanelBuilder.HeaderLevel.H5, "Links")
                 .add("Homepage", Groupings.lineGroup(mainFields.homepage, mainFields.verifyHomepageButton, mainFields.homepageVerifiedLabel))
                 .add("Repository", Groupings.lineGroup(new JLabel("URL:"), mainFields.repository, new JLabel("Directory:"), mainFields.repositoryDirectory))
-                .get();
+                .get(); */
         JPanel detailWrapper = new JPanel();
-        detailWrapper.setLayout(new BoxLayout(detailWrapper, BoxLayout.Y_AXIS));
+        detailWrapper.setLayout(new BorderLayout());
 
 
         detailWrapper.setBorder(new EmptyBorder(10, 10, 10, 10));
-        detailWrapper.setPreferredSize(new Dimension(640, 480));
-        detailWrapper.setOpaque(false);
-        detailsPanel.setAlignmentY(Component.TOP_ALIGNMENT);
-        detailsPanel.setMaximumSize(new Dimension(10000, detailsPanel.getPreferredSize().height));
-        Box.Filler filler = new Box.Filler(
-                new Dimension(0, 0),
-                new Dimension(0, 0),
-                new Dimension(1000, 1000)
-        );
-        filler.setOpaque(false);
+        //detailWrapper.setPreferredSize(new Dimension(640, 480));
+        //detailWrapper.setOpaque(false);
+        //detailsPanel.setAlignmentY(Component.TOP_ALIGNMENT);
+        //detailsPanel.setMaximumSize(new Dimension(10000, detailsPanel.getPreferredSize().height));
+        //Box.Filler filler = new Box.Filler(
+        //        new Dimension(0, 0),
+        //        new Dimension(0, 0),
+        //        new Dimension(1000, 1000)
+        //);
+        //filler.setOpaque(false);
         JPanel helpPanel = new JPanel();
         helpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        helpPanel.setOpaque(false);
+        //helpPanel.setOpaque(false);
         helpPanel.add(createHelpButton("https://www.jdeploy.com/docs/help/#_the_details_tab", "", "Learn about what these fields do."));
         //helpPanel.setMaximumSize(new Dimension(helpPanel.getPreferredSize()));
-        detailWrapper.add(helpPanel);
-        detailWrapper.add(detailsPanel);
-        detailWrapper.add(filler);
+        detailWrapper.add(helpPanel, BorderLayout.NORTH);
+        detailWrapper.add(detailsPanelRoot, BorderLayout.CENTER);
+        //detailWrapper.add(filler);
 
-        JScrollPane detailsScroller = new JScrollPane(detailWrapper);
-        detailsScroller.setBorder(new EmptyBorder(0,0,0,0));
-        detailsScroller.setOpaque(false);
-        detailsScroller.getViewport().setOpaque(false);
+        //JScrollPane detailsScroller = new JScrollPane(detailWrapper);
+        //detailsScroller.setBorder(new EmptyBorder(0,0,0,0));
+        //detailsScroller.setOpaque(false);
+        //detailsScroller.getViewport().setOpaque(false);
 
 
-        tabs.addTab("Details", detailsScroller);
+        tabs.addTab("Details", detailWrapper);
 
         JComponent imagesPanel = PanelMatic.begin()
 
