@@ -39,6 +39,10 @@ public class JDeployProjectEditorContext {
         return true;
     }
 
+    public boolean shouldDisplayCheerpJPanel() {
+        return false;
+    }
+
     public void edit(File file) throws Exception {
         getDesktopInterop().edit(file);
     }

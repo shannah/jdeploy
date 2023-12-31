@@ -5,6 +5,7 @@ import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
+import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
 import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.NPMApplication;
@@ -979,62 +980,156 @@ public class JDeployProjectEditor {
         doctypesTop.add(createHelpButton("https://www.jdeploy.com/docs/help/#filetypes", "", "Learn more about file associations in jDeploy."), BorderLayout.EAST);
         doctypesTop.setMaximumSize(new Dimension(doctypesTop.getPreferredSize()));
         doctypesPanelWrapper.add(doctypesTop, BorderLayout.NORTH);
+        JPanel cheerpjSettingsRoot = null;
+        if (context.shouldDisplayCheerpJPanel()) {
+            CheerpJSettings cheerpJSettings = new CheerpJSettings();
+            cheerpJSettings.getButtons().add(createHelpButton("https://www.jdeploy.com/docs/help/#cheerpj", "", "Learn more about CheerpJ support"));
+            cheerpjSettingsRoot = cheerpJSettings.getRoot();
+            cheerpJSettings.getEnableCheerpJ().setSelected(
+                    jdeploy.has("cheerpj")
+                            && jdeploy.getJSONObject("cheerpj").has("enabled")
+                            && jdeploy.getJSONObject("cheerpj").getBoolean("enabled")
+            );
+
+            Runnable updateCheerpjUI = ()->{
+
+                cheerpJSettings.getEnableCheerpJ().setSelected(
+                        jdeploy.has("cheerpj")
+                                && jdeploy.getJSONObject("cheerpj").has("enabled")
+                                && jdeploy.getJSONObject("cheerpj").getBoolean("enabled")
+                );
+                boolean cheerpjEnabled = cheerpJSettings.getEnableCheerpJ().isSelected();
+                cheerpJSettings.getGithubPagesBranch().setEnabled(cheerpjEnabled);
+                cheerpJSettings.getGithubPagesBranchPath().setEnabled(cheerpjEnabled);
+                cheerpJSettings.getGithubPagesTagPath().setEnabled(cheerpjEnabled);
+                cheerpJSettings.getGithubPagesPath().setEnabled(cheerpjEnabled);
+                if (!cheerpjEnabled) {
+                    return;
+                }
+
+                boolean hasBranch = jdeploy.has("cheerpj")
+                        && jdeploy.getJSONObject("cheerpj").has("githubPages")
+                        && jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").has("branch");
+
+                cheerpJSettings.getGithubPagesBranch().setText(
+                        !hasBranch
+                                ? ""
+                                :  jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").getString("branch")
+                );
+
+                boolean hasBranchPath = jdeploy.has("cheerpj")
+                        && jdeploy.getJSONObject("cheerpj").has("githubPages")
+                        && jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").has("branchPath");
+
+                cheerpJSettings.getGithubPagesBranchPath().setText(
+                        !hasBranchPath
+                                ? ""
+                                :  jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").getString("branchPath")
+                );
+
+                boolean hasTagPath = jdeploy.has("cheerpj")
+                        && jdeploy.getJSONObject("cheerpj").has("githubPages")
+                        && jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").has("tagPath");
+
+                cheerpJSettings.getGithubPagesTagPath().setText(
+                        !hasTagPath
+                                ? ""
+                                :  jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").getString("tagPath")
+                );
+
+                boolean hasPath = jdeploy.has("cheerpj")
+                        && jdeploy.getJSONObject("cheerpj").has("githubPages")
+                        && jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").has("path");
+
+                cheerpJSettings.getGithubPagesPath().setText(
+                        !hasPath
+                                ? ""
+                                :  jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").getString("path")
+                );
 
 
+            };
+            cheerpJSettings.getEnableCheerpJ().addActionListener(evt->{
+                if (cheerpJSettings.getEnableCheerpJ().isSelected()) {
+                    if (jdeploy.has("cheerpj")) {
+                        jdeploy.getJSONObject("cheerpj").put("enabled", true);
+                        setModified();
+                        return;
+                    }
+                }
+
+                if (!cheerpJSettings.getEnableCheerpJ().isSelected()) {
+                    if (!jdeploy.has("cheerpj")) {
+                        return;
+                    } else {
+                        jdeploy.getJSONObject("cheerpj").put("enabled", false);
+                        setModified();
+                        return;
+                    }
+                }
+
+                if (!jdeploy.has("cheerpj")) {
+                    JSONObject initCheerpj = new JSONObject();
+                    initCheerpj.put("enabled", true);
+                    JSONObject initGithubPages = new JSONObject();
+                    initGithubPages.put("enabled", true);
+                    initGithubPages.put("branch", "gh-pages");
+                    initGithubPages.put("branchPath", "{{ branch }}");
+                    initGithubPages.put("tagPath", "app");
+                    initCheerpj.put("githubPages", initGithubPages);
+
+                    jdeploy.put("cheerpj",initCheerpj);
+                    updateCheerpjUI.run();
+                    setModified();
+                    return;
+
+                }
+                jdeploy.getJSONObject("cheerpj").put("enabled", cheerpJSettings.getEnableCheerpJ().isSelected());
+                setModified();
+            });
+
+            cheerpJSettings.getGithubPagesBranch().addActionListener(evt->{
+                if (jdeploy.has("cheerpj") && jdeploy.getJSONObject("cheerpj").has("githubPages")) {
+                    jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").put("branch", cheerpJSettings.getGithubPagesBranch().getText());
+                    setModified();
+                }
+            });
+
+            cheerpJSettings.getGithubPagesBranchPath().addActionListener(evt->{
+                if (jdeploy.has("cheerpj") && jdeploy.getJSONObject("cheerpj").has("githubPages")) {
+                    jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").put("branchPath", cheerpJSettings.getGithubPagesBranchPath().getText());
+                    setModified();
+                }
+            });
+
+            cheerpJSettings.getGithubPagesTagPath().addActionListener(evt->{
+                if (jdeploy.has("cheerpj") && jdeploy.getJSONObject("cheerpj").has("githubPages")) {
+                    jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").put("tagPath", cheerpJSettings.getGithubPagesTagPath().getText());
+                    setModified();
+                }
+            });
+
+            cheerpJSettings.getGithubPagesPath().addActionListener(evt->{
+                if (jdeploy.has("cheerpj") && jdeploy.getJSONObject("cheerpj").has("githubPages")) {
+                    jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").put("path", cheerpJSettings.getGithubPagesPath().getText());
+                    setModified();
+                }
+            });
+            updateCheerpjUI.run();
+        }
 
         JTabbedPane tabs = new JTabbedPane();
         JPanel detailsPanelRoot = detailsPanel.getRoot();
-        /*
-        JComponent detailsPanel = PanelMatic.begin()
-                .add(Groupings.lineGroup(mainFields.icon,
-                        (JComponent)Box.createRigidArea(new Dimension(10, 10)),
-                        PanelMatic.begin()
-                                .add("Name", mainFields.name)
-                                .add("Version", mainFields.version)
-                                .add("Title", mainFields.title)
-                                .add("Author", mainFields.author)
-                                .add("Description", mainFields.description)
-                                .add("License", mainFields.license)
-                                .get()
-                        ))
-                .add((JComponent) Box.createRigidArea(new Dimension(10, 10)))
-                .add("JAR file", Groupings.lineGroup(mainFields.jar, mainFields.selectJar))
-                .addHeader(PanelBuilder.HeaderLevel.H5, "Runtime Environment")
-                .add("Java Version", mainFields.javaVersion)
-                .add("", mainFields.javafx)
-                .add("", mainFields.jdk)
-                .addHeader(PanelBuilder.HeaderLevel.H5, "Links")
-                .add("Homepage", Groupings.lineGroup(mainFields.homepage, mainFields.verifyHomepageButton, mainFields.homepageVerifiedLabel))
-                .add("Repository", Groupings.lineGroup(new JLabel("URL:"), mainFields.repository, new JLabel("Directory:"), mainFields.repositoryDirectory))
-                .get(); */
         JPanel detailWrapper = new JPanel();
         detailWrapper.setLayout(new BorderLayout());
-
-
         detailWrapper.setBorder(new EmptyBorder(10, 10, 10, 10));
-        //detailWrapper.setPreferredSize(new Dimension(640, 480));
-        //detailWrapper.setOpaque(false);
-        //detailsPanel.setAlignmentY(Component.TOP_ALIGNMENT);
-        //detailsPanel.setMaximumSize(new Dimension(10000, detailsPanel.getPreferredSize().height));
-        //Box.Filler filler = new Box.Filler(
-        //        new Dimension(0, 0),
-        //        new Dimension(0, 0),
-        //        new Dimension(1000, 1000)
-        //);
-        //filler.setOpaque(false);
+
         JPanel helpPanel = new JPanel();
         helpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        //helpPanel.setOpaque(false);
         helpPanel.add(createHelpButton("https://www.jdeploy.com/docs/help/#_the_details_tab", "", "Learn about what these fields do."));
-        //helpPanel.setMaximumSize(new Dimension(helpPanel.getPreferredSize()));
         detailWrapper.add(helpPanel, BorderLayout.NORTH);
         detailWrapper.add(detailsPanelRoot, BorderLayout.CENTER);
-        //detailWrapper.add(filler);
 
-        //JScrollPane detailsScroller = new JScrollPane(detailWrapper);
-        //detailsScroller.setBorder(new EmptyBorder(0,0,0,0));
-        //detailsScroller.setOpaque(false);
-        //detailsScroller.getViewport().setOpaque(false);
 
 
         tabs.addTab("Details", detailWrapper);
@@ -1172,7 +1267,9 @@ public class JDeployProjectEditor {
 
         tabs.add("Runtime Args", runargsPanel);
 
-
+        if (context.shouldDisplayCheerpJPanel()) {
+            tabs.add("CheerpJ", cheerpjSettingsRoot);
+        }
 
         cnt.removeAll();
         cnt.setLayout(new BorderLayout());
