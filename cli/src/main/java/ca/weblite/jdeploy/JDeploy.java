@@ -9,19 +9,18 @@ import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.cheerpj.services.BuildCheerpjAppService;
-import ca.weblite.jdeploy.cli.controllers.CheerpjController;
-import ca.weblite.jdeploy.cli.controllers.GitHubRepositoryInitializerCLIController;
-import ca.weblite.jdeploy.cli.controllers.JPackageController;
-import ca.weblite.jdeploy.cli.controllers.ProjectGeneratorCLIController;
+import ca.weblite.jdeploy.cli.controllers.*;
 import ca.weblite.jdeploy.di.JDeployModule;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
+import ca.weblite.jdeploy.helpers.FileHelper;
 import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
+import ca.weblite.jdeploy.helpers.StringUtils;
 import ca.weblite.jdeploy.npm.NPM;
-import ca.weblite.jdeploy.services.DeveloperIdentityKeyStore;
-import ca.weblite.jdeploy.services.GithubWorkflowGenerator;
-import ca.weblite.jdeploy.services.JavaVersionExtractor;
+import ca.weblite.jdeploy.records.JarFinderContext;
+import ca.weblite.jdeploy.records.PackageJsonValidationResult;
+import ca.weblite.jdeploy.services.*;
 import ca.weblite.tools.io.*;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
@@ -35,6 +34,7 @@ import java.nio.file.*;
 
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -618,9 +618,6 @@ public class JDeploy {
         }
         return null;
     }
-    
-    
-    
     private String[] findClassPath(File jarFile) throws IOException {
         Manifest m = new JarFile(jarFile).getManifest();
         //System.out.println(m.getEntries());
@@ -635,109 +632,6 @@ public class JDeploy {
     
     public void loadDefaults() throws IOException {
        
-    }
-    
-    private File[] findJarCandidates() throws IOException {
-        File[] jars = findCandidates(directory.toPath().getFileSystem().getPathMatcher("glob:**/*.jar"));
-        List<File> out = new ArrayList<File>();
-        // We only want executable jars
-        for (File f : jars) {
-            Manifest m = new JarFile(f).getManifest();
-            //System.out.println(m.getEntries());
-            if (m != null) {
-                Attributes atts = m.getMainAttributes();
-                if (atts.containsKey(Attributes.Name.MAIN_CLASS)) {
-                    //executable jar
-                    out.add(f);
-                }
-            }
-        }
-        return out.toArray(new File[out.size()]);
-    }
-    
-    private File findBestCandidate() throws IOException{
-        File[] jars = findJarCandidates();
-        File[] wars = findWarCandidates();
-        File[] webApps = findWebAppCandidates();
-        List<File> combined = new ArrayList<File>();
-        combined.addAll(Arrays.asList(jars));
-        combined.addAll(Arrays.asList(wars));
-        combined.addAll(Arrays.asList(webApps));
-        return shallowest(combined.toArray(new File[combined.size()]));
-    }
-    
-    private File[] findWarCandidates() {
-        return findCandidates(directory.toPath().getFileSystem().getPathMatcher("glob:**.war"));
-    }
-    
-    private File[] findWebAppCandidates() {
-        List<File> out = new ArrayList<File>();
-        findWebAppCandidates(directory, out);
-        return out.toArray(new File[out.size()]);
-    }
-    
-    private void findWebAppCandidates(File root, List<File> matches) {
-        if (".".equals(root.getName()) && root.getParentFile() != null) {
-            root = root.getParentFile();
-        }
-        if ("WEB-INF".equals(root.getName()) && root.isDirectory() && root.getParentFile() != null) {
-            matches.add(root.getParentFile());
-        } else if (root.isDirectory()) {
-            if (root.getName().startsWith(".") || excludedDirectoriesForJarAndWarSearches.contains(root.getName())) {
-                return;
-            }
-            for (File f : root.listFiles()) {
-                findWebAppCandidates(f, matches);
-            }
-        }
-    }
-    
-    private File[] findCandidates(PathMatcher matcher) {
-        List<File> out = new ArrayList<File>();
-        //PathMatcher matcher = directory.toPath().getFileSystem().getPathMatcher("glob:**.jar");
-        findCandidates(directory, matcher, out);
-        return out.toArray(new File[out.size()]);
-    }
-    
-    private static final List<String> excludedDirectoriesForJarAndWarSearches = new ArrayList<String>();
-    static {
-        final String[] l = new String[]{
-            "src",
-            "jdeploy-bundle",
-            "node_modules"
-        };
-        excludedDirectoriesForJarAndWarSearches.addAll(Arrays.asList(l));
-    }
-    
-    private File shallowest(File[] files) {
-        File out = null;
-        int depth = -1;
-        for (File f : files) {
-            int fDepth = f.getPath().split(Pattern.quote("\\") + "|" + Pattern.quote("/")).length;
-            if (out == null || fDepth < depth) {
-                depth = fDepth;
-                out = f;
-            }
-        }
-        return out;
-    }
-    
-    private void findCandidates(File root, PathMatcher matcher, List<File> matches) {
-        if (".".equals(root.getName()) && root.getParentFile() != null) {
-            root = root.getParentFile();
-        }
-        //System.out.println("Checking "+root+" for "+matcher);
-        if (matcher.matches(root.toPath())) {
-            matches.add(root);
-        }
-        if (root.isDirectory()) {
-            if (root.getName().startsWith(".") || excludedDirectoriesForJarAndWarSearches.contains(root.getName())) {
-                return;
-            }
-            for (File f : root.listFiles()) {
-                findCandidates(f, matcher, matches);
-            }
-        }
     }
 
     private boolean exitOnFail = true;
@@ -795,7 +689,7 @@ public class JDeploy {
             // no jar or war explicitly specified... need to scan
             out.println("No jar, war, or web app explicitly specified.  Scanning directory to find best candidate.");
             
-            File best = findBestCandidate();
+            File best = DIContext.get(JarFinder.class).findBestCandidate(new JarFinderContext(directory));
             out.println("Found "+best);
             out.println("To explicitly set the jar, war, or web app to build, use the \"war\" or \"jar\" property of the \"jdeploy\" section of the package.json file.");
             if (best == null) {
@@ -1173,14 +1067,6 @@ public class JDeploy {
         }
         return jdeployContents;
     }
-    
-    public void initPackageJson() {
-        
-    }
-    
-    public void updatePackageJson() {
-        
-    }
 
     public static boolean isAlive(Process p) {
         try {
@@ -1197,7 +1083,7 @@ public class JDeploy {
     }
     
     private void updatePackageJson(String commandName) throws IOException {
-        File candidate = findBestCandidate();
+        File candidate = DIContext.get(JarFinder.class).findBestCandidate(new JarFinderContext(directory));
         if (commandName == null) {
             if (candidate == null) {
 
@@ -1259,26 +1145,17 @@ public class JDeploy {
     }
 
     private static String toTitleCase(String str) {
-        StringBuilder out = new StringBuilder();
-        char[] chars = str.toCharArray();
-        boolean nextUpper = true;
-        for (int i=0; i<chars.length; i++) {
-            char c = chars[i];
-            if (c == '_' || c == '-') {
-                out.append(" ");
-                nextUpper = true;
-            } else if (nextUpper) {
-                out.append(Character.toUpperCase(c));
-                nextUpper = false;
-            } else {
-                out.append(c);
-                nextUpper = false;
-            }
-        }
-        return out.toString();
+        return DIContext.get(StringUtils.class).toTitleCase(str);
     }
 
 
+    public void initPackageJson() {
+
+    }
+
+    public void updatePackageJson() {
+
+    }
 
     /**
      *
@@ -1298,7 +1175,7 @@ public class JDeploy {
         if (packageJson.exists()) {
             updatePackageJson(commandName);
         } else {
-            File candidate = findBestCandidate();
+            File candidate = DIContext.get(JarFinder.class).findBestCandidate(new JarFinderContext(directory));
             if (candidate != null) {
                 commandName = candidate.getName();
                 if (commandName.endsWith(".jar") || commandName.endsWith(".war")) {
@@ -2314,24 +2191,28 @@ public class JDeploy {
 
     
     private void scan() throws IOException {
-        File[] jars = findJarCandidates();
+        JarFinder jarFinder = DIContext.get(JarFinder.class);
+        JarFinderContext context = new JarFinderContext(directory);
+        FileHelper fileHelper = DIContext.get(FileHelper.class);
+        File[] jars = jarFinder.findJarCandidates(context);
         out.println("Found "+jars.length+" jars: "+Arrays.toString(jars));
-        out.println("Best candidate: "+shallowest(jars));
+        out.println("Best candidate: "+fileHelper.shallowest(jars));
         
-        File[] wars = findWarCandidates();
+        File[] wars = jarFinder.findWarCandidates(context);
         out.println("Found "+wars.length+" wars: "+Arrays.toString(wars));
-        out.println("Best candidate: "+shallowest(jars));
+        out.println("Best candidate: "+fileHelper.shallowest(jars));
         
-        File[] webApps = findWebAppCandidates();
+        File[] webApps = jarFinder.findWebAppCandidates(context);
         out.println("Found "+webApps.length+" web apps: "+Arrays.toString(webApps));
-        out.println("Best candidate: "+shallowest(jars));
+        out.println("Best candidate: "+fileHelper.shallowest(jars));
         
         List<File> combined = new ArrayList<File>();
         combined.addAll(Arrays.asList(jars));
         combined.addAll(Arrays.asList(wars));
         combined.addAll(Arrays.asList(webApps));
         
-        out.println("If jdeploy were to run on this directory without specifying the jar or war in the package.json, it would choose " + shallowest(combined.toArray(new File[combined.size()])));
+        out.println("If jdeploy were to run on this directory without specifying the jar or war in the package.json, " +
+                "it would choose " + fileHelper.shallowest(combined.toArray(new File[combined.size()])));
     }
 
     private void help(Options opts) {
@@ -2390,13 +2271,10 @@ public class JDeploy {
                 System.out.println("Launching jdeploy gui.  Use jdeploy help for help");
                 File packageJSON = new File("package.json");
                 if (packageJSON.exists()) {
+                    PackageJsonValidator validator = DIContext.get(PackageJsonValidator.class);
                     JSONObject packageJSONObject = new JSONObject(FileUtils.readFileToString(packageJSON, "UTF-8"));
-                    boolean hasAllExpectedProperties = packageJSONObject.has("name") &&
-                            packageJSONObject.has("version") &&
-                            packageJSONObject.has("dependencies") &&
-                            packageJSONObject.has("bin") &&
-                            packageJSONObject.has("jdeploy");
-                    if (hasAllExpectedProperties) {
+                    PackageJsonValidationResult validationResult = validator.validate(packageJSON);
+                    if (validationResult.isValid()) {
                         EventQueue.invokeLater(() -> {
                             JDeployProjectEditor editor = new JDeployProjectEditor(packageJSON, packageJSONObject);
                             editor.show();
@@ -2459,7 +2337,13 @@ public class JDeploy {
                 }
                 final boolean prompt = !noPromptFlag;
                 final boolean generateGithubWorkflow = !noWorkflowFlag;
-                prog.init(commandName, prompt, generateGithubWorkflow);
+                ProjectInitializerCLIController initController = new ProjectInitializerCLIController(
+                        prog.directory,
+                        Arrays.copyOfRange(args, 1, args.length),
+                        prompt,
+                        generateGithubWorkflow);
+                initController.run();
+                System.exit(initController.getResultCode());
             } else if ("install".equals(args[0])) {
                 prog.install();
             } else if ("publish".equals(args[0])) {
@@ -2504,47 +2388,109 @@ public class JDeploy {
     }
 
     private void guiCreateNew(File packageJSON) {
+        ProjectInitializer projectInitializer = DIContext.get(ProjectInitializer.class);
+
+        ProjectInitializer.PreparationResult preparationResult;
+        try {
+            preparationResult = projectInitializer.prepare(
+                    new ProjectInitializer.ContextBuilder()
+                            .setDirectory(directory)
+                            .build()
+            );
+        } catch (IOException ex) {
+            err.println("Failed to prepare project");
+            ex.printStackTrace(err);
+            return;
+        }
+
+        ProjectInitializer.ContextBuilder contextBuilder = new ProjectInitializer.ContextBuilder();
+        contextBuilder.setDirectory(directory);
+
+
         EventQueue.invokeLater(()->{
-            final int result = JOptionPane.showConfirmDialog(null, new JLabel(
-                    "<html><p style='width:400px'>No package.json file found in this directory.  Do you want to create one now?</p></html>"),
-                    "Create package.json?",
-                    JOptionPane.YES_NO_OPTION);
+            if (!preparationResult.isPackageJsonExists()) {
+                final int result = JOptionPane.showConfirmDialog(null, new JLabel(
+                                "<html><p style='width:400px'>No package.json file found in this directory.  Do you want to create one now?</p></html>"),
+                        "Create package.json?",
+                        JOptionPane.YES_NO_OPTION);
 
 
-            if (result != JOptionPane.YES_OPTION) {
-                System.out.println("result "+result);
-                return;
+                if (result != JOptionPane.YES_OPTION) {
+                    out.println("Aborting");
+                    return;
+                }
+                contextBuilder.setGeneratePackageJson(true);
+            } else if (!preparationResult.isPackageJsonIsValid()) {
+                final int result = JOptionPane.showConfirmDialog(null, new JLabel(
+                                "<html><p style='width:400px'>The package.json file in this directory is invalid.  Do you want to overwrite it?</p></html>"),
+                        "Overwrite package.json?",
+                        JOptionPane.YES_NO_OPTION);
+                if (result != JOptionPane.YES_OPTION) {
+                    out.println("Aborting.  Please fix the package.json file and try again.");
+                    out.println("Errors found:");
+                    Arrays.asList(preparationResult.getPackageJsonValidationResult().getErrors()).forEach(err->out.println(err));
+                    return;
+                }
+
+                contextBuilder.setGeneratePackageJson(true);
+                contextBuilder.setFixPackageJson(true);
+
             }
 
-            final int addWorkflowResult = JOptionPane.showConfirmDialog(null, new JLabel(
-                            "<html><p style='width:400px'>Would you like to also create a Github workflow to build installer bundles automatically using Github Actions?</p></html>"),
-                    "Create Github Workflow?",
-                    JOptionPane.YES_NO_OPTION);
-            final boolean addGithubWorkflow = addWorkflowResult == JOptionPane.YES_OPTION;
-            exitOnFail = false;
-            try {
-                init(null, false, addGithubWorkflow);
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(null,  new JLabel(
-                                "<html><p style='width:400px'>Failed to create package.json file. "+ex.getMessage()+"</p></html>"),
+            if (!preparationResult.isGithubWorkflowExists()) {
+                final int addWorkflowResult = JOptionPane.showConfirmDialog(null, new JLabel(
+                                "<html><p style='width:400px'>Would you like to also create a Github workflow to build installer bundles automatically using Github Actions?</p></html>"),
+                        "Create Github Workflow?",
+                        JOptionPane.YES_NO_OPTION);
+                final boolean addGithubWorkflow = addWorkflowResult == JOptionPane.YES_OPTION;
+                if (addGithubWorkflow) {
+                    contextBuilder.setGenerateGithubWorkflow(true);
+                } else {
+                    contextBuilder.setGenerateGithubWorkflow(false);
+                }
+            }
+            SwingWorker<ProjectInitializer.InitializeProjectResult, Void> worker = new SwingWorker() {
+                @Override
+                protected ProjectInitializer.InitializeProjectResult doInBackground() throws Exception {
+                    return projectInitializer.initializeProject(contextBuilder.build());
+
+                }
+                @Override
+                protected void done() {
+                    try {
+                        ProjectInitializer.InitializeProjectResult result = (ProjectInitializer.InitializeProjectResult) get();
+                        try {
+                            File packageJSONFile = new File(directory, "package.json");
+                            JSONObject packageJSONObject = new JSONObject(FileUtils.readFileToString(packageJSONFile, "UTF-8"));
+                            new JDeployProjectEditor(packageJSONFile, packageJSONObject).show();
+                        } catch (Exception ex) {
+                            ex.printStackTrace(err);
+                            JOptionPane.showMessageDialog(null,  new JLabel(
+                                            "<html><p style='width:400px'>There was a problem reading the package.json file. "+ex.getMessage()+"</p></html>"),
                                     "JDeploy init error",
-                        JOptionPane.ERROR_MESSAGE
+                                    JOptionPane.ERROR_MESSAGE
+                            );
+                        }
+                    } catch (ExecutionException ex) {
+                        JOptionPane.showMessageDialog(null,  new JLabel(
+                                        "<html><p style='width:400px'>Failed to create package.json file. "+ex.getMessage()+"</p></html>"),
+                                "JDeploy init error",
+                                JOptionPane.ERROR_MESSAGE
                         );
-                return;
+                        return;
 
-            }
-            try {
-                File packageJSONFile = new File(directory, "package.json");
-                JSONObject packageJSONObject = new JSONObject(FileUtils.readFileToString(packageJSONFile, "UTF-8"));
-                new JDeployProjectEditor(packageJSONFile, packageJSONObject).show();
-            } catch (Exception ex) {
-                ex.printStackTrace(err);
-                JOptionPane.showMessageDialog(null,  new JLabel(
-                                "<html><p style='width:400px'>There was a problem reading the package.json file. "+ex.getMessage()+"</p></html>"),
-                        "JDeploy init error",
-                        JOptionPane.ERROR_MESSAGE
-                );
-            }
+                    } catch (InterruptedException ex) {
+                        JOptionPane.showMessageDialog(null,  new JLabel(
+                                        "<html><p style='width:400px'>Failed to create package.json file. "+ex.getMessage()+"</p></html>"),
+                                "JDeploy init error",
+                                JOptionPane.ERROR_MESSAGE
+                        );
+                        return;
+
+                    }
+                }
+            };
+            worker.execute();
 
         });
     }

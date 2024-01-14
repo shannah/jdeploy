@@ -1,5 +1,8 @@
 package ca.weblite.jdeploy.services;
 
+import javax.inject.Singleton;
+
+@Singleton
 public class JavaVersionExtractor {
     private int extractJavaVersionFromString(final String javaVersionString, final int defaultValue) {
         if (javaVersionString == null || javaVersionString.isEmpty()) {

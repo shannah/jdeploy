@@ -27,4 +27,8 @@ public class DIContext {
         return instance;
 
     }
+
+    public static <T> T get(Class<T> clazz) {
+        return getInstance().getInstance(clazz);
+    }
 }

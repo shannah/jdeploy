@@ -121,4 +121,24 @@ public class StringUtils {
 
         return Character.toUpperCase(lowerCaseWithSeparatorToCamelCase.charAt(0)) + lowerCaseWithSeparatorToCamelCase.substring(1);
     }
+
+    public String toTitleCase(String str) {
+        StringBuilder out = new StringBuilder();
+        char[] chars = str.toCharArray();
+        boolean nextUpper = true;
+        for (int i=0; i<chars.length; i++) {
+            char c = chars[i];
+            if (c == '_' || c == '-') {
+                out.append(" ");
+                nextUpper = true;
+            } else if (nextUpper) {
+                out.append(Character.toUpperCase(c));
+                nextUpper = false;
+            } else {
+                out.append(c);
+                nextUpper = false;
+            }
+        }
+        return out.toString();
+    }
 }

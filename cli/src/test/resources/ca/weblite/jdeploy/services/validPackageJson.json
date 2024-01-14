@@ -1,0 +1,36 @@
+{
+  "bin": {"test-swing11": "jdeploy-bundle/jdeploy.js"},
+  "author": "",
+  "description": "jDeploy Swing Starter Project",
+  "main": "index.js",
+  "preferGlobal": true,
+  "repository": "",
+  "version": "1.0-SNAPSHOT",
+  "jdeploy": {
+    "jdk": false,
+    "javaVersion": "17",
+    "cheerpj": {
+      "githubPages": {
+        "branchPath": "{{ branch }}",
+        "tagPath": "app",
+        "branch": "gh-pages",
+        "enabled": true
+      },
+      "enabled": true
+    },
+    "jar": "target/test-swing11-1.0-SNAPSHOT.jar",
+    "javafx": false,
+    "title": "Test Swing11"
+  },
+  "dependencies": {
+    "command-exists-promise": "^2.0.2",
+    "node-fetch": "2.6.7",
+    "tar": "^4.4.8",
+    "yauzl": "^2.10.0",
+    "shelljs": "^0.8.4"
+  },
+  "license": "ISC",
+  "name": "test-swing11",
+  "files": ["jdeploy-bundle"],
+  "scripts": {"test": "echo \"Error: no test specified\" && exit 1"}
+}
