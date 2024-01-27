@@ -7,11 +7,11 @@
 
     <title>{{ title }}</title>
 
-    <script src="https://cjrtnc.leaningtech.com/3_20230915_194/cj3loader.js"></script>
+    <script src="{{ cheerpjLoader }}"></script>
 
     <style>
       html, body { margin: 0; height: 100%; }
-      #cheerpjDisplay {display: none !important;}
+      #cheerpjDisplay {width: 100%; height:100%; background-color: transparent}
       #cheerpjDisplay.finished-loading { display: block !important; }
     </style>
     <style>
@@ -371,7 +371,7 @@ filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#ffffff', end
             setProgress(10);
             window.cj1 = await cheerpjInit();
             setProgress(50);
-            window.cj2 = await cheerpjCreateDisplay(800, 600);
+            window.cj2 = await cheerpjCreateDisplay(window.innerWidth, window.innerHeight);
             setProgress(75);
             setLabel2("Preparing application components...");
             const cj = await cheerpjRunLibrary(prefixClassPath(getClassPathPrefix(), "{{ classPath }}"));
@@ -380,7 +380,14 @@ filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#ffffff', end
             async function onWindowResize() {
                 document.getElementById("cheerpjDisplay").style.height = '100%';
                 document.getElementById("cheerpjDisplay").style.width = '100%';
-                await CheerpjSwingUtils.onResize();
+                while (true) {
+                    try {
+                        await CheerpjSwingUtils.onResize();
+                        break;
+                    } catch (e) {
+                        console.log(e);
+                    }
+                }
             }
             window.addEventListener("resize", onWindowResize);
             setProgress(90);
