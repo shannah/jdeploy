@@ -14,6 +14,8 @@ import java.util.List;
 public class CheerpjService extends BaseService {
     private BuildCheerpjAppService buildCheerpjAppService;
 
+    private static final String DEFAULT_CHEERPJ_LOADER = "https://cjrtnc.leaningtech.com/3.0rc2/cj3loader.js";
+
     public CheerpjService(File packageJSONFile, JSONObject packageJSON) throws IOException {
         super(packageJSONFile, packageJSON);
         buildCheerpjAppService = new BuildCheerpjAppService();
@@ -34,6 +36,7 @@ public class CheerpjService extends BaseService {
         File dest = this.getDestDirectory();
         buildCheerpjAppService.build(
                 new BuildCheerpjAppService.Params()
+                        .setCheerpjLoader(getCheerpjLoader(DEFAULT_CHEERPJ_LOADER))
                         .setAppName(getAppName())
                         .setAppJar(mainJar)
                         .setOutputDir(dest)
@@ -106,6 +109,20 @@ public class CheerpjService extends BaseService {
         }
 
         return config;
+    }
+
+    private JSONObject getCheerpjObject() {
+        if (!isEnabled()) {
+            return new JSONObject();
+        }
+        return getJDeployObject().getJSONObject("cheerpj");
+    }
+
+    private String getCheerpjLoader(String defaultValue) {
+        if (!getCheerpjObject().has("loader")) {
+            return defaultValue;
+        }
+        return getCheerpjObject().getString("loader");
     }
 
     private String getCurrentTag() throws IOException, InterruptedException {

@@ -24,6 +24,8 @@ public class BuildCheerpjAppService {
         private File appJar;
         private File outputDir;
 
+        private String cheerpjLoader = "https://cjrtnc.leaningtech.com/3.0rc2/cj3loader.js";
+
         public File getOutputDir() {
             return outputDir;
         }
@@ -59,6 +61,15 @@ public class BuildCheerpjAppService {
             this.iconFile = iconFile;
             return this;
         }
+
+        public Params setCheerpjLoader(String cheerpjLoader) {
+            this.cheerpjLoader = cheerpjLoader;
+            return this;
+        }
+
+        public String getCheerpjLoader() {
+            return cheerpjLoader;
+        }
     }
     public void build(Params params) throws IOException {
         String mainClass = extractMainClass(params.getAppJar());
@@ -67,6 +78,7 @@ public class BuildCheerpjAppService {
                 this.getClass().getResourceAsStream("/ca/weblite/jdeploy/cheerpj/index.html")
         );
 
+        indexHtml = indexHtml.replace("{{ cheerpjLoader }}", params.getCheerpjLoader());
         indexHtml = indexHtml.replace("{{ mainClass }}", mainClass);
         indexHtml = indexHtml.replace("{{ classPath }}", classPath);
         indexHtml = indexHtml.replace("{{ appName }}", params.getAppName());
