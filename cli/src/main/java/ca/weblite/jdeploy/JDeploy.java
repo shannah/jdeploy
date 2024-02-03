@@ -8,7 +8,6 @@ package ca.weblite.jdeploy;
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
-import ca.weblite.jdeploy.cheerpj.services.BuildCheerpjAppService;
 import ca.weblite.jdeploy.cli.controllers.CheerpjController;
 import ca.weblite.jdeploy.cli.controllers.GitHubRepositoryInitializerCLIController;
 import ca.weblite.jdeploy.cli.controllers.JPackageController;
@@ -1640,7 +1639,7 @@ public class JDeploy {
             installerZip = new File(installerDir, _newName + ".exe");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-win-amd64.exe"), installerZip);
             installerZip.setExecutable(true, false);
-            if (bundlerSettings.isCompressBundles()) {
+            if (bundlerSettings.isCompressBundles() && !bundlerSettings.isDoNotZipExeInstaller()) {
                 installerZip = compress(target, installerZip);
             }
             return;
@@ -2179,6 +2178,7 @@ public class JDeploy {
         }
 
         bundlerSettings.setCompressBundles(true);
+        bundlerSettings.setDoNotZipExeInstaller(true);
 
         overrideInstallers(BUNDLE_MAC_X64, BUNDLE_MAC_ARM64, BUNDLE_WIN, BUNDLE_LINUX);
         try {
