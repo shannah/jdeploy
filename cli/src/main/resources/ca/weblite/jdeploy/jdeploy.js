@@ -541,7 +541,7 @@ if (!done) {
             javaBinary += '.exe';
 
         }
-        fs.chmodSync(javaBinary, 0755);
+        fs.chmodSync(javaBinary, 0o755);
 
         env['PATH'] = path.join(env['JAVA_HOME'], 'bin') + path.delimiter + env['PATH'];
 
