@@ -23,14 +23,9 @@ mkdir -p "$EXTRACT_DIR"
 # Extract the .tgz file
 tar -xvzf "$TAR_FILE" -C "$EXTRACT_DIR"
 
-# Navigate to the directory containing the JAR file
-cd "$EXTRACT_DIR/package/jdeploy-bundle"
-
 # Run the Java application
-$JAVA_HOME/bin/java -jar winevcodesign-1.0-SNAPSHOT.jar \
+$JAVA_HOME/bin/java -jar "$EXTRACT_DIR/package/jdeploy-bundle/winevcodesign-1.0-SNAPSHOT.jar" \
   sign "$INPUT_FILE" "$OUTPUT_FILE"
 
-# Clean up by removing the downloaded and extracted files
-cd ../../..
 rm -rf "$EXTRACT_DIR"
 rm "$TAR_FILE"
