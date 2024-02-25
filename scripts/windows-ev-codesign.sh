@@ -12,7 +12,7 @@ INPUT_FILE="$1"
 OUTPUT_FILE="$2"
 
 # Download the .tgz file using curl. You can use wget if you prefer.
-curl -o "$TAR_FILE" "$TAR_URL"
+curl -L -o "$TAR_FILE" "$TAR_URL"
 
 # Alternatively, if you prefer wget, uncomment the following line and comment out the curl command above.
 # wget -O "$TAR_FILE" "$TAR_URL"
