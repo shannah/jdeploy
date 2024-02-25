@@ -38,38 +38,12 @@ else
   java -jar "$JDEPLOY" clean package
 fi
 
-# Make sure the codesign was successful
-
-
-for MAC_ARCH in "x64" "arm64"; do
-  echo "-------------------- Building Mac Installer for $MAC_ARCH arch -------------------------"
-  codesign -vvvv jdeploy/bundles/mac-$MAC_ARCH/jdeploy-installer.app
-  APP_PATH="jdeploy/bundles/mac-$MAC_ARCH/jdeploy-installer.app"
-  ZIP_PATH="${APP_PATH}.zip"
-
-  # Create a ZIP archive suitable for notarization.
-  /usr/bin/ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
-
-  TEAM_ID_FLAG=""
-  if [ ! -z "$APPLE_TEAM_ID" ]; then
-    TEAM_ID_FLAG="--team-id $APPLE_TEAM_ID"
-  fi
-
-  xcrun notarytool store-credentials "AC_PASSWORD" --apple-id "$APPLE_ID" $TEAM_ID_FLAG --password "$APPLE_2FA_PASSWORD"
-  xcrun notarytool submit "$ZIP_PATH" --keychain-profile "AC_PASSWORD" --wait
-  xcrun stapler staple "$APP_PATH"
-  xcrun stapler validate "$APP_PATH"
-done
-
-#codesign --test-requirement="=notarized" --verify --verbose "$APP_PATH"
-
-# jdeploy/bundles/windows/jdeploy-installer.exe
 
 if [ ! -z "$EV_CODESIGN_SUBMITTER_PRIVATE_KEY" ] && [ ! -z "$EV_CODESIGN_PROCESSOR_PUBLIC_KEY" ]; then
   mkdir -p ~/.jdeploy-codesigner/private
   echo "-------------------   About to Sign Windows Installer  with EV Cert --------------------------"
-  echo "$EV_CODESIGN_SUBMITTER_PRIVATE_KEY" > ~/.jdeploy-codesigner/processor-public-key.pem
-  echo "$EV_CODESIGN_PROCESSOR_PUBLIC_KEY" > ~/.jdeploy-codesigner/private/submitter-private-key.pem
+  echo "$EV_CODESIGN_SUBMITTER_PRIVATE_KEY" > ~/.jdeploy-codesigner/private/submitter-private-key.pem
+  echo "$EV_CODESIGN_PROCESSOR_PUBLIC_KEY" > ~/.jdeploy-codesigner/processor-public-key.pem
   bash $SCRIPTPATH/scripts/windows-ev-codesign.sh jdeploy/bundles/windows/jdeploy-installer.exe jdeploy/bundles/windows/jdeploy-installer-signed.exe
   mv jdeploy/bundles/windows/jdeploy-installer-signed.exe jdeploy/bundles/windows/jdeploy-installer.exe
   rm -rf ~/.jdeploy-codesigner
@@ -91,6 +65,28 @@ else
   rm authenticode.spc
   rm authenticode.key
 fi
+
+
+
+for MAC_ARCH in "x64" "arm64"; do
+  echo "-------------------- Building Mac Installer for $MAC_ARCH arch -------------------------"
+  codesign -vvvv jdeploy/bundles/mac-$MAC_ARCH/jdeploy-installer.app
+  APP_PATH="jdeploy/bundles/mac-$MAC_ARCH/jdeploy-installer.app"
+  ZIP_PATH="${APP_PATH}.zip"
+
+  # Create a ZIP archive suitable for notarization.
+  /usr/bin/ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+
+  TEAM_ID_FLAG=""
+  if [ ! -z "$APPLE_TEAM_ID" ]; then
+    TEAM_ID_FLAG="--team-id $APPLE_TEAM_ID"
+  fi
+
+  xcrun notarytool store-credentials "AC_PASSWORD" --apple-id "$APPLE_ID" $TEAM_ID_FLAG --password "$APPLE_2FA_PASSWORD"
+  xcrun notarytool submit "$ZIP_PATH" --keychain-profile "AC_PASSWORD" --wait
+  xcrun stapler staple "$APP_PATH"
+  xcrun stapler validate "$APP_PATH"
+done
 
 echo "-------------------  About to Make Installer Templates --------------------------"
 
