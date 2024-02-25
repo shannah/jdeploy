@@ -65,22 +65,32 @@ done
 
 # jdeploy/bundles/windows/jdeploy-installer.exe
 
-echo "-------------------   About to Sign Windows Installer  --------------------------"
-echo "$AUTHENTICODE_SPC" | base64 --decode > authenticode.spc
-echo "$AUTHENTICODE_KEY" | base64 --decode > authenticode.key
+if [ ! -z "$EV_CODESIGN_SUBMITTER_PRIVATE_KEY" ] && [ ! -z "$EV_CODESIGN_PROCESSOR_PUBLIC_KEY" ]; then
+  mkdir -p ~/.jdeploy-codesigner/private
+  echo "-------------------   About to Sign Windows Installer  with EV Cert --------------------------"
+  echo "$EV_CODESIGN_SUBMITTER_PRIVATE_KEY" > ~/.jdeploy-codesigner/processor-public-key.pem
+  echo "$EV_CODESIGN_PROCESSOR_PUBLIC_KEY" > ~/.jdeploy-codesigner/private/submitter-private-key.pem
+  bash $SCRIPTPATH/scripts/windows-ev-codesign.sh jdeploy/bundles/windows/jdeploy-installer.exe jdeploy/bundles/windows/jdeploy-installer-signed.exe
+  mv jdeploy/bundles/windows/jdeploy-installer-signed.exe jdeploy/bundles/windows/jdeploy-installer.exe
+  rm -rf ~/.jdeploy-codesigner
+else
+  echo "-------------------   About to Sign Windows Installer with OV Cert  --------------------------"
+  echo "$AUTHENTICODE_SPC" | base64 --decode > authenticode.spc
+  echo "$AUTHENTICODE_KEY" | base64 --decode > authenticode.key
 
-osslsigncode \
-  -spc authenticode.spc \
-  -key authenticode.key \
-  -t http://timestamp.digicert.com \
-  -in jdeploy/bundles/windows/jdeploy-installer.exe \
-  -out jdeploy/bundles/windows/jdeploy-installer-signed.exe \
-  -n "jDeploy Application Installer" \
-  -i https://www.jdeploy.com
+  osslsigncode \
+    -spc authenticode.spc \
+    -key authenticode.key \
+    -t http://timestamp.digicert.com \
+    -in jdeploy/bundles/windows/jdeploy-installer.exe \
+    -out jdeploy/bundles/windows/jdeploy-installer-signed.exe \
+    -n "jDeploy Application Installer" \
+    -i https://www.jdeploy.com
 
-mv jdeploy/bundles/windows/jdeploy-installer-signed.exe jdeploy/bundles/windows/jdeploy-installer.exe
-rm authenticode.spc
-rm authenticode.key
+  mv jdeploy/bundles/windows/jdeploy-installer-signed.exe jdeploy/bundles/windows/jdeploy-installer.exe
+  rm authenticode.spc
+  rm authenticode.key
+fi
 
 echo "-------------------  About to Make Installer Templates --------------------------"
 
