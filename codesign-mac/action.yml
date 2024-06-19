@@ -35,28 +35,33 @@ runs:
         path: ./jdeploy/github-release-files
 
     - name: Extract mac-x64 app
+      shell: bash
       run: |
         original_x64_file=$(find ./jdeploy/github-release-files -name '*mac-x64*.tgz')
         tar -xzf "$original_x64_file" -C ./jdeploy/github-release-files
         echo "ORIGINAL_X64_FILE=$original_x64_file" >> $GITHUB_ENV
 
     - name: Extract mac-arm64 app
+      shell: bash
       run: |
         original_arm64_file=$(find ./jdeploy/github-release-files -name '*mac-arm64*.tgz')
         tar -xzf "$original_arm64_file" -C ./jdeploy/github-release-files
         echo "ORIGINAL_ARM64_FILE=$original_arm64_file" >> $GITHUB_ENV
 
     - name: Sign mac-x64 app
+      shell: bash
       run: |
         app_path=$(find ./jdeploy/github-release-files -name '*mac-x64*.app')
         codesign --deep --force --verify --verbose "$app_path"
 
     - name: Sign mac-arm64 app
+      shell: bash
       run: |
         app_path=$(find ./jdeploy/github-release-files -name '*mac-arm64*.app')
         codesign --deep --force --verify --verbose "$app_path"
 
     - name: Notarize mac-x64 app
+      shell: bash
       run: |
         app_path=$(find ./jdeploy/github-release-files -name '*mac-x64*.app')
         xcrun altool --notarize-app -f "$app_path" --primary-bundle-id "$BUNDLE_ID" --username "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD"
@@ -66,6 +71,7 @@ runs:
         BUNDLE_ID: ${{ inputs.bundle_id }}
 
     - name: Notarize mac-arm64 app
+      shell: bash
       run: |
         app_path=$(find ./jdeploy/github-release-files -name '*mac-arm64*.app')
         xcrun altool --notarize-app -f "$app_path" --primary-bundle-id "$BUNDLE_ID" --username "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD"
@@ -75,12 +81,14 @@ runs:
         BUNDLE_ID: ${{ inputs.bundle_id }}
 
     - name: Compress signed mac-x64 app
+      shell: bash
       run: |
         original_x64_file=$(find ./jdeploy/github-release-files -name '*mac-x64*.tgz')
         app_path=$(find ./jdeploy/github-release-files -name '*mac-x64*.app')
         tar -czf "$original_x64_file" -C ./jdeploy/github-release-files "$app_path"
 
     - name: Compress signed mac-arm64 app
+      shell: bash
       run: |
         original_arm64_file=$(find ./jdeploy/github-release-files -name '*mac-arm64*.tgz')
         app_path=$(find ./jdeploy/github-release-files -name '*mac-arm64*.app')
