@@ -10,12 +10,6 @@ inputs:
   apple_id:
     description: 'The Apple ID for notarization.'
     required: true
-  apple_app_specific_password:
-    description: 'The app-specific password for notarization.'
-    required: true
-  bundle_id:
-    description: 'The bundle ID for the apps to be notarized.'
-    required: true
   notarization_key_id:
     description: 'The key ID for notarization.'
     required: true
