@@ -78,7 +78,7 @@ runs:
       shell: bash
       run: |
         zip_path=$(find ./jdeploy/github-release-files -name '*mac-x64*.app.zip')
-        xcrun notarytool submit "$zip_path" --key ~/.notarytool.json --wait
+        xcrun notarytool submit "$zip_path" --key "${{ inputs.notarization_api_key_base64 }}" --key-id "${{ inputs.notarization_key_id }}" --issuer "${{ inputs.notarization_issuer_id }}" --wait
 
     - name: Uncompress notarized mac-x64 app
       shell: bash
@@ -102,7 +102,7 @@ runs:
       shell: bash
       run: |
         zip_path=$(find ./jdeploy/github-release-files -name '*mac-arm64*.app.zip')
-        xcrun notarytool submit "$zip_path" --key ~/.notarytool.json --wait
+        xcrun notarytool submit "$zip_path" --key "${{ inputs.notarization_api_key_base64 }}" --key-id "${{ inputs.notarization_key_id }}" --issuer "${{ inputs.notarization_issuer_id }}" --wait
 
     - name: Uncompress notarized mac-arm64 app
       shell: bash
