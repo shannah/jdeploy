@@ -68,26 +68,62 @@ runs:
       run: |
         echo "{\"key_id\": \"${{ inputs.notarization_key_id }}\", \"issuer_id\": \"${{ inputs.notarization_issuer_id }}\", \"key\": \"${{ inputs.notarization_api_key_base64 }}\"}" > ~/.notarytool.json
 
-    - name: Notarize mac-x64 app
+    - name: Compress mac-x64 app for notarization
       shell: bash
       run: |
         app_path=$(find ./jdeploy/github-release-files -name '*mac-x64*.app')
-        xcrun notarytool submit "$app_path" --key ~/.notarytool.json --wait
+        ditto -c -k --keepParent "$app_path" "${app_path}.zip"
+
+    - name: Notarize mac-x64 app
+      shell: bash
+      run: |
+        zip_path=$(find ./jdeploy/github-release-files -name '*mac-x64*.app.zip')
+        xcrun notarytool submit "$zip_path" --key ~/.notarytool.json --wait
+
+    - name: Uncompress notarized mac-x64 app
+      shell: bash
+      run: |
+        zip_path=$(find ./jdeploy/github-release-files -name '*mac-x64*.app.zip')
+        ditto -x -k "$zip_path" ./jdeploy/github-release-files
+
+    - name: Staple notarization receipt to mac-x64 app
+      shell: bash
+      run: |
+        app_path=$(find ./jdeploy/github-release-files -name '*mac-x64*.app')
+        xcrun stapler staple "$app_path"
+
+    - name: Compress mac-arm64 app for notarization
+      shell: bash
+      run: |
+        app_path=$(find ./jdeploy/github-release-files -name '*mac-arm64*.app')
+        ditto -c -k --keepParent "$app_path" "${app_path}.zip"
 
     - name: Notarize mac-arm64 app
       shell: bash
       run: |
-        app_path=$(find ./jdeploy/github-release-files -name '*mac-arm64*.app')
-        xcrun notarytool submit "$app_path" --key ~/.notarytool.json --wait
+        zip_path=$(find ./jdeploy/github-release-files -name '*mac-arm64*.app.zip')
+        xcrun notarytool submit "$zip_path" --key ~/.notarytool.json --wait
 
-    - name: Compress signed mac-x64 app
+    - name: Uncompress notarized mac-arm64 app
+      shell: bash
+      run: |
+       zip_path=$(find ./jdeploy/github-release-files -name '*mac-arm64*.app.zip')
+       ditto -x -k "$zip_path" ./jdeploy/github-release-files
+
+    - name: Staple notarization receipt to mac-arm64 app
+      shell: bash
+      run: |
+        app_path=$(find ./jdeploy/github-release-files -name '*mac-arm64*.app')
+        xcrun stapler staple "$app_path"
+
+    - name: Compress signed mac-x64 app for release
       shell: bash
       run: |
         original_x64_file=$(find ./jdeploy/github-release-files -name '*mac-x64*.tgz')
         app_path=$(find ./jdeploy/github-release-files -name '*mac-x64*.app')
         tar -czf "$original_x64_file" -C ./jdeploy/github-release-files "$app_path"
 
-    - name: Compress signed mac-arm64 app
+    - name: Compress signed mac-arm64 app for release
       shell: bash
       run: |
         original_arm64_file=$(find ./jdeploy/github-release-files -name '*mac-arm64*.tgz')
