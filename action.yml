@@ -89,6 +89,13 @@ runs:
       env:
         GH_TOKEN: ${{ github.actor }}:${{ inputs.github_token }}
 
+    - name: Upload release files as artifact
+      if: ${{ inputs.deploy_target == 'github' }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: jdeploy-release-files
+        path: ./jdeploy/github-release-files/*
+
     - name: Publish package-info.json to Github
       uses: marvinpinto/action-automatic-releases@latest
       if: ${{ inputs.deploy_target == 'github' && inputs.target_repository == github.repository }}

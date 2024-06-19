@@ -1,0 +1,88 @@
+name: 'Sign and Notarize macOS Apps'
+description: 'This action signs and notarizes macOS apps contained in a downloaded artifact.'
+inputs:
+  signing_certificate:
+    description: 'The signing certificate to use for code signing.'
+    required: true
+  apple_id:
+    description: 'The Apple ID for notarization.'
+    required: true
+  apple_app_specific_password:
+    description: 'The app-specific password for notarization.'
+    required: true
+  bundle_id:
+    description: 'The bundle ID for the apps to be notarized.'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Download release files
+      uses: actions/download-artifact@v3
+      with:
+        name: jdeploy-release-files
+        path: ./jdeploy/github-release-files
+
+    - name: Extract mac-x64 app
+      run: |
+        original_x64_file=$(find ./jdeploy/github-release-files -name '*mac-x64*.tgz')
+        tar -xzf "$original_x64_file" -C ./jdeploy/github-release-files
+        echo "ORIGINAL_X64_FILE=$original_x64_file" >> $GITHUB_ENV
+
+    - name: Extract mac-arm64 app
+      run: |
+        original_arm64_file=$(find ./jdeploy/github-release-files -name '*mac-arm64*.tgz')
+        tar -xzf "$original_arm64_file" -C ./jdeploy/github-release-files
+        echo "ORIGINAL_ARM64_FILE=$original_arm64_file" >> $GITHUB_ENV
+
+    - name: Sign mac-x64 app
+      run: |
+        app_path=$(find ./jdeploy/github-release-files -name '*mac-x64*.app')
+        codesign --deep --force --verify --verbose --sign "$SIGNING_CERTIFICATE" "$app_path"
+      env:
+        SIGNING_CERTIFICATE: ${{ inputs.signing_certificate }}
+
+    - name: Sign mac-arm64 app
+      run: |
+        app_path=$(find ./jdeploy/github-release-files -name '*mac-arm64*.app')
+        codesign --deep --force --verify --verbose --sign "$SIGNING_CERTIFICATE" "$app_path"
+      env:
+        SIGNING_CERTIFICATE: ${{ inputs.signing_certificate }}
+
+    - name: Notarize mac-x64 app
+      run: |
+        app_path=$(find ./jdeploy/github-release-files -name '*mac-x64*.app')
+        xcrun altool --notarize-app -f "$app_path" --primary-bundle-id "$BUNDLE_ID" --username "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD"
+      env:
+        APPLE_ID: ${{ inputs.apple_id }}
+        APPLE_APP_SPECIFIC_PASSWORD: ${{ inputs.apple_app_specific_password }}
+        BUNDLE_ID: ${{ inputs.bundle_id }}
+
+    - name: Notarize mac-arm64 app
+      run: |
+        app_path=$(find ./jdeploy/github-release-files -name '*mac-arm64*.app')
+        xcrun altool --notarize-app -f "$app_path" --primary-bundle-id "$BUNDLE_ID" --username "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD"
+      env:
+        APPLE_ID: ${{ inputs.apple_id }}
+        APPLE_APP_SPECIFIC_PASSWORD: ${{ inputs.apple_app_specific_password }}
+        BUNDLE_ID: ${{ inputs.bundle_id }}
+
+    - name: Compress signed mac-x64 app
+      run: |
+        original_x64_file=$(find ./jdeploy/github-release-files -name '*mac-x64*.tgz')
+        app_path=$(find ./jdeploy/github-release-files -name '*mac-x64*.app')
+        tar -czf "$original_x64_file" -C ./jdeploy/github-release-files "$app_path"
+
+    - name: Compress signed mac-arm64 app
+      run: |
+        original_arm64_file=$(find ./jdeploy/github-release-files -name '*mac-arm64*.tgz')
+        app_path=$(find ./jdeploy/github-release-files -name '*mac-arm64*.app')
+        tar -czf "$original_arm64_file" -C ./jdeploy/github-release-files "$app_path"
+
+    - name: Upload updated release files
+      uses: actions/upload-artifact@v3
+      with:
+        name: updated-jdeploy-release-files
+        path: ./jdeploy/github-release-files/*.tgz
