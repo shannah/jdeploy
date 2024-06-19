@@ -16,6 +16,15 @@ inputs:
   bundle_id:
     description: 'The bundle ID for the apps to be notarized.'
     required: true
+  notarization_key_id:
+    description: 'The key ID for notarization.'
+    required: true
+  notarization_issuer_id:
+    description: 'The issuer ID for notarization.'
+    required: true
+  notarization_api_key_base64:
+    description: 'The API key for notarization, encoded in base64.'
+    required: true
 runs:
   using: 'composite'
   steps:
@@ -60,25 +69,22 @@ runs:
         app_path=$(find ./jdeploy/github-release-files -name '*mac-arm64*.app')
         codesign --deep --force --verify --verbose "$app_path"
 
+    - name: Create notarytool configuration
+      shell: bash
+      run: |
+        echo "{\"key_id\": \"${{ inputs.notarization_key_id }}\", \"issuer_id\": \"${{ inputs.notarization_issuer_id }}\", \"key\": \"${{ inputs.notarization_api_key_base64 }}\"}" > ~/.notarytool.json
+
     - name: Notarize mac-x64 app
       shell: bash
       run: |
         app_path=$(find ./jdeploy/github-release-files -name '*mac-x64*.app')
-        xcrun altool --notarize-app -f "$app_path" --primary-bundle-id "$BUNDLE_ID" --username "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD"
-      env:
-        APPLE_ID: ${{ inputs.apple_id }}
-        APPLE_APP_SPECIFIC_PASSWORD: ${{ inputs.apple_app_specific_password }}
-        BUNDLE_ID: ${{ inputs.bundle_id }}
+        xcrun notarytool submit "$app_path" --key ~/.notarytool.json --wait
 
     - name: Notarize mac-arm64 app
       shell: bash
       run: |
         app_path=$(find ./jdeploy/github-release-files -name '*mac-arm64*.app')
-        xcrun altool --notarize-app -f "$app_path" --primary-bundle-id "$BUNDLE_ID" --username "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD"
-      env:
-        APPLE_ID: ${{ inputs.apple_id }}
-        APPLE_APP_SPECIFIC_PASSWORD: ${{ inputs.apple_app_specific_password }}
-        BUNDLE_ID: ${{ inputs.bundle_id }}
+        xcrun notarytool submit "$app_path" --key ~/.notarytool.json --wait
 
     - name: Compress signed mac-x64 app
       shell: bash
