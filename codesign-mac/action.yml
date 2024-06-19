@@ -66,7 +66,7 @@ runs:
     - name: Create notarytool configuration
       shell: bash
       run: |
-        echo "{\"key_id\": \"${{ inputs.notarization_key_id }}\", \"issuer_id\": \"${{ inputs.notarization_issuer_id }}\", \"key\": \"$(echo ${{ inputs.notarization_api_key_base64 }} | tr -d '\n')\"}" > ~/.notarytool.json
+        echo "{\"key_id\": \"${{ inputs.notarization_key_id }}\", \"issuer_id\": \"${{ inputs.notarization_issuer_id }}\", \"key\": \"${{ inputs.notarization_api_key_base64 }}\"}" > ~/.notarytool.json
 
     - name: Compress mac-x64 app for notarization
       shell: bash
