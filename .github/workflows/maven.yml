@@ -39,9 +39,9 @@ jobs:
         java-version: 11
         maven-version: '3.6.3'
     - name: Install PHP
-        run: |
-          brew update
-          brew install php
+      run: |
+        brew update
+        brew install php
     - name: Install osslsigncode
       run: brew install osslsigncode
     - name: Install MacOS Certificates
