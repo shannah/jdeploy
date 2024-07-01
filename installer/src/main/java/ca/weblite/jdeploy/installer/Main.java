@@ -17,40 +17,36 @@ import ca.weblite.jdeploy.installer.util.ResourceUtil;
 import ca.weblite.jdeploy.installer.views.DefaultUIFactory;
 import ca.weblite.jdeploy.installer.views.InstallationForm;
 import ca.weblite.jdeploy.installer.views.UIFactory;
+import ca.weblite.jdeploy.installer.win.InstallWindows;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.UninstallWindows;
 
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
-import com.izforge.izpack.util.os.ShellLink;
-import net.coobird.thumbnailator.Thumbnails;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-
-
-
 import java.awt.Desktop;
-import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.URL;
-import java.nio.file.Files;
 import java.util.*;
-import java.util.List;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
-
-import net.sf.image4j.codec.ico.ICOEncoder;
 import static ca.weblite.tools.io.IOUtil.copyResourceToFile;
 
 public class Main implements Runnable, Constants {
-    public static final String JDEPLOY_REGISTRY = DefaultInstallationContext.JDEPLOY_REGISTRY;
     private final InstallationContext installationContext = new DefaultInstallationContext();
-    private final InstallationSettings installationSettings = new InstallationSettings();
+    private final InstallationSettings installationSettings;
     private UIFactory uiFactory = new DefaultUIFactory();
     private InstallationForm installationForm;
+
+    private Main() {
+        this(new InstallationSettings());
+    }
+
+    private Main(InstallationSettings settings) {
+        this.installationSettings = settings;
+    }
 
     private Document getAppXMLDocument() throws IOException {
         return installationContext.getAppXMLDocument();
@@ -318,10 +314,16 @@ public class Main implements Runnable, Constants {
 
     private static boolean uninstall;
 
+    private static boolean headlessInstall;
+
     public static void main(String[] args) {
 
         if (args.length == 1 && args[0].equals("uninstall")) {
             uninstall = true;
+        }
+
+        if (args.length == 1 && args[0].equals("install")) {
+            headlessInstall = true;
         }
 
         File logFile = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "log" + File.separator + "jdeploy-installer.log");
@@ -335,12 +337,8 @@ public class Main implements Runnable, Constants {
             System.err.println("Failed to redirect output to "+logFile);
             ex.printStackTrace(System.err);
         }
-        Main main = new Main();
+        Main main = headlessInstall ? new Main(new HeadlessInstallationSettings()) :new Main();
         main.run();
-    }
-
-    private File findInstallFilesDir() {
-        return installationContext.findInstallFilesDir();
     }
 
     private File findAppXmlFile() {
@@ -517,11 +515,30 @@ public class Main implements Runnable, Constants {
             System.out.println("Uninstall complete");
             return;
         }
+
+        if (headlessInstall) {
+            runHeadlessInstall();
+            return;
+        }
         invokeLater(()->{
             buildUI();
             installationForm.showInstallationForm();
         });
 
+    }
+    private void runHeadlessInstall() throws Exception {
+        System.out.println(
+                "jDeploy installer running in headless mode.  Installing " +
+                        appInfo().getTitle() + " " + npmPackageVersion().getVersion()
+        );
+        try {
+            install();
+        } catch (Exception ex) {
+            System.err.println("Installation failed");
+            ex.printStackTrace(System.err);
+            return;
+        }
+        System.out.println("Installation complete");
     }
 
     private File installedApp;
@@ -578,111 +595,12 @@ public class Main implements Runnable, Constants {
         Bundler.runit(bundlerSettings, appInfo(), findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
 
         if (Platform.getSystemPlatform().isWindows()) {
-            File tmpExePath = null;
-            for (File exeCandidate : new File(tmpBundles, "windows").listFiles()) {
-                if (exeCandidate.getName().endsWith(".exe")) {
-                    tmpExePath = exeCandidate;
-                }
-            }
-            if (tmpExePath == null) {
-                throw new RuntimeException("Failed to find exe file after creation.  Something must have gone wrong in generation process");
-            }
-            File userHome = new File(System.getProperty("user.home"));
-            File jdeployHome = new File(userHome, ".jdeploy");
-            File appsDir = new File(jdeployHome, "apps");
-            File appDir = new File(appsDir, fullyQualifiedPackageName);
-            appDir.mkdirs();
-            String nameSuffix = "";
-
-            if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
-                nameSuffix = " " + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
-            }
-
-            String exeName = appInfo().getTitle() + nameSuffix + ".exe";
-            File exePath = new File(appDir, exeName);
-
-            FileUtil.copy(tmpExePath, exePath);
-            exePath.setExecutable(true, false);
-
-            // Copy the icon.png if it is present
-            File bundleIcon = new File(findAppXmlFile().getParentFile(), "icon.png");
-            File iconPath = new File(exePath.getParentFile(), "icon.png");
-            File icoPath =  new File(exePath.getParentFile(), "icon.ico");
-
-            if (Files.exists(bundleIcon.toPath())) {
-                FileUtil.copy(bundleIcon, iconPath);
-            }
-            installWindowsLinks(exePath, appInfo().getTitle() + nameSuffix);
-
-            File registryBackupLogs = new File(exePath.getParentFile(), "registry-backup-logs");
-
-            if (!registryBackupLogs.exists()) {
-                registryBackupLogs.mkdirs();
-            }
-            int nextLogIndex = 0;
-            for (File child : registryBackupLogs.listFiles()) {
-                if (child.getName().endsWith(".reg")) {
-                    String logIndex = child.getName().substring(0, child.getName().lastIndexOf("."));
-                    try {
-                        int logIndexInt = Integer.parseInt(logIndex);
-                        if (logIndexInt >= nextLogIndex) {
-                            nextLogIndex = logIndexInt+1;
-                        }
-                    } catch (Exception ex) {}
-                }
-            }
-            File registryBackupLog = new File(registryBackupLogs, nextLogIndex+".reg");
-            try (FileOutputStream fos = new FileOutputStream(registryBackupLog)) {
-                InstallWindowsRegistry registryInstaller = new InstallWindowsRegistry(appInfo(), exePath, icoPath, fos);
-                registryInstaller.register();
-
-                //Try to copy the uninstaller
-                File uninstallerPath = registryInstaller.getUninstallerPath();
-                uninstallerPath.getParentFile().mkdirs();
-                File installerExePath = new File(System.getProperty("client4j.launcher.path"));
-                if (uninstallerPath.exists()) {
-                    if (!uninstallerPath.canWrite()) {
-                        uninstallerPath.setWritable(true, false);
-                        try {
-                            // Give windows time to update its cache
-                            Thread.sleep(1000L);
-                        } catch (InterruptedException interruptedException) {
-                            // Ignore
-                        }
-                    }
-                    if (!uninstallerPath.delete()) {
-                        throw new IOException("Failed to delete uninstaller: "+uninstallerPath);
-                    }
-
-                    try {
-                        // Give Windows time to update its cache
-                        Thread.sleep(1000L);
-                    } catch (InterruptedException interruptedException) {
-                        // Ignore
-                    }
-                }
-                FileUtils.copyFile(installerExePath, uninstallerPath);
-                uninstallerPath.setExecutable(true, false);
-                FileUtils.copyDirectory(findInstallFilesDir(), new File(uninstallerPath.getParentFile(), findInstallFilesDir().getName()));
-
-
-            } catch (Exception ex) {
-                // restore
-                try  {
-                    InstallWindowsRegistry.rollback(registryBackupLog);
-                } catch (Exception rollbackException) {
-                    throw new RuntimeException("Failed to roll back registry after failed installation.", rollbackException);
-                }
-                // Since we rolled back the changes, we'll delete the backup log so that it doesn't get rolled back again.
-                registryBackupLog.delete();
-                ex.printStackTrace(System.err);
-                throw new RuntimeException("Failed to update registry.  Rolling back changes.", ex);
-
-            }
-
-
-            installedApp = exePath;
-
+            installedApp = new InstallWindows().install(
+                    installationContext,
+                    installationSettings,
+                    fullyQualifiedPackageName,
+                    tmpBundles
+            );
         } else if (Platform.getSystemPlatform().isMac()) {
             File jdeployAppsDir = new File(System.getProperty("user.home") + File.separator + "Applications");
             if (!jdeployAppsDir.exists()) {
@@ -797,103 +715,6 @@ public class Main implements Runnable, Constants {
 
     private String deriveLinuxBinaryNameFromTitle(String title) {
         return title.toLowerCase().replace(" ", "-").replaceAll("[^a-z0-9\\-]", "");
-    }
-
-    private void convertWindowsIcon(File srcPng, File destIco) throws IOException {
-        List<BufferedImage> images = new ArrayList<>();
-        List<Integer> bppList = new ArrayList<>();
-        for (int i : new int[]{16, 24, 32, 48, 64, 128, 256}) {
-            BufferedImage img = Thumbnails.of(srcPng).size(i, i).asBufferedImage();
-            images.add(img);
-            bppList.add(32);
-            if (i <= 48) {
-                images.add(img);
-                bppList.add(8);
-                images.add(img);
-                bppList.add(4);
-            }
-        }
-        int[] bppArray = bppList.stream().mapToInt(i->i).toArray();
-        try (FileOutputStream fileOutputStream = new FileOutputStream(destIco)) {
-            ICOEncoder.write(images,bppArray, fileOutputStream);
-        }
-
-
-    }
-
-
-
-    private void installWindowsLink(int type, File exePath, File iconPath, String appTitle) throws Exception {
-
-
-        System.out.println("Installing windows link type "+type+" for exe "+exePath+" and icon "+iconPath);
-        ShellLink link = new ShellLink(type, appTitle);
-        System.out.println("current user link path: "+link.getcurrentUserLinkPath());
-
-        link.setUserType(ShellLink.CURRENT_USER);
-        if (appInfo().getDescription() == null) {
-            link.setDescription("Windows application");
-        } else {
-            link.setDescription(appInfo().getDescription());
-        }
-        String iconPathString = iconPath.getCanonicalFile().getAbsolutePath();
-        File homeDir = new File(System.getProperty("user.home")).getCanonicalFile();
-
-
-        int homePathPos = iconPathString.indexOf(homeDir.getAbsolutePath());
-
-        System.out.println("Setting icon path in link "+iconPathString);
-        link.setIconLocation(iconPathString, 0);
-
-        String exePathString = exePath.getCanonicalFile().getAbsolutePath();
-
-        System.out.println("Setting exePathString: "+exePathString);
-        link.setTargetPath(exePathString);
-        link.save();
-    }
-
-
-
-    private void installWindowsLinks(File exePath, String appTitle) throws Exception {
-        System.out.println("Installing Windows links for exe "+exePath);
-        File pngIconPath = new File(exePath.getParentFile(), "icon.png");
-        File icoPath = new File(exePath.getParentFile().getCanonicalFile(), "icon.ico");
-
-        if (!Files.exists(pngIconPath.toPath())) {
-            System.out.println("PNG igon "+pngIconPath+" doesn't exist yet.... loading default from resources.");
-            copyResourceToFile(Main.class, "icon.png", pngIconPath);
-        }
-        if (!Files.exists(pngIconPath.toPath())) {
-            System.out.println("After creating "+pngIconPath+" icon file, it still doesn't exist.  What gives.");
-            throw new IOException("Failed to create the .ico file for some reason. "+icoPath);
-        }
-        convertWindowsIcon(pngIconPath.getCanonicalFile(), icoPath);
-
-
-        if (installationSettings.isAddToDesktop()) {
-            try {
-                installWindowsLink(ShellLink.DESKTOP, exePath, icoPath, appTitle);
-            } catch (Exception ex) {
-                throw new RuntimeException("Failed to install desktop shortcut", ex);
-
-            }
-        }
-        if (installationSettings.isAddToPrograms()) {
-            try {
-                installWindowsLink(ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle);
-            } catch (Exception ex) {
-                throw new RuntimeException("Failed to install program menu shortcut", ex);
-
-            }
-        }
-        if (installationSettings.isAddToStartMenu()) {
-            try {
-                installWindowsLink(ShellLink.START_MENU, exePath, icoPath, appTitle);
-            } catch (Exception ex) {
-                throw new RuntimeException("Failed to install start menu shortcut", ex);
-
-            }
-        }
     }
 
     private void installLinuxMimetypes() throws IOException {

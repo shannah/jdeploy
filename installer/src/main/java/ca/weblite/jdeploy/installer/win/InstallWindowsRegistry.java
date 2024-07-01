@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.win;
 
 import ca.weblite.jdeploy.app.AppInfo;
+import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.tools.io.MD5;
 import org.apache.commons.io.FileUtils;
 
@@ -190,7 +191,12 @@ public class InstallWindowsRegistry {
 
     }
 
-    public InstallWindowsRegistry(AppInfo appInfo, File exe, File icon, OutputStream backupLog) {
+    public InstallWindowsRegistry(
+            AppInfo appInfo,
+            File exe,
+            File icon,
+            OutputStream backupLog
+    ) {
         this.appInfo = appInfo;
         this.exe = exe;
         this.icon = icon;

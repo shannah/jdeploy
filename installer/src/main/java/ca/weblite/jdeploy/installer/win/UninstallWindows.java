@@ -21,7 +21,13 @@ public class UninstallWindows {
 
     private String appFileName;
 
-    public UninstallWindows(String packageName, String source, String version, String appTitle, InstallWindowsRegistry installer) {
+    public UninstallWindows(
+            String packageName,
+            String source,
+            String version,
+            String appTitle,
+            InstallWindowsRegistry installer
+    ) {
         this.packageName = packageName;
         this.source = source;
         this.version = version;
@@ -43,14 +49,23 @@ public class UninstallWindows {
             if (version == null) {
                 return new File(getJDeployHome(), "packages" + File.separator + new File(packageName).getName());
             } else {
-                return new File(getJDeployHome(), "packages" + File.separator + new File(packageName).getName() + File.separator + new File(version).getName());
+                return new File(
+                        getJDeployHome(),
+                        "packages" + File.separator +
+                                new File(packageName).getName() + File.separator +
+                                new File(version).getName()
+                );
             }
         }
 
         if (version == null) {
             return new File(getJDeployHome(), "gh-packages" + MD5.getMd5(source) + "." + packageName);
         } else {
-            return new File(getJDeployHome(), "gh-packages" + MD5.getMd5(source) + "." + packageName + File.separator + new File(version).getName());
+            return new File(
+                    getJDeployHome(),
+                    "gh-packages" + MD5.getMd5(source) + "." + packageName + File.separator +
+                            new File(version).getName()
+            );
         }
     }
 
@@ -76,7 +91,10 @@ public class UninstallWindows {
     }
 
     private File getDesktopLink() {
-        return new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + new File(appFileName).getName() + ".lnk");
+        return new File(
+                System.getProperty("user.home") + File.separator +
+                        "Desktop" + File.separator + new File(appFileName).getName() + ".lnk"
+        );
     }
 
     private File getAppDirPath() {
@@ -128,8 +146,12 @@ public class UninstallWindows {
 
     private void scheduleDeleteUninstaller() throws IOException {
         //cmd.exe /C TIMEOUT 10 && del "{your uninstaller path}"
-        Runtime.getRuntime().exec("cmd.exe /C TIMEOUT 5 && rd /s /q \""+getUninstallerPath().getParentFile().getAbsolutePath()+"\"");
-        //Runtime.getRuntime().exec(new String[]{"cmd.exe", "/C", "TIMEOUT", "5", )
+        Runtime
+                .getRuntime()
+                .exec(
+                        "cmd.exe /C TIMEOUT 5 && rd /s /q \"" +
+                                getUninstallerPath().getParentFile().getAbsolutePath() + "\""
+                );
     }
 
 
