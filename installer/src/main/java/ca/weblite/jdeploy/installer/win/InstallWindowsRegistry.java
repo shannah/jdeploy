@@ -377,7 +377,13 @@ public class InstallWindowsRegistry {
             if (mimetype != null) {
                 registrySetStringValue(HKEY_CURRENT_USER, key, "ContentType", mimetype);
                 if (mimetype.contains("/")) {
-                    registrySetStringValue(HKEY_CURRENT_USER, key, "PerceivedType", mimetype.substring(0, mimetype.indexOf("/")));
+                    registrySetStringValue(
+                            HKEY_CURRENT_USER,
+                            key,
+                            "PerceivedType",
+                            mimetype.substring(0, mimetype.indexOf("/")
+                            )
+                    );
                 }
             }
         }
@@ -458,7 +464,8 @@ public class InstallWindowsRegistry {
         Scanner scanner = new Scanner(backupLog, "UTF-8");
         while (scanner.hasNextLine()) {
             String line = scanner.nextLine();
-            // If we added a key, we wrote them to the log file as comments of the form ;CREATE key where key is like Software\Classes\...
+            // If we added a key, we wrote them to the log file as comments of the form
+            // ;CREATE key where key is like Software\Classes\...
             if (line.startsWith(";CREATE ")) {
                 deleteKeyRecursive(line.substring(line.indexOf(" ")+1));
             }
@@ -667,7 +674,12 @@ public class InstallWindowsRegistry {
         }
 
         // Register the application
-        registrySetStringValue(HKEY_CURRENT_USER, "Software\\RegisteredApplications", getRegisteredAppName(), getCapabilitiesPath());
+        registrySetStringValue(
+                HKEY_CURRENT_USER,
+                "Software\\RegisteredApplications",
+                getRegisteredAppName(),
+                getCapabilitiesPath()
+        );
 
         // Now to register the uninstaller
 
@@ -679,7 +691,12 @@ public class InstallWindowsRegistry {
         registrySetStringValue(HKEY_CURRENT_USER, getUninstallKey(), "DisplayVersion", appInfo.getVersion());
         registrySetLongValue(HKEY_CURRENT_USER, getUninstallKey(), 1);
         registrySetStringValue(HKEY_CURRENT_USER, getUninstallKey(), "Publisher", appInfo.getVendor());
-        registrySetStringValue(HKEY_CURRENT_USER, getUninstallKey(), "UninstallString", "\""+getUninstallerPath().getAbsolutePath()+"\" uninstall");
+        registrySetStringValue(
+                HKEY_CURRENT_USER,
+                getUninstallKey(),
+                "UninstallString",
+                "\"" + getUninstallerPath().getAbsolutePath() + "\" uninstall"
+        );
 
         String installerPath = System.getProperty("client4j.launcher.path");
         if (installerPath == null) {

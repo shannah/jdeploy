@@ -67,7 +67,12 @@ public class DefaultInstallationContext implements InstallationContext {
             }
 
             System.out.println("Found client4.launcher.path property: "+launcherPath);
-            cachedInstallFilesDir = findInstallFilesDir(new File(launcherPath));
+            if (System.getProperty("client4j.appxml.path") != null) {
+                cachedInstallFilesDir = findInstallFilesDir(new File(System.getProperty("client4j.appxml.path")).getParentFile());
+            } else {
+                cachedInstallFilesDir = findInstallFilesDir(new File(launcherPath));
+            }
+
             return cachedInstallFilesDir;
         } else {
             System.out.println("client4j.launcher.path is not set");
@@ -261,6 +266,9 @@ public class DefaultInstallationContext implements InstallationContext {
 
 
     public File findAppXml() {
+        if (System.getProperty("client4j.appxml.path") != null) {
+            return new File(System.getProperty("client4j.appxml.path"));
+        }
         File installFilesDir = findInstallFilesDir();
         if (installFilesDir == null) {
             return null;

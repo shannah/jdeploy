@@ -12,3 +12,4 @@ installer/jdeploy-bundle
 cli/bin
 tests/projects/*/jdeploy
 ./jdeploy
+#./installer/tests/*/mock_launcher*

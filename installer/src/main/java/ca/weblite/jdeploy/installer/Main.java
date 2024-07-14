@@ -97,7 +97,6 @@ public class Main implements Runnable, Constants {
 
 
     private void loadNPMPackageInfo() throws IOException {
-        //System.out.println("Loading NPMPackageInfo");
         if (installationSettings.getNpmPackageVersion() == null) {
             if (appInfo() == null) {
                 throw new IllegalStateException("App Info must be loaded before loading the package info");
@@ -144,10 +143,18 @@ public class Main implements Runnable, Constants {
                     appInfo().setDocumentTypeEditor(documentTypeAssociation.getExtension());
                 }
             }
-            //System.out.println("Checking npm package for URL schemes: ");
             for (String scheme : npmPackageVersion().getUrlSchemes()) {
-                //System.out.println("Found scheme "+scheme);
                 appInfo().addUrlScheme(scheme);
+            }
+
+            if (Platform.getSystemPlatform().isWindows() && "8".equals(npmPackageVersion().getJavaVersion())) {
+                // In Windows with Java 8, we need to use a private JVM because OpenJDK 8 didn't support the use
+                // of shared JVMs very well.  Share JVMs needed to be registered in the registry, which would override
+                // for all applications using a shard JVM - there is no way to allow the app to be a good citizen
+                // with a shared JVM.
+                // However it does allow the use of a private JVM if the app resided in a directory named "bin"
+                // and the JVM is in a directory named "jre" which is a sibling of the "bin" directory.
+                appInfo().setUsePrivateJVM(true);
             }
 
             // Update labels for the combobox with nice examples to show exactly which versions will be auto-updated
@@ -326,17 +333,20 @@ public class Main implements Runnable, Constants {
             headlessInstall = true;
         }
 
-        File logFile = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "log" + File.separator + "jdeploy-installer.log");
-        logFile.getParentFile().mkdirs();
-        try {
-            PrintStream originalOut = System.out;
-            System.setOut(new PrintStream(new FileOutputStream(logFile)));
-            originalOut.println("Redirecting output to "+logFile);
-            System.setErr(System.out);
-        } catch (IOException ex) {
-            System.err.println("Failed to redirect output to "+logFile);
-            ex.printStackTrace(System.err);
+        if (!headlessInstall) {
+            File logFile = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "log" + File.separator + "jdeploy-installer.log");
+            logFile.getParentFile().mkdirs();
+            try {
+                PrintStream originalOut = System.out;
+                System.setOut(new PrintStream(new FileOutputStream(logFile)));
+                originalOut.println("Redirecting output to "+logFile);
+                System.setErr(System.out);
+            } catch (IOException ex) {
+                System.err.println("Failed to redirect output to "+logFile);
+                ex.printStackTrace(System.err);
+            }
         }
+
         Main main = headlessInstall ? new Main(new HeadlessInstallationSettings()) :new Main();
         main.run();
     }
@@ -510,7 +520,13 @@ public class Main implements Runnable, Constants {
             if (appInfo().getNpmVersion() != null && appInfo().getNpmVersion().startsWith("0.0.0-")) {
                 version = appInfo().getNpmVersion();
             }
-            UninstallWindows uninstallWindows = new UninstallWindows(appInfo().getNpmPackage(), appInfo().getNpmSource(), version, appInfo().getTitle(), installer);
+            UninstallWindows uninstallWindows = new UninstallWindows(
+                    appInfo().getNpmPackage(),
+                    appInfo().getNpmSource(),
+                    version,
+                    appInfo().getTitle(),
+                    installer
+            );
             uninstallWindows.uninstall();
             System.out.println("Uninstall complete");
             return;

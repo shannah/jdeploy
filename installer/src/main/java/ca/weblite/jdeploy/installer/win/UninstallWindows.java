@@ -117,7 +117,12 @@ public class UninstallWindows {
         List<File> out = new ArrayList<>();
         if (version == null && getPackagePath().exists())  {
             for (File child : getPackagePath().listFiles()) {
-                if (child.isDirectory() && !child.getName().isEmpty() && Character.isDigit(child.getName().charAt(0))) {
+                if (
+                        child.isDirectory() &&
+                                !child.getName().isEmpty() &&
+                                Character.isDigit(child.getName().charAt(0)) &&
+                                !child.getName().startsWith("0.0.0-")
+                ) {
                     out.add(child);
                 }
             }
@@ -133,13 +138,37 @@ public class UninstallWindows {
     private void deletePackage() throws IOException {
         for (File versionDir : getVersionDirectories()) {
             if (versionDir.exists()) {
+                System.out.println("Deleting version dir: "+versionDir.getAbsolutePath());
                 FileUtils.deleteDirectory(versionDir);
+            }
+        }
+    }
+
+    private void cleanupPackageDir() throws IOException {
+        File packageDir = getPackagePath();
+        if (version != null) {
+            packageDir = packageDir.getParentFile();
+        }
+        if (packageDir.getName().equals("packages")) {
+            return;
+        }
+        if (packageDir.exists()) {
+            int numVersionDirectoriesRemaining = 0;
+            for (File child : packageDir.listFiles()) {
+                if (child.isDirectory()) {
+                    numVersionDirectoriesRemaining++;
+                }
+            }
+            if (numVersionDirectoriesRemaining == 0) {
+                System.out.println("Deleting package dir: "+packageDir.getAbsolutePath());
+                FileUtils.deleteDirectory(packageDir);
             }
         }
     }
 
     private void deleteApp() throws IOException {
         if (getAppDirPath().exists()) {
+            System.out.println("Deleting app dir: "+getAppDirPath().getAbsolutePath());
             FileUtils.deleteDirectory(getAppDirPath());
         }
     }
@@ -159,18 +188,21 @@ public class UninstallWindows {
 
     private void removeDesktopAlias() {
         if (getDesktopLink().exists()) {
+            System.out.println("Deleting desktop link: "+getDesktopLink().getAbsolutePath());
             getDesktopLink().delete();
         }
     }
 
     private void removeStartMenuLink() {
         if (getStartMenuLink().exists()) {
+            System.out.println("Deleting start menu link: "+getStartMenuLink().getAbsolutePath());
             getStartMenuLink().delete();
         }
     }
 
     private void removeProgramsMenuLink() {
         if (getProgramsMenuLink().exists()) {
+            System.out.println("Deleting programs menu link: "+getProgramsMenuLink().getAbsolutePath());
             getProgramsMenuLink().delete();
         }
     }
@@ -181,6 +213,7 @@ public class UninstallWindows {
         removeProgramsMenuLink();
         removeStartMenuLink();
         deletePackage();
+        cleanupPackageDir();
         deleteApp();
         installWindowsRegistry.unregister(null);
         File uninstallerJDeployFiles = new File(getUninstallerPath().getParentFile(), ".jdeploy-files");
