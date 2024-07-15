@@ -11,5 +11,9 @@ function test_snapcodejava() {
   bash test_install_single_project.sh snapcodejava --smoke --uninstall --uninstall-smoke
 }
 
+if [ -z "$JDEPLOY_PROJECT_PATH" ]; then
+  export JDEPLOY_PROJECT_PATH="$( cd "$(dirname "$SCRIPTPATH")" ; pwd -P )"
+fi
+
 test_shellmarks
 test_snapcodejava
