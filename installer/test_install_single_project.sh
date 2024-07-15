@@ -224,7 +224,7 @@ function uninstall_smoke_test_windows() {
 
 }
 
-function uintestall_smoke_test_mac() {
+function uninstall_smoke_test_mac() {
   echo "Running Uninstall Smoke Test..."
   echo "Skipping uninstall smoke test for mac because Mac doesn't require uninstall"
   echo "Just drag the app to the trash"
