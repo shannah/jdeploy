@@ -59,7 +59,7 @@ function install_windows() {
 function install_non_windows() {
     # run the mock_launcher.sh script in the CWD
     cp "$CWD/../mock_launcher/mock_launcher.sh" "$CWD/mock_launcher.sh"
-    "$CWD/mock_launcher.sh" install
+    bash "$CWD/mock_launcher.sh" install
 }
 
 if [ "$IS_WINDOWS" = true ]; then
