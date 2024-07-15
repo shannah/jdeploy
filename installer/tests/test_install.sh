@@ -12,7 +12,7 @@ SCRIPT_PATH="$( cd "$(dirname "$0")" ; pwd -P )"
 CWD="$(pwd)"
 
 # Check if the ~/.jdeploy/.env.dev file exists
-if ! [ -f ~/.jdeploy/.env.dev ]; then
+if ! [ -f ~/.jdeploy/.env.dev ] && [ -z "$JDEPLOY_IS_PIPELINE" ]; then
   echo "Error: The ~/.jdeploy/.env.dev file does not exist."
   echo "Please create this file and add the JAVA_HOME environment variable."
   echo "This is used to specify the absolute path to the Java installation that will be used by the uninstaller"

@@ -12,8 +12,9 @@ function test_snapcodejava() {
 }
 
 if [ -z "$JDEPLOY_PROJECT_PATH" ]; then
-  JDEPLOY_PROJECT_PATH="$( cd "$(dirname "$SCRIPTPATH")" ; pwd -P )"
+  export JDEPLOY_PROJECT_PATH="$( cd "$(dirname "$SCRIPTPATH")" ; pwd -P )"
 fi
+export JDEPLOY_IS_PIPELINE=true
 echo "Running jDeploy installer tests with JDEPLOY_PROJECT_PATH=$JDEPLOY_PROJECT_PATH"
 test_shellmarks
 test_snapcodejava
