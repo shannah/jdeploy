@@ -56,6 +56,8 @@ public class AppInfo  {
 
     private Set<String> urlSchemes;
 
+    private boolean usePrivateJVM = false;
+
 
     public void addUrlScheme(String scheme) {
         if (urlSchemes == null) urlSchemes = new HashSet<>();
@@ -319,6 +321,14 @@ public class AppInfo  {
 
     public void setFork(boolean fork) {
         this.fork = fork;
+    }
+
+    public boolean isUsePrivateJVM() {
+        return usePrivateJVM;
+    }
+
+    public void setUsePrivateJVM(boolean usePrivateJVM) {
+        this.usePrivateJVM = usePrivateJVM;
     }
 
 

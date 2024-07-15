@@ -1,0 +1,19 @@
+= Mock jDeploy Launcher
+
+This directory contains a "mock" launcher for jDeploy that is used for the purposes of running integration tests on the jDeploy Installer.
+
+== Usage
+
+Copy the correct launcher into the project directory (see samples in the installer/tests/shellmarks and installer/tests/snapcodejava directories).
+
+Then run the launcher with either the "install" or "uninstall" CLI arguments.
+
+Use the mock_launcher.sh on Mac and Linux.  Use mock_launcher_win.exe on Windows.
+
+== Building Windows Launcher
+
+In order to be compatible with the jDeploy Windows uninstaller, the launcher needed to be an .exe, and not a shell or batch script, so the launcher is written in C.
+
+See `mock_launcher_win.c` for the source code.
+
+To build this launcher simply run `build.sh`

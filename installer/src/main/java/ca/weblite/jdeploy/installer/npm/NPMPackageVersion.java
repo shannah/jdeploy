@@ -9,6 +9,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 
 public class NPMPackageVersion {
+    private static final String DEFAULT_JAVA_VERSION = "11";
     private final NPMPackage npmPackage;
     private final String version;
     private final JSONObject packageJson;
@@ -36,7 +37,12 @@ public class NPMPackageVersion {
         return version;
     }
 
-
+    public String getJavaVersion() {
+        if (jdeploy().has("javaVersion")) {
+            return jdeploy().getString("javaVersion");
+        }
+        return DEFAULT_JAVA_VERSION;
+    }
 
     private JSONObject jdeploy() {
         return packageJson.getJSONObject("jdeploy");

@@ -1,0 +1,97 @@
+= jDeploy Installer Tests
+
+This directory includes some semi-automated tests for the jDeploy installer.
+
+== Running the Tests
+
+NOTE: Tests are run as part of the jdeploy/tests/test.sh script, which is run in the Github Actions CI/CD pipeline.
+
+=== Environment Variables
+
+The tests require the following environment variables to be set:
+
+- `JDEPLOY_PROJECT_PATH` - The path to the jDeploy installer script.
+- `JAVA_HOME` - The path to the JDK to use for the tests.  I have been testing with JDK8 and JDK11, but should work with newer JDK also.
+
+TIP: If you want to use these script to install the application, and then use Add/Remove programs to uninstall it, then you will also need to create the file `~/.jdeploy/.env.dev` with contents like:
+
+```
+$ cat ~/.jdeploy/.env.dev
+JAVA_HOME=C:\Users\Steve\zulu-8
+JDEPLOY_PROJECT_PATH=C:\Users\Steve\jdeploy
+```
+
+Notice that the back-slashes are NOT escaped in this file.  This is because it is loaded directly by the installer script, and not by bash.
+
+=== Running All Tests
+
+To run the tests manually simply run the following command in the installer directory:
+
+```
+bash ./test.sh
+```
+
+=== Running Test for Single Project
+
+Use the `test_install_single_project.sh` script to test the installer for a single project.
+
+**Usage**
+
+```
+Usage: test_install_single_project.sh <project_name> [--build] [--smoke] [--uninstall] [--uninstall-smoke] [--help]
+Options:
+  --build: Build the project before testing
+  --smoke: Run smoke test after testing
+  --uninstall: Uninstall the project after testing
+  --uninstall-smoke: Run uninstall smoke test after testing
+  --help: Display this help message
+
+```
+
+**Example**
+
+```
+bash ./test_install_single_project.sh shellmarks --build --smoke --uninstall --uninstall-smoke
+```
+
+==== Testing Windows Uninstall via Add/Remove Programs
+
+On Windows, the uninstaller is run when the user chooses to uninstall the app via Add/Remove Programs.
+If you want to test this flow, you should first install the app using the test script, and then uninstall it via Add/Remove Programs.
+
+It is important that you do not include the --uninstall or --uninstall-smoke flags when running the test script, as this will remove the uninstaller.
+
+E.g.
+
+```
+bash ./test_install_single_project.sh shellmarks --build --smoke
+```
+
+Then, go to Add/Remove Programs and uninstall the app.
+
+IMPORTANT: Since Add/Remove Programs does not run inside the same environment, and won't have the `JAVA_HOME` and `JDEPLOY_PROJECT_PATH` environment variables,
+you will need to create the `~/.jdeploy/.env.dev` file as described above.
+
+It is worth noting that when running these tests, it uses a Mock launcher that is different than the jDeploy launcher, but still provides the minimal
+bootstrapping required for the installer to work.
+
+This mock launcher is located in the `installer/tests/mock_launcher` directory, and the correct launcher is copied into the test project's directory
+when the test script is run.
+
+== Adding a New Test
+
+```
+cd installer/tests
+bash generate_new_test.sh <test_name>
+```
+
+Where `<test_name>` should match the project name that the test is for.
+This will copy files from the installer/tests/template directory into installer/tests/<test_name>.
+
+You should then manually modify the .jdeploy_files/app.xml file so that the name and title of the project are correct
+for the test app.
+
+Also modify the test.env file to set the correct values for the test.
+
+
+
