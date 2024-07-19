@@ -27,6 +27,8 @@ public class MacBundler {
     public static int verboseLevel = Bundler.verboseLevel;
     private static final String OSNAME = "mac";
 
+    private static final boolean useNotaryToolForNotarization = true;
+
     public enum TargetArchitecture {
         X64,
         ARM64
@@ -79,7 +81,11 @@ public class MacBundler {
 
         stub_dest.setExecutable(true, false);
 
-        SigningRequest signingRequest = new SigningRequest(app.getMacDeveloperID(), app.getMacCertificateName(), app.getMacNotarizationPassword());
+        SigningRequest signingRequest = new SigningRequest(
+                app.getMacDeveloperID(),
+                app.getMacCertificateName(),
+                app.getMacNotarizationPassword()
+        );
         signingRequest.setCodesign(app.isMacCodeSigningEnabled());
         signingRequest.setNotarize(app.isMacNotarizationEnabled());
         signingRequest.setBundleId(app.getMacBundleId());
@@ -150,30 +156,46 @@ public class MacBundler {
         releaseFileName = releaseFileName.replaceAll("\\s+", ".");
         File releaseFile = new File(releaseDestDir, releaseFileName);
         releaseDestDir.mkdirs();
-        
         Util.compressAsTarGz(releaseFile, appDir);
+
         if (Platform.getSystemPlatform().isMac() && app.isMacCodeSigningEnabled() && app.isMacNotarizationEnabled()) {
             System.out.println("Attempting to notarize app.");
+
             // Notarization can only be enabled if the app is signed.
             if (app.isMacNotarizationEnabled()) {
-                ProcessBuilder pb = new ProcessBuilder("/usr/bin/xcrun", 
-                        "altool", 
-                        "--notarize-app", 
-                        "--primary-bundle-id", 
-                        app.getMacBundleId(),
-                        "--username",
-                        app.getMacDeveloperID(),
-                        "--password",
-                        app.getMacNotarizationPassword(),
-                        "--file",
-                        releaseFile.getAbsolutePath()
-                );
-                pb.inheritIO();
-                Process p = pb.start();
-                int exitCode = p.waitFor();
-                if (exitCode != 0) {
-                    throw new RuntimeException("Notarization failed with exit code "+exitCode);
+                if (useNotaryToolForNotarization) {
+                    NotaryTool notaryTool = new NotaryTool();
+                    notaryTool.notarizeApp(
+                            appDir.getAbsolutePath(),
+                            app.getMacDeveloperID(),
+                            app.getMacNotarizationPassword(),
+                            app.getMacDeveloperTeamID()
+                    );
+                    if (releaseFile.exists()) {
+                        releaseFile.delete();
+                    }
+                    Util.compressAsTarGz(releaseFile, appDir);
+                } else {
+                    ProcessBuilder pb = new ProcessBuilder("/usr/bin/xcrun",
+                            "altool",
+                            "--notarize-app",
+                            "--primary-bundle-id",
+                            app.getMacBundleId(),
+                            "--username",
+                            app.getMacDeveloperID(),
+                            "--password",
+                            app.getMacNotarizationPassword(),
+                            "--file",
+                            releaseFile.getAbsolutePath()
+                    );
+                    pb.inheritIO();
+                    Process p = pb.start();
+                    int exitCode = p.waitFor();
+                    if (exitCode != 0) {
+                        throw new RuntimeException("Notarization failed with exit code "+exitCode);
+                    }
                 }
+
             }
         }
         out.addReleaseFile(releaseFile);

@@ -5,10 +5,7 @@
 
 package ca.weblite.jdeploy.appbundler;
 
-
 import ca.weblite.jdeploy.app.AppInfo;
-import ca.weblite.jdeploy.app.Workspace;
-import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.URLUtil;
 import com.joshondesign.appbundler.linux.LinuxBundler;
 import com.joshondesign.appbundler.mac.MacBundler;
@@ -16,10 +13,7 @@ import com.joshondesign.appbundler.win.WindowsBundler2;
 import com.joshondesign.xml.Doc;
 import com.joshondesign.xml.Elem;
 import com.joshondesign.xml.XMLParser;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.xml.sax.SAXException;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,13 +25,11 @@ import java.util.List;
 /**
  *
  * @author joshmarinacci
+ * @author stevehannah
  */
 public class Bundler {
     public static int verboseLevel = 0;
-    
 
-    
-    
     public static void main(String ... args) throws Exception {
         String jarUrl = args[0];
         String target = args[1];
@@ -57,19 +49,13 @@ public class Bundler {
             }
         }
 
-
         p("using target " + target);
         p("using dest_dir = " + DEST_DIR);
         p("using jar url = " + jarUrl);
-        //File descriptor = new File(jarUrl);
-        //if(!descriptor.exists()) throw new Error("Descriptor file: " + jarUrl + " does not exist");
-        
-        runit(new BundlerSettings(), null, jarUrl, target, DEST_DIR, DEST_DIR);
 
+        runit(new BundlerSettings(), null, jarUrl, target, DEST_DIR, DEST_DIR);
     }
 
-    
-    
     /**
      * Returns first non-empty value from candidates
      * @param candidates
@@ -88,22 +74,13 @@ public class Bundler {
         return "data:image/png;base64," + Base64.getEncoder().encodeToString(IOUtils.toByteArray(url));
     }
 
-    public static BundlerResult runit(BundlerSettings bundlerSettings, AppInfo appInfo, String url,
-            String target,
-            String DEST_DIR,
-            String RELEASE_DIR) throws Exception {
-
-        
-
-
-        
+    private static AppDescription createAppDescription(AppInfo appInfo, String url) throws IOException{
         AppDescription app = new AppDescription();
         app.setNpmPrerelease(appInfo.isNpmAllowPrerelease());
         app.setName(appInfo.getTitle());
         app.setFork(appInfo.isFork());
         URL iconURL = URLUtil.url(appInfo.getAppURL(), "icon.png");
         app.setIconDataURI(toDataURI(iconURL));
-
 
         if (url == null) throw new IllegalArgumentException("URL is required. It can be a file: url");
 
@@ -123,6 +100,14 @@ public class Bundler {
         if (appInfo.getNpmSource() != null) {
             app.setNpmSource(appInfo.getNpmSource());
         }
+        setupMacCodeSigning(appInfo, app);
+        setupFileAssociations(appInfo, app);
+        setupUrlSchemes(appInfo, app);
+
+        return app;
+    }
+
+    private static AppDescription setupMacCodeSigning(AppInfo appInfo, AppDescription app) {
         if (appInfo.getMacAppBundleId() != null && !appInfo.getMacAppBundleId().isEmpty()) {
             System.out.println("Setting up codesigning");
             app.setMacBundleId(appInfo.getMacAppBundleId());
@@ -145,18 +130,18 @@ public class Bundler {
                         shouldSign = true;
                         shouldNotarize = true;
                         break;
-                        
                 }
             }
-            
+
             System.out.println("shouldSign="+shouldSign+", shouldNotarize="+shouldNotarize);
             if (shouldSign) {
                 String certName = val(
                         C4JPublisherSettings.getMacDeveloperCertificateName(appInfo),
                         C4JPublisherSettings.getMacDeveloperCertificateName());
+                System.out.println("certName="+certName);
                 if (certName != null) {
                     app.enableMacCodeSigning(certName);
-                    
+
                     if (shouldNotarize) {
                         String developerId = val(
                                 C4JPublisherSettings.getMacDeveloperID(appInfo),
@@ -167,22 +152,21 @@ public class Bundler {
                                 C4JPublisherSettings.getMacNotarizationPassword()
                         );
                         if (developerId != null && notarizePassword != null) {
-                            app.enableMacNotarization(developerId, notarizePassword);
+                            app.enableMacNotarization(
+                                    developerId,
+                                    notarizePassword,
+                                    C4JPublisherSettings.getMacDeveloperTeamID(appInfo)
+                            );
                         }
                     }
-                    
                 }
-                
-                
             }
         }
-        
-        
-        //check xml
-        verifyApp(app);
-        
-        verifyNativeLibs(app);
 
+        return app;
+    }
+
+    private static void setupFileAssociations(AppInfo appInfo, AppDescription app) {
         if (appInfo.hasDocumentTypes()) {
             for (String extension : appInfo.getExtensions()) {
                 app.addExtension(extension, appInfo.getMimetype(extension), appInfo.getDocumentTypeIconPath(extension));
@@ -191,49 +175,87 @@ public class Bundler {
                 }
             }
         }
+    }
+
+    private static void setupUrlSchemes(AppInfo appInfo, AppDescription app) {
         if (appInfo.hasUrlSchemes()) {
             for (String scheme : appInfo.getUrlSchemes()) {
                 app.addUrlScheme(scheme);
             }
         }
+    }
 
-        if("mac".equals(target) || "mac-x64".equals(target)) {
-            BundlerResult bundlerResult =  MacBundler.start(bundlerSettings, MacBundler.TargetArchitecture.X64, app,DEST_DIR, RELEASE_DIR);
+    public static BundlerResult runit(
+            BundlerSettings bundlerSettings,
+            AppInfo appInfo,
+            String url,
+            String targetStr,
+            String DEST_DIR,
+            String RELEASE_DIR
+    ) throws Exception {
+        AppDescription app = createAppDescription(appInfo, url);
+        verifyNativeLibs(app);
+        Target target = Target.fromString(targetStr);
+        if(target == Target.MacX64) {
+            BundlerResult bundlerResult =  MacBundler.start(
+                    bundlerSettings,
+                    MacBundler.TargetArchitecture.X64,
+                    app,
+                    DEST_DIR,
+                    RELEASE_DIR
+            );
             bundlerResult.setResultForType("mac", bundlerResult);
             return bundlerResult;
         }
 
-        if ("mac-arm64".equals(target)) {
-            return MacBundler.start(bundlerSettings, MacBundler.TargetArchitecture.ARM64, app,DEST_DIR, RELEASE_DIR);
+        if (target == Target.MacArm) {
+            return MacBundler.start(
+                    bundlerSettings,
+                    MacBundler.TargetArchitecture.ARM64,
+                    app,
+                    DEST_DIR,
+                    RELEASE_DIR
+            );
         }
         
-        if("win".equals(target)) {
+        if(target == Target.WinX64) {
             return WindowsBundler2.start(bundlerSettings, app,DEST_DIR, RELEASE_DIR);
-            
         }
-        if("win-installer".equals(target)) {
+        if(target == Target.WinX64Installer) {
             return WindowsBundler2.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true);
-            
         }
         
-        if ("linux".equals(target)) {
+        if (target == Target.LinuxX64) {
             return LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR);
-            
         }
-        if ("linux-installer".equals(target)) {
+        if (target == Target.LinuxX64Installer) {
             return LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true);
         }
         
-        if("all".equals(target)) {
+        if(target == Target.All) {
             BundlerResult out = new BundlerResult("all");
-            
-            out.setResultForType("mac", MacBundler.start(bundlerSettings, MacBundler.TargetArchitecture.X64, app,DEST_DIR, RELEASE_DIR));
-            out.setResultForType("mac-x64", out.getResultForType("mac", false));
-            out.setResultForType("mac-arm64", MacBundler.start(bundlerSettings, MacBundler.TargetArchitecture.ARM64, app,DEST_DIR, RELEASE_DIR));
+            out.setResultForType(
+                    "mac",
+                    MacBundler.start(bundlerSettings, MacBundler.TargetArchitecture.X64, app,DEST_DIR, RELEASE_DIR)
+            );
+            out.setResultForType(
+                    "mac-x64",
+                    out.getResultForType("mac", false)
+            );
+            out.setResultForType(
+                    "mac-arm64",
+                    MacBundler.start(bundlerSettings, MacBundler.TargetArchitecture.ARM64, app,DEST_DIR, RELEASE_DIR)
+            );
             out.setResultForType("win", WindowsBundler2.start(bundlerSettings, app,DEST_DIR, RELEASE_DIR));
-            out.setResultForType("win-installer", WindowsBundler2.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true));
+            out.setResultForType(
+                    "win-installer",
+                    WindowsBundler2.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true)
+            );
             out.setResultForType("linux", LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR));
-            out.setResultForType("linux-installer", LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true));
+            out.setResultForType(
+                    "linux-installer",
+                    LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true)
+            );
             return out;
         }
         
@@ -283,19 +305,6 @@ public class Bundler {
 
         return app;
 
-    }
-
-    private static void verifyApp(AppDescription app) throws Exception {
-        //int mainCount = 0;
-        //for(Jar jar : app.getJars()) {
-        //    if(jar.isMain()) mainCount++;
-        //}
-        //if(mainCount == 0) {
-        //    throw new Exception("The app must have at least one jar with a main class in it");
-        //}
-        //if(mainCount > 1) {
-        //    throw new Exception("You cannot have more than one jar with a main class set");
-        //}
     }
 
     private static void verifyNativeLibs(AppDescription app) throws Exception {
@@ -362,5 +371,54 @@ public class Bundler {
         }
         fin.close();
         fout.close();
+    }
+
+    private static enum Target {
+        MacX64,
+        MacArm,
+        WinX64,
+        LinuxX64,
+
+        MacX64Installer,
+
+        MacArmInstaller,
+
+        WinX64Installer,
+
+        LinuxX64Installer,
+
+        All;
+
+        static Target fromString(String target) {
+            if("mac".equals(target) || "mac-x64".equals(target)) {
+                return MacX64;
+            }
+
+            if ("mac-arm64".equals(target)) {
+                return MacArm;
+            }
+
+            if("win".equals(target)) {
+                return WinX64;
+            }
+            if("win-installer".equals(target)) {
+                return WinX64Installer;
+
+            }
+
+            if ("linux".equals(target)) {
+                return LinuxX64;
+
+            }
+            if ("linux-installer".equals(target)) {
+                return LinuxX64Installer;
+            }
+
+            if("all".equals(target)) {
+                return All;
+            }
+
+            throw new IllegalArgumentException("Target " + target + " not recognized as supported target.");
+        }
     }
 }

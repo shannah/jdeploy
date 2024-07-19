@@ -5,22 +5,17 @@
  */
 package ca.weblite.jdeploy.app;
 
-
 import ca.weblite.tools.platform.Platform;
 
 import com.client4j.Client4J;
-import com.client4j.CommonRuntimes;
 import com.client4j.ResourceInfo;
 import com.client4j.security.RuntimeGrantedPermission;
 import com.client4j.security.RuntimeGrantedPermissions;
-
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
 import java.util.jar.Attributes.Name;
 import java.util.jar.Manifest;
-
-
 
 /**
  *
@@ -74,7 +69,6 @@ public class AppInfo  {
         }
         return urlSchemes;
     }
-    
 
     private Map<String, String> documentMimetypes() {
         if (documentMimetypes == null) documentMimetypes = new HashMap<>();
@@ -126,10 +120,6 @@ public class AppInfo  {
         return null;
     }
 
-
-
-    
-    
     /**
      * @return the tagline
      */
@@ -180,7 +170,6 @@ public class AppInfo  {
     public void setCodeSignSettings(CodeSignSettings settings) {
         if (!Objects.equals(settings, codeSignSettings)) {
             codeSignSettings = settings;
-
         }
     }
     
@@ -378,12 +367,8 @@ public class AppInfo  {
         }
 
         public void clear() {
-
             permissions.clear();
-
         }
-        
-        
     }
     
     /**
@@ -393,8 +378,6 @@ public class AppInfo  {
         return permissions;
     }
 
-
-    
     /**
      * @return the dependencies
      */
@@ -431,14 +414,11 @@ public class AppInfo  {
             }
         }
         return out;
-        
     }
-            
-    
+
     public static class Permission implements Comparable<Permission> {
         
         public Permission() {
-            
         }
         
         public Permission(Permission toCopy) {
@@ -574,16 +554,13 @@ public class AppInfo  {
             return hash;
         }
         
-        
-        
         public static List<Permission> copy(List<Permission> src, List<Permission> dest) {
             for (Permission perm : src) {
                 dest.add(perm.copy());
             }
             return dest;
         }
-        
-        
+
         @Override
         public int compareTo(Permission perm) {
             return (name + ":" + target + ":" + action)
@@ -597,9 +574,6 @@ public class AppInfo  {
             if (target != null) target = target.trim();
             if (action != null) action = action.trim();
         }
-
-        
-        
     }
     
     public static class JRE extends Observable {
@@ -623,8 +597,6 @@ public class AppInfo  {
             return "JRE{version:"+version+", os:"+os+", arch:"+arch+", url:"+url+", fx: "+fx+"}";
         }
 
-        
-        
         /**
          * @return the version
          */
@@ -706,9 +678,6 @@ public class AppInfo  {
             
         }
         
-        
-        
-        
         public boolean isSupported() {
             return new Platform(os, arch).matchesSystem();
             
@@ -740,9 +709,7 @@ public class AppInfo  {
             if (fx) hash +=1;
             return hash;
         }
-        
-        
-        
+
         private URL url;
         
         private String os, arch, version;
@@ -819,13 +786,9 @@ public class AppInfo  {
             hash = 47 * hash + Objects.hashCode(this.title);
             return hash;
         }
-        
-        
-        
+
         private URL url;
         private String title;
-
-        
     }
     
     public static class Dependency extends Observable {
@@ -1000,13 +963,6 @@ public class AppInfo  {
             hash = 89 * hash + Objects.hashCode(this.version);
             return hash;
         }
-
-        
-        
-        
-        
-       
-        
         
         public boolean isSupported() {
             return new Platform(platform, arch).matchesSystem();
@@ -1022,16 +978,7 @@ public class AppInfo  {
         private boolean trusted;
         private String jarName;
         private String platform, arch, commonName, version;
-        
     }
-
-    
-
-
-
-    
-    
-    
     
     private URL url(URL baseUrl, String url) {
         try {
@@ -1054,7 +1001,6 @@ public class AppInfo  {
             throw new RuntimeException(mex);
         }
     }
-    
 
     /**
      * @return the installed
@@ -1100,8 +1046,7 @@ public class AppInfo  {
 
         }
     }
-    
-   
+
     public int getNumScreenshots() {
         return numScreenshots;
     }
@@ -1149,10 +1094,8 @@ public class AppInfo  {
     }
     
     public AppInfo() {
-        
     }
-    
-    
+
     public PermissionsList getPermissions(boolean init) {
         if (permissions == null && init) {
             permissions = new PermissionsList();
@@ -1268,8 +1211,6 @@ public class AppInfo  {
         }
         out.appURL = appURL;
         out.installed = installed;
-
-        
         out.numScreenshots = numScreenshots;
         out.updates = updates;
         
@@ -1286,8 +1227,7 @@ public class AppInfo  {
                 out.runtimes.add(r.copy());
             }
         }
-        
-        
+
         return out;
     }
 
@@ -1415,27 +1355,17 @@ public class AppInfo  {
         CodeSign,
         CodeSignAndNotarize
     }
-    
-    
-    //private String title, description, changes;
+
     private PermissionsList permissions;
-    //private String vendor;
-    //private String version;
     private URL icon;
     private List<URL> screenshots;
     private URL appURL;
     private boolean installed;
-    //private QuickLinks quickLinks;
     private int numScreenshots;
     private Updates updates = Updates.Auto;
     private List<Dependency> dependencies;
     private List<JRE> runtimes;
     private CodeSignSettings codeSignSettings = CodeSignSettings.None;
     
-    
     private String macAppBundleId;
-    
-    
-    
-  
 }
