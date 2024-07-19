@@ -14,3 +14,5 @@ cd ../TextEditor6
 bash test.sh
 cd ../TextEditor7
 bash test.sh
+cd ../TextEditorCodesign
+bash test.sh

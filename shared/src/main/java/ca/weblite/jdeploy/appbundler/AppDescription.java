@@ -36,6 +36,8 @@ public class AppDescription {
     private String macNotarizationPassword;
     private List<String> urlSchemes;
 
+    private String macDeveloperTeamID;
+
 
     public AppDescription() {
 
@@ -169,13 +171,20 @@ public class AppDescription {
         return enableMacCodeSigning && getMacCertificateName() != null;
     }
     
-    public void enableMacNotarization(String developerId, String notarizationPassword) {
+    public void enableMacNotarization(
+            String developerId,
+            String notarizationPassword,
+            String developerTeamID
+    ) {
         enableMacNotarization = true;
         if (developerId != null) {
             setMacDeveloperID(developerId);
         }
         if (notarizationPassword != null) {
             this.setMacNotarizationPassword(notarizationPassword);
+        }
+        if (developerTeamID != null) {
+            this.setMacDeveloperTeamID(developerTeamID);
         }
         
     }
@@ -187,6 +196,7 @@ public class AppDescription {
     public boolean isMacNotarizationEnabled() {
         return enableMacNotarization && getMacDeveloperID() != null && getMacNotarizationPassword() != null;
     }
+
     
     /**
      * @return the macCertificateName
@@ -209,11 +219,19 @@ public class AppDescription {
         return macDeveloperID;
     }
 
+    public String getMacDeveloperTeamID() {
+        return macDeveloperTeamID;
+    }
+
     /**
      * @param macDeveloperID the macDeveloperID to set
      */
     public void setMacDeveloperID(String macDeveloperID) {
         this.macDeveloperID = macDeveloperID;
+    }
+
+    public void setMacDeveloperTeamID(String macDeveloperTeamID) {
+        this.macDeveloperTeamID = macDeveloperTeamID;
     }
 
     /**

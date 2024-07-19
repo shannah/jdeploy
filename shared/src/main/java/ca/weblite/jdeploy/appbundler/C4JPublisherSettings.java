@@ -36,6 +36,8 @@ public class C4JPublisherSettings {
     private static final ObservableImpl observable = new ObservableImpl();
     private static final String MAC_DEVELOPER_CERTIFICATE_NAME = "mac.developer-certificate-name";
     private static final String MAC_DEVELOPER_ID = "mac.developer-id";
+
+    private static final String MAC_DEVELOPER_TEAM_ID = "mac.developer-team-id";
     private static final String MAC_NOTORIZATION_PASSWORD = "mac.notarization-password";
     private static final String MAC_SIGNING_SETTINGS = "mac.signing-settings";
     private static final String MAC_APPS_NODE = "mac.apps";
@@ -148,6 +150,18 @@ public class C4JPublisherSettings {
             return "";
         }
         return jDeployProperties.getProperty(appInfo.getNpmPackage()+"."+MAC_DEVELOPER_ID, node.get(MAC_DEVELOPER_ID, ""));
+    }
+
+    public static String getMacDeveloperTeamID(AppInfo appInfo) {
+        String teamId = System.getenv("JDEPLOY_MAC_DEVELOPER_TEAM_ID");
+        if (teamId != null) {
+            return teamId;
+        }
+        Preferences node = getAppNode(appInfo);
+        if (node == null) {
+            return "";
+        }
+        return jDeployProperties.getProperty(appInfo.getNpmPackage()+"."+MAC_DEVELOPER_TEAM_ID, node.get(MAC_DEVELOPER_TEAM_ID, ""));
     }
     
     public static void setMacDeveloperID(AppInfo appInfo, String id) {

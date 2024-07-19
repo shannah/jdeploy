@@ -274,18 +274,27 @@ public class JDeploy {
         }
         return packageJsonMap;
     }
-    
+
+    /**
+     * Get package.json root object as a map.
+     */
     private Map m() {
         return getPackageJsonMap();
     }
-    
+
+    /**
+     * Get jdeploy config object as a Map
+     */
     private Map mj() {
         if (!m().containsKey("jdeploy")) {
             m().put("jdeploy", new HashMap());
         }
         return (Map)m().get("jdeploy");
     }
-    
+
+    /**
+     * Get jdeploy config as a Result object
+     */
     private Result rj() {
         return Result.fromContent(mj());
     }
@@ -1464,8 +1473,18 @@ public class JDeploy {
                 )
         );
 
-        appInfo.setNpmAllowPrerelease("true".equals(getenv("JDEPLOY_BUNDLE_PRERELEASE", getString("prerelease", "false"))));
-        if (PrereleaseHelper.isPrereleaseVersion(appInfo.getNpmVersion()) || PrereleaseHelper.isPrereleaseVersion(appInfo.getVersion())) {
+        appInfo.setNpmAllowPrerelease(
+                "true".equals(
+                        getenv(
+                                "JDEPLOY_BUNDLE_PRERELEASE",
+                                getString("prerelease", "false")
+                        )
+                )
+        );
+        if (
+                PrereleaseHelper.isPrereleaseVersion(appInfo.getNpmVersion()) ||
+                        PrereleaseHelper.isPrereleaseVersion(appInfo.getVersion())
+        ) {
             appInfo.setNpmAllowPrerelease(true);
         }
         appInfo.setFork("true".equals(getString("fork", "false")));
@@ -1504,22 +1523,12 @@ public class JDeploy {
 
     }
 
-
-
-    public void macBundle(BundlerSettings bundlerSettings) throws Exception {
-        macIntelBundle(bundlerSettings);
-    }
-
     public void macIntelBundle(BundlerSettings bundlerSettings) throws Exception {
         bundle(BUNDLE_MAC_X64, bundlerSettings);
     }
 
     public void macArmBundle(BundlerSettings bundlerSettings) throws Exception {
         bundle(BUNDLE_MAC_ARM64, bundlerSettings);
-    }
-
-    public void macInstaller() throws Exception {
-
     }
 
     public void windowsBundle(BundlerSettings bundlerSettings) throws Exception {
@@ -1535,11 +1544,6 @@ public class JDeploy {
 
     public void linuxInstallerBundle(BundlerSettings bundlerSettings) throws Exception {
         bundle("linux-installer", bundlerSettings);
-    }
-
-
-    public void allBundles() throws Exception {
-        allBundles(new BundlerSettings());
     }
 
     public void allBundles(BundlerSettings bundlerSettings) throws Exception {
@@ -1573,8 +1577,6 @@ public class JDeploy {
             }
             installer(target, version, bundlerSettings);
         }
-
-
     }
 
     public void bundle(String target) throws Exception {
@@ -1588,7 +1590,13 @@ public class JDeploy {
             appInfo.setNpmSource(bundlerSettings.getSource());
         }
 
-        Bundler.runit(bundlerSettings, appInfo, appInfo.getAppURL().toString(), target, "jdeploy" + File.separator + "bundles", "jdeploy" + File.separator + "releases");
+        Bundler.runit(
+                bundlerSettings,
+                appInfo,
+                appInfo.getAppURL().toString(),
+                target, "jdeploy" + File.separator + "bundles",
+                "jdeploy" + File.separator + "releases"
+        );
     }
 
     public void installer(String target, String version) throws Exception {
