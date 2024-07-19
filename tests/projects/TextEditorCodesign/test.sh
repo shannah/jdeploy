@@ -10,11 +10,6 @@ if [ "$(uname)" != "Darwin" ]; then
   exit 0
 fi
 
-if [ -z "$JDEPLOY_MAC_APP_BUNDLE_ID" ]; then
-  echo "Skipping test because JDEPLOY_MAC_APP_BUNDLE_ID environment variable is not set"
-  exit 0
-fi
-
 if [ -z "$JDEPLOY_MAC_NOTARIZATION_PASSWORD" ]; then
   echo "Skipping test because JDEPLOY_MAC_NOTARIZATION_PASSWORD environment variable is not set"
   exit 0
