@@ -34,7 +34,13 @@ public class MacBundler {
         ARM64
     }
 
-    public static BundlerResult start(BundlerSettings bundlerSettings, TargetArchitecture targetArchitecture, AppDescription app, String dest_dir, String releaseDir) throws Exception {
+    public static BundlerResult start(
+            BundlerSettings bundlerSettings,
+            TargetArchitecture targetArchitecture,
+            AppDescription app,
+            String dest_dir,
+            String releaseDir
+    ) throws Exception {
         String OSNAME_WITH_ARCH = OSNAME+"-" + targetArchitecture.name().toLowerCase();
         verboseLevel = Bundler.verboseLevel;
         File destDir = new File(dest_dir+"/"+OSNAME_WITH_ARCH+"/");
@@ -66,14 +72,14 @@ public class MacBundler {
                 if(ifile.exists()) {
                     processIcon(app, contentsDir, ext, ifile);
                 }
-                
             }
         }
         processInfoPlist(app,contentsDir);
         processAppXml(app, contentsDir);
         Bundler.copyStream(
                 MacBundler.class.getResourceAsStream("PkgInfo.txt"),
-                new FileOutputStream(new File(contentsDir,"PkgInfo")));
+                new FileOutputStream(new File(contentsDir,"PkgInfo"))
+        );
 
         InputStream stub_path = getClient4JLauncherResource(targetArchitecture);
         File stub_dest = new File(contentsDir,"MacOS/Client4JLauncher");
@@ -105,6 +111,13 @@ public class MacBundler {
                 ex.printStackTrace();
             }
 
+            if (app.getBundleJre() != null && app.getBundleJre().exists()) {
+                MacOSFileHandler.copyOrExtract(
+                        app.getBundleJre().getAbsolutePath(),
+                        Paths.get(contentsDir.getPath(), "jre").toString()
+                );
+            }
+
             if (app.isMacCodeSigningEnabled()) {
                 System.out.println("Signing "+appDir.getAbsolutePath());
 
@@ -112,7 +125,10 @@ public class MacBundler {
                 if (!entitlementsFile.exists()) {
                     entitlementsFile = File.createTempFile("jdeploy.mac.bundle", ".entitlements");
                     entitlementsFile.deleteOnExit();
-                    FileUtils.copyInputStreamToFile(MacBundler.class.getResourceAsStream("mac.bundle.entitlements"), entitlementsFile);
+                    FileUtils.copyInputStreamToFile(
+                            MacBundler.class.getResourceAsStream("mac.bundle.entitlements"),
+                            entitlementsFile
+                    );
                 }
                 {
                     ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign",

@@ -5,6 +5,7 @@
 
 package ca.weblite.jdeploy.appbundler;
 
+import java.io.File;
 import java.util.*;
 
 /**
@@ -38,6 +39,7 @@ public class AppDescription {
 
     private String macDeveloperTeamID;
 
+    private File bundleJre;
 
     public AppDescription() {
 
@@ -294,5 +296,13 @@ public class AppDescription {
 
     public void setFork(boolean fork) {
         this.fork = fork;
+    }
+
+    public void setBundleJre(File bundleJre) {
+        this.bundleJre = bundleJre;
+    }
+
+    public File getBundleJre() {
+        return bundleJre;
     }
 }

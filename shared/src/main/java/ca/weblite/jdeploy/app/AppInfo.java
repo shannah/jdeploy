@@ -51,8 +51,20 @@ public class AppInfo  {
 
     private Set<String> urlSchemes;
 
+    /**
+     * Indicates that the app should use a dedicated JVM rather than the default shared JVM.
+     * This is required for Java 8 on Windows (at least) since Java 8 didn't provide a way to
+     * use a JRE at an arbitrary location.  This is no longer necessary in Java 9+, but we may
+     * want to employ its use for other reasons.
+     */
     private boolean usePrivateJVM = false;
 
+    /**
+     * Indicates that the build should include an embedded JRE as part of the app bundle.
+     */
+    private boolean useBundledJVM = false;
+
+    private JVMSpecification jvmSpecification;
 
     public void addUrlScheme(String scheme) {
         if (urlSchemes == null) urlSchemes = new HashSet<>();
@@ -320,6 +332,21 @@ public class AppInfo  {
         this.usePrivateJVM = usePrivateJVM;
     }
 
+    public boolean isUseBundledJVM() {
+        return useBundledJVM;
+    }
+
+    public void setUseBundledJVM(boolean useBundledJVM) {
+        this.useBundledJVM = useBundledJVM;
+    }
+
+    public void setJVMSpecification(JVMSpecification spec) {
+        jvmSpecification = spec;
+    }
+
+    public JVMSpecification getJVMSpecification() {
+        return jvmSpecification;
+    }
 
     public static enum Updates {
         Auto,
@@ -1192,6 +1219,8 @@ public class AppInfo  {
         out.setWindowsInstallerUrl(getWindowsInstallerUrl());
         out.setLinuxAppUrl(getLinuxAppUrl());
         out.setLinuxInstallerUrl(getLinuxInstallerUrl());
+        out.setUsePrivateJVM(isUsePrivateJVM());
+        out.setUseBundledJVM(isUseBundledJVM());
         out.codeSignSettings = codeSignSettings;
         out.macAppBundleId = macAppBundleId;
         if (permissions != null) {

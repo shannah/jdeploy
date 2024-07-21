@@ -219,6 +219,8 @@ class JCAXMLParser {
         if (el.hasAttribute("vendor")) target.setVendor(el.getAttribute("vendor").trim());
         if (el.hasAttribute("url")) target.setAppURL(url(repositoryURL, el.getAttribute("url").trim()));
         if (el.hasAttribute("updates")) target.setUpdates(AppInfo.Updates.valueOf(el.getAttribute("updates").trim()));
+        if (el.hasAttribute("usePrivateJVM")) target.setUsePrivateJVM(Boolean.parseBoolean(el.getAttribute("usePrivateJVM")));
+        if (el.hasAttribute("useBundledJVM")) target.setUseBundledJVM(Boolean.parseBoolean(el.getAttribute("useBundledJVM")));
         if (el.hasAttribute("codeSignSettings")) {
             target.setCodeSignSettings(AppInfo.CodeSignSettings.values()[Integer.parseInt(el.getAttribute("codeSignSettings"))]);
         }
