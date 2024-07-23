@@ -72,6 +72,8 @@ fi
 # Check that launcher was created
 if [ ! -f "$LAUNCHER_PATH" ]; then
   echo "Expected launcher to be created at $LAUNCHER_PATH, but it was not found"
+  echo "Contents of $bundles directory:"
+  find ./jdeploy/bundles
   exit 1
 else
   echo "Launcher was created successfully at $LAUNCHER_PATH"
@@ -86,8 +88,6 @@ sleep 5
 # Check if the jdeploy-it-test-project.json file was created
 if [ ! -f "$HOME/jdeploy-it-test-project.json" ]; then
   echo "jdeploy-it-test-project.json file was not created"
-  echo "Contents of $bundles directory:"
-  find ./jdeploy/bundles
   exit 1
 else
   echo "jdeploy-it-test-project.json file was created"
