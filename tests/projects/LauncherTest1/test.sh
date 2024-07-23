@@ -71,15 +71,15 @@ fi
 
 # Check that launcher was created
 if [ ! -f "$LAUNCHER_PATH" ]; then
-  echo "Launcher was not created"
+  echo "Expected launcher to be created at $LAUNCHER_PATH, but it was not found"
   exit 1
 else
-  echo "Launcher was created"
+  echo "Launcher was created successfully at $LAUNCHER_PATH"
 fi
 
-echo "Running JDeploy IT Test project bundle"
+echo "Testing launcher"
 "$LAUNCHER_PATH"
-echo "JDeploy IT Test project bundle test complete"
+echo "Launcher appeared to launch successfully.  Waiting 5 seconds before checking for jdeploy-it-test-project.json"
 
 sleep 5
 
