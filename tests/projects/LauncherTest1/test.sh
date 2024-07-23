@@ -29,7 +29,7 @@ fi
 # if running on windows, then add the windows-x64 bundle to the bundles array
 if [ "$(expr substr $(uname -s) 1 10)" == "MINGW64_NT" ]; then
   BUNDLES='["win"]'
-  LAUNCHER_PATH=./jdeploy/bundles/win/Jdeploy\ It\ Test\ Project.exe
+  LAUNCHER_PATH=./jdeploy/bundles/windows/Jdeploy\ It\ Test\ Project.exe
 fi
 
 # if bundles not set, then skip this test as we are obviously not running on a target platform
