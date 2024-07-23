@@ -38,6 +38,10 @@ if [ -z "$BUNDLES" ]; then
   exit 0
 fi
 
+if [ -f "$LAUNCHER_PATH" ]; then
+  rm -f "$LAUNCHER_PATH"
+fi
+
 JDEPLOY_CONFIG="$(printf  '{"jdeployHome": "%s"}', "$SCRIPTPATH/jdeploy/home")" java -jar "$JDEPLOY" clean package
 if [ ! -d "jdeploy-bundle" ]; then
   echo "Missing jdeploy-bundle\n"
@@ -65,20 +69,24 @@ if [ -f "$HOME/jdeploy-it-test-project.json" ]; then
 fi
 
 
-# If running on macOS on ARM, then run the jdeploy/bundles/"Jdeploy It Test Project.app"/Conents/MacOS/Client4JLauncher script
-if [ "$(uname)" == "Darwin" ] && [ "$(uname -m)" == "arm64" ]; then
-  echo "Running JDeploy IT Test project bundle on macOS ARM"
-  ./jdeploy/bundles/mac-arm64/Jdeploy\ It\ Test\ Project.app/Contents/MacOS/Client4JLauncher
+# Check that launcher was created
+if [ ! -f "$LAUNCHER_PATH" ]; then
+  echo "Launcher was not created"
+  exit 1
+else
+  echo "Launcher was created"
 fi
 
-# Check if running on intel mac
-if [ "$(uname)" == "Darwin" ] && [ "$(uname -m)" == "x86_64" ]; then
-  echo "Running JDeploy IT Test project bundle on macOS Intel"
-  ./jdeploy/bundles/mac-x64/Jdeploy\ It\ Test\ Project.app/Contents/MacOS/Client4JLauncher
-fi
+echo "Running JDeploy IT Test project bundle"
+"$LAUNCHER_PATH"
+echo "JDeploy IT Test project bundle test complete"
+
+sleep 5
 
 # Check if the jdeploy-it-test-project.json file was created
 if [ ! -f "$HOME/jdeploy-it-test-project.json" ]; then
   echo "jdeploy-it-test-project.json file was not created"
   exit 1
+else
+  echo "jdeploy-it-test-project.json file was created"
 fi
