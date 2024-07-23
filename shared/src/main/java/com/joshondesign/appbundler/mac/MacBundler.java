@@ -15,8 +15,7 @@ import java.io.*;
 import java.net.URL;
 import java.nio.file.Paths;
 import java.text.MessageFormat;
-import java.util.Iterator;
-import java.util.Scanner;
+import java.util.*;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
@@ -238,20 +237,31 @@ public class MacBundler {
             app.setIconDataURI("");
         }
         if (app.getNpmPackage() != null && app.getNpmVersion() != null) {
-
-            out.start("app",
-                    "name", app.getName(),
-                    "package", app.getNpmPackage(),
-                    "source", app.getNpmSource(),
-                    "version", app.getNpmVersion(),
-                    "icon", app.getIconDataURI(),
-                    "prerelease", app.isNpmPrerelease() ? "true" : "false",
-                    "fork", ""+app.isFork()
-            ).end();
+            out.start("app", getNpmAppAttributes(app)).end();
         } else {
             out.start("app", "name", app.getName(), "url", app.getUrl(), "icon", app.getIconDataURI()).end();
         }
         out.close();
+    }
+
+    private static String[] getNpmAppAttributes(AppDescription app) {
+
+        List<String> atts = new ArrayList<String>(Arrays.asList(new String[] {
+                "name", app.getName(),
+                "package", app.getNpmPackage(),
+                "source", app.getNpmSource(),
+                "version", app.getNpmVersion(),
+                "icon", app.getIconDataURI(),
+                "prerelease", app.isNpmPrerelease() ? "true" : "false",
+                "fork", ""+app.isFork()
+        }));
+
+        if (app.getjDeployHome() != null || app.getjDeployHomeMac() != null) {
+            atts.add("jdeploy-home");
+            atts.add(app.getjDeployHomeMac() == null ? app.getjDeployHome() : app.getjDeployHomeMac());
+        }
+
+        return atts.toArray(new String[0]);
     }
     
     private static void createThumbnail(File f, File contentsDir, int size) throws IOException {

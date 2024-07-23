@@ -29,6 +29,14 @@ public class AppInfo  {
     private String windowsInstallerUrl;
     private String linuxInstallerUrl;
     private String githubRepositoryUrl;
+
+    private String macJdeployHome;
+
+    private String windowsJdeployHome;
+
+    private String linuxJdeployHome;
+
+    private String jdeployHome;
     private String tagLine;
     private String title;
     private String description;
@@ -173,6 +181,38 @@ public class AppInfo  {
             this.macAppBundleId = macAppBundleId;
 
         }
+    }
+
+    public void setMacJdeployHome(String macJdeployHome) {
+        this.macJdeployHome = macJdeployHome;
+    }
+
+    public String getMacJdeployHome() {
+        return macJdeployHome;
+    }
+
+    public void setWindowsJdeployHome(String windowsJdeployHome) {
+        this.windowsJdeployHome = windowsJdeployHome;
+    }
+
+    public String getWindowsJdeployHome() {
+        return windowsJdeployHome;
+    }
+
+    public void setLinuxJdeployHome(String linuxJdeployHome) {
+        this.linuxJdeployHome = linuxJdeployHome;
+    }
+
+    public String getLinuxJdeployHome() {
+        return linuxJdeployHome;
+    }
+
+    public void setJdeployHome(String jdeployHome) {
+        this.jdeployHome = jdeployHome;
+    }
+
+    public String getJdeployHome() {
+        return jdeployHome;
     }
 
     public CodeSignSettings getCodeSignSettings() {
@@ -1257,6 +1297,11 @@ public class AppInfo  {
             }
         }
 
+        out.jdeployHome = jdeployHome;
+        out.macJdeployHome = macJdeployHome;
+        out.windowsJdeployHome = windowsJdeployHome;
+        out.linuxJdeployHome = linuxJdeployHome;
+
         return out;
     }
 
@@ -1354,7 +1399,11 @@ public class AppInfo  {
             macAppBundleId, o.macAppBundleId,
                 npmPackage, o.npmPackage,
                 npmVersion, o.npmVersion,
-                npmAllowPrerelease, o.npmAllowPrerelease
+                npmAllowPrerelease, o.npmAllowPrerelease,
+                jdeployHome, o.jdeployHome,
+                macJdeployHome, o.macJdeployHome,
+                windowsJdeployHome, o.windowsJdeployHome,
+                linuxJdeployHome, o.linuxJdeployHome,
             
         });
     }

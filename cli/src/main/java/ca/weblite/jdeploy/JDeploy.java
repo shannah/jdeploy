@@ -271,13 +271,42 @@ public class JDeploy {
         if (packageJsonMap == null) {
             try {
                 JSONParser p = new JSONParser();
-                packageJsonMap = (Map)p.parseJSON(new StringReader(FileUtils.readFileToString(getPackageJsonFile(), "UTF-8")));
+                packageJsonMap = (Map)p.parseJSON(
+                        new StringReader(
+                                FileUtils.readFileToString(getPackageJsonFile(),
+                                        "UTF-8"
+                                )
+                        )
+                );
+                if (packageJsonMap.containsKey("jdeploy")) {
+                    ((Map)packageJsonMap.get("jdeploy")).putAll(getJdeployConfigOverrides());
+                } else {
+                    packageJsonMap.put("jdeploy", getJdeployConfigOverrides());
+                }
             } catch (IOException ex) {
                 Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
                 throw new RuntimeException(ex);
             }
         }
         return packageJsonMap;
+    }
+
+    private Map<String,?> getJdeployConfigOverrides() {
+        Map<String,?> overrides = new HashMap<String,Object>();
+        if (System.getenv("JDEPLOY_CONFIG") != null) {
+            System.out.println("Found JDEPLOY_CONFIG environment variable");
+            System.out.println("Injecting jdeploy config overrides from environment variable");
+            System.out.println(System.getenv("JDEPLOY_CONFIG"));
+            try {
+                JSONParser p = new JSONParser();
+                Map m = (Map)p.parseJSON(new StringReader(System.getenv("JDEPLOY_CONFIG")));
+                overrides.putAll(m);
+            } catch (IOException ex) {
+                Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+
+        return overrides;
     }
 
     /**
@@ -1507,6 +1536,20 @@ public class JDeploy {
             jvmSpec.javafx = "true".equals(getString("javafx", "false"));
             jvmSpec.jdk = "true".equals(getString("jdk", "false"));
             appInfo.setJVMSpecification(jvmSpec);
+        }
+
+        if (mj().get("jdeployHome") != null) {
+            System.out.println("Setting jdeployHome to "+rj().getAsString("jdeployHome"));
+            appInfo.setJdeployHome(rj().getAsString("jdeployHome"));
+        }
+        if (mj().get("jdeployHomeLinux") != null) {
+            appInfo.setLinuxJdeployHome(rj().getAsString("jdeployHomeLinux"));
+        }
+        if (mj().get("jdeployHomeMac") != null) {
+            appInfo.setMacJdeployHome(rj().getAsString("jdeployHomeMac"));
+        }
+        if (mj().get("jdeployHomeWindows") != null) {
+            appInfo.setWindowsJdeployHome(rj().getAsString("jdeployHomeWindows"));
         }
 
         String jarPath = getString("jar", null);

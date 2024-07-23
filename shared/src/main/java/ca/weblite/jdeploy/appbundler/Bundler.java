@@ -84,6 +84,10 @@ public class Bundler {
         app.setFork(appInfo.isFork());
         URL iconURL = URLUtil.url(appInfo.getAppURL(), "icon.png");
         app.setIconDataURI(toDataURI(iconURL));
+        app.setjDeployHome(appInfo.getJdeployHome());
+        app.setjDeployHomeLinux(appInfo.getLinuxJdeployHome());
+        app.setjDeployHomeMac(appInfo.getMacJdeployHome());
+        app.setjDeployHomeWindows(appInfo.getWindowsJdeployHome());
 
         if (url == null) throw new IllegalArgumentException("URL is required. It can be a file: url");
 
@@ -227,6 +231,16 @@ public class Bundler {
                             bitness
                     )
             );
+
+            if (app.getNpmVersion() != null && !app.getNpmVersion().isEmpty()) {
+                // Add a qualifier to the version so that auto updates don't go beyond
+                // what the bundled VM can handle
+                app.setNpmVersion(app.getNpmVersion() + "[" +
+                        (jvmSpecification.jdk? "jdk" : "jre") +
+                        jvmSpecification.javaVersion +
+                        (jvmSpecification.javafx ? "fx" : "") +
+                        "]");
+            }
 
         }
     }

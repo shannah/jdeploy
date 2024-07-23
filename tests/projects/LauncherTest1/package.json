@@ -1,0 +1,38 @@
+{
+    "bin": {
+        "jdeploy-it-test-project": "jdeploy-bundle/jdeploy.js"
+    },
+    "author": "",
+    "description": "jDeploy Integration Test Project",
+    "main": "index.js",
+    "preferGlobal": true,
+    "repository": "",
+    "source": "https://github.com/shannah/jdeploy-it-test-project",
+    "version": "0.0.0-master",
+    "jdeploy": {
+        "jdk": false,
+        "javaVersion": "17",
+        "jar": "target/jdeploy-it-test-project-1.0-SNAPSHOT.jar",
+        "javafx": false,
+        "title": "Jdeploy It Test Project",
+        "bundles": [
+            "mac-arm64"
+        ],
+        "commitHash": "f5ebc668b69b2b0b12e7e2ead2b75d56be3efe3b"
+    },
+    "dependencies": {
+        "command-exists-promise": "^2.0.2",
+        "node-fetch": "2.6.7",
+        "shelljs": "^0.8.4",
+        "tar": "^4.4.8",
+        "yauzl": "^2.10.0"
+    },
+    "license": "ISC",
+    "name": "jdeploy-it-test-project",
+    "files": [
+        "jdeploy-bundle"
+    ],
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    }
+}

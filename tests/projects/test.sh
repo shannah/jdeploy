@@ -18,3 +18,5 @@ cd ../TextEditorCodesign
 bash test.sh
 cd ../TextEditorBundleJRECodesign
 bash test.sh
+cd ../LauncherTest1
+bash test.sh
