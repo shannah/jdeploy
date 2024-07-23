@@ -15,9 +15,6 @@
         "jar": "target/jdeploy-it-test-project-1.0-SNAPSHOT.jar",
         "javafx": false,
         "title": "Jdeploy It Test Project",
-        "bundles": [
-            "mac-arm64"
-        ],
         "commitHash": "f5ebc668b69b2b0b12e7e2ead2b75d56be3efe3b"
     },
     "dependencies": {

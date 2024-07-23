@@ -42,7 +42,7 @@ if [ -f "$LAUNCHER_PATH" ]; then
   rm -f "$LAUNCHER_PATH"
 fi
 
-JDEPLOY_CONFIG="$(printf  '{"jdeployHome": "%s"}', "$SCRIPTPATH/jdeploy/home")" java -jar "$JDEPLOY" clean package
+JDEPLOY_CONFIG="$(printf  '{"jdeployHome": "%s", "bundles": %s}' "$SCRIPTPATH/jdeploy/home" "$BUNDLES" )" java -jar "$JDEPLOY" clean package
 if [ ! -d "jdeploy-bundle" ]; then
   echo "Missing jdeploy-bundle\n"
   exit 1
