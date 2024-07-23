@@ -86,6 +86,8 @@ sleep 5
 # Check if the jdeploy-it-test-project.json file was created
 if [ ! -f "$HOME/jdeploy-it-test-project.json" ]; then
   echo "jdeploy-it-test-project.json file was not created"
+  echo "Contents of $bundles directory:"
+  find ./jdeploy/bundles
   exit 1
 else
   echo "jdeploy-it-test-project.json file was created"
