@@ -2254,6 +2254,9 @@ public class JDeploy {
 
         JSONObject packageJSON = prepublish(bundlerSettings);
         getGithubReleaseFilesDir().mkdirs();
+        if (rj().getAsBoolean("signPackage")) {
+            String
+        }
         new NPM(out, err).pack(publishDir, getGithubReleaseFilesDir(), exitOnFail);
         saveGithubReleaseFiles();
         PackageInfoBuilder builder = new PackageInfoBuilder();
