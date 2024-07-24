@@ -6,16 +6,12 @@ import static org.junit.jupiter.api.condition.OS.MAC;
 import java.security.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 
-@EnabledIfEnvironmentVariables(
-        @EnabledIfEnvironmentVariable(named = "JDEPLOY_TEST_CERTIFICATE_NAME", matches = ".+")
-)
+@EnabledIfEnvironmentVariable(named = "JDEPLOY_TEST_CERTIFICATE_NAME", matches = ".+")
 @EnabledOnOs(MAC)
 public class MacKeyStoreKeyProviderTest {
     private String alias;
-
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -33,7 +29,7 @@ public class MacKeyStoreKeyProviderTest {
 
     @Test
     public void testGetPublicKey() throws Exception {
-        KeyProvider keyProvider = new MacKeyStoreKeyProvider(alias, keyPassword);
+        KeyProvider keyProvider = new MacKeyStoreKeyProvider(alias, null);
         PublicKey retrievedPublicKey = keyProvider.getPublicKey();
         assertNotNull(retrievedPublicKey);
     }

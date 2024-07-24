@@ -32,7 +32,8 @@ public class EnvKeyProviderTest {
     @Test
     public void testGetPrivateKeyFromPEM() throws Exception {
         EnvVarProvider envVarProvider = mock(EnvVarProvider.class);
-        when(envVarProvider.getEnv(PRIVATE_KEY_ENV)).thenReturn(encodeToPEM(privateKey, "PRIVATE KEY"));
+        when(envVarProvider.getEnv(PRIVATE_KEY_ENV))
+                .thenReturn(encodeToPEM(privateKey, "PRIVATE KEY"));
 
         KeyProvider keyProvider = new EnvKeyProvider(envVarProvider);
         PrivateKey retrievedPrivateKey = keyProvider.getPrivateKey();

@@ -1,12 +1,11 @@
 package ca.weblite.tools.security;
+
 import java.io.*;
 import java.nio.file.*;
 import java.security.*;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.xml.bind.DatatypeConverter;
-
 import org.json.JSONObject;
 
 public class FileSigner {
@@ -35,7 +34,7 @@ public class FileSigner {
 
         // Save the manifest signature file
         Path manifestSignaturePath = Paths.get(directoryPath, MANIFEST_SIGNATURE_FILENAME);
-        Files.write(manifestSignaturePath, DatatypeConverter.printHexBinary(manifestSignature).getBytes());
+        Files.write(manifestSignaturePath, encodeHex(manifestSignature).getBytes());
     }
 
     private static JSONObject generateManifest(String directoryPath, PrivateKey privateKey) throws Exception {
@@ -52,8 +51,8 @@ public class FileSigner {
                 byte[] signature = sign(hash, privateKey);
 
                 JSONObject fileEntry = new JSONObject();
-                fileEntry.put("hash", DatatypeConverter.printHexBinary(hash));
-                fileEntry.put("signature", DatatypeConverter.printHexBinary(signature));
+                fileEntry.put("hash", encodeHex(hash));
+                fileEntry.put("signature", encodeHex(signature));
 
                 manifest.put(filePath.toString(), fileEntry);
             }
@@ -78,5 +77,13 @@ public class FileSigner {
         signature.initSign(privateKey);
         signature.update(data);
         return signature.sign();
+    }
+
+    private static String encodeHex(byte[] data) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : data) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 }
