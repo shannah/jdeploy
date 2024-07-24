@@ -1,4 +1,5 @@
 package ca.weblite.tools.security;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.*;
@@ -11,8 +12,6 @@ import java.util.stream.Stream;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.junit.jupiter.api.*;
-
-import javax.xml.bind.DatatypeConverter;
 
 public class FileSignerTest {
 
@@ -83,7 +82,7 @@ public class FileSignerTest {
 
     private boolean verifyManifestSignature(byte[] manifestContent, byte[] manifestSignature, PublicKey publicKey, String version) throws Exception {
         byte[] manifestHash = hashWithVersion(manifestContent, version);
-        byte[] signature = DatatypeConverter.parseHexBinary(new String(manifestSignature));
+        byte[] signature = decodeHex(new String(manifestSignature));
         return verifySignature(manifestHash, signature, publicKey);
     }
 
@@ -102,11 +101,11 @@ public class FileSignerTest {
                 String expectedHash = fileEntry.getString("hash");
                 String signature = fileEntry.getString("signature");
 
-                if (!expectedHash.equals(DatatypeConverter.printHexBinary(hash))) {
+                if (!expectedHash.equals(encodeHex(hash))) {
                     return false;
                 }
 
-                if (!verifySignature(hash, DatatypeConverter.parseHexBinary(signature), publicKey)) {
+                if (!verifySignature(hash, decodeHex(signature), publicKey)) {
                     return false;
                 }
             }
@@ -145,5 +144,23 @@ public class FileSignerTest {
         sig.initVerify(publicKey);
         sig.update(data);
         return sig.verify(signature);
+    }
+
+    private String encodeHex(byte[] data) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : data) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+
+    private byte[] decodeHex(String hex) {
+        int len = hex.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
+                    + Character.digit(hex.charAt(i + 1), 16));
+        }
+        return data;
     }
 }
