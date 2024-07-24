@@ -100,6 +100,20 @@
             <version>0.4.15</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk15on</artifactId>
+            <version>1.70</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk15on</artifactId>
+            <version>1.70</version>
+            <scope>test</scope>
+        </dependency>
+
+
 
         <!-- https://mvnrepository.com/artifact/com.github.gino0631/icns-core -->
         <dependency>
