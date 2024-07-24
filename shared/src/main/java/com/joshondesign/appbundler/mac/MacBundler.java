@@ -15,8 +15,7 @@ import java.io.*;
 import java.net.URL;
 import java.nio.file.Paths;
 import java.text.MessageFormat;
-import java.util.Iterator;
-import java.util.Scanner;
+import java.util.*;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
@@ -34,7 +33,13 @@ public class MacBundler {
         ARM64
     }
 
-    public static BundlerResult start(BundlerSettings bundlerSettings, TargetArchitecture targetArchitecture, AppDescription app, String dest_dir, String releaseDir) throws Exception {
+    public static BundlerResult start(
+            BundlerSettings bundlerSettings,
+            TargetArchitecture targetArchitecture,
+            AppDescription app,
+            String dest_dir,
+            String releaseDir
+    ) throws Exception {
         String OSNAME_WITH_ARCH = OSNAME+"-" + targetArchitecture.name().toLowerCase();
         verboseLevel = Bundler.verboseLevel;
         File destDir = new File(dest_dir+"/"+OSNAME_WITH_ARCH+"/");
@@ -66,14 +71,14 @@ public class MacBundler {
                 if(ifile.exists()) {
                     processIcon(app, contentsDir, ext, ifile);
                 }
-                
             }
         }
         processInfoPlist(app,contentsDir);
         processAppXml(app, contentsDir);
         Bundler.copyStream(
                 MacBundler.class.getResourceAsStream("PkgInfo.txt"),
-                new FileOutputStream(new File(contentsDir,"PkgInfo")));
+                new FileOutputStream(new File(contentsDir,"PkgInfo"))
+        );
 
         InputStream stub_path = getClient4JLauncherResource(targetArchitecture);
         File stub_dest = new File(contentsDir,"MacOS/Client4JLauncher");
@@ -105,6 +110,13 @@ public class MacBundler {
                 ex.printStackTrace();
             }
 
+            if (app.getBundleJre() != null && app.getBundleJre().exists()) {
+                MacOSFileHandler.copyOrExtract(
+                        app.getBundleJre().getAbsolutePath(),
+                        Paths.get(contentsDir.getPath(), "jre").toString()
+                );
+            }
+
             if (app.isMacCodeSigningEnabled()) {
                 System.out.println("Signing "+appDir.getAbsolutePath());
 
@@ -112,7 +124,10 @@ public class MacBundler {
                 if (!entitlementsFile.exists()) {
                     entitlementsFile = File.createTempFile("jdeploy.mac.bundle", ".entitlements");
                     entitlementsFile.deleteOnExit();
-                    FileUtils.copyInputStreamToFile(MacBundler.class.getResourceAsStream("mac.bundle.entitlements"), entitlementsFile);
+                    FileUtils.copyInputStreamToFile(
+                            MacBundler.class.getResourceAsStream("mac.bundle.entitlements"),
+                            entitlementsFile
+                    );
                 }
                 {
                     ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign",
@@ -222,20 +237,31 @@ public class MacBundler {
             app.setIconDataURI("");
         }
         if (app.getNpmPackage() != null && app.getNpmVersion() != null) {
-
-            out.start("app",
-                    "name", app.getName(),
-                    "package", app.getNpmPackage(),
-                    "source", app.getNpmSource(),
-                    "version", app.getNpmVersion(),
-                    "icon", app.getIconDataURI(),
-                    "prerelease", app.isNpmPrerelease() ? "true" : "false",
-                    "fork", ""+app.isFork()
-            ).end();
+            out.start("app", getNpmAppAttributes(app)).end();
         } else {
             out.start("app", "name", app.getName(), "url", app.getUrl(), "icon", app.getIconDataURI()).end();
         }
         out.close();
+    }
+
+    private static String[] getNpmAppAttributes(AppDescription app) {
+
+        List<String> atts = new ArrayList<String>(Arrays.asList(new String[] {
+                "name", app.getName(),
+                "package", app.getNpmPackage(),
+                "source", app.getNpmSource(),
+                "version", app.getNpmVersion(),
+                "icon", app.getIconDataURI(),
+                "prerelease", app.isNpmPrerelease() ? "true" : "false",
+                "fork", ""+app.isFork()
+        }));
+
+        if (app.getjDeployHome() != null || app.getjDeployHomeMac() != null) {
+            atts.add("jdeploy-home");
+            atts.add(app.getjDeployHomeMac() == null ? app.getjDeployHome() : app.getjDeployHomeMac());
+        }
+
+        return atts.toArray(new String[0]);
     }
     
     private static void createThumbnail(File f, File contentsDir, int size) throws IOException {

@@ -6,6 +6,8 @@
 package ca.weblite.jdeploy.appbundler;
 
 import ca.weblite.jdeploy.app.AppInfo;
+import ca.weblite.jdeploy.app.JVMSpecification;
+import ca.weblite.jdeploy.jvmdownloader.JVMKit;
 import ca.weblite.tools.io.URLUtil;
 import com.joshondesign.appbundler.linux.LinuxBundler;
 import com.joshondesign.appbundler.mac.MacBundler;
@@ -19,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
+import java.nio.file.Paths;
 import java.util.Base64;
 import java.util.List;
 
@@ -81,6 +84,10 @@ public class Bundler {
         app.setFork(appInfo.isFork());
         URL iconURL = URLUtil.url(appInfo.getAppURL(), "icon.png");
         app.setIconDataURI(toDataURI(iconURL));
+        app.setjDeployHome(appInfo.getJdeployHome());
+        app.setjDeployHomeLinux(appInfo.getLinuxJdeployHome());
+        app.setjDeployHomeMac(appInfo.getMacJdeployHome());
+        app.setjDeployHomeWindows(appInfo.getWindowsJdeployHome());
 
         if (url == null) throw new IllegalArgumentException("URL is required. It can be a file: url");
 
@@ -185,6 +192,63 @@ public class Bundler {
         }
     }
 
+    private static String getBundlerJVMsPath() {
+        return Paths.get(System.getProperty("user.home"), ".jdeploy", "bundler", "JavaVirtualMachines").toString();
+    }
+
+    private static void setupBundledJVM(AppInfo appInfo, AppDescription app, Target target) throws IOException {
+        if (target != Target.MacX64 && target != Target.MacArm) {
+            // Currently we only support bundling JVM on Mac.
+            return;
+        }
+        if (appInfo.isUseBundledJVM()) {
+            JVMSpecification jvmSpecification = appInfo.getJVMSpecification();
+            if (jvmSpecification == null) {
+                throw new RuntimeException("jvmSpecification is required when useBundledJVM is true");
+            }
+            JVMKit jvmKit = new JVMKit();
+            String arch;
+            String platform = "macos";
+            String bitness = "64";
+            switch (target) {
+                case MacX64:
+                    arch = "x86";
+                    break;
+                case MacArm:
+                    arch = "arm";
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unsupported target: " + target);
+            }
+            app.setBundleJre(
+                    jvmKit.createFinder(true).findJVM(
+                            getBundlerJVMsPath(),
+                            String.valueOf(jvmSpecification.javaVersion),
+                            jvmSpecification.jdk ? "jdk" : "jre",
+                            jvmSpecification.javafx,
+                            platform,
+                            arch,
+                            bitness
+                    )
+            );
+
+            if (app.getNpmVersion() != null && !app.getNpmVersion().isEmpty()) {
+                // Add a qualifier to the version so that auto updates don't go beyond
+                // what the bundled VM can handle
+                app.setNpmVersion(app.getNpmVersion() + "[" +
+                        (jvmSpecification.jdk? "jdk" : "jre") +
+                        jvmSpecification.javaVersion +
+                        (jvmSpecification.javafx ? "fx" : "") +
+                        "]");
+            }
+
+        }
+    }
+
+    private static void cleanupBundledJVM(AppDescription app) {
+        app.setBundleJre(null);
+    }
+
     public static BundlerResult runit(
             BundlerSettings bundlerSettings,
             AppInfo appInfo,
@@ -196,6 +260,7 @@ public class Bundler {
         AppDescription app = createAppDescription(appInfo, url);
         verifyNativeLibs(app);
         Target target = Target.fromString(targetStr);
+        setupBundledJVM(appInfo, app, target);
         if(target == Target.MacX64) {
             BundlerResult bundlerResult =  MacBundler.start(
                     bundlerSettings,
@@ -234,6 +299,7 @@ public class Bundler {
         
         if(target == Target.All) {
             BundlerResult out = new BundlerResult("all");
+            setupBundledJVM(appInfo, app, Target.MacX64);
             out.setResultForType(
                     "mac",
                     MacBundler.start(bundlerSettings, MacBundler.TargetArchitecture.X64, app,DEST_DIR, RELEASE_DIR)
@@ -242,16 +308,24 @@ public class Bundler {
                     "mac-x64",
                     out.getResultForType("mac", false)
             );
+            cleanupBundledJVM(app);
+            setupBundledJVM(appInfo, app, Target.MacArm);
             out.setResultForType(
                     "mac-arm64",
                     MacBundler.start(bundlerSettings, MacBundler.TargetArchitecture.ARM64, app,DEST_DIR, RELEASE_DIR)
             );
+            cleanupBundledJVM(app);
+            setupBundledJVM(appInfo, app, Target.WinX64);
             out.setResultForType("win", WindowsBundler2.start(bundlerSettings, app,DEST_DIR, RELEASE_DIR));
+            cleanupBundledJVM(app);
             out.setResultForType(
                     "win-installer",
                     WindowsBundler2.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true)
             );
+            cleanupBundledJVM(app);
+            setupBundledJVM(appInfo, app, Target.LinuxX64);
             out.setResultForType("linux", LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR));
+            cleanupBundledJVM(app);
             out.setResultForType(
                     "linux-installer",
                     LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true)

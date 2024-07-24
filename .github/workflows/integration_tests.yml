@@ -19,6 +19,8 @@ jobs:
         distribution: 'adopt'
         cache: maven
     - name: Test Linux
+      env:
+        JDEPLOY_TEST_JVM_DOWNLOADS: true
       run: bash build_and_test.sh
      
         
@@ -35,6 +37,8 @@ jobs:
         cache: maven
 
     - name: Test Mac
+      env:
+        JDEPLOY_TEST_JVM_DOWNLOADS: true
       run: bash build_and_test.sh
     
         
@@ -51,6 +55,8 @@ jobs:
         cache: maven
 
     - name: Build Windows
+      env:
+        JDEPLOY_TEST_JVM_DOWNLOADS: true
       run: bash build_and_test.sh
       shell: bash
       

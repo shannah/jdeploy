@@ -5,6 +5,7 @@
 
 package ca.weblite.jdeploy.appbundler;
 
+import java.io.File;
 import java.util.*;
 
 /**
@@ -38,6 +39,13 @@ public class AppDescription {
 
     private String macDeveloperTeamID;
 
+    private File bundleJre;
+
+    private String jDeployHome;
+
+    private String jDeployHomeWindows;
+    private String jDeployHomeMac;
+    private String jDeployHomeLinux;
 
     public AppDescription() {
 
@@ -295,4 +303,46 @@ public class AppDescription {
     public void setFork(boolean fork) {
         this.fork = fork;
     }
+
+    public void setBundleJre(File bundleJre) {
+        this.bundleJre = bundleJre;
+    }
+
+    public File getBundleJre() {
+        return bundleJre;
+    }
+
+
+    public String getjDeployHome() {
+        return jDeployHome;
+    }
+
+    public void setjDeployHome(String jDeployHome) {
+        this.jDeployHome = jDeployHome;
+    }
+
+    public String getjDeployHomeWindows() {
+        return jDeployHomeWindows;
+    }
+
+    public void setjDeployHomeWindows(String jDeployHomeWindows) {
+        this.jDeployHomeWindows = jDeployHomeWindows;
+    }
+
+    public String getjDeployHomeMac() {
+        return jDeployHomeMac;
+    }
+
+    public void setjDeployHomeMac(String jDeployHomeMac) {
+        this.jDeployHomeMac = jDeployHomeMac;
+    }
+
+    public String getjDeployHomeLinux() {
+        return jDeployHomeLinux;
+    }
+
+    public void setjDeployHomeLinux(String jDeployHomeLinux) {
+        this.jDeployHomeLinux = jDeployHomeLinux;
+    }
+
 }

@@ -6,6 +6,7 @@
 package ca.weblite.jdeploy;
 
 import ca.weblite.jdeploy.app.AppInfo;
+import ca.weblite.jdeploy.app.JVMSpecification;
 import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.cli.controllers.CheerpjController;
@@ -32,6 +33,8 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.*;
 import java.util.List;
 import java.util.jar.Attributes;
@@ -77,6 +80,8 @@ public class JDeploy {
         System.setProperty("apple.laf.useScreenMenuBar", "true");
         System.setProperty("apple.eawt.quitStrategy", "CLOSE_ALL_WINDOWS");
     }
+
+    private static final int DEFAULT_JAVA_VERSION = 11;
 
     private static final String BUNDLE_MAC_X64 = "mac-x64";
     private static final String BUNDLE_MAC_ARM64 = "mac-arm64";
@@ -266,13 +271,42 @@ public class JDeploy {
         if (packageJsonMap == null) {
             try {
                 JSONParser p = new JSONParser();
-                packageJsonMap = (Map)p.parseJSON(new StringReader(FileUtils.readFileToString(getPackageJsonFile(), "UTF-8")));
+                packageJsonMap = (Map)p.parseJSON(
+                        new StringReader(
+                                FileUtils.readFileToString(getPackageJsonFile(),
+                                        "UTF-8"
+                                )
+                        )
+                );
+                if (packageJsonMap.containsKey("jdeploy")) {
+                    ((Map)packageJsonMap.get("jdeploy")).putAll(getJdeployConfigOverrides());
+                } else {
+                    packageJsonMap.put("jdeploy", getJdeployConfigOverrides());
+                }
             } catch (IOException ex) {
                 Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
                 throw new RuntimeException(ex);
             }
         }
         return packageJsonMap;
+    }
+
+    private Map<String,?> getJdeployConfigOverrides() {
+        Map<String,?> overrides = new HashMap<String,Object>();
+        if (System.getenv("JDEPLOY_CONFIG") != null) {
+            System.out.println("Found JDEPLOY_CONFIG environment variable");
+            System.out.println("Injecting jdeploy config overrides from environment variable");
+            System.out.println(System.getenv("JDEPLOY_CONFIG"));
+            try {
+                JSONParser p = new JSONParser();
+                Map m = (Map)p.parseJSON(new StringReader(System.getenv("JDEPLOY_CONFIG")));
+                overrides.putAll(m);
+            } catch (IOException ex) {
+                Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+
+        return overrides;
     }
 
     /**
@@ -1153,7 +1187,7 @@ public class JDeploy {
     }
     
     public String processJdeployTemplate(String jdeployContents) {
-        jdeployContents = jdeployContents.replace("{{JAVA_VERSION}}", String.valueOf(getJavaVersion(11)));
+        jdeployContents = jdeployContents.replace("{{JAVA_VERSION}}", String.valueOf(getJavaVersion(DEFAULT_JAVA_VERSION)));
         jdeployContents = jdeployContents.replace("{{PORT}}", String.valueOf(getPort(0)));
         if (getWar(null) != null) {
             jdeployContents = jdeployContents.replace("{{WAR_PATH}}", new File(getWar(null)).getName());
@@ -1493,6 +1527,29 @@ public class JDeploy {
             appInfo.setCodeSignSettings(AppInfo.CodeSignSettings.CodeSignAndNotarize);
         } else if (rj().getAsBoolean("codesign")) {
             appInfo.setCodeSignSettings(AppInfo.CodeSignSettings.CodeSign);
+        }
+
+        if (rj().getAsBoolean("bundleJVM")) {
+            appInfo.setUseBundledJVM(true);
+            JVMSpecification jvmSpec = new JVMSpecification();
+            jvmSpec.javaVersion = getJavaVersion(DEFAULT_JAVA_VERSION);
+            jvmSpec.javafx = "true".equals(getString("javafx", "false"));
+            jvmSpec.jdk = "true".equals(getString("jdk", "false"));
+            appInfo.setJVMSpecification(jvmSpec);
+        }
+
+        if (mj().get("jdeployHome") != null) {
+            System.out.println("Setting jdeployHome to "+rj().getAsString("jdeployHome"));
+            appInfo.setJdeployHome(rj().getAsString("jdeployHome"));
+        }
+        if (mj().get("jdeployHomeLinux") != null) {
+            appInfo.setLinuxJdeployHome(rj().getAsString("jdeployHomeLinux"));
+        }
+        if (mj().get("jdeployHomeMac") != null) {
+            appInfo.setMacJdeployHome(rj().getAsString("jdeployHomeMac"));
+        }
+        if (mj().get("jdeployHomeWindows") != null) {
+            appInfo.setWindowsJdeployHome(rj().getAsString("jdeployHomeWindows"));
         }
 
         String jarPath = getString("jar", null);
@@ -2434,11 +2491,23 @@ public class JDeploy {
                 File jDeployDir = new File("jdeploy");
                 if (jDeployDir.exists()) {
                     System.out.println("Deleting "+jDeployDir);
+                    try {
+                        makeWritable(jDeployDir.toPath());
+                    } catch (IOException ex) {
+                        System.err.println("Failed to make "+jDeployDir+" writable.  "+ex.getMessage());
+                        ex.printStackTrace();
+                    }
                     FileUtils.deleteDirectory(jDeployDir);
                 }
                 jDeployDir = new File("jdeploy-bundle");
                 if (jDeployDir.exists()) {
                     System.out.println("Deleting "+jDeployDir);
+                    try {
+                        makeWritable(jDeployDir.toPath());
+                    } catch (IOException ex) {
+                        System.err.println("Failed to make "+jDeployDir+" writable.  "+ex.getMessage());
+                        ex.printStackTrace();
+                    }
                     FileUtils.deleteDirectory(jDeployDir);
                 }
                 if (args.length > 1) {
@@ -2496,6 +2565,25 @@ public class JDeploy {
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    private static void makeWritable(Path path) throws IOException {
+        Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Set<PosixFilePermission> perms = EnumSet.allOf(PosixFilePermission.class);
+                Files.setPosixFilePermissions(file, perms);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                Set<PosixFilePermission> perms = EnumSet.allOf(PosixFilePermission.class);
+                Files.setPosixFilePermissions(dir, perms);
+                dir.toFile().setWritable(true, false);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 
     private void githubInit(String[] githubInitArgs) {
