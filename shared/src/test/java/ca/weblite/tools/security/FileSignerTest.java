@@ -3,13 +3,23 @@ package ca.weblite.tools.security;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.*;
+import java.math.BigInteger;
 import java.nio.file.*;
 import java.security.*;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.commons.io.FileUtils;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.cert.X509v3CertificateBuilder;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.json.JSONObject;
 import org.junit.jupiter.api.*;
 
@@ -23,7 +33,7 @@ public class FileSignerTest {
 
     private Path tempDir;
     private PrivateKey privateKey;
-    private PublicKey publicKey;
+    private X509Certificate certificate;
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -39,7 +49,9 @@ public class FileSignerTest {
         keyGen.initialize(2048);
         KeyPair keyPair = keyGen.generateKeyPair();
         privateKey = keyPair.getPrivate();
-        publicKey = keyPair.getPublic();
+
+        // Generate a self-signed certificate for testing
+        certificate = generateSelfSignedCertificate(keyPair);
     }
 
     @AfterEach
@@ -52,41 +64,41 @@ public class FileSignerTest {
     public void testFileSigning() throws Exception {
         // Save keys to temporary files
         Path privateKeyPath = savePrivateKey(privateKey);
-        Path publicKeyPath = savePublicKey(publicKey);
+        Path certificatePath = saveCertificate(certificate);
 
         // Create a KeyProvider
-        KeyProvider keyProvider = new FileKeyProvider(privateKeyPath.toString(), publicKeyPath.toString());
+        KeyProvider keyProvider = new FileKeyProvider(privateKeyPath.toString(), certificatePath.toString());
 
         // Sign the directory
         FileSigner.signDirectory(VERSION, tempDir.toString(), keyProvider);
 
         // Verify the manifest and files
-        assertTrue(verifyManifestAndFiles(tempDir.toString(), publicKey, VERSION));
+        assertTrue(verifyManifestAndFiles(tempDir.toString(), certificate, VERSION));
     }
 
-    private boolean verifyManifestAndFiles(String directoryPath, PublicKey publicKey, String version) throws Exception {
+    private boolean verifyManifestAndFiles(String directoryPath, Certificate certificate, String version) throws Exception {
         Path manifestPath = Paths.get(directoryPath, MANIFEST_FILENAME);
         Path manifestSignaturePath = Paths.get(directoryPath, MANIFEST_SIGNATURE_FILENAME);
 
         byte[] manifestContent = Files.readAllBytes(manifestPath);
         byte[] manifestSignature = Files.readAllBytes(manifestSignaturePath);
 
-        boolean isValid = verifyManifestSignature(manifestContent, manifestSignature, publicKey, version);
+        boolean isValid = verifyManifestSignature(manifestContent, manifestSignature, certificate, version);
         if (!isValid) {
             return false;
         }
 
         JSONObject manifest = new JSONObject(new String(manifestContent));
-        return verifyManifest(directoryPath, manifest, publicKey);
+        return verifyManifest(directoryPath, manifest, certificate);
     }
 
-    private boolean verifyManifestSignature(byte[] manifestContent, byte[] manifestSignature, PublicKey publicKey, String version) throws Exception {
+    private boolean verifyManifestSignature(byte[] manifestContent, byte[] manifestSignature, Certificate certificate, String version) throws Exception {
         byte[] manifestHash = hashWithVersion(manifestContent, version);
         byte[] signature = decodeHex(new String(manifestSignature));
-        return verifySignature(manifestHash, signature, publicKey);
+        return verifySignature(manifestHash, signature, certificate.getPublicKey());
     }
 
-    private boolean verifyManifest(String directoryPath, JSONObject manifest, PublicKey publicKey) throws Exception {
+    private boolean verifyManifest(String directoryPath, JSONObject manifest, Certificate certificate) throws Exception {
         try (Stream<Path> paths = Files.walk(Paths.get(directoryPath))) {
             List<Path> filePaths = paths.filter(Files::isRegularFile)
                     .filter(path -> !path.getFileName().toString().equals(MANIFEST_FILENAME))
@@ -105,7 +117,7 @@ public class FileSignerTest {
                     return false;
                 }
 
-                if (!verifySignature(hash, decodeHex(signature), publicKey)) {
+                if (!verifySignature(hash, decodeHex(signature), certificate.getPublicKey())) {
                     return false;
                 }
             }
@@ -120,11 +132,20 @@ public class FileSignerTest {
         return keyPath;
     }
 
-    private Path savePublicKey(PublicKey publicKey) throws IOException {
-        Path keyPath = Files.createTempFile("public_key", ".der");
-        Files.write(keyPath, publicKey.getEncoded());
-        keyPath.toFile().deleteOnExit();
-        return keyPath;
+    private Path saveCertificate(Certificate certificate) throws IOException {
+        Path certPath = Files.createTempFile("certificate", ".pem");
+        try (FileWriter writer = new FileWriter(certPath.toFile())) {
+            writer.write(encodeToPEM(certificate));
+        } catch (CertificateEncodingException e) {
+            throw new RuntimeException(e);
+        }
+        certPath.toFile().deleteOnExit();
+        return certPath;
+    }
+
+    private String encodeToPEM(Certificate certificate) throws IOException, CertificateEncodingException {
+        String base64Encoded = Base64.getEncoder().encodeToString(certificate.getEncoded());
+        return "-----BEGIN CERTIFICATE-----\n" + base64Encoded + "\n-----END CERTIFICATE-----";
     }
 
     private byte[] hash(byte[] data) throws NoSuchAlgorithmException {
@@ -162,5 +183,21 @@ public class FileSignerTest {
                     + Character.digit(hex.charAt(i + 1), 16));
         }
         return data;
+    }
+
+    private X509Certificate generateSelfSignedCertificate(KeyPair keyPair) throws Exception {
+        long now = System.currentTimeMillis();
+        Date startDate = new Date(now);
+
+        X500Name dnName = new X500Name("CN=Test Certificate");
+        BigInteger certSerialNumber = new BigInteger(Long.toString(now)); // Using current time as the certificate serial number
+        Date endDate = new Date(now + 365 * 24 * 60 * 60 * 1000L); // 1 year validity
+
+        ContentSigner contentSigner = new JcaContentSignerBuilder("SHA256WithRSA").build(keyPair.getPrivate());
+        X509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
+                dnName, certSerialNumber, startDate, endDate, dnName, keyPair.getPublic());
+
+        JcaX509CertificateConverter certConverter = new JcaX509CertificateConverter();
+        return certConverter.getCertificate(certBuilder.build(contentSigner));
     }
 }

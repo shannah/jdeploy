@@ -3,13 +3,15 @@ package ca.weblite.tools.security;
 import ca.weblite.tools.env.DefaultEnvVarProvider;
 import ca.weblite.tools.env.EnvVarProvider;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
-import java.security.PublicKey;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -41,16 +43,15 @@ public class EnvKeyProvider implements KeyProvider {
     }
 
     @Override
-    public PublicKey getPublicKey() throws Exception {
-        String publicKeyEnv = envVarProvider.getEnv("JDEPLOY_PUBLIC_KEY");
-        if (publicKeyEnv == null) {
-            throw new Exception("Environment variable JDEPLOY_PUBLIC_KEY not set");
+    public Certificate getCertificate() throws Exception {
+        String certificateEnv = envVarProvider.getEnv("JDEPLOY_CERTIFICATE");
+        if (certificateEnv == null) {
+            throw new Exception("Environment variable JDEPLOY_CERTIFICATE not set");
         }
 
-        byte[] keyBytes = loadKey(publicKeyEnv);
-        X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
-        KeyFactory kf = KeyFactory.getInstance("RSA");
-        return kf.generatePublic(spec);
+        byte[] certBytes = loadKey(certificateEnv);
+        CertificateFactory factory = CertificateFactory.getInstance("X.509");
+        return factory.generateCertificate(new java.io.ByteArrayInputStream(certBytes));
     }
 
     private byte[] loadKey(String key) throws Exception {

@@ -3,21 +3,33 @@ package ca.weblite.tools.security;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.io.FileWriter;
+import java.math.BigInteger;
 import java.nio.file.*;
 import java.security.*;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.util.Base64;
+import java.util.Date;
 
 import ca.weblite.tools.env.EnvVarProvider;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import javax.security.auth.x500.X500Principal;
+import javax.xml.bind.DatatypeConverter;
 
 public class EnvKeyProviderTest {
 
     private static final String PRIVATE_KEY_ENV = "JDEPLOY_PRIVATE_KEY";
-    private static final String PUBLIC_KEY_ENV = "JDEPLOY_PUBLIC_KEY";
+    private static final String CERTIFICATE_ENV = "JDEPLOY_CERTIFICATE";
 
     private PrivateKey privateKey;
-    private PublicKey publicKey;
+    private X509Certificate certificate;
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -26,7 +38,10 @@ public class EnvKeyProviderTest {
         keyGen.initialize(2048);
         KeyPair keyPair = keyGen.generateKeyPair();
         privateKey = keyPair.getPrivate();
-        publicKey = keyPair.getPublic();
+        PublicKey publicKey = keyPair.getPublic();
+
+        // Generate a self-signed certificate for testing
+        certificate = generateSelfSignedCertificate(keyPair);
     }
 
     @Test
@@ -42,14 +57,14 @@ public class EnvKeyProviderTest {
     }
 
     @Test
-    public void testGetPublicKeyFromPEM() throws Exception {
+    public void testGetCertificateFromPEM() throws Exception {
         EnvVarProvider envVarProvider = mock(EnvVarProvider.class);
-        when(envVarProvider.getEnv(PUBLIC_KEY_ENV)).thenReturn(encodeToPEM(publicKey, "PUBLIC KEY"));
+        when(envVarProvider.getEnv(CERTIFICATE_ENV)).thenReturn(encodeToPEM(certificate, "CERTIFICATE"));
 
         KeyProvider keyProvider = new EnvKeyProvider(envVarProvider);
-        PublicKey retrievedPublicKey = keyProvider.getPublicKey();
-        assertNotNull(retrievedPublicKey);
-        assertArrayEquals(publicKey.getEncoded(), retrievedPublicKey.getEncoded());
+        Certificate retrievedCertificate = keyProvider.getCertificate();
+        assertNotNull(retrievedCertificate);
+        assertArrayEquals(certificate.getEncoded(), retrievedCertificate.getEncoded());
     }
 
     @Test
@@ -67,21 +82,26 @@ public class EnvKeyProviderTest {
     }
 
     @Test
-    public void testGetPublicKeyFromFile() throws Exception {
-        // Save public key to a temporary file
-        Path publicKeyPath = saveKeyToFile(publicKey, "public_key.der");
+    public void testGetCertificateFromFile() throws Exception {
+        // Save certificate to a temporary file
+        Path certificatePath = saveCertificateToFile(certificate, "certificate.pem");
 
         EnvVarProvider envVarProvider = mock(EnvVarProvider.class);
-        when(envVarProvider.getEnv(PUBLIC_KEY_ENV)).thenReturn(publicKeyPath.toString());
+        when(envVarProvider.getEnv(CERTIFICATE_ENV)).thenReturn(certificatePath.toString());
 
         KeyProvider keyProvider = new EnvKeyProvider(envVarProvider);
-        PublicKey retrievedPublicKey = keyProvider.getPublicKey();
-        assertNotNull(retrievedPublicKey);
-        assertArrayEquals(publicKey.getEncoded(), retrievedPublicKey.getEncoded());
+        Certificate retrievedCertificate = keyProvider.getCertificate();
+        assertNotNull(retrievedCertificate);
+        assertArrayEquals(certificate.getEncoded(), retrievedCertificate.getEncoded());
     }
 
     private String encodeToPEM(Key key, String type) {
         String base64Encoded = Base64.getEncoder().encodeToString(key.getEncoded());
+        return "-----BEGIN " + type + "-----\n" + base64Encoded + "\n-----END " + type + "-----";
+    }
+
+    private String encodeToPEM(Certificate certificate, String type) throws Exception {
+        String base64Encoded = Base64.getEncoder().encodeToString(certificate.getEncoded());
         return "-----BEGIN " + type + "-----\n" + base64Encoded + "\n-----END " + type + "-----";
     }
 
@@ -90,5 +110,30 @@ public class EnvKeyProviderTest {
         Files.write(keyPath, key.getEncoded());
         keyPath.toFile().deleteOnExit();
         return keyPath;
+    }
+
+    private Path saveCertificateToFile(Certificate certificate, String fileName) throws Exception {
+        Path certPath = Files.createTempFile(fileName, null);
+        try (FileWriter writer = new FileWriter(certPath.toFile())) {
+            writer.write(encodeToPEM(certificate, "CERTIFICATE"));
+        }
+        certPath.toFile().deleteOnExit();
+        return certPath;
+    }
+
+    private X509Certificate generateSelfSignedCertificate(KeyPair keyPair) throws Exception {
+        long now = System.currentTimeMillis();
+        Date startDate = new Date(now);
+
+        X500Principal dnName = new X500Principal("CN=Test Certificate");
+        BigInteger certSerialNumber = new BigInteger(Long.toString(now)); // Using current time as the certificate serial number
+        Date endDate = new Date(now + 365 * 24 * 60 * 60 * 1000L); // 1 year validity
+
+        ContentSigner contentSigner = new JcaContentSignerBuilder("SHA256WithRSA").build(keyPair.getPrivate());
+        JcaX509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
+                dnName, certSerialNumber, startDate, endDate, dnName, keyPair.getPublic());
+
+        JcaX509CertificateConverter certConverter = new JcaX509CertificateConverter();
+        return certConverter.getCertificate(certBuilder.build(contentSigner));
     }
 }

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.condition.OS.MAC;
 
 import java.security.*;
+import java.security.cert.Certificate;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.condition.EnabledOnOs;
@@ -19,7 +20,6 @@ public class MacKeyStoreKeyProviderTest {
         alias = System.getenv("JDEPLOY_TEST_CERTIFICATE_NAME");
     }
 
-
     @Test
     public void testGetPrivateKey() throws Exception {
         KeyProvider keyProvider = new MacKeyStoreKeyProvider(alias, null);
@@ -28,9 +28,9 @@ public class MacKeyStoreKeyProviderTest {
     }
 
     @Test
-    public void testGetPublicKey() throws Exception {
+    public void testGetCertificate() throws Exception {
         KeyProvider keyProvider = new MacKeyStoreKeyProvider(alias, null);
-        PublicKey retrievedPublicKey = keyProvider.getPublicKey();
-        assertNotNull(retrievedPublicKey);
+        Certificate retrievedCertificate = keyProvider.getCertificate();
+        assertNotNull(retrievedCertificate);
     }
 }

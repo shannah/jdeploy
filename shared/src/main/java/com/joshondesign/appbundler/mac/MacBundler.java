@@ -5,6 +5,7 @@ import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.IOUtil;
 import ca.weblite.tools.io.URLUtil;
 import ca.weblite.tools.platform.Platform;
+import ca.weblite.tools.security.CertificateUtil;
 import com.client4j.publisher.server.SigningRequest;
 import com.github.gino0631.icns.IcnsBuilder;
 import com.github.gino0631.icns.IcnsType;
@@ -14,6 +15,7 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.URL;
 import java.nio.file.Paths;
+import java.security.cert.CertificateEncodingException;
 import java.text.MessageFormat;
 import java.util.*;
 import javax.imageio.ImageIO;
@@ -259,6 +261,15 @@ public class MacBundler {
         if (app.getjDeployHome() != null || app.getjDeployHomeMac() != null) {
             atts.add("jdeploy-home");
             atts.add(app.getjDeployHomeMac() == null ? app.getjDeployHome() : app.getjDeployHomeMac());
+        }
+
+        if (app.getPackageSigningCertificate() != null) {
+            atts.add("jdeploy-developer-certificate");
+            try {
+                atts.add(CertificateUtil.toPemEncodedString(app.getPackageSigningCertificate()));
+            } catch (CertificateEncodingException ex) {
+                throw new RuntimeException(ex);
+            }
         }
 
         return atts.toArray(new String[0]);

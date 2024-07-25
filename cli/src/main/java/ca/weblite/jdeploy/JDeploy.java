@@ -14,6 +14,7 @@ import ca.weblite.jdeploy.cli.controllers.GitHubRepositoryInitializerCLIControll
 import ca.weblite.jdeploy.cli.controllers.JPackageController;
 import ca.weblite.jdeploy.cli.controllers.ProjectGeneratorCLIController;
 import ca.weblite.jdeploy.di.JDeployModule;
+import ca.weblite.jdeploy.factories.JDeployKeyProviderFactory;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
 import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
@@ -22,7 +23,10 @@ import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.services.DeveloperIdentityKeyStore;
 import ca.weblite.jdeploy.services.GithubWorkflowGenerator;
 import ca.weblite.jdeploy.services.JavaVersionExtractor;
+import ca.weblite.jdeploy.services.PackageSigningService;
 import ca.weblite.tools.io.*;
+import ca.weblite.tools.security.CertificateUtil;
+import ca.weblite.tools.security.KeyProvider;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
 
@@ -97,6 +101,10 @@ public class JDeploy {
     private Result packageJsonResult;
     private PrintStream out = System.out;
     private PrintStream err = System.err;
+
+    private KeyProvider keyProvider;
+
+    private PackageSigningService packageSigningService;
 
     public static String JDEPLOY_REGISTRY = "https://www.jdeploy.com/";
     static {
@@ -283,12 +291,48 @@ public class JDeploy {
                 } else {
                     packageJsonMap.put("jdeploy", getJdeployConfigOverrides());
                 }
+
+                setupPackageSigningConfig((Map)packageJsonMap.get("jdeploy"));
             } catch (IOException ex) {
                 Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
                 throw new RuntimeException(ex);
             }
         }
         return packageJsonMap;
+    }
+
+    private void setupPackageSigningConfig(Map jdeployConfig) {
+        keyProvider = new JDeployKeyProviderFactory().createKeyProvider(createKeyProviderFactoryConfig(jdeployConfig));
+        packageSigningService = new PackageSigningService(keyProvider);
+    }
+
+    private JDeployKeyProviderFactory.KeyConfig createKeyProviderFactoryConfig(final Map jdeployConfig) {
+
+        String developerIdKey = "jdeployDeveloperId";
+        String keystorePathKey = "keystorePath";
+
+        final String developerId = jdeployConfig.containsKey(developerIdKey)
+                ? (String)jdeployConfig.get(developerIdKey) : null;
+        final String keystorePath = jdeployConfig.containsKey(keystorePathKey)
+                ? (String)jdeployConfig.get(keystorePathKey) : null;
+        class LocalConfig extends JDeployKeyProviderFactory.DefaultKeyConfig {
+            @Override
+            public String getKeystorePath() {
+                return keystorePath == null ? super.getKeystorePath() : keystorePath;
+            }
+
+            @Override
+            public String getDeveloperId() {
+                return developerId == null ? super.getDeveloperId() : developerId;
+            }
+
+            @Override
+            public char[] getKeystorePassword() {
+                return super.getKeystorePassword();
+            }
+        }
+
+        return new LocalConfig();
     }
 
     private Map<String,?> getJdeployConfigOverrides() {
@@ -1093,23 +1137,6 @@ public class JDeploy {
         File warRunnerDest = new File(libDir, "WarRunner.jar");
         FileUtils.copyInputStreamToFile(jettyRunnerJarInput, jettyRunnerDest);
         FileUtils.copyInputStreamToFile(warRunnerInput, warRunnerDest);
-        /*
-        ProcessBuilder javac = new ProcessBuilder();
-        javac.inheritIO();
-        javac.directory(bin);
-        javac.command("javac", "-cp", "lib/jetty-runner.jar", "ca" + File.separator + "weblite" + File.separator + "jdeploy" + File.separator + "WarRunner.java");
-        Process javacP = javac.start();
-        int javacResult=0;
-        try {
-            javacResult = javacP.waitFor();
-        } catch (InterruptedException ex) {
-            Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
-            throw new IOException(ex);
-        }
-        if (javacResult != 0) {
-            System.exit(javacResult);
-        }
-        */
         
         setMainClass("ca.weblite.jdeploy.WarRunner");
         setClassPath("."+File.pathSeparator+"lib/jetty-runner.jar"+File.pathSeparator+"lib/WarRunner.jar");
@@ -1493,6 +1520,14 @@ public class JDeploy {
     private void loadAppInfo(AppInfo appInfo) throws IOException {
         appInfo.setNpmPackage((String)m().get("name"));
         appInfo.setNpmVersion(getString("version", "latest"));
+        if (isPackageSigningEnabled()) {
+            try {
+                appInfo.setEnableCertificatePinning(true);
+                appInfo.setPackageSigningCertificate(keyProvider.getCertificate());
+            } catch (Exception ex) {
+                throw new IOException("Failed to load private key for package signing", ex);
+            }
+        }
         if (m().containsKey("source")) {
             appInfo.setNpmSource((String)m().get("source"));
         }
@@ -2156,7 +2191,8 @@ public class JDeploy {
         if (!publishDir.exists()) {
             publishDir.mkdirs();
         }
-        FileUtils.copyDirectory(new File(directory, "jdeploy-bundle"), new File(publishDir, "jdeploy-bundle"));
+        File publishJdeployBundleDir = new File(publishDir, "jdeploy-bundle");
+        FileUtils.copyDirectory(new File(directory, "jdeploy-bundle"), publishJdeployBundleDir);
         FileUtils.copyFile(new File("package.json"), new File(publishDir, "package.json"));
         File readme = new File("README.md");
         if (readme.exists()) {
@@ -2188,7 +2224,32 @@ public class JDeploy {
         }
 
         FileUtils.writeStringToFile(new File(publishDir,"package.json"), packageJSON.toString(), "UTF-8");
+
+        if (isPackageSigningEnabled()) {
+            try {
+                packageSigningService.signPackage(
+                        getPackageSigningVersionString(packageJSON),
+                        publishJdeployBundleDir.getAbsolutePath()
+                );
+            } catch (Exception ex) {
+                throw new IOException("Failed to sign package", ex);
+            }
+        }
+
         return packageJSON;
+    }
+
+    private String getPackageSigningVersionString(JSONObject packageJSON) {
+        String versionString = packageJSON.getString("version");
+        if (packageJSON.has("commitHash")) {
+            versionString += "#" + packageJSON.getString("commitHash");
+        }
+
+        return versionString;
+    }
+
+    private boolean isPackageSigningEnabled() {
+        return rj().getAsBoolean("signPackage");
     }
 
     private String getFullPackageName(String source, String packageName) {
@@ -2254,9 +2315,6 @@ public class JDeploy {
 
         JSONObject packageJSON = prepublish(bundlerSettings);
         getGithubReleaseFilesDir().mkdirs();
-        if (rj().getAsBoolean("signPackage")) {
-            String
-        }
         new NPM(out, err).pack(publishDir, getGithubReleaseFilesDir(), exitOnFail);
         saveGithubReleaseFiles();
         PackageInfoBuilder builder = new PackageInfoBuilder();

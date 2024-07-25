@@ -79,6 +79,10 @@ public class Bundler {
 
     private static AppDescription createAppDescription(AppInfo appInfo, String url) throws IOException{
         AppDescription app = new AppDescription();
+        if (appInfo.isEnableCertificatePinning()) {
+            app.enablePackageCertificatePinning();
+            app.setPackageSigningCertificate(appInfo.getPackageSigningCertificate());
+        }
         app.setNpmPrerelease(appInfo.isNpmAllowPrerelease());
         app.setName(appInfo.getTitle());
         app.setFork(appInfo.isFork());

@@ -1,7 +1,7 @@
 package ca.weblite.tools.security;
+
 import java.security.KeyStore;
 import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.cert.Certificate;
 
 public class MacKeyStoreKeyProvider implements KeyProvider {
@@ -22,13 +22,13 @@ public class MacKeyStoreKeyProvider implements KeyProvider {
     }
 
     @Override
-    public PublicKey getPublicKey() throws Exception {
+    public Certificate getCertificate() throws Exception {
         KeyStore keyStore = KeyStore.getInstance("KeychainStore");
         keyStore.load(null, null);
         Certificate cert = keyStore.getCertificate(alias);
         if (cert == null) {
             throw new Exception("No certificate found for alias: " + alias);
         }
-        return cert.getPublicKey();
+        return cert;
     }
 }
