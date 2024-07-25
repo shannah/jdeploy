@@ -7,6 +7,7 @@ import java.math.BigInteger;
 import java.nio.file.*;
 import java.security.*;
 import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.util.Date;
 
 import org.bouncycastle.asn1.x500.X500Name;
@@ -20,12 +21,12 @@ import org.junit.jupiter.api.*;
 public class KeyStoreKeyProviderTest {
 
     private static final String KEY_STORE_PATH = "test-keystore.jks";
-    private static final String KEY_STORE_PASSWORD = "password";
+    private static final char[] KEY_STORE_PASSWORD = "password".toCharArray();
     private static final String PRIVATE_KEY_ALIAS = "privateKeyAlias";
-    private static final String PUBLIC_KEY_ALIAS = "publicKeyAlias";
+    private static final String CERTIFICATE_ALIAS = "certificateAlias";
 
     private PrivateKey privateKey;
-    private PublicKey publicKey;
+    private X509Certificate certificate;
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -34,18 +35,19 @@ public class KeyStoreKeyProviderTest {
         keyGen.initialize(2048);
         KeyPair keyPair = keyGen.generateKeyPair();
         privateKey = keyPair.getPrivate();
-        publicKey = keyPair.getPublic();
+
+        // Generate a self-signed certificate for testing
+        certificate = generateSelfSignedCertificate(keyPair);
 
         // Create a KeyStore and add the keys
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         keyStore.load(null, null);
-        Certificate cert = generateSelfSignedCertificate(keyPair);
-        keyStore.setKeyEntry(PRIVATE_KEY_ALIAS, privateKey, KEY_STORE_PASSWORD.toCharArray(), new Certificate[]{cert});
-        keyStore.setCertificateEntry(PUBLIC_KEY_ALIAS, cert);
+        keyStore.setKeyEntry(PRIVATE_KEY_ALIAS, privateKey, KEY_STORE_PASSWORD, new Certificate[]{certificate});
+        keyStore.setCertificateEntry(CERTIFICATE_ALIAS, certificate);
 
         // Save the KeyStore to a file
         try (FileOutputStream fos = new FileOutputStream(KEY_STORE_PATH)) {
-            keyStore.store(fos, KEY_STORE_PASSWORD.toCharArray());
+            keyStore.store(fos, KEY_STORE_PASSWORD);
         }
     }
 
@@ -57,21 +59,21 @@ public class KeyStoreKeyProviderTest {
 
     @Test
     public void testGetPrivateKey() throws Exception {
-        KeyProvider keyProvider = new KeyStoreKeyProvider(KEY_STORE_PATH, KEY_STORE_PASSWORD, PRIVATE_KEY_ALIAS, PUBLIC_KEY_ALIAS);
+        KeyProvider keyProvider = new KeyStoreKeyProvider(KEY_STORE_PATH, KEY_STORE_PASSWORD, PRIVATE_KEY_ALIAS, CERTIFICATE_ALIAS);
         PrivateKey retrievedPrivateKey = keyProvider.getPrivateKey();
         assertNotNull(retrievedPrivateKey);
         assertArrayEquals(privateKey.getEncoded(), retrievedPrivateKey.getEncoded());
     }
 
     @Test
-    public void testGetPublicKey() throws Exception {
-        KeyProvider keyProvider = new KeyStoreKeyProvider(KEY_STORE_PATH, KEY_STORE_PASSWORD, PRIVATE_KEY_ALIAS, PUBLIC_KEY_ALIAS);
-        PublicKey retrievedPublicKey = keyProvider.getPublicKey();
-        assertNotNull(retrievedPublicKey);
-        assertArrayEquals(publicKey.getEncoded(), retrievedPublicKey.getEncoded());
+    public void testGetCertificate() throws Exception {
+        KeyProvider keyProvider = new KeyStoreKeyProvider(KEY_STORE_PATH, KEY_STORE_PASSWORD, PRIVATE_KEY_ALIAS, CERTIFICATE_ALIAS);
+        Certificate retrievedCertificate = keyProvider.getCertificate();
+        assertNotNull(retrievedCertificate);
+        assertArrayEquals(certificate.getEncoded(), retrievedCertificate.getEncoded());
     }
 
-    private Certificate generateSelfSignedCertificate(KeyPair keyPair) throws Exception {
+    private X509Certificate generateSelfSignedCertificate(KeyPair keyPair) throws Exception {
         long now = System.currentTimeMillis();
         Date startDate = new Date(now);
 

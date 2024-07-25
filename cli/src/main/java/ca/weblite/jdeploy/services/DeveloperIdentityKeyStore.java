@@ -10,7 +10,6 @@ import java.security.*;
 import java.security.cert.CertificateException;
 
 import java.security.spec.InvalidKeySpecException;
-import java.util.ArrayList;
 import java.security.cert.Certificate;
 
 import static ca.weblite.jdeploy.helpers.KeyPairGenerator.generateKeyPair;
@@ -78,7 +77,7 @@ public class DeveloperIdentityKeyStore {
         return CertificateUtil.toPemEncodedString(getKeyPair(true).getPrivate());
     }
 
-    public String getPublicKeyAsPem() throws UnrecoverableKeyException, CertificateException, KeyStoreException, IOException, NoSuchAlgorithmException, SignatureException, NoSuchProviderException, InvalidKeyException {
+    public Certificate getPublicKeyAsPem() throws UnrecoverableKeyException, CertificateException, KeyStoreException, IOException, NoSuchAlgorithmException, SignatureException, NoSuchProviderException, InvalidKeyException {
         return CertificateUtil.toPemEncodedString(getKeyPair(true).getPublic());
     }
 

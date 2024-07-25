@@ -11,6 +11,7 @@ import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
@@ -82,6 +83,19 @@ public class CertificateUtil {
         }
         publicKeyFormatted += "-----END PUBLIC KEY-----";
         return publicKeyFormatted;
+    }
+
+    public static String toPemEncodedString(Certificate certificate) throws CertificateEncodingException {
+        byte[] certificateBytes = certificate.getEncoded();
+        String certificateContent = Base64.getEncoder().encodeToString(certificateBytes);
+        certificateContent = StringUtil.splitIntoFixedWidthLines(certificateContent, 64);
+        String certificateFormatted = "-----BEGIN CERTIFICATE-----\n" + certificateContent;
+
+        if (certificateFormatted.charAt(certificateFormatted.length() - 1) != '\n') {
+            certificateFormatted += "\n";
+        }
+        certificateFormatted += "-----END CERTIFICATE-----";
+        return certificateFormatted;
     }
 
     public static PrivateKey getPrivateKeyFromPem(String pem) throws CertificateException, NoSuchAlgorithmException, InvalidKeySpecException {

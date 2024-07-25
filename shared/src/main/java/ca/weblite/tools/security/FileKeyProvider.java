@@ -1,20 +1,26 @@
 package ca.weblite.tools.security;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
-import java.security.PublicKey;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
+import java.util.stream.Collectors;
 
 public class FileKeyProvider implements KeyProvider {
 
     private final String privateKeyPath;
-    private final String publicKeyPath;
+    private final String certificatePath;
 
-    public FileKeyProvider(String privateKeyPath, String publicKeyPath) {
+    public FileKeyProvider(String privateKeyPath, String certificatePath) {
         this.privateKeyPath = privateKeyPath;
-        this.publicKeyPath = publicKeyPath;
+        this.certificatePath = certificatePath;
     }
 
     @Override
@@ -26,10 +32,22 @@ public class FileKeyProvider implements KeyProvider {
     }
 
     @Override
-    public PublicKey getPublicKey() throws Exception {
-        byte[] keyBytes = Files.readAllBytes(Paths.get(publicKeyPath));
-        X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
-        KeyFactory kf = KeyFactory.getInstance("RSA");
-        return kf.generatePublic(spec);
+    public Certificate getCertificate() throws Exception {
+        String pem = readPemFile(certificatePath);
+        byte[] der = decodePem(pem);
+        CertificateFactory factory = CertificateFactory.getInstance("X.509");
+        return factory.generateCertificate(new java.io.ByteArrayInputStream(der));
+    }
+
+    private String readPemFile(String filePath) throws IOException {
+        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+            return reader.lines()
+                    .filter(line -> !line.startsWith("-----BEGIN CERTIFICATE-----") && !line.startsWith("-----END CERTIFICATE-----"))
+                    .collect(Collectors.joining());
+        }
+    }
+
+    private byte[] decodePem(String pem) {
+        return Base64.getDecoder().decode(pem);
     }
 }
