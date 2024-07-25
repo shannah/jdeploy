@@ -77,7 +77,7 @@ public class DeveloperIdentityKeyStore {
         return CertificateUtil.toPemEncodedString(getKeyPair(true).getPrivate());
     }
 
-    public Certificate getPublicKeyAsPem() throws UnrecoverableKeyException, CertificateException, KeyStoreException, IOException, NoSuchAlgorithmException, SignatureException, NoSuchProviderException, InvalidKeyException {
+    public String getPublicKeyAsPem() throws UnrecoverableKeyException, CertificateException, KeyStoreException, IOException, NoSuchAlgorithmException, SignatureException, NoSuchProviderException, InvalidKeyException {
         return CertificateUtil.toPemEncodedString(getKeyPair(true).getPublic());
     }
 
