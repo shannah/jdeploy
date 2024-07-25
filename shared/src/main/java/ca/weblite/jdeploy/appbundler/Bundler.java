@@ -79,7 +79,7 @@ public class Bundler {
 
     private static AppDescription createAppDescription(AppInfo appInfo, String url) throws IOException{
         AppDescription app = new AppDescription();
-        if (appInfo.isEnableCertificatePinning()) {
+        if (appInfo.isCertificatePinningEnabled()) {
             app.enablePackageCertificatePinning();
             app.setPackageSigningCertificate(appInfo.getPackageSigningCertificate());
         }
