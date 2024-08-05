@@ -59,7 +59,9 @@ public class AppDescription {
      * This is the certificate used to sign the jdeploy bundle - NOT to be confused with the apple or windows
      * code signing certificates.
      */
-    private Certificate packageSigningCertificate;
+    private List<Certificate> trustedCertificates;
+
+    private String packageSigningCertificateChainPath;
 
     public AppDescription() {
 
@@ -106,12 +108,20 @@ public class AppDescription {
         return this.jars;
     }
 
-    public void setPackageSigningCertificate(Certificate cert) {
-        this.packageSigningCertificate = cert;
+    public void setTrustedCertificates(List<Certificate> cert) {
+        this.trustedCertificates = cert;
     }
 
-    public Certificate getPackageSigningCertificate() {
-        return this.packageSigningCertificate;
+    public List<Certificate> getTrustedCertificates() {
+        return this.trustedCertificates;
+    }
+
+    public void setPackageSigningCertificateChainPath(String path) {
+        this.packageSigningCertificateChainPath = path;
+    }
+
+    public String getPackageSigningCertificateChainPath() {
+        return this.packageSigningCertificateChainPath;
     }
 
     public void enablePackageCertificatePinning() {

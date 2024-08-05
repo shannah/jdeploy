@@ -44,30 +44,30 @@ public class EnvKeyProviderTest {
     }
 
     @Test
-    public void testGetPrivateKeyFromPEM() throws Exception {
+    public void testGetSigningKeyFromPEM() throws Exception {
         EnvVarProvider envVarProvider = mock(EnvVarProvider.class);
         when(envVarProvider.getEnv(PRIVATE_KEY_ENV))
                 .thenReturn(encodeToPEM(privateKey, "PRIVATE KEY"));
 
         KeyProvider keyProvider = new EnvKeyProvider(envVarProvider);
-        PrivateKey retrievedPrivateKey = keyProvider.getPrivateKey();
+        PrivateKey retrievedPrivateKey = keyProvider.getSigningKey();
         assertNotNull(retrievedPrivateKey);
         assertArrayEquals(privateKey.getEncoded(), retrievedPrivateKey.getEncoded());
     }
 
     @Test
-    public void testGetCertificateFromPEM() throws Exception {
+    public void testGetSigningCertificateFromPEM() throws Exception {
         EnvVarProvider envVarProvider = mock(EnvVarProvider.class);
         when(envVarProvider.getEnv(CERTIFICATE_ENV)).thenReturn(encodeToPEM(certificate, "CERTIFICATE"));
 
         KeyProvider keyProvider = new EnvKeyProvider(envVarProvider);
-        Certificate retrievedCertificate = keyProvider.getCertificate();
+        Certificate retrievedCertificate = keyProvider.getSigningCertificate();
         assertNotNull(retrievedCertificate);
         assertArrayEquals(certificate.getEncoded(), retrievedCertificate.getEncoded());
     }
 
     @Test
-    public void testGetPrivateKeyFromFile() throws Exception {
+    public void testGetSigningKeyFromFile() throws Exception {
         // Save private key to a temporary file
         Path privateKeyPath = saveKeyToFile(privateKey, "private_key.der");
 
@@ -75,13 +75,13 @@ public class EnvKeyProviderTest {
         when(envVarProvider.getEnv(PRIVATE_KEY_ENV)).thenReturn(privateKeyPath.toString());
 
         KeyProvider keyProvider = new EnvKeyProvider(envVarProvider);
-        PrivateKey retrievedPrivateKey = keyProvider.getPrivateKey();
+        PrivateKey retrievedPrivateKey = keyProvider.getSigningKey();
         assertNotNull(retrievedPrivateKey);
         assertArrayEquals(privateKey.getEncoded(), retrievedPrivateKey.getEncoded());
     }
 
     @Test
-    public void testGetCertificateFromFile() throws Exception {
+    public void testGetSigningCertificateFromFile() throws Exception {
         // Save certificate to a temporary file
         Path certificatePath = saveCertificateToFile(certificate, "certificate.pem");
 
@@ -89,7 +89,7 @@ public class EnvKeyProviderTest {
         when(envVarProvider.getEnv(CERTIFICATE_ENV)).thenReturn(certificatePath.toString());
 
         KeyProvider keyProvider = new EnvKeyProvider(envVarProvider);
-        Certificate retrievedCertificate = keyProvider.getCertificate();
+        Certificate retrievedCertificate = keyProvider.getSigningCertificate();
         assertNotNull(retrievedCertificate);
         assertArrayEquals(certificate.getEncoded(), retrievedCertificate.getEncoded());
     }

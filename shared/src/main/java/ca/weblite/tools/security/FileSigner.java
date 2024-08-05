@@ -20,8 +20,8 @@ public class FileSigner {
     private static final String TIMESTAMP_FORMAT = "yyyy-MM-dd'T'HH:mm:ss'Z'";
 
     public static void signDirectory(String version, String directoryPath, KeyProvider keyProvider) throws Exception {
-        PrivateKey privateKey = keyProvider.getPrivateKey();
-        Certificate certificate = keyProvider.getCertificate();
+        PrivateKey privateKey = keyProvider.getSigningKey();
+        List<Certificate> certificateChain = keyProvider.getSigningCertificateChain();
 
         // Generate the manifest with timestamp
         String timestamp = new SimpleDateFormat(TIMESTAMP_FORMAT).format(new Date());
@@ -35,17 +35,18 @@ public class FileSigner {
 
         // Sign the manifest file
         byte[] manifestContent = Files.readAllBytes(manifestPath);
-        //byte[] manifestHash = hashWithVersion(manifestContent, version);
         byte[] manifestSignature = signWithVersion(manifestContent, privateKey, version);
 
         // Save the manifest signature file
         Path manifestSignaturePath = Paths.get(directoryPath, MANIFEST_SIGNATURE_FILENAME);
         Files.write(manifestSignaturePath, manifestSignature);
 
-        // Save the certificate file
+        // Save the certificate chain file
         Path certificatePath = Paths.get(directoryPath, CERTIFICATE_FILENAME);
         try (FileOutputStream fos = new FileOutputStream(certificatePath.toFile())) {
-            fos.write(certificate.getEncoded());
+            for (Certificate cert : certificateChain) {
+                fos.write(cert.getEncoded());
+            }
         }
     }
 

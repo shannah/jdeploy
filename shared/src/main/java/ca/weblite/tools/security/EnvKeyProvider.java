@@ -13,11 +13,14 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class EnvKeyProvider implements KeyProvider {
-
+    private static final String ENV_VAR_SIGNING_KEY = "JDEPLOY_PRIVATE_KEY";
+    private static final String ENV_VAR_SIGNING_CERTIFICATE = "JDEPLOY_CERTIFICATE";
     private static final Pattern PEM_PATTERN = Pattern.compile("-----BEGIN (.+?)-----");
     private final EnvVarProvider envVarProvider;
 
@@ -30,10 +33,10 @@ public class EnvKeyProvider implements KeyProvider {
     }
 
     @Override
-    public PrivateKey getPrivateKey() throws Exception {
-        String privateKeyEnv = envVarProvider.getEnv("JDEPLOY_PRIVATE_KEY");
+    public PrivateKey getSigningKey() throws Exception {
+        String privateKeyEnv = envVarProvider.getEnv(ENV_VAR_SIGNING_KEY);
         if (privateKeyEnv == null) {
-            throw new Exception("Environment variable JDEPLOY_PRIVATE_KEY not set");
+            throw new Exception("Environment variable " + ENV_VAR_SIGNING_KEY + " not set");
         }
 
         byte[] keyBytes = loadKey(privateKeyEnv);
@@ -43,15 +46,25 @@ public class EnvKeyProvider implements KeyProvider {
     }
 
     @Override
-    public Certificate getCertificate() throws Exception {
-        String certificateEnv = envVarProvider.getEnv("JDEPLOY_CERTIFICATE");
+    public Certificate getSigningCertificate() throws Exception {
+        String certificateEnv = envVarProvider.getEnv(ENV_VAR_SIGNING_CERTIFICATE);
         if (certificateEnv == null) {
-            throw new Exception("Environment variable JDEPLOY_CERTIFICATE not set");
+            throw new Exception("Environment variable " + ENV_VAR_SIGNING_CERTIFICATE + " not set");
         }
 
         byte[] certBytes = loadKey(certificateEnv);
         CertificateFactory factory = CertificateFactory.getInstance("X.509");
         return factory.generateCertificate(new java.io.ByteArrayInputStream(certBytes));
+    }
+
+    @Override
+    public List<Certificate> getSigningCertificateChain() throws Exception {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<Certificate> getTrustedCertificates() throws Exception {
+        return Collections.singletonList(getSigningCertificate());
     }
 
     private byte[] loadKey(String key) throws Exception {
