@@ -63,7 +63,9 @@ public class AppInfo  {
     /**
      * If package signing is enabled,
      */
-    private Certificate packageSigningCertificate;
+    private List<Certificate> trustedCertificates;
+
+    private String packageSigningCertificateChainPath;
 
     private boolean enableCertificatePinning = false;
 
@@ -372,12 +374,12 @@ public class AppInfo  {
         this.fork = fork;
     }
 
-    public Certificate getPackageSigningCertificate() {
-        return packageSigningCertificate;
+    public List<Certificate> getTrustedCertificates() {
+        return trustedCertificates;
     }
 
-    public void setPackageSigningCertificate(Certificate key) {
-        this.packageSigningCertificate = key;
+    public void setTrustedCertificates(List<Certificate> key) {
+        this.trustedCertificates = key;
     }
 
     public boolean isCertificatePinningEnabled() {

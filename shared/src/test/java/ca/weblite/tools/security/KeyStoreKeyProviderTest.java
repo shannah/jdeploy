@@ -58,17 +58,17 @@ public class KeyStoreKeyProviderTest {
     }
 
     @Test
-    public void testGetPrivateKey() throws Exception {
+    public void testGetSigningKey() throws Exception {
         KeyProvider keyProvider = new KeyStoreKeyProvider(KEY_STORE_PATH, KEY_STORE_PASSWORD, PRIVATE_KEY_ALIAS, CERTIFICATE_ALIAS);
-        PrivateKey retrievedPrivateKey = keyProvider.getPrivateKey();
+        PrivateKey retrievedPrivateKey = keyProvider.getSigningKey();
         assertNotNull(retrievedPrivateKey);
         assertArrayEquals(privateKey.getEncoded(), retrievedPrivateKey.getEncoded());
     }
 
     @Test
-    public void testGetCertificate() throws Exception {
+    public void testGetSigningCertificate() throws Exception {
         KeyProvider keyProvider = new KeyStoreKeyProvider(KEY_STORE_PATH, KEY_STORE_PASSWORD, PRIVATE_KEY_ALIAS, CERTIFICATE_ALIAS);
-        Certificate retrievedCertificate = keyProvider.getCertificate();
+        Certificate retrievedCertificate = keyProvider.getSigningCertificate();
         assertNotNull(retrievedCertificate);
         assertArrayEquals(certificate.getEncoded(), retrievedCertificate.getEncoded());
     }

@@ -11,6 +11,8 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
 
 public class FileKeyProvider implements KeyProvider {
@@ -24,7 +26,7 @@ public class FileKeyProvider implements KeyProvider {
     }
 
     @Override
-    public PrivateKey getPrivateKey() throws Exception {
+    public PrivateKey getSigningKey() throws Exception {
         byte[] keyBytes = Files.readAllBytes(Paths.get(privateKeyPath));
         PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
         KeyFactory kf = KeyFactory.getInstance("RSA");
@@ -32,11 +34,21 @@ public class FileKeyProvider implements KeyProvider {
     }
 
     @Override
-    public Certificate getCertificate() throws Exception {
+    public Certificate getSigningCertificate() throws Exception {
         String pem = readPemFile(certificatePath);
         byte[] der = decodePem(pem);
         CertificateFactory factory = CertificateFactory.getInstance("X.509");
         return factory.generateCertificate(new java.io.ByteArrayInputStream(der));
+    }
+
+    @Override
+    public List<Certificate> getSigningCertificateChain() throws Exception {
+        return Collections.singletonList(getSigningCertificate());
+    }
+
+    @Override
+    public List<Certificate> getTrustedCertificates() throws Exception {
+        return Collections.singletonList(getSigningCertificate());
     }
 
     private String readPemFile(String filePath) throws IOException {

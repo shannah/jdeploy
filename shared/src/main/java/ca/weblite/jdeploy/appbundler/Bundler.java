@@ -81,7 +81,9 @@ public class Bundler {
         AppDescription app = new AppDescription();
         if (appInfo.isCertificatePinningEnabled()) {
             app.enablePackageCertificatePinning();
-            app.setPackageSigningCertificate(appInfo.getPackageSigningCertificate());
+            if (appInfo.getTrustedCertificates() != null) {
+                app.setTrustedCertificates(appInfo.getTrustedCertificates());
+            }
         }
         app.setNpmPrerelease(appInfo.isNpmAllowPrerelease());
         app.setName(appInfo.getTitle());

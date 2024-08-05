@@ -21,16 +21,16 @@ public class MacKeyStoreKeyProviderTest {
     }
 
     @Test
-    public void testGetPrivateKey() throws Exception {
+    public void testGetSigningKey() throws Exception {
         KeyProvider keyProvider = new MacKeyStoreKeyProvider(alias, null);
-        PrivateKey retrievedPrivateKey = keyProvider.getPrivateKey();
+        PrivateKey retrievedPrivateKey = keyProvider.getSigningKey();
         assertNotNull(retrievedPrivateKey);
     }
 
     @Test
-    public void testGetCertificate() throws Exception {
+    public void testGetSigningCertificate() throws Exception {
         KeyProvider keyProvider = new MacKeyStoreKeyProvider(alias, null);
-        Certificate retrievedCertificate = keyProvider.getCertificate();
+        Certificate retrievedCertificate = keyProvider.getSigningCertificate();
         assertNotNull(retrievedCertificate);
     }
 }

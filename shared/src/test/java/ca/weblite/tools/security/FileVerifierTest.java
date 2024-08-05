@@ -9,8 +9,10 @@ import java.nio.file.*;
 import java.security.*;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.List;
 import java.util.stream.Stream;
 
 import org.bouncycastle.asn1.x500.X500Name;
@@ -52,7 +54,7 @@ public class FileVerifierTest {
 
         // Create a mock CertificateVerifier that trusts the generated certificate
         certificateVerifier = mock(CertificateVerifier.class);
-        when(certificateVerifier.isTrusted(certificate)).thenReturn(true);
+        when(certificateVerifier.isTrusted(Collections.singletonList(certificate))).thenReturn(true);
     }
 
     @AfterEach
@@ -70,13 +72,23 @@ public class FileVerifierTest {
         // Create a KeyProvider
         KeyProvider keyProvider = new KeyProvider() {
             @Override
-            public PrivateKey getPrivateKey() {
+            public PrivateKey getSigningKey() {
                 return privateKey;
             }
 
             @Override
-            public Certificate getCertificate() {
+            public Certificate getSigningCertificate() {
                 return certificate;
+            }
+
+            @Override
+            public List<Certificate> getSigningCertificateChain() throws Exception {
+                return Collections.singletonList(certificate);
+            }
+
+            @Override
+            public List<Certificate> getTrustedCertificates() throws Exception {
+                return Collections.singletonList(certificate);
             }
         };
 
@@ -100,13 +112,23 @@ public class FileVerifierTest {
         // Create a KeyProvider
         KeyProvider keyProvider = new KeyProvider() {
             @Override
-            public PrivateKey getPrivateKey() {
+            public PrivateKey getSigningKey() {
                 return privateKey;
             }
 
             @Override
-            public Certificate getCertificate() {
+            public Certificate getSigningCertificate() {
                 return certificate;
+            }
+
+            @Override
+            public List<Certificate> getSigningCertificateChain() throws Exception {
+                return Collections.singletonList(certificate);
+            }
+
+            @Override
+            public List<Certificate> getTrustedCertificates() throws Exception {
+                return Collections.singletonList(certificate);
             }
         };
 
@@ -126,13 +148,23 @@ public class FileVerifierTest {
         // Create a KeyProvider
         KeyProvider keyProvider = new KeyProvider() {
             @Override
-            public PrivateKey getPrivateKey() {
+            public PrivateKey getSigningKey() {
                 return privateKey;
             }
 
             @Override
-            public Certificate getCertificate() {
+            public Certificate getSigningCertificate() {
                 return certificate;
+            }
+
+            @Override
+            public List<Certificate> getSigningCertificateChain() throws Exception {
+                return Collections.singletonList(certificate);
+            }
+
+            @Override
+            public List<Certificate> getTrustedCertificates() throws Exception {
+                return Collections.singletonList(certificate);
             }
         };
 

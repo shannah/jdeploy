@@ -4,6 +4,7 @@ import java.io.*;
 import java.nio.file.*;
 import java.security.*;
 import java.security.cert.*;
+import java.security.cert.Certificate;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Stream;
@@ -32,24 +33,26 @@ public class FileVerifier {
             CertificateVerifier certificateVerifier,
             boolean verbose
     ) throws Exception {
-        // Load the certificate from the file
+        // Load the certificate chain from the file
         Path certificatePath = Paths.get(directoryPath, CERTIFICATE_FILENAME);
         if (!Files.exists(certificatePath)) {
             return VerificationResult.NOT_SIGNED_AT_ALL;
         }
 
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-        X509Certificate certificate;
+        List<Certificate> certificateChain = new ArrayList<>();
         try (InputStream in = Files.newInputStream(certificatePath)) {
-            certificate = (X509Certificate) certFactory.generateCertificate(in);
+            while (in.available() > 0) {
+                certificateChain.add(certFactory.generateCertificate(in));
+            }
         }
 
-        // Check if the certificate is trusted
-        if (!certificateVerifier.isTrusted(certificate)) {
+        // Check if the certificate chain is trusted
+        if (!certificateVerifier.isTrusted(certificateChain)) {
             return VerificationResult.UNTRUSTED_CERTIFICATE;
         }
 
-        PublicKey publicKey = certificate.getPublicKey();
+        PublicKey publicKey = certificateChain.get(0).getPublicKey();
 
         // Read the manifest file
         Path manifestPath = Paths.get(directoryPath, MANIFEST_FILENAME);
@@ -81,7 +84,7 @@ public class FileVerifier {
         String timestampStr = manifest.getString("timestamp");
         SimpleDateFormat sdf = new SimpleDateFormat(TIMESTAMP_FORMAT);
         Date timestamp = sdf.parse(timestampStr);
-        certificate.checkValidity(timestamp);
+        ((X509Certificate) certificateChain.get(0)).checkValidity(timestamp);
 
         // Verify each file listed in the manifest
         Path baseDir = Paths.get(directoryPath);

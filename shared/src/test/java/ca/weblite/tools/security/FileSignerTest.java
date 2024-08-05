@@ -70,7 +70,10 @@ public class FileSignerTest {
         FileSigner.signDirectory(VERSION, tempDir.toString(), keyProvider);
 
         // Create a CertificateVerifier
-        CertificateVerifier verifier = new SimpleCertificateVerifier(certificate);
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        keyStore.load(null, null);
+        keyStore.setCertificateEntry("test", certificate);
+        CertificateVerifier verifier = new SimpleCertificateVerifier(keyStore);
 
         // Verify the manifest and files using FileVerifier
         VerificationResult result = FileVerifier.verifyDirectory(VERSION, tempDir.toString(), verifier);

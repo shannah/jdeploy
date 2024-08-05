@@ -25,7 +25,6 @@ import ca.weblite.jdeploy.services.GithubWorkflowGenerator;
 import ca.weblite.jdeploy.services.JavaVersionExtractor;
 import ca.weblite.jdeploy.services.PackageSigningService;
 import ca.weblite.tools.io.*;
-import ca.weblite.tools.security.CertificateUtil;
 import ca.weblite.tools.security.KeyProvider;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
@@ -1523,7 +1522,7 @@ public class JDeploy {
         if (isPackageSigningEnabled()) {
             try {
                 appInfo.setEnableCertificatePinning(true);
-                appInfo.setPackageSigningCertificate(keyProvider.getCertificate());
+                appInfo.setTrustedCertificates(keyProvider.getTrustedCertificates());
             } catch (Exception ex) {
                 throw new IOException("Failed to load private key for package signing", ex);
             }
