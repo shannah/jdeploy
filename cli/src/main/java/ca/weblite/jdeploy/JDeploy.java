@@ -1973,13 +1973,23 @@ public class JDeploy {
     }
     
     private void _package(BundlerSettings bundlerSettings) throws IOException {
+        File jdeployBundle = new File(directory, "jdeploy-bundle");
         if (alwaysClean) {
-            File jdeployBundle = new File(directory, "jdeploy-bundle");
             if (jdeployBundle.exists()) {
                 FileUtils.deleteDirectory(jdeployBundle);
             }
         }
         copyToBin();
+        if (isPackageSigningEnabled()) {
+            try {
+                packageSigningService.signPackage(
+                        getPackageSigningVersionString(getPackageJsonResult()),
+                        jdeployBundle.getAbsolutePath()
+                );
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
         try {
             allBundles(bundlerSettings);
         } catch (Exception ex) {
@@ -2243,6 +2253,15 @@ public class JDeploy {
         String versionString = packageJSON.getString("version");
         if (packageJSON.has("commitHash")) {
             versionString += "#" + packageJSON.getString("commitHash");
+        }
+
+        return versionString;
+    }
+
+    private String getPackageSigningVersionString(Result packageJSON) {
+        String versionString = packageJSON.getAsString("version");
+        if (packageJSON.get("commitHash") != null) {
+            versionString += "#" + packageJSON.getAsString("commitHash");
         }
 
         return versionString;

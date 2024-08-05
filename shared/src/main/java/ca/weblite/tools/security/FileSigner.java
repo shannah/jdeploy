@@ -3,6 +3,8 @@ package ca.weblite.tools.security;
 import java.io.*;
 import java.nio.file.*;
 import java.security.*;
+import java.security.cert.Certificate;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -14,12 +16,16 @@ public class FileSigner {
     private static final String SIGNING_ALGORITHM = "SHA256withRSA";
     private static final String MANIFEST_FILENAME = "jdeploy.mf";
     private static final String MANIFEST_SIGNATURE_FILENAME = "jdeploy.mf.sig";
+    private static final String CERTIFICATE_FILENAME = "jdeploy.cer";
+    private static final String TIMESTAMP_FORMAT = "yyyy-MM-dd'T'HH:mm:ss'Z'";
 
     public static void signDirectory(String version, String directoryPath, KeyProvider keyProvider) throws Exception {
         PrivateKey privateKey = keyProvider.getPrivateKey();
+        Certificate certificate = keyProvider.getCertificate();
 
-        // Generate the manifest
-        JSONObject manifest = generateManifest(directoryPath, privateKey);
+        // Generate the manifest with timestamp
+        String timestamp = new SimpleDateFormat(TIMESTAMP_FORMAT).format(new Date());
+        JSONObject manifest = generateManifest(directoryPath, privateKey, timestamp);
 
         // Save the manifest file
         Path manifestPath = Paths.get(directoryPath, MANIFEST_FILENAME);
@@ -29,20 +35,30 @@ public class FileSigner {
 
         // Sign the manifest file
         byte[] manifestContent = Files.readAllBytes(manifestPath);
-        byte[] manifestHash = hashWithVersion(manifestContent, version);
-        byte[] manifestSignature = sign(manifestHash, privateKey);
+        //byte[] manifestHash = hashWithVersion(manifestContent, version);
+        byte[] manifestSignature = signWithVersion(manifestContent, privateKey, version);
 
         // Save the manifest signature file
         Path manifestSignaturePath = Paths.get(directoryPath, MANIFEST_SIGNATURE_FILENAME);
-        Files.write(manifestSignaturePath, encodeHex(manifestSignature).getBytes());
+        Files.write(manifestSignaturePath, manifestSignature);
+
+        // Save the certificate file
+        Path certificatePath = Paths.get(directoryPath, CERTIFICATE_FILENAME);
+        try (FileOutputStream fos = new FileOutputStream(certificatePath.toFile())) {
+            fos.write(certificate.getEncoded());
+        }
     }
 
-    private static JSONObject generateManifest(String directoryPath, PrivateKey privateKey) throws Exception {
+    private static JSONObject generateManifest(String directoryPath, PrivateKey privateKey, String timestamp) throws Exception {
         JSONObject manifest = new JSONObject();
-        try (Stream<Path> paths = Files.walk(Paths.get(directoryPath))) {
+        Path baseDir = Paths.get(directoryPath);
+        manifest.put("timestamp", timestamp);
+
+        try (Stream<Path> paths = Files.walk(baseDir)) {
             List<Path> filePaths = paths.filter(Files::isRegularFile)
                     .filter(path -> !path.getFileName().toString().equals(MANIFEST_FILENAME))
                     .filter(path -> !path.getFileName().toString().equals(MANIFEST_SIGNATURE_FILENAME))
+                    .filter(path -> !path.getFileName().toString().equals(CERTIFICATE_FILENAME))
                     .collect(Collectors.toList());
 
             for (Path filePath : filePaths) {
@@ -54,7 +70,9 @@ public class FileSigner {
                 fileEntry.put("hash", encodeHex(hash));
                 fileEntry.put("signature", encodeHex(signature));
 
-                manifest.put(filePath.toString(), fileEntry);
+                // Compute the relative path and use it as the key in the manifest
+                String relativePath = baseDir.relativize(filePath).toString();
+                manifest.put(relativePath, fileEntry);
             }
         }
         return manifest;
@@ -76,6 +94,14 @@ public class FileSigner {
         Signature signature = Signature.getInstance(SIGNING_ALGORITHM);
         signature.initSign(privateKey);
         signature.update(data);
+        return signature.sign();
+    }
+
+    private static byte[] signWithVersion(byte[] data, PrivateKey privateKey, String version) throws Exception {
+        Signature signature = Signature.getInstance(SIGNING_ALGORITHM);
+        signature.initSign(privateKey);
+        signature.update(data);
+        signature.update(version.getBytes());
         return signature.sign();
     }
 
