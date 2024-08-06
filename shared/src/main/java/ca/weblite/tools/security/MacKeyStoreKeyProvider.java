@@ -58,20 +58,28 @@ public class MacKeyStoreKeyProvider implements KeyProvider {
     public List<Certificate> getTrustedCertificates() throws Exception {
         KeyStore keyStore = KeyStore.getInstance("KeychainStore");
         keyStore.load(null, null);
+        List<Certificate> trustedCerts = new ArrayList<>();
+        trustedCerts.add(getSigningCertificate());
 
-        if (rootCertificateAlias == null) {
-            // If the root alias is null, return the signing certificate as the root
-            Certificate signingCert = keyStore.getCertificate(alias);
-            if (signingCert == null) {
-                throw new Exception("No certificate found for alias: " + alias);
+        if (rootCertificateAlias != null) {
+            Certificate rootCert = keyStore.getCertificate(rootCertificateAlias);
+            if (rootCert == null) {
+                throw new Exception("No root certificate found for alias: " + rootCertificateAlias);
             }
-            return Collections.singletonList(signingCert);
+            trustedCerts.add(getRootCertificate());
         }
 
-        Certificate rootCert = keyStore.getCertificate(rootCertificateAlias);
-        if (rootCert == null) {
-            throw new Exception("No root certificate found for alias: " + rootCertificateAlias);
+        return trustedCerts;
+
+    }
+
+    private Certificate getRootCertificate() throws Exception {
+        KeyStore keyStore = KeyStore.getInstance("KeychainStore");
+        keyStore.load(null, null);
+        Certificate cert = keyStore.getCertificate(rootCertificateAlias);
+        if (cert == null) {
+            throw new Exception("No certificate found for alias: " + rootCertificateAlias);
         }
-        return Collections.singletonList(rootCert);
+        return cert;
     }
 }

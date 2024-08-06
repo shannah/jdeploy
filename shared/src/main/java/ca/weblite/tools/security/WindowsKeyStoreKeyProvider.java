@@ -76,28 +76,33 @@ public class WindowsKeyStoreKeyProvider implements KeyProvider {
 
     @Override
     public List<Certificate> getTrustedCertificates() throws Exception {
-        if (rootCertificateAlias == null) {
-            // If the root alias is null, return the signing certificate as the root
-            Certificate signingCert = getSigningCertificate();
-            if (signingCert == null) {
-                throw new Exception("No certificate found for alias: " + alias);
-            }
-            return Collections.singletonList(signingCert);
+        KeyStore keyStore = KeyStore.getInstance("KeychainStore");
+        keyStore.load(null, null);
+
+        List<Certificate> trustedCerts = new ArrayList<>();
+        trustedCerts.add(getSigningCertificate());
+
+        if (rootCertificateAlias != null) {
+            trustedCerts.add(getRootCertificate());
         }
 
+        return trustedCerts;
+    }
+
+    private Certificate getRootCertificate() throws Exception {
         // First try Windows-MY keystore
-        Certificate rootCert = getCertificateFromKeystore("Windows-MY", rootCertificateAlias);
-        if (rootCert != null) {
-            return Collections.singletonList(rootCert);
+        Certificate cert = getRootCertificateFromKeystore("Windows-MY");
+        if (cert != null) {
+            return cert;
         }
 
         // If not found, try Windows-ROOT keystore
-        rootCert = getCertificateFromKeystore("Windows-ROOT", rootCertificateAlias);
-        if (rootCert != null) {
-            return Collections.singletonList(rootCert);
+        cert = getRootCertificateFromKeystore("Windows-ROOT");
+        if (cert != null) {
+            return cert;
         }
 
-        throw new Exception("No root certificate found for alias: " + rootCertificateAlias);
+        throw new Exception("No certificate found for alias: " + rootCertificateAlias);
     }
 
     private PrivateKey getPrivateKeyFromKeystore(String keystoreType) throws Exception {
@@ -110,6 +115,12 @@ public class WindowsKeyStoreKeyProvider implements KeyProvider {
         KeyStore keyStore = KeyStore.getInstance(keystoreType);
         keyStore.load(null, null);
         return keyStore.getCertificate(alias);
+    }
+
+    private Certificate getRootCertificateFromKeystore(String keystoreType) throws Exception {
+        KeyStore keyStore = KeyStore.getInstance(keystoreType);
+        keyStore.load(null, null);
+        return keyStore.getCertificate(rootCertificateAlias);
     }
 
     private Certificate getCertificateFromKeystore(String keystoreType, String alias) throws Exception {
