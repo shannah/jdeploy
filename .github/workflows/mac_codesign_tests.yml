@@ -30,4 +30,5 @@ jobs:
         JDEPLOY_MAC_DEVELOPER_ID: ${{ secrets.APPLE_ID }}
         JDEPLOY_MAC_DEVELOPER_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         JDEPLOY_MAC_DEVELOPER_CERTIFICATE_NAME: ${{ secrets.DEVELOPER_ID_CERTIFICATE_NAME }}
+        JDEPLOY_TEST_CERTIFICATE_NAME: ${{ secrets.DEVELOPER_ID_CERTIFICATE_NAME }}
       run: bash build_and_test.sh
