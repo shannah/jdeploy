@@ -10,6 +10,7 @@ import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
@@ -19,10 +20,16 @@ public class FileKeyProvider implements KeyProvider {
 
     private final String privateKeyPath;
     private final String certificatePath;
+    private final String rootCertificatePath;
 
     public FileKeyProvider(String privateKeyPath, String certificatePath) {
+        this(privateKeyPath, certificatePath, null);
+    }
+
+    public FileKeyProvider(String privateKeyPath, String certificatePath, String rootCertificatePath) {
         this.privateKeyPath = privateKeyPath;
         this.certificatePath = certificatePath;
+        this.rootCertificatePath = rootCertificatePath;
     }
 
     @Override
@@ -48,7 +55,19 @@ public class FileKeyProvider implements KeyProvider {
 
     @Override
     public List<Certificate> getTrustedCertificates() throws Exception {
+        List<Certificate> trustedCerts = new ArrayList<>();
+        trustedCerts.add(getSigningCertificate());
+        if (rootCertificatePath != null) {
+            trustedCerts.add(getRootCertificate());
+        }
         return Collections.singletonList(getSigningCertificate());
+    }
+
+    private Certificate getRootCertificate() throws Exception {
+        String pem = readPemFile(rootCertificatePath);
+        byte[] der = decodePem(pem);
+        CertificateFactory factory = CertificateFactory.getInstance("X.509");
+        return factory.generateCertificate(new java.io.ByteArrayInputStream(der));
     }
 
     private String readPemFile(String filePath) throws IOException {

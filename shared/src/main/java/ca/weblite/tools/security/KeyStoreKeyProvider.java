@@ -83,19 +83,17 @@ public class KeyStoreKeyProvider implements KeyProvider {
             keyStore.load(fis, keyStorePassword);
         }
 
-        if (rootCertificateAlias == null) {
-            // If the root alias is null, return the signing certificate as the root
-            Certificate signingCert = keyStore.getCertificate(certificateAlias);
-            if (signingCert == null) {
-                throw new Exception("No certificate found for alias: " + certificateAlias);
+        List<Certificate> trustedCerts = new ArrayList<>();
+        trustedCerts.add(getSigningCertificate());
+
+        if (rootCertificateAlias != null) {
+            Certificate rootCert = keyStore.getCertificate(rootCertificateAlias);
+            if (rootCert == null) {
+                throw new Exception("No root certificate found for alias: " + rootCertificateAlias);
             }
-            return Collections.singletonList(signingCert);
+            trustedCerts.add(rootCert);
         }
 
-        Certificate rootCert = keyStore.getCertificate(rootCertificateAlias);
-        if (rootCert == null) {
-            throw new Exception("No root certificate found for alias: " + rootCertificateAlias);
-        }
-        return Collections.singletonList(rootCert);
+        return trustedCerts;
     }
 }

@@ -12,6 +12,7 @@ import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
@@ -21,6 +22,7 @@ import java.util.regex.Pattern;
 public class EnvKeyProvider implements KeyProvider {
     private static final String ENV_VAR_SIGNING_KEY = "JDEPLOY_PRIVATE_KEY";
     private static final String ENV_VAR_SIGNING_CERTIFICATE = "JDEPLOY_CERTIFICATE";
+    private static final String ENV_VAR_ROOT_CERTIFICATE = "JDEPLOY_ROOT_CERTIFICATE";
     private static final Pattern PEM_PATTERN = Pattern.compile("-----BEGIN (.+?)-----");
     private final EnvVarProvider envVarProvider;
 
@@ -64,7 +66,24 @@ public class EnvKeyProvider implements KeyProvider {
 
     @Override
     public List<Certificate> getTrustedCertificates() throws Exception {
+        List<Certificate> trustedCerts = new ArrayList<>();
+        trustedCerts.add(getSigningCertificate());
+        Certificate rootCertificate = getRootCertificate();
+        if (rootCertificate != null) {
+            trustedCerts.add(rootCertificate);
+        }
         return Collections.singletonList(getSigningCertificate());
+    }
+
+    private Certificate getRootCertificate() throws Exception {
+        String rootCertificateEnvVar = envVarProvider.getEnv(ENV_VAR_ROOT_CERTIFICATE);
+        if (rootCertificateEnvVar == null) {
+            return null;
+        }
+
+        byte[] certBytes = loadKey(rootCertificateEnvVar);
+        CertificateFactory factory = CertificateFactory.getInstance("X.509");
+        return factory.generateCertificate(new java.io.ByteArrayInputStream(certBytes));
     }
 
     private byte[] loadKey(String key) throws Exception {
