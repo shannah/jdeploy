@@ -13,6 +13,8 @@ public class JDeployKeyProviderFactory {
 
         String getDeveloperId();
 
+        String getCertificateAuthorityId();
+
         char[] getKeystorePassword();
     }
 
@@ -34,6 +36,15 @@ public class JDeployKeyProviderFactory {
         @Override
         public String getDeveloperId() {
             String envKeyStoreAlias = System.getenv("JDEPLOY_DEVELOPER_ID");
+            if (envKeyStoreAlias != null) {
+                return envKeyStoreAlias;
+            }
+            return null;
+        }
+
+        @Override
+        public String getCertificateAuthorityId() {
+            String envKeyStoreAlias = System.getenv("JDEPLOY_DEVELOPER_CA_ID");
             if (envKeyStoreAlias != null) {
                 return envKeyStoreAlias;
             }
@@ -66,17 +77,29 @@ public class JDeployKeyProviderFactory {
                             config.getKeystorePath(),
                             config.getKeystorePassword(),
                             config.getDeveloperId(),
-                            config.getDeveloperId()
+                            config.getDeveloperId(),
+                            config.getCertificateAuthorityId()
                     )
             );
         }
 
         if (Platform.getSystemPlatform().isMac() && config.getDeveloperId() != null) {
-            provider.registerKeyProvider(new MacKeyStoreKeyProvider(config.getDeveloperId(), null));
+            provider.registerKeyProvider(
+                    new MacKeyStoreKeyProvider(
+                            config.getDeveloperId(),
+                            null,
+                            config.getCertificateAuthorityId()
+                    )
+            );
         }
 
         if (Platform.getSystemPlatform().isWindows() && config.getDeveloperId() != null) {
-            provider.registerKeyProvider(new WindowsKeyStoreKeyProvider(config.getDeveloperId(), null));
+            provider.registerKeyProvider(
+                    new WindowsKeyStoreKeyProvider(
+                            config.getDeveloperId(),
+                            null, config.getCertificateAuthorityId()
+                    )
+            );
         }
 
         return provider;
