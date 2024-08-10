@@ -61,7 +61,7 @@ public class EnvKeyProvider implements KeyProvider {
 
     @Override
     public List<Certificate> getSigningCertificateChain() throws Exception {
-        return Collections.emptyList();
+        return Collections.singletonList(getSigningCertificate());
     }
 
     @Override

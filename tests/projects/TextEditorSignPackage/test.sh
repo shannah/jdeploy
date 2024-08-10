@@ -16,6 +16,10 @@ generate_keypair_and_certificate() {
   JDEPLOY_PRIVATE_KEY=$(cat "$temp_dir/private_key.pem")
   JDEPLOY_CERTIFICATE=$(cat "$temp_dir/certificate.pem")
 
+  echo "Generated private key and certificate"
+  echo "Private key: $JDEPLOY_PRIVATE_KEY"
+  echo "Certificate: $JDEPLOY_CERTIFICATE"
+
   # Export environment variables
   export JDEPLOY_PRIVATE_KEY
   export JDEPLOY_CERTIFICATE
@@ -59,5 +63,12 @@ if [ ! -f "jdeploy-bundle/jdeploy.js" ]; then
   echo "jdeploy package did not copy jdeploy.js file correctly."
   exit 1
 fi
+
+# Make sure that jdeploy-bundle/jdeploy.cer exists and is non-empty
+if [ ! -s "jdeploy-bundle/jdeploy.cer" ]; then
+  echo "jdeploy package did not generate a valid certificate file."
+  exit 1
+fi
+
 
 echo "TextEditor project test passed"

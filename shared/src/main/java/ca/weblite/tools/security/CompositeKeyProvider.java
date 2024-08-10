@@ -45,6 +45,9 @@ public class CompositeKeyProvider implements KeyProvider {
         if (cachedCertificate != null) {
             return cachedCertificate;
         }
+        if (certificateProvider != null) {
+            return certificateProvider.getSigningCertificate();
+        }
         for (KeyProvider provider : keyProviders) {
             try {
                 Certificate certificate = provider.getSigningCertificate();

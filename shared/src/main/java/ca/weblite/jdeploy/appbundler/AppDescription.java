@@ -132,6 +132,10 @@ public class AppDescription {
         this.isPackageCertificatePinningEnabled = false;
     }
 
+    public boolean isPackageCertificatePinningEnabled() {
+        return isPackageCertificatePinningEnabled;
+    }
+
     public void setMacBundleId(String id) {
         this.macBundleId = id;
     }

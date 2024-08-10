@@ -264,34 +264,38 @@ public class MacBundler {
             atts.add("jdeploy-home");
             atts.add(app.getjDeployHomeMac() == null ? app.getjDeployHome() : app.getjDeployHomeMac());
         }
-
-        if (app.getTrustedCertificates() != null && !app.getTrustedCertificates().isEmpty()) {
-            atts.add("trusted-certificates");
-            StringBuilder chainValue = new StringBuilder();
-            for (Certificate certificate : app.getTrustedCertificates()) {
-                try {
-                    chainValue.append(CertificateUtil.toPemEncodedString(certificate));
-                    chainValue.append("\n");
-                } catch (CertificateEncodingException ex) {
-                    throw new RuntimeException(ex);
+        if (app.isPackageCertificatePinningEnabled()) {
+            atts.add("certificate-pinning");
+            atts.add("enabled");
+            if (app.getTrustedCertificates() != null && !app.getTrustedCertificates().isEmpty()) {
+                atts.add("trusted-certificates");
+                StringBuilder chainValue = new StringBuilder();
+                for (Certificate certificate : app.getTrustedCertificates()) {
+                    try {
+                        chainValue.append(CertificateUtil.toPemEncodedString(certificate));
+                        chainValue.append("\n");
+                    } catch (CertificateEncodingException ex) {
+                        throw new RuntimeException(ex);
+                    }
                 }
-            }
 
-            atts.add(chainValue.toString());
+                atts.add(chainValue.toString());
 
-            atts.add("trusted-sha1-fingerprints");
-            chainValue.setLength(0);
-            for (Certificate certificate : app.getTrustedCertificates()) {
-                try {
-                    chainValue.append(CertificateUtil.getSHA1Fingerprint(certificate));
-                    chainValue.append("\n");
-                } catch (CertificateEncodingException ex) {
-                    throw new RuntimeException(ex);
+                atts.add("trusted-sha1-fingerprints");
+                chainValue.setLength(0);
+                for (Certificate certificate : app.getTrustedCertificates()) {
+                    try {
+                        chainValue.append(CertificateUtil.getSHA1Fingerprint(certificate));
+                        chainValue.append("\n");
+                    } catch (CertificateEncodingException ex) {
+                        throw new RuntimeException(ex);
+                    }
                 }
+            } else {
+                throw new IllegalArgumentException("Certificate pinning is enabled but there are not trusted certificates specified");
             }
-
-
         }
+
 
         return atts.toArray(new String[0]);
     }

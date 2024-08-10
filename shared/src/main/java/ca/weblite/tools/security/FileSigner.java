@@ -22,6 +22,9 @@ public class FileSigner {
     public static void signDirectory(String version, String directoryPath, KeyProvider keyProvider) throws Exception {
         PrivateKey privateKey = keyProvider.getSigningKey();
         List<Certificate> certificateChain = keyProvider.getSigningCertificateChain();
+        if (certificateChain == null || certificateChain.isEmpty()) {
+            throw new IllegalArgumentException("KeyProvider failed to find any certificates in the signing certificate chain");
+        }
 
         // Generate the manifest with timestamp
         String timestamp = new SimpleDateFormat(TIMESTAMP_FORMAT).format(new Date());
