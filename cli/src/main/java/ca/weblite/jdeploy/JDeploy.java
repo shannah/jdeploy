@@ -65,6 +65,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.codejargon.feather.Feather;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.w3c.dom.Document;
 
@@ -2240,6 +2241,9 @@ public class JDeploy {
                         getPackageSigningVersionString(packageJSON),
                         publishJdeployBundleDir.getAbsolutePath()
                 );
+                JSONArray packageSignCertificateSignatures = new JSONArray();
+                packageSignCertificateSignatures.putAll(packageSigningService.calculateCertificateHashes());
+                jdeployObj.put("packageSignCertificateSignatures", packageSignCertificateSignatures);
             } catch (Exception ex) {
                 throw new IOException("Failed to sign package", ex);
             }

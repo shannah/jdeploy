@@ -17,6 +17,7 @@ import java.net.URL;
 import java.nio.file.Paths;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
 import java.text.MessageFormat;
 import java.util.*;
 import javax.imageio.ImageIO;
@@ -277,6 +278,19 @@ public class MacBundler {
             }
 
             atts.add(chainValue.toString());
+
+            atts.add("trusted-sha1-fingerprints");
+            chainValue.setLength(0);
+            for (Certificate certificate : app.getTrustedCertificates()) {
+                try {
+                    chainValue.append(CertificateUtil.getSHA1Fingerprint(certificate));
+                    chainValue.append("\n");
+                } catch (CertificateEncodingException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+
+
         }
 
         return atts.toArray(new String[0]);

@@ -30,16 +30,14 @@ import java.util.logging.Logger;
  */
 public class CertificateUtil {
 
-    public static String getSHA1Fingerprint(X509Certificate cert) throws CertificateEncodingException {
+    public static String getSHA1Fingerprint(Certificate cert) throws CertificateEncodingException {
         return getFingerprint(cert, "SHA1");
     }
 
-    public static String getFingerprint(X509Certificate server, String type) throws CertificateEncodingException {
+    public static String getFingerprint(Certificate server, String type) throws CertificateEncodingException {
         try {
             byte[] encoded = server.getEncoded();
             MessageDigest sha1 = MessageDigest.getInstance(type);
-            System.out.println("  Subject " + server.getSubjectDN());
-            System.out.println("   Issuer  " + server.getIssuerDN());
             sha1.update(encoded);
             return bytesToHex(sha1.digest());
         } catch (NoSuchAlgorithmException ex) {
@@ -58,6 +56,21 @@ public class CertificateUtil {
             hexChars[j * 2 + 1] = hexArray[v & 0x0F];
         }
         return new String(hexChars);
+    }
+
+    public static String generateCertificateSHA256Hash(Certificate certificate)
+            throws NoSuchAlgorithmException, CertificateEncodingException {
+        // Get the encoded form of the certificate
+        byte[] encodedCertificate = certificate.getEncoded();
+
+        // Create a SHA-256 MessageDigest instance
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+        // Hash the encoded certificate
+        byte[] hash = digest.digest(encodedCertificate);
+
+        // Convert the hash to a hexadecimal string
+        return bytesToHex(hash);
     }
 
     public static String toPemEncodedString(PrivateKey privateKey) {
