@@ -9,10 +9,7 @@ import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.app.JVMSpecification;
 import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
-import ca.weblite.jdeploy.cli.controllers.CheerpjController;
-import ca.weblite.jdeploy.cli.controllers.GitHubRepositoryInitializerCLIController;
-import ca.weblite.jdeploy.cli.controllers.JPackageController;
-import ca.weblite.jdeploy.cli.controllers.ProjectGeneratorCLIController;
+import ca.weblite.jdeploy.cli.controllers.*;
 import ca.weblite.jdeploy.di.JDeployModule;
 import ca.weblite.jdeploy.factories.JDeployKeyProviderFactory;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
@@ -20,10 +17,7 @@ import ca.weblite.jdeploy.gui.JDeployProjectEditor;
 import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.npm.NPM;
-import ca.weblite.jdeploy.services.DeveloperIdentityKeyStore;
-import ca.weblite.jdeploy.services.GithubWorkflowGenerator;
-import ca.weblite.jdeploy.services.JavaVersionExtractor;
-import ca.weblite.jdeploy.services.PackageSigningService;
+import ca.weblite.jdeploy.services.*;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.security.KeyProvider;
 import com.codename1.io.JSONParser;
@@ -1971,6 +1965,13 @@ public class JDeploy {
     private void _package() throws IOException {
         _package(new BundlerSettings());
     }
+
+    private void _verify(String[] args) throws Exception {
+        String[] verifyArgs = new String[args.length-1];
+        System.arraycopy(args, 1, verifyArgs, 0, verifyArgs.length);
+        CLIVerifyPackageController verifyPackageController = new CLIVerifyPackageController(new VerifyPackageService());
+        verifyPackageController.verifyPackage(verifyArgs);
+    }
     
     private void _package(BundlerSettings bundlerSettings) throws IOException {
         File jdeployBundle = new File(directory, "jdeploy-bundle");
@@ -2514,6 +2515,10 @@ public class JDeploy {
                 prog.generate(generateArgs);
                 return;
             }
+            if (args.length > 0 && "verify-package".equals(args[0])) {
+                prog._verify(args);
+                return;
+            }
             if (args.length > 0 && "github".equals(args[0]) && args.length> 1 && "init".equals(args[1])) {
                 String[] githubInitArgs = new String[args.length-2];
                 System.arraycopy(args, 2, githubInitArgs, 0, githubInitArgs.length);
@@ -2522,7 +2527,7 @@ public class JDeploy {
             }
 
             Options opts = new Options();
-            opts.addOption("y", "no-prompt", false,"Indicates not to prompt user ");
+            opts.addOption("y", "no-prompt", false,"Indicates not to prompt_ user ");
             opts.addOption("W", "no-workflow", false,"Indicates not to create a github workflow if true");
             boolean noPromptFlag = false;
             boolean noWorkflowFlag = false;

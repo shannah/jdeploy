@@ -210,6 +210,38 @@ public class CertificateUtil {
         // and return array of byte
         return md.digest(input);
     }
+
+    public static KeyStore loadCertificatesFromPEM(String pemEncodedCertificates) throws Exception {
+        // Create an empty KeyStore
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        keyStore.load(null, null);  // Initialize the KeyStore with null parameters
+
+        // Split the PEM string into individual certificates
+        String[] certArray = pemEncodedCertificates.split("(?m)(?=-----BEGIN CERTIFICATE-----)");
+
+        CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+
+        int certIndex = 0;
+
+        // Process each certificate in the PEM string
+        for (String certString : certArray) {
+            // Clean up the PEM string by removing whitespace and newlines
+            certString = certString.replaceAll("\\s", "").replaceAll("-----BEGINCERTIFICATE-----", "").replaceAll("-----ENDCERTIFICATE-----", "");
+
+            // Decode the Base64 encoded certificate
+            byte[] decoded = Base64.getDecoder().decode(certString);
+
+            // Generate the X.509 certificate
+            X509Certificate certificate = (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(decoded));
+
+            // Add the certificate to the KeyStore with a unique alias
+            keyStore.setCertificateEntry("cert-" + certIndex, certificate);
+            certIndex++;
+        }
+
+        return keyStore;
+    }
+
     private static String toHexString(byte[] hash)
     {
         // Convert byte array into signum representation
