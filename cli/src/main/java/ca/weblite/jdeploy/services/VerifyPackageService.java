@@ -79,7 +79,7 @@ public class VerifyPackageService {
         }
     }
 
-    private KeyStore loadTrustedCertificates(String keyStore) throws Exception {
+    protected KeyStore loadTrustedCertificates(String keyStore) throws Exception {
         if (isPemString(keyStore)) {
             return CertificateUtil.loadCertificatesFromPEM(keyStore);
         } else if (isJksFile(keyStore)) {
