@@ -70,5 +70,10 @@ if [ ! -s "jdeploy-bundle/jdeploy.cer" ]; then
   exit 1
 fi
 
+java -jar "$JDEPLOY" verify-package \
+  -k "jdeploy/bundles/mac-arm64/Text Editor.app/Contents/app.xml" \
+  -v 0.0.0-JDEPLOY-SNAPSHOT \
+  jdeploy-bundle
+
 
 echo "TextEditor project test passed"
