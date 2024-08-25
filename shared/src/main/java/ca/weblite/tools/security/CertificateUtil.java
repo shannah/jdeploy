@@ -211,7 +211,20 @@ public class CertificateUtil {
         return md.digest(input);
     }
 
-    public static KeyStore loadCertificatesFromPEM(String pemEncodedCertificates) throws Exception {
+    public static KeyStore loadTrustedCertificatesFromAppXml(
+            String appXmlPath,
+            CertificateAliasProvider aliasProvider
+    ) throws Exception {
+        return loadCertificatesFromPEM(
+                AppXmlTrustedCertificatesExtractor.extractTrustedCertificates(appXmlPath),
+                aliasProvider
+        );
+    }
+
+    public static KeyStore loadCertificatesFromPEM(
+            String pemEncodedCertificates,
+            CertificateAliasProvider aliasProvider
+    ) throws Exception {
         // Create an empty KeyStore
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         keyStore.load(null, null);  // Initialize the KeyStore with null parameters
@@ -235,7 +248,11 @@ public class CertificateUtil {
             X509Certificate certificate = (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(decoded));
 
             // Add the certificate to the KeyStore with a unique alias
-            keyStore.setCertificateEntry("cert-" + certIndex, certificate);
+            if (aliasProvider == null) {
+                keyStore.setCertificateEntry("cert-" + certIndex, certificate);
+            } else {
+                keyStore.setCertificateEntry(aliasProvider.getCertificateAlias(certificate), certificate);
+            }
             certIndex++;
         }
 

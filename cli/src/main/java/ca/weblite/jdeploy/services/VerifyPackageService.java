@@ -81,7 +81,7 @@ public class VerifyPackageService {
 
     protected KeyStore loadTrustedCertificates(String keyStore) throws Exception {
         if (isPemString(keyStore)) {
-            return CertificateUtil.loadCertificatesFromPEM(keyStore);
+            return CertificateUtil.loadCertificatesFromPEM(keyStore, new CommonNameAliasProvider());
         } else if (isJksFile(keyStore)) {
             return loadJksFile(keyStore);
         } else if (isPemFile(keyStore)) {
@@ -92,9 +92,15 @@ public class VerifyPackageService {
             return loadPkcs12File(keyStore);
         } else if (isPkcs7File(keyStore)) {
             return loadPkcs7File(keyStore);
+        } else if (isAppXml(keyStore)) {
+            return CertificateUtil.loadTrustedCertificatesFromAppXml(keyStore, new CommonNameAliasProvider());
         } else {
             throw new IllegalArgumentException("Invalid key store format");
         }
+    }
+
+    private boolean isAppXml(String keyStore) {
+        return isFile(keyStore, "app.xml");
     }
 
     private boolean isPemString(String keyStore) {
