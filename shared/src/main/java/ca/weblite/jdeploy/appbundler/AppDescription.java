@@ -33,6 +33,7 @@ public class AppDescription {
     private String macBundleId;
     private boolean enableMacCodeSigning;
     private boolean enableMacNotarization;
+
     private String macCertificateName;
     private String macDeveloperID;
     private String macNotarizationPassword;

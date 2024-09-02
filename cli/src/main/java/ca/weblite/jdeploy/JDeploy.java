@@ -8,7 +8,10 @@ package ca.weblite.jdeploy;
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.app.JVMSpecification;
 import ca.weblite.jdeploy.appbundler.Bundler;
+import ca.weblite.jdeploy.appbundler.BundlerCall;
+import ca.weblite.jdeploy.appbundler.BundlerResult;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
+import ca.weblite.jdeploy.appbundler.mac.DmgCreator;
 import ca.weblite.jdeploy.cli.controllers.*;
 import ca.weblite.jdeploy.di.JDeployModule;
 import ca.weblite.jdeploy.factories.JDeployKeyProviderFactory;
@@ -19,6 +22,7 @@ import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.services.*;
 import ca.weblite.tools.io.*;
+import ca.weblite.tools.platform.Platform;
 import ca.weblite.tools.security.KeyProvider;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
@@ -34,6 +38,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -83,6 +88,8 @@ public class JDeploy {
 
     private static final String BUNDLE_MAC_X64 = "mac-x64";
     private static final String BUNDLE_MAC_ARM64 = "mac-arm64";
+    private static final String BUNDLE_MAC_X64_DMG = "mac-x64-dmg";
+    private static final String BUNDLE_MAC_ARM64_DMG = "mac-arm64-dmg";
     private static final String BUNDLE_WIN = "win";
     private static final String BUNDLE_LINUX = "linux";
 
@@ -1609,44 +1616,104 @@ public class JDeploy {
 
     }
 
-    public void macIntelBundle(BundlerSettings bundlerSettings) throws Exception {
-        bundle(BUNDLE_MAC_X64, bundlerSettings);
+    public BundlerResult macIntelBundle(BundlerSettings bundlerSettings) throws Exception {
+        return bundle(BUNDLE_MAC_X64, bundlerSettings);
     }
 
-    public void macArmBundle(BundlerSettings bundlerSettings) throws Exception {
-        bundle(BUNDLE_MAC_ARM64, bundlerSettings);
+    public BundlerResult macIntelBundle(
+            BundlerSettings bundlerSettings,
+            String overrideDestDir,
+            String overrideReleaseDir
+    ) throws Exception {
+        return bundle(BUNDLE_MAC_X64, bundlerSettings, overrideDestDir, overrideReleaseDir);
     }
 
-    public void windowsBundle(BundlerSettings bundlerSettings) throws Exception {
-        bundle("win", bundlerSettings);
-    }
-    public void linuxBundle(BundlerSettings bundlerSettings) throws Exception {
-        bundle("linux", bundlerSettings);
+    public BundlerResult macArmBundle(BundlerSettings bundlerSettings) throws Exception {
+        return bundle(BUNDLE_MAC_ARM64, bundlerSettings);
     }
 
-    public void windowsInstallerBundle(BundlerSettings bundlerSettings) throws Exception {
-        bundle("win-installer", bundlerSettings);
+    public BundlerResult macArmBundle(
+            BundlerSettings bundlerSettings,
+            String overrideDestDir,
+            String overrideReleaseDir
+    ) throws Exception {
+        return bundle(BUNDLE_MAC_ARM64, bundlerSettings, overrideDestDir, overrideReleaseDir);
     }
 
-    public void linuxInstallerBundle(BundlerSettings bundlerSettings) throws Exception {
-        bundle("linux-installer", bundlerSettings);
+    public void macArmDmg(BundlerSettings bundlerSettings, File destDir) throws Exception {
+        dmg(bundlerSettings, destDir, ".aarch64.dmg", (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
+            return macArmBundle(bundlerSettings1, bundleDestDir, bundleReleaseDir);
+        });
     }
 
-    public void allBundles(BundlerSettings bundlerSettings) throws Exception {
+    public void macIntelDmg(BundlerSettings bundlerSettings, File destDir) throws Exception {
+        dmg(bundlerSettings, destDir, "-x86_64.dmg", (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
+            return macIntelBundle(bundlerSettings1, bundleDestDir, bundleReleaseDir);
+        });
+    }
+
+    public void dmg(
+            BundlerSettings bundlerSettings,
+            File destDir,
+            String suffix,
+            BundlerCall bundlerCall
+    ) throws Exception {
+        File tmpDir = File.createTempFile("jdeploy", "dmg");
+        tmpDir.delete();
+        tmpDir.mkdirs();
+        try {
+
+            BundlerResult bundleResult = bundlerCall.bundle(
+                    bundlerSettings,
+                    tmpDir.getAbsolutePath(),
+                    tmpDir.getAbsolutePath()
+            );
+            String appName = bundleResult.getOutputFile().getName();
+            String appNameWithoutExtension = appName.substring(0, appName.lastIndexOf("."));
+            String dmgName = appNameWithoutExtension + suffix;
+            DmgCreator.createDmg(
+                    bundleResult.getOutputFile().getAbsolutePath(),
+                    new File(destDir, dmgName).getAbsolutePath()
+            );
+
+        } finally {
+            FileUtils.deleteDirectory(tmpDir);
+        }
+    }
+
+
+    public BundlerResult windowsBundle(BundlerSettings bundlerSettings) throws Exception {
+        return bundle("win", bundlerSettings);
+    }
+    public BundlerResult linuxBundle(BundlerSettings bundlerSettings) throws Exception {
+        return bundle("linux", bundlerSettings);
+    }
+
+    public BundlerResult windowsInstallerBundle(BundlerSettings bundlerSettings) throws Exception {
+        return bundle("win-installer", bundlerSettings);
+    }
+
+    public BundlerResult linuxInstallerBundle(BundlerSettings bundlerSettings) throws Exception {
+        return bundle("linux-installer", bundlerSettings);
+    }
+
+    public Map<String,BundlerResult> allBundles(BundlerSettings bundlerSettings) throws Exception {
         Set<String> bundles = bundles();
+        Map<String, BundlerResult> results = new HashMap<>();
         if (bundles.contains("mac") || bundles.contains(BUNDLE_MAC_X64)) {
-            macIntelBundle(bundlerSettings);
+            results.put(BUNDLE_MAC_X64, macIntelBundle(bundlerSettings));
         }
         if (bundles.contains(BUNDLE_MAC_ARM64)) {
-            macArmBundle(bundlerSettings);
+            results.put(BUNDLE_MAC_ARM64, macArmBundle(bundlerSettings));
         }
         if (bundles.contains(BUNDLE_WIN)) {
-            windowsBundle(bundlerSettings);
+            results.put(BUNDLE_WIN, windowsBundle(bundlerSettings));
         }
         if (bundles.contains(BUNDLE_LINUX)) {
-            linuxBundle(bundlerSettings);
+            results.put(BUNDLE_LINUX, linuxBundle(bundlerSettings));
         }
 
+        return results;
     }
 
     public void allInstallers() throws Exception {
@@ -1665,23 +1732,36 @@ public class JDeploy {
         }
     }
 
-    public void bundle(String target) throws Exception {
-        bundle(target, new BundlerSettings());
+    public BundlerResult bundle(String target) throws Exception {
+        return bundle(target, new BundlerSettings());
     }
 
-    public void bundle(String target, BundlerSettings bundlerSettings) throws Exception {
+    public BundlerResult bundle(
+            String target,
+            BundlerSettings bundlerSettings
+    ) throws Exception {
+        return bundle(target, bundlerSettings, null, null);
+    }
+
+    public BundlerResult bundle(
+            String target,
+            BundlerSettings bundlerSettings,
+            String overrideDestDir,
+            String overrideReleaseDir
+    ) throws Exception {
         AppInfo appInfo = new AppInfo();
         loadAppInfo(appInfo);
         if (bundlerSettings.getSource() != null) {
             appInfo.setNpmSource(bundlerSettings.getSource());
         }
 
-        Bundler.runit(
+        return Bundler.runit(
                 bundlerSettings,
                 appInfo,
                 appInfo.getAppURL().toString(),
-                target, "jdeploy" + File.separator + "bundles",
-                "jdeploy" + File.separator + "releases"
+                target,
+                overrideDestDir == null ? "jdeploy" + File.separator + "bundles" : overrideDestDir,
+                overrideReleaseDir == null ? "jdeploy" + File.separator + "releases" : overrideReleaseDir
         );
     }
 
@@ -1728,6 +1808,22 @@ public class JDeploy {
             _newName = _newName.replace("${{ platform }}", BUNDLE_MAC_ARM64);
             installerZip = new File(installerDir, _newName +  ".tar");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-mac-arm64.tar"), installerZip);
+        } else if (target.equals(BUNDLE_MAC_ARM64_DMG)) {
+            if (!Platform.getSystemPlatform().isMac()) {
+                out.println("DMG bundling is only supported on macOS.  Skipping DMG generation");
+                return;
+            }
+
+            macArmDmg(bundlerSettings, installerDir);
+            return;
+        } else if (target.equals(BUNDLE_MAC_X64_DMG)) {
+            if (!Platform.getSystemPlatform().isMac()) {
+                out.println("DMG bundling is only supported on macOS.  Skipping DMG generation");
+                return;
+            }
+
+            macIntelDmg(bundlerSettings, installerDir);
+            return;
         } else if (target.equals(BUNDLE_WIN)) {
             _newName = _newName.replace("${{ platform }}", "win-x64");
             installerZip = new File(installerDir, _newName + ".exe");
@@ -2607,7 +2703,10 @@ public class JDeploy {
                 }
             }
 
-            if ("cheerpj".equals(args[0])) {
+            if ("dmg".equals(args[0])) {
+                prog.overrideInstallers(BUNDLE_MAC_X64_DMG, BUNDLE_MAC_ARM64_DMG);
+                prog.allInstallers();
+            } else if ("cheerpj".equals(args[0])) {
                 String[] cheerpjArgs = new String[args.length-1];
                 System.arraycopy(args, 1, cheerpjArgs, 0, cheerpjArgs.length);
                 prog.cheerpjCLI(cheerpjArgs);
