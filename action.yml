@@ -90,7 +90,9 @@ runs:
       if: ${{ startsWith(inputs.jdeploy_version, 'git://') }}
       shell: bash
       run: |
-        echo "JDEPLOY_REF=${{ inputs.jdeploy_version#git:// }}" >> $GITHUB_ENV
+        jdeploy_version="${{ inputs.jdeploy_version }}"
+        JDEPLOY_REF="${jdeploy_version#git://}"
+        echo "JDEPLOY_REF=$JDEPLOY_REF" >> $GITHUB_ENV
 
     - name: Checkout jDeploy Source
       if: ${{ startsWith(inputs.jdeploy_version, 'git://') }}
@@ -101,7 +103,7 @@ runs:
         ref: '${{ env.JDEPLOY_REF }}'
 
     - name: Install jDeploy from Source
-      id: jdeploy_install
+      id: jdeploy_install_source
       if: ${{ startsWith(inputs.jdeploy_version, 'git://') }}
       shell: bash
       run: |
@@ -119,7 +121,7 @@ runs:
         MAVEN_OPTS: "-Xmx2g"
 
     - name: Install jDeploy from NPM
-      id: jdeploy_install
+      id: jdeploy_install_standard
       if: ${{ !startsWith(inputs.jdeploy_version, 'git://') }}
       shell: bash
       run: |
