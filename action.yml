@@ -86,13 +86,19 @@ runs:
         echo "Restoring original JAVA_HOME"
         echo "JAVA_HOME=${ORIGINAL_JAVA_HOME}" >> $GITHUB_ENV
 
+    - name: Set jDeploy Ref
+      if: ${{ startsWith(inputs.jdeploy_version, 'git://') }}
+      shell: bash
+      run: |
+        echo "JDEPLOY_REF=${{ inputs.jdeploy_version#git:// }}" >> $GITHUB_ENV
+
     - name: Checkout jDeploy Source
       if: ${{ startsWith(inputs.jdeploy_version, 'git://') }}
       uses: actions/checkout@v3
       with:
         repository: 'shannah/jdeploy'
         path: './jdeploy-source'
-        ref: '${{ inputs.jdeploy_version:7 }}'
+        ref: '${{ env.JDEPLOY_REF }}'
 
     - name: Install jDeploy from Source
       id: jdeploy_install
