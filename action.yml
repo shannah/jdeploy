@@ -56,6 +56,84 @@ runs:
       with:
         node-version: '16.x'
         registry-url: 'https://registry.npmjs.org'
+
+    - name: Save Original JAVA_HOME
+      if: env.JAVA_HOME
+      shell: bash
+      run: |
+        echo "ORIGINAL_JAVA_HOME=${JAVA_HOME}" >> $GITHUB_ENV
+
+    - name: Set up Isolated Java for jDeploy (only for git:// version)
+      if: ${{ startsWith(inputs.jdeploy_version, 'git://') }}
+      uses: actions/setup-java@v3
+      with:
+        java-version: '11'
+        distribution: 'zulu'
+        cache: maven
+      id: setup-java-jdeploy
+
+    - name: Configure Java for jDeploy Only
+      if: ${{ startsWith(inputs.jdeploy_version, 'git://') }}
+      shell: bash
+      run: |
+        echo "JAVA_HOME_JDEPLOY=${{ steps.setup-java-jdeploy.outputs.path }}" >> $GITHUB_ENV
+        echo "Using isolated JAVA_HOME for jDeploy: $JAVA_HOME_JDEPLOY"
+
+    - name: Restore Original JAVA_HOME
+      if: ${{ startsWith(inputs.jdeploy_version, 'git://') && env.ORIGINAL_JAVA_HOME }}
+      shell: bash
+      run: |
+        echo "Restoring original JAVA_HOME"
+        echo "JAVA_HOME=${ORIGINAL_JAVA_HOME}" >> $GITHUB_ENV
+
+    - name: Checkout jDeploy Source
+      if: ${{ startsWith(inputs.jdeploy_version, 'git://') }}
+      uses: actions/checkout@v3
+      with:
+        repository: 'shannah/jdeploy'
+        path: './jdeploy-source'
+        ref: '${{ inputs.jdeploy_version:7 }}'
+
+    - name: Install jDeploy from Source
+      id: jdeploy_install
+      if: ${{ startsWith(inputs.jdeploy_version, 'git://') }}
+      shell: bash
+      run: |
+        export JAVA_HOME="$JAVA_HOME_JDEPLOY"
+        export PATH="$JAVA_HOME/bin:$PATH"
+        echo "Building jDeploy from source..."
+        cd jdeploy-source/shared
+        mvn clean install
+        cd ../cli
+        mvn clean package
+        npm install
+        npm link
+        echo "jdeploy_exec=$(which jdeploy)" >> $GITHUB_ENV
+      env:
+        MAVEN_OPTS: "-Xmx2g"
+
+    - name: Install jDeploy from NPM
+      id: jdeploy_install
+      if: ${{ !startsWith(inputs.jdeploy_version, 'git://') }}
+      shell: bash
+      run: |
+        echo "jdeploy_exec='npx jdeploy@{{ inputs.jdeploy_version }}'" >> $GITHUB_ENV
+
+    - name: Set jdeploy.jdeployVersion for Branch
+      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
+      shell: bash
+      run: |
+        if [[ "${{ startsWith(inputs.jdeploy_version, 'git://') }}" == "true" ]]; then
+          npm pkg set jdeploy.jdeployVersion='latest'
+        else
+          npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
+        fi
+        npm pkg set version="0.0.0-${{ github.ref_name }}"
+        npm pkg set jdeploy.commitHash="$GITHUB_SHA"
+        GITHUB_REPOSITORY=${{ inputs.target_repository }} $jdeploy_exec github-prepare-release
+      env:
+        GH_TOKEN: ${{ github.actor }}:${{ inputs.github_token }}
+
     - name: Sanitize version name
       shell: bash
       if: ${{ github.ref_type == 'tag' }}
@@ -71,9 +149,13 @@ runs:
       shell: bash
       run: |
         npm pkg set version="0.0.0-${{ github.ref_name }}"
-        npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
+        if [[ "${{ startsWith(inputs.jdeploy_version, 'git://') }}" == "true" ]]; then
+          npm pkg set jdeploy.jdeployVersion='latest'
+        else
+          npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
+        fi
         npm pkg set jdeploy.commitHash="$GITHUB_SHA"
-        GITHUB_REPOSITORY=${{ inputs.target_repository }} npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
+        GITHUB_REPOSITORY=${{ inputs.target_repository }} $jdeploy_exec github-prepare-release
       env:
         GH_TOKEN: ${{ github.actor }}:${{ inputs.github_token }}
 
@@ -82,10 +164,14 @@ runs:
       shell: bash
       run: |
         npm pkg set version="$TAG_VERSION"
-        npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
+        if [[ "${{ startsWith(inputs.jdeploy_version, 'git://') }}" == "true" ]]; then
+          npm pkg set jdeploy.jdeployVersion='latest'
+        else
+          npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
+        fi
         npm pkg set jdeploy.commitHash="$GITHUB_SHA"
         npm pkg set jdeploy.gitTag="${{ github.ref_name }}"
-        GITHUB_REPOSITORY=${{ inputs.target_repository }} npx 'jdeploy@${{ inputs.jdeploy_version }}' github-prepare-release
+        GITHUB_REPOSITORY=${{ inputs.target_repository }} $jdeploy_exec github-prepare-release
       env:
         GH_TOKEN: ${{ github.actor }}:${{ inputs.github_token }}
 
@@ -183,7 +269,7 @@ runs:
         https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME})
         RELEASE_ID=$( jq -r  '.id' <<< "${RELEASE_RESULT}" ) 
         OLD_BODY=$(jq -r '.body' <<< "${RELEASE_RESULT}" )
-        NEW_BODY=$(GITHUB_RELEASE_BODY="$OLD_BODY" JDEPLOY_RELEASE_NOTES="$BODY" npx 'jdeploy@${{ inputs.jdeploy_version }}' github-build-release-body)
+        NEW_BODY=$(GITHUB_RELEASE_BODY="$OLD_BODY" JDEPLOY_RELEASE_NOTES="$BODY" $jdeploy_exec github-build-release-body)
         BODY_JSON="{\"body\": $(echo "$NEW_BODY" | jq -sR .)}"
         echo "Release ID is ${RELEASE_ID}"
         curl \
@@ -201,6 +287,10 @@ runs:
         NODE_AUTH_TOKEN: ${{ inputs.npm_token }}
       run: |
         npm pkg set version="$TAG_VERSION"
-        npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
+        if [[ "${{ startsWith(inputs.jdeploy_version, 'git://') }}" == "true" ]]; then
+          npm pkg set jdeploy.jdeployVersion='latest'
+        else
+          npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
+        fi
         npm pkg set jdeploy.commitHash="$GITHUB_SHA"
-        npx jdeploy@${{ inputs.jdeploy_version }} publish
+        $jdeploy_exec publish
