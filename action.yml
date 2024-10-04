@@ -125,7 +125,7 @@ runs:
       if: ${{ !startsWith(inputs.jdeploy_version, 'git://') }}
       shell: bash
       run: |
-        echo "jdeploy_exec='npx jdeploy@{{ inputs.jdeploy_version }}'" >> $GITHUB_ENV
+        echo "jdeploy_exec=npx jdeploy@{{ inputs.jdeploy_version }}" >> $GITHUB_ENV
 
     - name: Set jdeploy.jdeployVersion for Branch
       if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
