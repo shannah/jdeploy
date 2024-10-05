@@ -1662,7 +1662,6 @@ public class JDeploy {
             String source = System.getenv("JDEPLOY_SOURCE");
             bundlerSettings.setSource(source);
         }
-        bundlerSettings.setBundleJVM(true);
         File tmpDir = File.createTempFile("jdeploy", "dmg");
         tmpDir.delete();
         tmpDir.mkdirs();
