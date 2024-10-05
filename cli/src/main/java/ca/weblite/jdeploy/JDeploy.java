@@ -1529,6 +1529,7 @@ public class JDeploy {
                 throw new IOException("Failed to load private key for package signing", ex);
             }
         }
+        if (packageJSONVersion != null && packageJSONVersion)
         if (m().containsKey("source")) {
             appInfo.setNpmSource((String)m().get("source"));
         }
@@ -1757,6 +1758,15 @@ public class JDeploy {
         loadAppInfo(appInfo);
         if (bundlerSettings.getSource() != null) {
             appInfo.setNpmSource(bundlerSettings.getSource());
+        }
+
+        String packageJsonVersion = getString("version", "latest");
+        if (bundlerSettings.getBundleVersion() != null) {
+            appInfo.setNpmVersion(bundlerSettings.getBundleVersion());
+        } else if (bundlerSettings.isAutoUpdateEnabled() && !packageJsonVersion.startsWith("0.0.0-")) {
+            appInfo.setNpmVersion("latest");
+        } else if (packageJsonVersion.startsWith("0.0.0-") || !bundlerSettings.isAutoUpdateEnabled()) {
+            appInfo.setNpmVersion(packageJsonVersion);
         }
 
         return Bundler.runit(
@@ -2707,9 +2717,11 @@ public class JDeploy {
                 }
             }
 
-            if ("dmg".equals(args[0])) {
+            if ("dmg".equals(stripFlags(args)[0])) {
                 prog.overrideInstallers(BUNDLE_MAC_X64_DMG, BUNDLE_MAC_ARM64_DMG);
-                prog.allInstallers();
+                BundlerSettings bundlerSettings = new BundlerSettings();
+                bundlerSettings.setAutoUpdateEnabled(isWithAutoUpdateEnabled(args));
+                prog.allInstallers(bundlerSettings);
             } else if ("cheerpj".equals(args[0])) {
                 String[] cheerpjArgs = new String[args.length-1];
                 System.arraycopy(args, 1, cheerpjArgs, 0, cheerpjArgs.length);
@@ -2834,5 +2846,25 @@ public class JDeploy {
             }
 
         });
+    }
+
+    private static boolean isWithAutoUpdateEnabled(String[] args) {
+        for (String arg : args) {
+            if ("--disable-auto-update".equals(arg)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String[] stripFlags(String[] args) {
+        List<String> out = new ArrayList<>();
+        for (String arg : args) {
+            if (arg.startsWith("--")) {
+                continue;
+            }
+            out.add(arg);
+        }
+        return out.toArray(new String[out.size()]);
     }
 }
