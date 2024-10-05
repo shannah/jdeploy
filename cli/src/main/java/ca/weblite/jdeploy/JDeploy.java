@@ -1520,7 +1520,8 @@ public class JDeploy {
 
     private void loadAppInfo(AppInfo appInfo) throws IOException {
         appInfo.setNpmPackage((String)m().get("name"));
-        appInfo.setNpmVersion(getString("version", "latest"));
+        String packageJsonVersion = m().get("version") != null ? m().get("version").toString() : "latest";
+        appInfo.setNpmVersion(packageJsonVersion);
         if (isPackageSigningEnabled()) {
             try {
                 appInfo.setEnableCertificatePinning(true);
@@ -1760,7 +1761,7 @@ public class JDeploy {
             appInfo.setNpmSource(bundlerSettings.getSource());
         }
 
-        String packageJsonVersion = getString("version", "latest");
+        String packageJsonVersion = m().getString("version");
         if (bundlerSettings.getBundleVersion() != null) {
             appInfo.setNpmVersion(bundlerSettings.getBundleVersion());
         } else if (bundlerSettings.isAutoUpdateEnabled() && !packageJsonVersion.startsWith("0.0.0-")) {
