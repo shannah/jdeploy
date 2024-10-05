@@ -1761,7 +1761,7 @@ public class JDeploy {
             appInfo.setNpmSource(bundlerSettings.getSource());
         }
 
-        String packageJsonVersion = m().getString("version");
+        String packageJsonVersion = m().get("version") != null ? m().get("version").toString() : "latest";
         if (bundlerSettings.getBundleVersion() != null) {
             appInfo.setNpmVersion(bundlerSettings.getBundleVersion());
         } else if (bundlerSettings.isAutoUpdateEnabled() && !packageJsonVersion.startsWith("0.0.0-")) {
