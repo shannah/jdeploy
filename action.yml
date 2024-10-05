@@ -111,9 +111,9 @@ runs:
         export PATH="$JAVA_HOME/bin:$PATH"
         echo "Building jDeploy from source..."
         cd jdeploy-source/shared
-        mvn clean install -DskipTests
+        mvn clean install -DskipTests --batch-mode --no-transfer-progress
         cd ../cli
-        mvn clean package -DskipTests
+        mvn clean package -DskipTests --batch-mode --no-transfer-progress
         npm install
         npm link
         echo "jdeploy_exec=$(which jdeploy)" >> $GITHUB_ENV

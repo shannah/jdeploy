@@ -5,6 +5,7 @@ import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.IOUtil;
 import ca.weblite.tools.io.URLUtil;
 import ca.weblite.tools.platform.Platform;
+import ca.weblite.tools.security.CertificateUtil;
 import com.client4j.publisher.server.SigningRequest;
 import com.github.gino0631.icns.IcnsBuilder;
 import com.github.gino0631.icns.IcnsType;
@@ -14,6 +15,9 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.URL;
 import java.nio.file.Paths;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
 import java.text.MessageFormat;
 import java.util.*;
 import javax.imageio.ImageIO;
@@ -260,6 +264,38 @@ public class MacBundler {
             atts.add("jdeploy-home");
             atts.add(app.getjDeployHomeMac() == null ? app.getjDeployHome() : app.getjDeployHomeMac());
         }
+        if (app.isPackageCertificatePinningEnabled()) {
+            atts.add("certificate-pinning");
+            atts.add("enabled");
+            if (app.getTrustedCertificates() != null && !app.getTrustedCertificates().isEmpty()) {
+                atts.add("trusted-certificates");
+                StringBuilder chainValue = new StringBuilder();
+                for (Certificate certificate : app.getTrustedCertificates()) {
+                    try {
+                        chainValue.append(CertificateUtil.toPemEncodedString(certificate));
+                        chainValue.append("\n");
+                    } catch (CertificateEncodingException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+
+                atts.add(chainValue.toString());
+
+                atts.add("trusted-sha1-fingerprints");
+                chainValue.setLength(0);
+                for (Certificate certificate : app.getTrustedCertificates()) {
+                    try {
+                        chainValue.append(CertificateUtil.getSHA1Fingerprint(certificate));
+                        chainValue.append("\n");
+                    } catch (CertificateEncodingException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+            } else {
+                throw new IllegalArgumentException("Certificate pinning is enabled but there are not trusted certificates specified");
+            }
+        }
+
 
         return atts.toArray(new String[0]);
     }

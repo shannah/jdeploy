@@ -9,6 +9,7 @@ import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.app.JVMSpecification;
 import ca.weblite.jdeploy.jvmdownloader.JVMKit;
 import ca.weblite.tools.io.URLUtil;
+import ca.weblite.tools.security.CertificateUtil;
 import com.joshondesign.appbundler.linux.LinuxBundler;
 import com.joshondesign.appbundler.mac.MacBundler;
 import com.joshondesign.appbundler.win.WindowsBundler2;
@@ -22,6 +23,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 import java.nio.file.Paths;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateEncodingException;
 import java.util.Base64;
 import java.util.List;
 
@@ -79,6 +82,12 @@ public class Bundler {
 
     private static AppDescription createAppDescription(AppInfo appInfo, String url) throws IOException{
         AppDescription app = new AppDescription();
+        if (appInfo.isCertificatePinningEnabled()) {
+            app.enablePackageCertificatePinning();
+            if (appInfo.getTrustedCertificates() != null) {
+                app.setTrustedCertificates(appInfo.getTrustedCertificates());
+            }
+        }
         app.setNpmPrerelease(appInfo.isNpmAllowPrerelease());
         app.setName(appInfo.getTitle());
         app.setFork(appInfo.isFork());
@@ -240,8 +249,30 @@ public class Bundler {
                         jvmSpecification.javaVersion +
                         (jvmSpecification.javafx ? "fx" : "") +
                         "]");
+
             }
 
+        }
+
+        if (app.isPackageCertificatePinningEnabled()) {
+            if (app.getTrustedCertificates() == null || app.getTrustedCertificates().isEmpty()) {
+                throw new IllegalArgumentException("Certificate pinning is enabled, but no trusted certificates were found");
+            }
+            StringBuilder sb = new StringBuilder();
+            for (Certificate certificate : app.getTrustedCertificates()) {
+                if (sb.length() > 0) {
+                    sb.append(",");
+                }
+                try {
+                    sb.append(CertificateUtil.getSHA1Fingerprint(certificate));
+                } catch (CertificateEncodingException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            if (app.getNpmVersion() == null || app.getNpmVersion().isEmpty()) {
+                app.setNpmVersion("latest");
+            }
+            app.setNpmVersion(app.getNpmVersion() + " sha1-fingerprints:" + sb);
         }
     }
 

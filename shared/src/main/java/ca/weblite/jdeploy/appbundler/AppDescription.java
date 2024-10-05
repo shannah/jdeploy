@@ -6,6 +6,7 @@
 package ca.weblite.jdeploy.appbundler;
 
 import java.io.File;
+import java.security.cert.Certificate;
 import java.util.*;
 
 /**
@@ -32,6 +33,7 @@ public class AppDescription {
     private String macBundleId;
     private boolean enableMacCodeSigning;
     private boolean enableMacNotarization;
+
     private String macCertificateName;
     private String macDeveloperID;
     private String macNotarizationPassword;
@@ -46,6 +48,21 @@ public class AppDescription {
     private String jDeployHomeWindows;
     private String jDeployHomeMac;
     private String jDeployHomeLinux;
+
+    /**
+     * If package signing is enabled, then this flag tells us whether to "pin" the app to the signing certificate.
+     * If the app is pinned to a signing certificate, then the launcher will verify the signature of all files
+     * in the jdeploy-bundle before launching the app each time.  If verification fails, then the app will not launch.
+     */
+    private boolean isPackageCertificatePinningEnabled;
+
+    /**
+     * This is the certificate used to sign the jdeploy bundle - NOT to be confused with the apple or windows
+     * code signing certificates.
+     */
+    private List<Certificate> trustedCertificates;
+
+    private String packageSigningCertificateChainPath;
 
     public AppDescription() {
 
@@ -90,6 +107,34 @@ public class AppDescription {
 
     public Iterable<Jar> getJars() {
         return this.jars;
+    }
+
+    public void setTrustedCertificates(List<Certificate> cert) {
+        this.trustedCertificates = cert;
+    }
+
+    public List<Certificate> getTrustedCertificates() {
+        return this.trustedCertificates;
+    }
+
+    public void setPackageSigningCertificateChainPath(String path) {
+        this.packageSigningCertificateChainPath = path;
+    }
+
+    public String getPackageSigningCertificateChainPath() {
+        return this.packageSigningCertificateChainPath;
+    }
+
+    public void enablePackageCertificatePinning() {
+        this.isPackageCertificatePinningEnabled = true;
+    }
+
+    public void disablePackageCertificatePinning() {
+        this.isPackageCertificatePinningEnabled = false;
+    }
+
+    public boolean isPackageCertificatePinningEnabled() {
+        return isPackageCertificatePinningEnabled;
     }
 
     public void setMacBundleId(String id) {

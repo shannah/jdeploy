@@ -8,21 +8,22 @@ package ca.weblite.jdeploy;
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.app.JVMSpecification;
 import ca.weblite.jdeploy.appbundler.Bundler;
+import ca.weblite.jdeploy.appbundler.BundlerCall;
+import ca.weblite.jdeploy.appbundler.BundlerResult;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
-import ca.weblite.jdeploy.cli.controllers.CheerpjController;
-import ca.weblite.jdeploy.cli.controllers.GitHubRepositoryInitializerCLIController;
-import ca.weblite.jdeploy.cli.controllers.JPackageController;
-import ca.weblite.jdeploy.cli.controllers.ProjectGeneratorCLIController;
+import ca.weblite.jdeploy.appbundler.mac.DmgCreator;
+import ca.weblite.jdeploy.cli.controllers.*;
 import ca.weblite.jdeploy.di.JDeployModule;
+import ca.weblite.jdeploy.factories.JDeployKeyProviderFactory;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
 import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.npm.NPM;
-import ca.weblite.jdeploy.services.DeveloperIdentityKeyStore;
-import ca.weblite.jdeploy.services.GithubWorkflowGenerator;
-import ca.weblite.jdeploy.services.JavaVersionExtractor;
+import ca.weblite.jdeploy.services.*;
 import ca.weblite.tools.io.*;
+import ca.weblite.tools.platform.Platform;
+import ca.weblite.tools.security.KeyProvider;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
 
@@ -37,6 +38,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -62,6 +64,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.codejargon.feather.Feather;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.w3c.dom.Document;
 
@@ -85,6 +88,8 @@ public class JDeploy {
 
     private static final String BUNDLE_MAC_X64 = "mac-x64";
     private static final String BUNDLE_MAC_ARM64 = "mac-arm64";
+    private static final String BUNDLE_MAC_X64_DMG = "mac-x64-dmg";
+    private static final String BUNDLE_MAC_ARM64_DMG = "mac-arm64-dmg";
     private static final String BUNDLE_WIN = "win";
     private static final String BUNDLE_LINUX = "linux";
 
@@ -97,6 +102,10 @@ public class JDeploy {
     private Result packageJsonResult;
     private PrintStream out = System.out;
     private PrintStream err = System.err;
+
+    private KeyProvider keyProvider;
+
+    private PackageSigningService packageSigningService;
 
     public static String JDEPLOY_REGISTRY = "https://www.jdeploy.com/";
     static {
@@ -283,12 +292,48 @@ public class JDeploy {
                 } else {
                     packageJsonMap.put("jdeploy", getJdeployConfigOverrides());
                 }
+
+                setupPackageSigningConfig((Map)packageJsonMap.get("jdeploy"));
             } catch (IOException ex) {
                 Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
                 throw new RuntimeException(ex);
             }
         }
         return packageJsonMap;
+    }
+
+    private void setupPackageSigningConfig(Map jdeployConfig) {
+        keyProvider = new JDeployKeyProviderFactory().createKeyProvider(createKeyProviderFactoryConfig(jdeployConfig));
+        packageSigningService = new PackageSigningService(keyProvider);
+    }
+
+    private JDeployKeyProviderFactory.KeyConfig createKeyProviderFactoryConfig(final Map jdeployConfig) {
+
+        String developerIdKey = "jdeployDeveloperId";
+        String keystorePathKey = "keystorePath";
+
+        final String developerId = jdeployConfig.containsKey(developerIdKey)
+                ? (String)jdeployConfig.get(developerIdKey) : null;
+        final String keystorePath = jdeployConfig.containsKey(keystorePathKey)
+                ? (String)jdeployConfig.get(keystorePathKey) : null;
+        class LocalConfig extends JDeployKeyProviderFactory.DefaultKeyConfig {
+            @Override
+            public String getKeystorePath() {
+                return keystorePath == null ? super.getKeystorePath() : keystorePath;
+            }
+
+            @Override
+            public String getDeveloperId() {
+                return developerId == null ? super.getDeveloperId() : developerId;
+            }
+
+            @Override
+            public char[] getKeystorePassword() {
+                return super.getKeystorePassword();
+            }
+        }
+
+        return new LocalConfig();
     }
 
     private Map<String,?> getJdeployConfigOverrides() {
@@ -1093,23 +1138,6 @@ public class JDeploy {
         File warRunnerDest = new File(libDir, "WarRunner.jar");
         FileUtils.copyInputStreamToFile(jettyRunnerJarInput, jettyRunnerDest);
         FileUtils.copyInputStreamToFile(warRunnerInput, warRunnerDest);
-        /*
-        ProcessBuilder javac = new ProcessBuilder();
-        javac.inheritIO();
-        javac.directory(bin);
-        javac.command("javac", "-cp", "lib/jetty-runner.jar", "ca" + File.separator + "weblite" + File.separator + "jdeploy" + File.separator + "WarRunner.java");
-        Process javacP = javac.start();
-        int javacResult=0;
-        try {
-            javacResult = javacP.waitFor();
-        } catch (InterruptedException ex) {
-            Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
-            throw new IOException(ex);
-        }
-        if (javacResult != 0) {
-            System.exit(javacResult);
-        }
-        */
         
         setMainClass("ca.weblite.jdeploy.WarRunner");
         setClassPath("."+File.pathSeparator+"lib/jetty-runner.jar"+File.pathSeparator+"lib/WarRunner.jar");
@@ -1492,7 +1520,17 @@ public class JDeploy {
 
     private void loadAppInfo(AppInfo appInfo) throws IOException {
         appInfo.setNpmPackage((String)m().get("name"));
-        appInfo.setNpmVersion(getString("version", "latest"));
+        String packageJsonVersion = m().get("version") != null ? m().get("version").toString() : "latest";
+        appInfo.setNpmVersion(packageJsonVersion);
+        if (isPackageSigningEnabled()) {
+            try {
+                appInfo.setEnableCertificatePinning(true);
+                appInfo.setTrustedCertificates(keyProvider.getTrustedCertificates());
+            } catch (Exception ex) {
+                throw new IOException("Failed to load private key for package signing", ex);
+            }
+        }
+
         if (m().containsKey("source")) {
             appInfo.setNpmSource((String)m().get("source"));
         }
@@ -1580,44 +1618,108 @@ public class JDeploy {
 
     }
 
-    public void macIntelBundle(BundlerSettings bundlerSettings) throws Exception {
-        bundle(BUNDLE_MAC_X64, bundlerSettings);
+    public BundlerResult macIntelBundle(BundlerSettings bundlerSettings) throws Exception {
+        return bundle(BUNDLE_MAC_X64, bundlerSettings);
     }
 
-    public void macArmBundle(BundlerSettings bundlerSettings) throws Exception {
-        bundle(BUNDLE_MAC_ARM64, bundlerSettings);
+    public BundlerResult macIntelBundle(
+            BundlerSettings bundlerSettings,
+            String overrideDestDir,
+            String overrideReleaseDir
+    ) throws Exception {
+        return bundle(BUNDLE_MAC_X64, bundlerSettings, overrideDestDir, overrideReleaseDir);
     }
 
-    public void windowsBundle(BundlerSettings bundlerSettings) throws Exception {
-        bundle("win", bundlerSettings);
-    }
-    public void linuxBundle(BundlerSettings bundlerSettings) throws Exception {
-        bundle("linux", bundlerSettings);
+    public BundlerResult macArmBundle(BundlerSettings bundlerSettings) throws Exception {
+        return bundle(BUNDLE_MAC_ARM64, bundlerSettings);
     }
 
-    public void windowsInstallerBundle(BundlerSettings bundlerSettings) throws Exception {
-        bundle("win-installer", bundlerSettings);
+    public BundlerResult macArmBundle(
+            BundlerSettings bundlerSettings,
+            String overrideDestDir,
+            String overrideReleaseDir
+    ) throws Exception {
+        return bundle(BUNDLE_MAC_ARM64, bundlerSettings, overrideDestDir, overrideReleaseDir);
     }
 
-    public void linuxInstallerBundle(BundlerSettings bundlerSettings) throws Exception {
-        bundle("linux-installer", bundlerSettings);
+    public void macArmDmg(BundlerSettings bundlerSettings, File destDir) throws Exception {
+        dmg(bundlerSettings, destDir, ".aarch64.dmg", (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
+            return macArmBundle(bundlerSettings1, bundleDestDir, bundleReleaseDir);
+        });
     }
 
-    public void allBundles(BundlerSettings bundlerSettings) throws Exception {
+    public void macIntelDmg(BundlerSettings bundlerSettings, File destDir) throws Exception {
+        dmg(bundlerSettings, destDir, "-x86_64.dmg", (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
+            return macIntelBundle(bundlerSettings1, bundleDestDir, bundleReleaseDir);
+        });
+    }
+
+    public void dmg(
+            BundlerSettings bundlerSettings,
+            File destDir,
+            String suffix,
+            BundlerCall bundlerCall
+    ) throws Exception {
+        if (bundlerSettings.getSource() == null && System.getenv("JDEPLOY_SOURCE") != null){
+            String source = System.getenv("JDEPLOY_SOURCE");
+            bundlerSettings.setSource(source);
+        }
+        File tmpDir = File.createTempFile("jdeploy", "dmg");
+        tmpDir.delete();
+        tmpDir.mkdirs();
+        try {
+
+            BundlerResult bundleResult = bundlerCall.bundle(
+                    bundlerSettings,
+                    tmpDir.getAbsolutePath(),
+                    tmpDir.getAbsolutePath()
+            );
+            String appName = bundleResult.getOutputFile().getName();
+            String appNameWithoutExtension = appName.substring(0, appName.lastIndexOf("."));
+            String dmgName = appNameWithoutExtension + suffix;
+            DmgCreator.createDmg(
+                    bundleResult.getOutputFile().getAbsolutePath(),
+                    new File(destDir, dmgName).getAbsolutePath()
+            );
+
+        } finally {
+            FileUtils.deleteDirectory(tmpDir);
+        }
+    }
+
+
+    public BundlerResult windowsBundle(BundlerSettings bundlerSettings) throws Exception {
+        return bundle("win", bundlerSettings);
+    }
+    public BundlerResult linuxBundle(BundlerSettings bundlerSettings) throws Exception {
+        return bundle("linux", bundlerSettings);
+    }
+
+    public BundlerResult windowsInstallerBundle(BundlerSettings bundlerSettings) throws Exception {
+        return bundle("win-installer", bundlerSettings);
+    }
+
+    public BundlerResult linuxInstallerBundle(BundlerSettings bundlerSettings) throws Exception {
+        return bundle("linux-installer", bundlerSettings);
+    }
+
+    public Map<String,BundlerResult> allBundles(BundlerSettings bundlerSettings) throws Exception {
         Set<String> bundles = bundles();
+        Map<String, BundlerResult> results = new HashMap<>();
         if (bundles.contains("mac") || bundles.contains(BUNDLE_MAC_X64)) {
-            macIntelBundle(bundlerSettings);
+            results.put(BUNDLE_MAC_X64, macIntelBundle(bundlerSettings));
         }
         if (bundles.contains(BUNDLE_MAC_ARM64)) {
-            macArmBundle(bundlerSettings);
+            results.put(BUNDLE_MAC_ARM64, macArmBundle(bundlerSettings));
         }
         if (bundles.contains(BUNDLE_WIN)) {
-            windowsBundle(bundlerSettings);
+            results.put(BUNDLE_WIN, windowsBundle(bundlerSettings));
         }
         if (bundles.contains(BUNDLE_LINUX)) {
-            linuxBundle(bundlerSettings);
+            results.put(BUNDLE_LINUX, linuxBundle(bundlerSettings));
         }
 
+        return results;
     }
 
     public void allInstallers() throws Exception {
@@ -1636,23 +1738,45 @@ public class JDeploy {
         }
     }
 
-    public void bundle(String target) throws Exception {
-        bundle(target, new BundlerSettings());
+    public BundlerResult bundle(String target) throws Exception {
+        return bundle(target, new BundlerSettings());
     }
 
-    public void bundle(String target, BundlerSettings bundlerSettings) throws Exception {
+    public BundlerResult bundle(
+            String target,
+            BundlerSettings bundlerSettings
+    ) throws Exception {
+        return bundle(target, bundlerSettings, null, null);
+    }
+
+    public BundlerResult bundle(
+            String target,
+            BundlerSettings bundlerSettings,
+            String overrideDestDir,
+            String overrideReleaseDir
+    ) throws Exception {
         AppInfo appInfo = new AppInfo();
         loadAppInfo(appInfo);
         if (bundlerSettings.getSource() != null) {
             appInfo.setNpmSource(bundlerSettings.getSource());
         }
 
-        Bundler.runit(
+        String packageJsonVersion = m().get("version") != null ? m().get("version").toString() : "latest";
+        if (bundlerSettings.getBundleVersion() != null) {
+            appInfo.setNpmVersion(bundlerSettings.getBundleVersion());
+        } else if (bundlerSettings.isAutoUpdateEnabled() && !packageJsonVersion.startsWith("0.0.0-")) {
+            appInfo.setNpmVersion("latest");
+        } else if (packageJsonVersion.startsWith("0.0.0-") || !bundlerSettings.isAutoUpdateEnabled()) {
+            appInfo.setNpmVersion(packageJsonVersion);
+        }
+
+        return Bundler.runit(
                 bundlerSettings,
                 appInfo,
                 appInfo.getAppURL().toString(),
-                target, "jdeploy" + File.separator + "bundles",
-                "jdeploy" + File.separator + "releases"
+                target,
+                overrideDestDir == null ? "jdeploy" + File.separator + "bundles" : overrideDestDir,
+                overrideReleaseDir == null ? "jdeploy" + File.separator + "releases" : overrideReleaseDir
         );
     }
 
@@ -1699,6 +1823,22 @@ public class JDeploy {
             _newName = _newName.replace("${{ platform }}", BUNDLE_MAC_ARM64);
             installerZip = new File(installerDir, _newName +  ".tar");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-mac-arm64.tar"), installerZip);
+        } else if (target.equals(BUNDLE_MAC_ARM64_DMG)) {
+            if (!Platform.getSystemPlatform().isMac()) {
+                out.println("DMG bundling is only supported on macOS.  Skipping DMG generation");
+                return;
+            }
+
+            macArmDmg(bundlerSettings, installerDir);
+            return;
+        } else if (target.equals(BUNDLE_MAC_X64_DMG)) {
+            if (!Platform.getSystemPlatform().isMac()) {
+                out.println("DMG bundling is only supported on macOS.  Skipping DMG generation");
+                return;
+            }
+
+            macIntelDmg(bundlerSettings, installerDir);
+            return;
         } else if (target.equals(BUNDLE_WIN)) {
             _newName = _newName.replace("${{ platform }}", "win-x64");
             installerZip = new File(installerDir, _newName + ".exe");
@@ -1936,15 +2076,32 @@ public class JDeploy {
     private void _package() throws IOException {
         _package(new BundlerSettings());
     }
+
+    private void _verify(String[] args) throws Exception {
+        String[] verifyArgs = new String[args.length-1];
+        System.arraycopy(args, 1, verifyArgs, 0, verifyArgs.length);
+        CLIVerifyPackageController verifyPackageController = new CLIVerifyPackageController(new VerifyPackageService());
+        verifyPackageController.verifyPackage(verifyArgs);
+    }
     
     private void _package(BundlerSettings bundlerSettings) throws IOException {
+        File jdeployBundle = new File(directory, "jdeploy-bundle");
         if (alwaysClean) {
-            File jdeployBundle = new File(directory, "jdeploy-bundle");
             if (jdeployBundle.exists()) {
                 FileUtils.deleteDirectory(jdeployBundle);
             }
         }
         copyToBin();
+        if (isPackageSigningEnabled()) {
+            try {
+                packageSigningService.signPackage(
+                        getPackageSigningVersionString(getPackageJsonResult()),
+                        jdeployBundle.getAbsolutePath()
+                );
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
         try {
             allBundles(bundlerSettings);
         } catch (Exception ex) {
@@ -2156,7 +2313,8 @@ public class JDeploy {
         if (!publishDir.exists()) {
             publishDir.mkdirs();
         }
-        FileUtils.copyDirectory(new File(directory, "jdeploy-bundle"), new File(publishDir, "jdeploy-bundle"));
+        File publishJdeployBundleDir = new File(publishDir, "jdeploy-bundle");
+        FileUtils.copyDirectory(new File(directory, "jdeploy-bundle"), publishJdeployBundleDir);
         FileUtils.copyFile(new File("package.json"), new File(publishDir, "package.json"));
         File readme = new File("README.md");
         if (readme.exists()) {
@@ -2188,7 +2346,44 @@ public class JDeploy {
         }
 
         FileUtils.writeStringToFile(new File(publishDir,"package.json"), packageJSON.toString(), "UTF-8");
+
+        if (isPackageSigningEnabled()) {
+            try {
+                packageSigningService.signPackage(
+                        getPackageSigningVersionString(packageJSON),
+                        publishJdeployBundleDir.getAbsolutePath()
+                );
+                JSONArray packageSignCertificateSignatures = new JSONArray();
+                packageSignCertificateSignatures.putAll(packageSigningService.calculateCertificateHashes());
+                jdeployObj.put("packageSignCertificateSignatures", packageSignCertificateSignatures);
+            } catch (Exception ex) {
+                throw new IOException("Failed to sign package", ex);
+            }
+        }
+
         return packageJSON;
+    }
+
+    private String getPackageSigningVersionString(JSONObject packageJSON) {
+        String versionString = packageJSON.getString("version");
+        if (packageJSON.has("commitHash")) {
+            versionString += "#" + packageJSON.getString("commitHash");
+        }
+
+        return versionString;
+    }
+
+    private String getPackageSigningVersionString(Result packageJSON) {
+        String versionString = packageJSON.getAsString("version");
+        if (packageJSON.get("commitHash") != null) {
+            versionString += "#" + packageJSON.getAsString("commitHash");
+        }
+
+        return versionString;
+    }
+
+    private boolean isPackageSigningEnabled() {
+        return rj().getAsBoolean("signPackage");
     }
 
     private String getFullPackageName(String source, String packageName) {
@@ -2431,6 +2626,10 @@ public class JDeploy {
                 prog.generate(generateArgs);
                 return;
             }
+            if (args.length > 0 && "verify-package".equals(args[0])) {
+                prog._verify(args);
+                return;
+            }
             if (args.length > 0 && "github".equals(args[0]) && args.length> 1 && "init".equals(args[1])) {
                 String[] githubInitArgs = new String[args.length-2];
                 System.arraycopy(args, 2, githubInitArgs, 0, githubInitArgs.length);
@@ -2439,7 +2638,7 @@ public class JDeploy {
             }
 
             Options opts = new Options();
-            opts.addOption("y", "no-prompt", false,"Indicates not to prompt user ");
+            opts.addOption("y", "no-prompt", false,"Indicates not to prompt_ user ");
             opts.addOption("W", "no-workflow", false,"Indicates not to create a github workflow if true");
             boolean noPromptFlag = false;
             boolean noWorkflowFlag = false;
@@ -2519,7 +2718,12 @@ public class JDeploy {
                 }
             }
 
-            if ("cheerpj".equals(args[0])) {
+            if ("dmg".equals(stripFlags(args)[0])) {
+                prog.overrideInstallers(BUNDLE_MAC_X64_DMG, BUNDLE_MAC_ARM64_DMG);
+                BundlerSettings bundlerSettings = new BundlerSettings();
+                bundlerSettings.setAutoUpdateEnabled(isWithAutoUpdateEnabled(args));
+                prog.allInstallers(bundlerSettings);
+            } else if ("cheerpj".equals(args[0])) {
                 String[] cheerpjArgs = new String[args.length-1];
                 System.arraycopy(args, 1, cheerpjArgs, 0, cheerpjArgs.length);
                 prog.cheerpjCLI(cheerpjArgs);
@@ -2643,5 +2847,25 @@ public class JDeploy {
             }
 
         });
+    }
+
+    private static boolean isWithAutoUpdateEnabled(String[] args) {
+        for (String arg : args) {
+            if ("--disable-auto-update".equals(arg)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String[] stripFlags(String[] args) {
+        List<String> out = new ArrayList<>();
+        for (String arg : args) {
+            if (arg.startsWith("--")) {
+                continue;
+            }
+            out.add(arg);
+        }
+        return out.toArray(new String[out.size()]);
     }
 }

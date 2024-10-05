@@ -11,6 +11,7 @@ import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
@@ -19,6 +20,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -28,16 +30,14 @@ import java.util.logging.Logger;
  */
 public class CertificateUtil {
 
-    public static String getSHA1Fingerprint(X509Certificate cert) throws CertificateEncodingException {
+    public static String getSHA1Fingerprint(Certificate cert) throws CertificateEncodingException {
         return getFingerprint(cert, "SHA1");
     }
 
-    public static String getFingerprint(X509Certificate server, String type) throws CertificateEncodingException {
+    public static String getFingerprint(Certificate server, String type) throws CertificateEncodingException {
         try {
             byte[] encoded = server.getEncoded();
             MessageDigest sha1 = MessageDigest.getInstance(type);
-            System.out.println("  Subject " + server.getSubjectDN());
-            System.out.println("   Issuer  " + server.getIssuerDN());
             sha1.update(encoded);
             return bytesToHex(sha1.digest());
         } catch (NoSuchAlgorithmException ex) {
@@ -56,6 +56,21 @@ public class CertificateUtil {
             hexChars[j * 2 + 1] = hexArray[v & 0x0F];
         }
         return new String(hexChars);
+    }
+
+    public static String generateCertificateSHA256Hash(Certificate certificate)
+            throws NoSuchAlgorithmException, CertificateEncodingException {
+        // Get the encoded form of the certificate
+        byte[] encodedCertificate = certificate.getEncoded();
+
+        // Create a SHA-256 MessageDigest instance
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+        // Hash the encoded certificate
+        byte[] hash = digest.digest(encodedCertificate);
+
+        // Convert the hash to a hexadecimal string
+        return bytesToHex(hash);
     }
 
     public static String toPemEncodedString(PrivateKey privateKey) {
@@ -82,6 +97,19 @@ public class CertificateUtil {
         }
         publicKeyFormatted += "-----END PUBLIC KEY-----";
         return publicKeyFormatted;
+    }
+
+    public static String toPemEncodedString(Certificate certificate) throws CertificateEncodingException {
+        byte[] certificateBytes = certificate.getEncoded();
+        String certificateContent = Base64.getEncoder().encodeToString(certificateBytes);
+        certificateContent = StringUtil.splitIntoFixedWidthLines(certificateContent, 64);
+        String certificateFormatted = "-----BEGIN CERTIFICATE-----\n" + certificateContent;
+
+        if (certificateFormatted.charAt(certificateFormatted.length() - 1) != '\n') {
+            certificateFormatted += "\n";
+        }
+        certificateFormatted += "-----END CERTIFICATE-----";
+        return certificateFormatted;
     }
 
     public static PrivateKey getPrivateKeyFromPem(String pem) throws CertificateException, NoSuchAlgorithmException, InvalidKeySpecException {
@@ -182,6 +210,55 @@ public class CertificateUtil {
         // and return array of byte
         return md.digest(input);
     }
+
+    public static KeyStore loadTrustedCertificatesFromAppXml(
+            String appXmlPath,
+            CertificateAliasProvider aliasProvider
+    ) throws Exception {
+        return loadCertificatesFromPEM(
+                AppXmlTrustedCertificatesExtractor.extractTrustedCertificates(appXmlPath),
+                aliasProvider
+        );
+    }
+
+    public static KeyStore loadCertificatesFromPEM(
+            String pemEncodedCertificates,
+            CertificateAliasProvider aliasProvider
+    ) throws Exception {
+        // Create an empty KeyStore
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        keyStore.load(null, null);  // Initialize the KeyStore with null parameters
+
+        // Split the PEM string into individual certificates
+        String[] certArray = pemEncodedCertificates.split("(?m)(?=-----BEGIN CERTIFICATE-----)");
+
+        CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+
+        int certIndex = 0;
+
+        // Process each certificate in the PEM string
+        for (String certString : certArray) {
+            // Clean up the PEM string by removing whitespace and newlines
+            certString = certString.replaceAll("\\s", "").replaceAll("-----BEGINCERTIFICATE-----", "").replaceAll("-----ENDCERTIFICATE-----", "");
+
+            // Decode the Base64 encoded certificate
+            byte[] decoded = Base64.getDecoder().decode(certString);
+
+            // Generate the X.509 certificate
+            X509Certificate certificate = (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(decoded));
+
+            // Add the certificate to the KeyStore with a unique alias
+            if (aliasProvider == null) {
+                keyStore.setCertificateEntry("cert-" + certIndex, certificate);
+            } else {
+                keyStore.setCertificateEntry(aliasProvider.getCertificateAlias(certificate), certificate);
+            }
+            certIndex++;
+        }
+
+        return keyStore;
+    }
+
     private static String toHexString(byte[] hash)
     {
         // Convert byte array into signum representation

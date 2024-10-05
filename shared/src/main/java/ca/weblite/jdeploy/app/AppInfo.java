@@ -13,6 +13,7 @@ import com.client4j.security.RuntimeGrantedPermission;
 import com.client4j.security.RuntimeGrantedPermissions;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.security.cert.Certificate;
 import java.util.*;
 import java.util.jar.Attributes.Name;
 import java.util.jar.Manifest;
@@ -58,6 +59,15 @@ public class AppInfo  {
     private Set<String> documentTypeEditor;
 
     private Set<String> urlSchemes;
+
+    /**
+     * If package signing is enabled,
+     */
+    private List<Certificate> trustedCertificates;
+
+    private String packageSigningCertificateChainPath;
+
+    private boolean enableCertificatePinning = false;
 
     /**
      * Indicates that the app should use a dedicated JVM rather than the default shared JVM.
@@ -362,6 +372,22 @@ public class AppInfo  {
 
     public void setFork(boolean fork) {
         this.fork = fork;
+    }
+
+    public List<Certificate> getTrustedCertificates() {
+        return trustedCertificates;
+    }
+
+    public void setTrustedCertificates(List<Certificate> key) {
+        this.trustedCertificates = key;
+    }
+
+    public boolean isCertificatePinningEnabled() {
+        return enableCertificatePinning;
+    }
+
+    public void setEnableCertificatePinning(boolean enable) {
+        this.enableCertificatePinning = enable;
     }
 
     public boolean isUsePrivateJVM() {

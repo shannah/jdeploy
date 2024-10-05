@@ -10,7 +10,6 @@ import java.security.*;
 import java.security.cert.CertificateException;
 
 import java.security.spec.InvalidKeySpecException;
-import java.util.ArrayList;
 import java.security.cert.Certificate;
 
 import static ca.weblite.jdeploy.helpers.KeyPairGenerator.generateKeyPair;
