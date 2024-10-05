@@ -1529,7 +1529,7 @@ public class JDeploy {
                 throw new IOException("Failed to load private key for package signing", ex);
             }
         }
-        if (packageJSONVersion != null && packageJSONVersion)
+
         if (m().containsKey("source")) {
             appInfo.setNpmSource((String)m().get("source"));
         }
