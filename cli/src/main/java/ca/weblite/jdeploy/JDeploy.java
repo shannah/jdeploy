@@ -1658,6 +1658,11 @@ public class JDeploy {
             String suffix,
             BundlerCall bundlerCall
     ) throws Exception {
+        if (bundlerSettings.getSource() == null && System.getenv("JDEPLOY_SOURCE") != null{
+            String source = System.getenv("JDEPLOY_SOURCE");
+            bundlerSettings.setSource(source);
+        }
+        bundlerSettings.setBundleJVM(true);
         File tmpDir = File.createTempFile("jdeploy", "dmg");
         tmpDir.delete();
         tmpDir.mkdirs();
