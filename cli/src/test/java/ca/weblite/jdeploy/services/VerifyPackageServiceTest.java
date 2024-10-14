@@ -15,7 +15,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
-class VerifyPackageServiceTest {
+public class VerifyPackageServiceTest {
 
     private VerifyPackageService verifyPackageService;
 
