@@ -82,6 +82,7 @@
             <version>1.7.32</version>
         </dependency>
 
+
         <!-- https://mvnrepository.com/artifact/javax.jmdns/jmdns -->
         <dependency>
             <groupId>javax.jmdns</groupId>
@@ -94,23 +95,14 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-text</artifactId>
-            <version>1.9</version>
+            <version>1.10.0</version>
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-compress -->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-compress</artifactId>
-            <version>1.21</version>
+            <version>1.26.0</version>
         </dependency>
-
-
-        <dependency>
-            <groupId>commons-io</groupId>
-            <artifactId>commons-io</artifactId>
-            <version>2.5</version>
-        </dependency>
-
-
 
         <!-- https://mvnrepository.com/artifact/net.coobird/thumbnailator -->
         <dependency>
@@ -181,7 +173,7 @@
         <dependency>
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
-            <version>20211205</version>
+            <version>20231013</version>
             <scope>compile</scope>
         </dependency>
 

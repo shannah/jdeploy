@@ -17,6 +17,7 @@ import ca.weblite.jdeploy.di.JDeployModule;
 import ca.weblite.jdeploy.factories.JDeployKeyProviderFactory;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
+import ca.weblite.jdeploy.helpers.GithubReleaseNotesMutator;
 import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.npm.NPM;
@@ -38,7 +39,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -78,20 +78,13 @@ import static ca.weblite.jdeploy.PathUtil.toNativePath;
  *
  * @author shannah
  */
-public class JDeploy {
+public class JDeploy implements BundleConstants {
     static {
         System.setProperty("apple.laf.useScreenMenuBar", "true");
         System.setProperty("apple.eawt.quitStrategy", "CLOSE_ALL_WINDOWS");
     }
 
     private static final int DEFAULT_JAVA_VERSION = 11;
-
-    private static final String BUNDLE_MAC_X64 = "mac-x64";
-    private static final String BUNDLE_MAC_ARM64 = "mac-arm64";
-    private static final String BUNDLE_MAC_X64_DMG = "mac-x64-dmg";
-    private static final String BUNDLE_MAC_ARM64_DMG = "mac-arm64-dmg";
-    private static final String BUNDLE_WIN = "win";
-    private static final String BUNDLE_LINUX = "linux";
 
     private boolean alwaysClean = !Boolean.getBoolean("jdeploy.doNotClean");
     private boolean alwaysPackageOnPublish = !Boolean.getBoolean("jdeploy.doNotPackage");
@@ -1642,22 +1635,23 @@ public class JDeploy {
         return bundle(BUNDLE_MAC_ARM64, bundlerSettings, overrideDestDir, overrideReleaseDir);
     }
 
-    public void macArmDmg(BundlerSettings bundlerSettings, File destDir) throws Exception {
-        dmg(bundlerSettings, destDir, ".aarch64.dmg", (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
+    public BundlerResult macArmDmg(BundlerSettings bundlerSettings, File destDir, String suffix) throws Exception {
+        return dmg(bundlerSettings, destDir, suffix, BUNDLE_MAC_ARM64_DMG, (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
             return macArmBundle(bundlerSettings1, bundleDestDir, bundleReleaseDir);
         });
     }
 
-    public void macIntelDmg(BundlerSettings bundlerSettings, File destDir) throws Exception {
-        dmg(bundlerSettings, destDir, "-x86_64.dmg", (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
+    public BundlerResult macIntelDmg(BundlerSettings bundlerSettings, File destDir, String suffix) throws Exception {
+        return dmg(bundlerSettings, destDir, suffix, BUNDLE_MAC_X64_DMG, (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
             return macIntelBundle(bundlerSettings1, bundleDestDir, bundleReleaseDir);
         });
     }
 
-    public void dmg(
+    public BundlerResult dmg(
             BundlerSettings bundlerSettings,
             File destDir,
             String suffix,
+            String bundleType,
             BundlerCall bundlerCall
     ) throws Exception {
         if (bundlerSettings.getSource() == null && System.getenv("JDEPLOY_SOURCE") != null){
@@ -1677,10 +1671,16 @@ public class JDeploy {
             String appName = bundleResult.getOutputFile().getName();
             String appNameWithoutExtension = appName.substring(0, appName.lastIndexOf("."));
             String dmgName = appNameWithoutExtension + suffix;
+            File dmgFile = new File(destDir, dmgName);
             DmgCreator.createDmg(
                     bundleResult.getOutputFile().getAbsolutePath(),
-                    new File(destDir, dmgName).getAbsolutePath()
+                    dmgFile.getAbsolutePath()
             );
+            BundlerResult newResult = new BundlerResult(bundleType);
+            newResult.setOutputFile(dmgFile);
+            bundleResult.setResultForType(bundleType, newResult);
+
+            return bundleResult;
 
         } finally {
             FileUtils.deleteDirectory(tmpDir);
@@ -1806,6 +1806,7 @@ public class JDeploy {
         installerDir.mkdirs();
 
         String _newName = appInfo.getTitle() + " Installer-${{ platform }}";
+        String dmgSuffix = "-${{ platform }}";
         String versionStr = appInfo.getNpmVersion();
         if (versionStr.startsWith("0.0.0-")) {
             versionStr = "@" + versionStr.substring("0.0.0-".length());
@@ -1813,6 +1814,7 @@ public class JDeploy {
         if (appInfo.getJdeployBundleCode() != null) {
             _newName += "-"+versionStr+"_"+appInfo.getJdeployBundleCode();
         }
+        dmgSuffix += "-"+versionStr + ".dmg";
 
         File installerZip;
         if (target.equals("mac") || target.equals(BUNDLE_MAC_X64)) {
@@ -1828,8 +1830,8 @@ public class JDeploy {
                 out.println("DMG bundling is only supported on macOS.  Skipping DMG generation");
                 return;
             }
-
-            macArmDmg(bundlerSettings, installerDir);
+            dmgSuffix = dmgSuffix.replace("${{ platform }}", BUNDLE_MAC_ARM64);
+            macArmDmg(bundlerSettings, installerDir, dmgSuffix);
             return;
         } else if (target.equals(BUNDLE_MAC_X64_DMG)) {
             if (!Platform.getSystemPlatform().isMac()) {
@@ -1837,7 +1839,8 @@ public class JDeploy {
                 return;
             }
 
-            macIntelDmg(bundlerSettings, installerDir);
+            dmgSuffix = dmgSuffix.replace("${{ platform }}", BUNDLE_MAC_X64);
+            macIntelDmg(bundlerSettings, installerDir, dmgSuffix);
             return;
         } else if (target.equals(BUNDLE_WIN)) {
             _newName = _newName.replace("${{ platform }}", "win-x64");
@@ -2133,82 +2136,7 @@ public class JDeploy {
     }
 
     private String createGithubReleaseNotes() {
-        final String repo = System.getenv("GITHUB_REPOSITORY");
-        final String releasesPrefix = "/releases/download/";
-        final String branchTag = System.getenv("GITHUB_REF_NAME");
-        final String refType = System.getenv("GITHUB_REF_TYPE");
-        final File releaseFilesDir = getGithubReleaseFilesDir();
-        final Optional<File> macIntelBundle = Arrays.asList(
-                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_MAC_X64))
-        ).stream().findFirst();
-        final Optional<File> macArmBundle = Arrays.asList(
-                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_MAC_ARM64))
-        ).stream().findFirst();
-        final Optional<File> winBundle = Arrays.asList(
-                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_WIN))
-        ).stream().findFirst();
-        final Optional<File> linuxBundle = Arrays.asList(
-                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_LINUX))
-        ).stream().findFirst();
-        StringBuilder notes = new StringBuilder();
-        notes.append("## Application Installers");
-        if ("branch".equals(refType)) {
-            notes.append(" for latest snapshot of ").append(branchTag).append(" branch");
-        } else {
-            notes.append(" latest release");
-        }
-        notes.append("\n\n");
-
-        if (macArmBundle.isPresent()) {
-            notes.append("* [Mac (Apple Silicon)](https://github.com/")
-                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                    .append(urlencodeFileNameForGithubRelease(macArmBundle.get().getName())).append(")\n");
-        }
-        if (macIntelBundle.isPresent()) {
-            notes.append("* [Mac (Intel)](https://github.com/")
-                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                    .append(urlencodeFileNameForGithubRelease(macIntelBundle.get().getName())).append(")\n");
-        }
-        if (winBundle.isPresent()) {
-            notes.append("* [Windows (x64)](https://github.com/")
-                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                    .append(urlencodeFileNameForGithubRelease(winBundle.get().getName())).append(")\n");
-        }
-        if (linuxBundle.isPresent()) {
-            notes.append("* [Linux (x64)](https://github.com/")
-                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                    .append(urlencodeFileNameForGithubRelease(linuxBundle.get().getName())).append(")\n");
-        }
-
-        if ("branch".equals(refType)) {
-            notes.append("\nOr launch app installer via command-line on Linux, Mac, or Windows:\n\n");
-            notes.append("```bash\n");
-            notes.append("/bin/bash -c \"$(curl -fsSL https://www.jdeploy.com/gh/")
-                    .append(repo).append("/").append(branchTag).append("/install.sh)\"\n");
-            notes.append("```\n");
-            notes.append("\nSee [download page](https://www.jdeploy.com/gh/").append(repo).append("/").append(branchTag).append(") for more download options.\n\n");
-        } else {
-            notes.append("\nOr launch app installer via command-line on Linux, Mac, or Windows:\n\n");
-            notes.append("```bash\n");
-            notes.append("/bin/bash -c \"$(curl -fsSL https://www.jdeploy.com/gh/").append(repo).append("/install.sh)\"\n");
-            notes.append("```\n");
-            notes.append("\nSee [download page](https://www.jdeploy.com/gh/").append(repo).append(") for more download options.\n\n");
-        }
-
-
-
-        return notes.toString();
-    }
-
-    private String urlencodeFileNameForGithubRelease(String str) {
-        str = str.replace(" ", ".");
-        try {
-            return URLEncoder.encode(str, "UTF-8");
-        } catch (Exception ex) {
-            err.println("Failed to encode string "+str);
-            ex.printStackTrace(err);
-            return str;
-        }
+        return new GithubReleaseNotesMutator(directory, err).createGithubReleaseNotes();
     }
 
     private void saveGithubReleaseFiles() throws IOException {
@@ -2413,6 +2341,10 @@ public class JDeploy {
             sb.append(endMarker).append("\n");
         }
         return sb.toString();
+    }
+
+    public int updateReleaseLinks(String[] args) {
+        return new UpdateReleaseLinksCLIController(directory, err, out).run(args);
     }
 
     /**
@@ -2755,6 +2687,9 @@ public class JDeploy {
                     System.exit(1);
                 }
                 System.out.println(prog.injectGithubReleaseNotes(oldBody, jdeployReleaseNotes));
+            } else if ("github-update-release-links".equals(args[0])) {
+                int result = prog.updateReleaseLinks(subArray(args,1 ));
+                System.exit(result);
             } else if ("scan".equals(args[0])) {
                 prog.scan();
             } else if ("run".equals(args[0])) {
@@ -2858,6 +2793,15 @@ public class JDeploy {
         return true;
     }
 
+    private static boolean isForGithubRelease(String[] args) {
+        for (String arg : args) {
+            if ("--for-github-release".equals(arg)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static String[] stripFlags(String[] args) {
         List<String> out = new ArrayList<>();
         for (String arg : args) {
@@ -2867,5 +2811,15 @@ public class JDeploy {
             out.add(arg);
         }
         return out.toArray(new String[out.size()]);
+    }
+
+    private static String[] subArray(String[] args, int offset, int length) {
+        String[] out = new String[length];
+        System.arraycopy(args, offset, out, 0, length);
+        return out;
+    }
+
+    private static String[] subArray(String[] args, int offset) {
+        return subArray(args, offset, args.length-offset);
     }
 }
