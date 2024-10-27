@@ -10,6 +10,7 @@ import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
+import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
 import ca.weblite.jdeploy.services.ExportIdentityService;
 import ca.weblite.jdeploy.services.GithubService;
 import ca.weblite.jdeploy.services.GithubWorkflowGenerator;
@@ -39,6 +40,7 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,7 +53,6 @@ import static ca.weblite.jdeploy.PathUtil.fromNativePath;
 import static ca.weblite.jdeploy.PathUtil.toNativePath;
 
 public class JDeployProjectEditor {
-
     private boolean modified;
     private JSONObject packageJSON;
     private File packageJSONFile;
@@ -83,9 +84,6 @@ public class JDeployProjectEditor {
 
     }
 
-
-
-
     private void handlePackageJSONChangedOnFileSystem()  {
         if (processingPackageJSONChange) {
             return;
@@ -103,7 +101,8 @@ public class JDeployProjectEditor {
                 return;
             }
             int result = JOptionPane.showConfirmDialog(frame,
-                    "The package.json file has been modified.  Would you like to reload it?  Unsaved changes will be lost",
+                    "The package.json file has been modified.  " +
+                            "Would you like to reload it?  Unsaved changes will be lost",
                     "Reload package.json?",
                     JOptionPane.YES_NO_OPTION);
 
@@ -125,10 +124,7 @@ public class JDeployProjectEditor {
         frame.getContentPane().removeAll();
         initMainFields(frame.getContentPane());
         frame.revalidate();
-
     }
-
-
 
     private void watchPackageJSONForChanges() throws IOException, InterruptedException {
         watchService = FileSystems.getDefault().newWatchService();
@@ -152,7 +148,6 @@ public class JDeployProjectEditor {
             } catch (ClosedWatchServiceException cwse) {
                 pollWatchService = false;
             }
-
         }
     }
 
@@ -165,8 +160,6 @@ public class JDeployProjectEditor {
     private class LinkFields {
         private JTextField url, label;
     }
-
-
 
     private static void addChangeListenerTo(JTextComponent textField, Runnable r) {
         textField.getDocument().addDocumentListener(new DocumentListener() {
@@ -238,7 +231,9 @@ public class JDeployProjectEditor {
         try {
             this.packageJSONMD5 = MD5.getMD5Checksum(this.packageJSONFile);
         } catch (Exception ex) {
-            throw new RuntimeException("Failed to get MD5 checksum for packageJSON file.  This is used for the watch service.");
+            throw new RuntimeException(
+                    "Failed to get MD5 checksum for packageJSON file.  This is used for the watch service."
+            );
         }
     }
 
@@ -248,7 +243,9 @@ public class JDeployProjectEditor {
             try {
                 watchPackageJSONForChanges();
             } catch (Exception ex) {
-                System.err.println("A problem occurred while setting up watch service on package.json.  Disabling watch service.");
+                System.err.println(
+                        "A problem occurred while setting up watch service on package.json.  Disabling watch service."
+                );
                 ex.printStackTrace(System.err);
             }
         });
@@ -273,27 +270,22 @@ public class JDeployProjectEditor {
 
         initMainFields(frame.getContentPane());
         initMenu();
-
     }
-
 
     private void handleClosing() {
         if (modified) {
             int answer = showWarningUnsavedChangesMessage();
             switch (answer) {
                 case JOptionPane.YES_OPTION:
-                    //System.out.println("Save and Quit");
                     handleSave();
                     frame.dispose();
                     break;
 
                 case JOptionPane.NO_OPTION:
-                    //System.out.println("Don't Save and Quit");
                     frame.dispose();
                     break;
 
                 case JOptionPane.CANCEL_OPTION:
-                    //System.out.println("Don't Quit");
                     break;
             }
         }else {
@@ -404,16 +396,14 @@ public class JDeployProjectEditor {
         rowWrapper.setBorder(new MatteBorder(1, 0, 0, 0, Color.LIGHT_GRAY));
         doctypesPanel.add(rowWrapper);
         doctypesPanel.add(filler);
-
-
     }
-
-
 
     private void initDoctypeFields(DoctypeFields fields, JSONObject docTypeRow, Container cnt) {
         fields.extension = new JTextField();
         fields.extension.setColumns(8);
-        fields.extension.setMaximumSize(new Dimension(fields.extension.getPreferredSize().width, fields.extension.getPreferredSize().height));
+        fields.extension.setMaximumSize(
+                new Dimension(fields.extension.getPreferredSize().width, fields.extension.getPreferredSize().height)
+        );
         fields.extension.setToolTipText("Enter the file extension.  E.g. txt");
         if (docTypeRow.has("extension")) {
             fields.extension.setText(docTypeRow.getString("extension"));
@@ -440,7 +430,10 @@ public class JDeployProjectEditor {
             setModified();
         });
         fields.editor = new JCheckBox("Editor");
-        fields.editor.setToolTipText("Check this box if the app can edit this document type.  Leave unchecked if it can only view documents of this type");
+        fields.editor.setToolTipText(
+                "Check this box if the app can edit this document type.  " +
+                        "Leave unchecked if it can only view documents of this type"
+        );
         if (docTypeRow.has("editor") && docTypeRow.getBoolean("editor")) {
             fields.editor.setSelected(true);
         }
@@ -450,7 +443,10 @@ public class JDeployProjectEditor {
         });
 
         fields.custom = new JCheckBox("Custom");
-        fields.custom.setToolTipText("Check this box if this is a custom extension for your app, and should be added to the system mimetypes registry.");
+        fields.custom.setToolTipText(
+                "Check this box if this is a custom extension for your app, and should be added to the system " +
+                        "mimetypes registry."
+        );
         if (docTypeRow.has("custom") && docTypeRow.getBoolean("custom")) {
             fields.custom.setSelected(true);
         }
@@ -655,7 +651,9 @@ public class JDeployProjectEditor {
         mainFields.repository.setColumns(30);
         mainFields.repository.setMinimumSize(new Dimension(100, mainFields.repository.getPreferredSize().height));
         mainFields.repositoryDirectory = detailsPanel.getRepositoryDirectory();
-        mainFields.repositoryDirectory.setMinimumSize(new Dimension(100, mainFields.repositoryDirectory.getPreferredSize().height));
+        mainFields.repositoryDirectory.setMinimumSize(
+                new Dimension(100, mainFields.repositoryDirectory.getPreferredSize().height)
+        );
         mainFields.repositoryDirectory.setColumns(20);
         if (packageJSON.has("repository")) {
             Object repoVal = packageJSON.get("repository");
@@ -735,7 +733,9 @@ public class JDeployProjectEditor {
         mainFields.splash = new JButton();
         if (getSplashFile(null) != null && getSplashFile(null).exists()) {
             try {
-                mainFields.splash.setIcon(new ImageIcon(Thumbnails.of(getSplashFile(null)).height(200).asBufferedImage()));
+                mainFields.splash.setIcon(
+                        new ImageIcon(Thumbnails.of(getSplashFile(null)).height(200).asBufferedImage())
+                );
             } catch (Exception ex) {
                 System.err.println("Failed to read splash image from "+getSplashFile(null));
                 ex.printStackTrace(System.err);
@@ -757,7 +757,9 @@ public class JDeployProjectEditor {
                 }
                 FileUtils.copyFile(selected, getSplashFile(extension));
                 mainFields.splash.setText("");
-                mainFields.splash.setIcon(new ImageIcon(Thumbnails.of(getSplashFile(extension)).height(200).asBufferedImage()));
+                mainFields.splash.setIcon(
+                        new ImageIcon(Thumbnails.of(getSplashFile(extension)).height(200).asBufferedImage())
+                );
             } catch (Exception ex) {
                 System.err.println("Error while copying icon file");
                 ex.printStackTrace(System.err);
@@ -769,7 +771,9 @@ public class JDeployProjectEditor {
         mainFields.installSplash = new JButton();
         if (getInstallSplashFile().exists()) {
             try {
-                mainFields.installSplash.setIcon(new ImageIcon(Thumbnails.of(getInstallSplashFile()).height(200).asBufferedImage()));
+                mainFields.installSplash.setIcon(
+                        new ImageIcon(Thumbnails.of(getInstallSplashFile()).height(200).asBufferedImage())
+                );
             } catch (Exception ex) {
                 System.err.println("Failed to read splash image from "+getInstallSplashFile());
                 ex.printStackTrace(System.err);
@@ -786,7 +790,9 @@ public class JDeployProjectEditor {
 
                 FileUtils.copyFile(selected, getInstallSplashFile());
                 mainFields.installSplash.setText("");
-                mainFields.installSplash.setIcon(new ImageIcon(Thumbnails.of(getInstallSplashFile()).height(200).asBufferedImage()));
+                mainFields.installSplash.setIcon(
+                        new ImageIcon(Thumbnails.of(getInstallSplashFile()).height(200).asBufferedImage())
+                );
             } catch (Exception ex) {
                 System.err.println("Error while copying icon file");
                 ex.printStackTrace(System.err);
@@ -797,7 +803,9 @@ public class JDeployProjectEditor {
         mainFields.icon = detailsPanel.getIcon();
         if (getIconFile().exists()) {
             try {
-                mainFields.icon.setIcon(new ImageIcon(Thumbnails.of(getIconFile()).size(128, 128).asBufferedImage()));
+                mainFields.icon.setIcon(
+                        new ImageIcon(Thumbnails.of(getIconFile()).size(128, 128).asBufferedImage())
+                );
             } catch (Exception ex) {
                 System.err.println("Failed to read splash image from "+getIconFile());
                 ex.printStackTrace(System.err);
@@ -814,7 +822,9 @@ public class JDeployProjectEditor {
 
                 FileUtils.copyFile(selected, getIconFile());
                 mainFields.icon.setText("");
-                mainFields.icon.setIcon(new ImageIcon(Thumbnails.of(getIconFile()).size(128, 128).asBufferedImage()));
+                mainFields.icon.setIcon(
+                        new ImageIcon(Thumbnails.of(getIconFile()).size(128, 128).asBufferedImage())
+                );
             } catch (Exception ex) {
                 System.err.println("Error while copying icon file");
                 ex.printStackTrace(System.err);
@@ -858,7 +868,10 @@ public class JDeployProjectEditor {
             File absDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
             File jarFile = selected[0].getAbsoluteFile();
             if (!jarFile.getAbsolutePath().startsWith(absDirectory.getAbsolutePath())) {
-                showError("Jar file must be in same directory as the package.json file, or a subdirectory thereof", null);
+                showError(
+                        "Jar file must be in same directory as the package.json file, or a subdirectory thereof",
+                        null
+                );
                 return;
             }
             try {
@@ -867,7 +880,11 @@ public class JDeployProjectEditor {
                 showError(ex.getMessage(), ex);
                 return;
             }
-            mainFields.jar.setText(fromNativePath(jarFile.getAbsolutePath().substring(absDirectory.getAbsolutePath().length()+1)));
+            mainFields.jar.setText(
+                    fromNativePath(
+                            jarFile.getAbsolutePath().substring(absDirectory.getAbsolutePath().length()+1)
+                    )
+            );
             jdeploy.put("jar", mainFields.jar.getText());
             setModified();
 
@@ -977,13 +994,25 @@ public class JDeployProjectEditor {
         doctypesTop.setOpaque(false);
         doctypesTop.setLayout(new BorderLayout());
         doctypesTop.add(tb, BorderLayout.CENTER);
-        doctypesTop.add(createHelpButton("https://www.jdeploy.com/docs/help/#filetypes", "", "Learn more about file associations in jDeploy."), BorderLayout.EAST);
+        doctypesTop.add(
+                createHelpButton(
+                        "https://www.jdeploy.com/docs/help/#filetypes",
+                        "",
+                        "Learn more about file associations in jDeploy."
+                ),
+                BorderLayout.EAST
+        );
         doctypesTop.setMaximumSize(new Dimension(doctypesTop.getPreferredSize()));
         doctypesPanelWrapper.add(doctypesTop, BorderLayout.NORTH);
         JPanel cheerpjSettingsRoot = null;
         if (context.shouldDisplayCheerpJPanel()) {
             CheerpJSettings cheerpJSettings = new CheerpJSettings();
-            cheerpJSettings.getButtons().add(createHelpButton("https://www.jdeploy.com/docs/help/#cheerpj", "", "Learn more about CheerpJ support"));
+            cheerpJSettings.getButtons().add(
+                    createHelpButton(
+                            "https://www.jdeploy.com/docs/help/#cheerpj",
+                            "",
+                            "Learn more about CheerpJ support")
+            );
             cheerpjSettingsRoot = cheerpJSettings.getRoot();
             cheerpJSettings.getEnableCheerpJ().setSelected(
                     jdeploy.has("cheerpj")
@@ -1008,23 +1037,39 @@ public class JDeployProjectEditor {
                 }
 
                 boolean hasBranch = jdeploy.has("cheerpj")
-                        && jdeploy.getJSONObject("cheerpj").has("githubPages")
-                        && jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").has("branch");
+                        && jdeploy
+                        .getJSONObject("cheerpj")
+                        .has("githubPages")
+                        && jdeploy
+                        .getJSONObject("cheerpj")
+                        .getJSONObject("githubPages")
+                        .has("branch");
 
                 cheerpJSettings.getGithubPagesBranch().setText(
                         !hasBranch
                                 ? ""
-                                :  jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").getString("branch")
+                                :  jdeploy
+                                .getJSONObject("cheerpj")
+                                .getJSONObject("githubPages")
+                                .getString("branch")
                 );
 
                 boolean hasBranchPath = jdeploy.has("cheerpj")
-                        && jdeploy.getJSONObject("cheerpj").has("githubPages")
-                        && jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").has("branchPath");
+                        && jdeploy
+                        .getJSONObject("cheerpj")
+                        .has("githubPages")
+                        && jdeploy
+                        .getJSONObject("cheerpj")
+                        .getJSONObject("githubPages")
+                        .has("branchPath");
 
                 cheerpJSettings.getGithubPagesBranchPath().setText(
                         !hasBranchPath
                                 ? ""
-                                :  jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").getString("branchPath")
+                                :  jdeploy
+                                .getJSONObject("cheerpj")
+                                .getJSONObject("githubPages")
+                                .getString("branchPath")
                 );
 
                 boolean hasTagPath = jdeploy.has("cheerpj")
@@ -1044,7 +1089,10 @@ public class JDeployProjectEditor {
                 cheerpJSettings.getGithubPagesPath().setText(
                         !hasPath
                                 ? ""
-                                :  jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").getString("path")
+                                :  jdeploy
+                                .getJSONObject("cheerpj")
+                                .getJSONObject("githubPages")
+                                .getString("path")
                 );
 
 
@@ -1089,22 +1137,38 @@ public class JDeployProjectEditor {
             });
 
             cheerpJSettings.getGithubPagesBranch().addActionListener(evt->{
-                if (jdeploy.has("cheerpj") && jdeploy.getJSONObject("cheerpj").has("githubPages")) {
-                    jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").put("branch", cheerpJSettings.getGithubPagesBranch().getText());
+                if (
+                        jdeploy.has("cheerpj")
+                                && jdeploy.getJSONObject("cheerpj").has("githubPages")
+                ) {
+                    jdeploy
+                            .getJSONObject("cheerpj")
+                            .getJSONObject("githubPages")
+                            .put("branch", cheerpJSettings.getGithubPagesBranch().getText());
                     setModified();
                 }
             });
 
             cheerpJSettings.getGithubPagesBranchPath().addActionListener(evt->{
-                if (jdeploy.has("cheerpj") && jdeploy.getJSONObject("cheerpj").has("githubPages")) {
-                    jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").put("branchPath", cheerpJSettings.getGithubPagesBranchPath().getText());
+                if (
+                        jdeploy.has("cheerpj")
+                                && jdeploy.getJSONObject("cheerpj").has("githubPages")
+                ) {
+                    jdeploy.getJSONObject("cheerpj")
+                            .getJSONObject("githubPages")
+                            .put("branchPath", cheerpJSettings.getGithubPagesBranchPath().getText());
                     setModified();
                 }
             });
 
             cheerpJSettings.getGithubPagesTagPath().addActionListener(evt->{
-                if (jdeploy.has("cheerpj") && jdeploy.getJSONObject("cheerpj").has("githubPages")) {
-                    jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").put("tagPath", cheerpJSettings.getGithubPagesTagPath().getText());
+                if (
+                        jdeploy.has("cheerpj")
+                                && jdeploy.getJSONObject("cheerpj").has("githubPages")
+                ) {
+                    jdeploy.getJSONObject("cheerpj")
+                            .getJSONObject("githubPages")
+                            .put("tagPath", cheerpJSettings.getGithubPagesTagPath().getText());
                     setModified();
                 }
             });
@@ -1126,7 +1190,13 @@ public class JDeployProjectEditor {
 
         JPanel helpPanel = new JPanel();
         helpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        helpPanel.add(createHelpButton("https://www.jdeploy.com/docs/help/#_the_details_tab", "", "Learn about what these fields do."));
+        helpPanel.add(
+                createHelpButton(
+                        "https://www.jdeploy.com/docs/help/#_the_details_tab",
+                        "",
+                        "Learn about what these fields do."
+                )
+        );
         detailWrapper.add(helpPanel, BorderLayout.NORTH);
         detailWrapper.add(detailsPanelRoot, BorderLayout.CENTER);
 
@@ -1146,8 +1216,14 @@ public class JDeployProjectEditor {
         JPanel imagesHelpPanel = new JPanel();
         imagesHelpPanel.setOpaque(false);
         imagesHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        imagesHelpPanel.add(createHelpButton("https://www.jdeploy.com/docs/help/#splashscreens", "", "Learn more about this panel, and how splash screen images are used in jDeploy."));
-        //imagesHelpPanel.setMaximumSize(new Dimension(imagesHelpPanel.getPreferredSize()));
+        imagesHelpPanel.add(
+                createHelpButton(
+                        "https://www.jdeploy.com/docs/help/#splashscreens",
+                        "",
+                        "Learn more about this panel, and how splash screen images are used in jDeploy."
+                )
+        );
+
         imagesPanelWrapper.add(imagesHelpPanel, BorderLayout.NORTH);
         tabs.add("Splash Screens", imagesPanelWrapper);
 
@@ -1162,16 +1238,26 @@ public class JDeployProjectEditor {
         urlSchemesHelp.setOpaque(false);
         urlSchemesHelp.setLineWrap(true);
         urlSchemesHelp.setWrapStyleWord(true);
-        urlSchemesHelp.setText("Create one or more custom URL schemes that will trigger your app to launch when users try to open a link in their web browser with one of them.\nEnter one or more URL schemes separated by commas in the field below." +
+        urlSchemesHelp.setText(
+                "Create one or more custom URL schemes that will trigger your app to launch when users try to open a " +
+                        "link in their web browser with one of them.\nEnter one or more URL schemes separated by commas " +
+                        "in the field below." +
                 "\n\nFor example, if you want links like mynews:foobarfoo and mymusic:fuzzbazz to launch your app, then " +
-                "add 'mynews, mymusic' to the field below.");
+                "add 'mynews, mymusic' to the field below."
+        );
         urlSchemesHelp.setMaximumSize(new Dimension(600, 150));
         urlsPanel.setLayout(new BoxLayout(urlsPanel, BoxLayout.Y_AXIS));
 
         JPanel urlsHelpPanelWrapper = new JPanel();
         urlsHelpPanelWrapper.setLayout(new FlowLayout(FlowLayout.RIGHT));
         urlsHelpPanelWrapper.setOpaque(false);
-        urlsHelpPanelWrapper.add(createHelpButton("https://www.jdeploy.com/docs/help/#_the_urls_tab", "", "Learn more about custom URL schemes in jDeploy"));
+        urlsHelpPanelWrapper.add(
+                createHelpButton(
+                        "https://www.jdeploy.com/docs/help/#_the_urls_tab",
+                        "",
+                        "Learn more about custom URL schemes in jDeploy"
+                )
+        );
         urlsHelpPanelWrapper.setMaximumSize(new Dimension(10000, urlsHelpPanelWrapper.getPreferredSize().height));
         urlsPanel.add(urlsHelpPanelWrapper);
         urlsPanel.add(urlSchemesHelp);
@@ -1196,10 +1282,21 @@ public class JDeployProjectEditor {
         JPanel cliHelpPanel = new JPanel();
         cliHelpPanel.setOpaque(false);
         cliHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        cliHelpPanel.add(createHelpButton("https://www.jdeploy.com/docs/help/#cli", "", "Learn more about this tab in the help guide."));
+        cliHelpPanel.add(createHelpButton(
+                "https://www.jdeploy.com/docs/help/#cli",
+                "",
+                "Learn more about this tab in the help guide."
+        ));
         cliHelpPanel.setMaximumSize(new Dimension(10000, cliHelpPanel.getPreferredSize().height));
         cliPanel.add(cliHelpPanel);
-        cliPanel.add(new JLabel("<html><p style='width:400px'>Your app will also be installable and runnable as a command-line app using npm/npx.  See the CLI tutorialfor more details</p></html>"));
+        cliPanel.add(new JLabel(
+                "<html>" +
+                        "<p style='width:400px'>" +
+                        "Your app will also be installable and runnable as a command-line app using npm/npx.  " +
+                        "See the CLI tutorialfor more details" +
+                        "</p>" +
+                        "</html>"
+        ));
         JButton viewCLITutorial = new JButton("Open CLI Tutorial");
         viewCLITutorial.addActionListener(evt->{
             try {
@@ -1208,7 +1305,15 @@ public class JDeployProjectEditor {
                 System.err.println("Failed to open cli tutorial.");
                 ex.printStackTrace(System.err);
                 JOptionPane.showMessageDialog(frame,
-                        new JLabel("<html><p style='width:400px'>Failed to open the CLI tutorial.  Try opening https://www.jdeploy.com/docs/getting-started-tutorial-cli/ manually in your browser."),
+                        new JLabel(
+                                "<html>" +
+                                        "<p style='width:400px'>" +
+                                        "Failed to open the CLI tutorial.  " +
+                                        "Try opening https://www.jdeploy.com/docs/getting-started-tutorial-cli/ " +
+                                        "manually in your browser." +
+                                        "</p>" +
+                                        "</html>"
+                        ),
                         "Failed to Open",
                         JOptionPane.ERROR_MESSAGE);
             }
@@ -1217,7 +1322,13 @@ public class JDeployProjectEditor {
         cliPanel.add(Box.createVerticalStrut(10));
         cliPanel.add(viewCLITutorial);
         cliPanel.add(Box.createVerticalStrut(10));
-        cliPanel.add(new JLabel("<html><p style='width:400px'>The following field allows you to specify the command name for your app.  Users will launch your app by entering this name in the command-line. </p></html>"));
+        cliPanel.add(new JLabel("" +
+                "<html>" +
+                "<p style='width:400px'>" +
+                "The following field allows you to specify the command name for your app.  " +
+                "Users will launch your app by entering this name in the command-line. " +
+                "</p>" +
+                "</html>"));
         cliPanel.add(mainFields.command);
         mainFields.command.setMaximumSize(new Dimension(1000, mainFields.command.getPreferredSize().height));
         //cliPanel.add(Box.createVerticalGlue());
@@ -1233,24 +1344,36 @@ public class JDeployProjectEditor {
         runArgsTop.setOpaque(false);
         runArgsTop.setLayout(new BorderLayout());
 
-        JButton runargsHelp = createHelpButton("https://www.jdeploy.com/docs/help/#runargs", "", "Open run arguments help in web browser");
+        JButton runargsHelp = createHelpButton(
+                "https://www.jdeploy.com/docs/help/#runargs",
+                "",
+                "Open run arguments help in web browser"
+        );
         runargsHelp.setMaximumSize(new Dimension(runargsHelp.getPreferredSize()));
 
         JLabel runArgsLabel = new JLabel("Runtime Arguments");
-        JLabel runArgsDescription = new JLabel("<html><p style='font-size:x-small;width:400px'>One argument per line.<br/></p>" +
+        JLabel runArgsDescription = new JLabel("<html>" +
+                "<p style='font-size:x-small;width:400px'>One argument per line.<br/></p>" +
                 "<p style='font-size:x-small; width:400px'>Prefix system properties with '-D'.  E.g. -Dfoo=bar</p>" +
                 "<p style='font-size:x-small;width:400px'>Prefix JVM options with '-X'.  E.g. -Xmx2G</p><br/>" +
                 "<p style='font-size:x-small;width:400px;padding-top:1em'><strong>Placeholder Variables</strong><br/>" +
                 "<strong>{{ user.home }}</strong> : The user's home directory<br/>" +
                 "<strong>{{ exe.path }}</strong> : The path to the program executable.<br/>" +
-                "<strong>{{ app.path }}</strong> : The path to the .app bundle on Mac.  Falls back to executable path on other platforms.<br/>" +
+                "<strong>{{ app.path }}</strong> : " +
+                "The path to the .app bundle on Mac.  Falls back to executable path on other platforms.<br/>" +
                 "</p><br/>" +
                 "<p style='font-size:x-small;width:400px;padding-top:1em'>" +
                 "<strong>Platform-Specific Arguments:</strong><br/>" +
                 "Platform-specific arguments are only added on specific platforms.<br/>" +
-                "<strong>Property Args:</strong> -D[PLATFORMS]foo=bar, where PLATFORMS is mac, win, or linux, or pipe-concatenated list.  E.g. '-D[mac]foo=bar', '-D[win]foo=bar', '-D[linux]foo=bar', '-D[mac|linux]foo=bar', etc...<br/>" +
-                "<strong>JVM Options:</strong> -X[PLATFORMS]foo, where PLATFORMS is mac, win, or linux, or pipe-concatenated list.  E.g. '-X[mac]foo', '-X[win]foo', '-X[linux]foo', '-X[mac|linux]foo', etc...<br/>" +
-                "<strong>Program Args:</strong> -[PLATFORMS]foo, where PLATFORMS is mac, win, or linux, or pipe-concatenated list.  E.g. '-[mac]foo', '-[win]foo', '-[linux]foo', '-[mac|linux]foo', etc...<br/>" +
+                "<strong>Property Args:</strong> " +
+                "-D[PLATFORMS]foo=bar, where PLATFORMS is mac, win, or linux, or pipe-concatenated list. " +
+                " E.g. '-D[mac]foo=bar', '-D[win]foo=bar', '-D[linux]foo=bar', '-D[mac|linux]foo=bar', etc...<br/>" +
+                "<strong>JVM Options:</strong> " +
+                "-X[PLATFORMS]foo, where PLATFORMS is mac, win, or linux, or pipe-concatenated list.  " +
+                "E.g. '-X[mac]foo', '-X[win]foo', '-X[linux]foo', '-X[mac|linux]foo', etc...<br/>" +
+                "<strong>Program Args:</strong> " +
+                "-[PLATFORMS]foo, where PLATFORMS is mac, win, or linux, or pipe-concatenated list.  " +
+                "E.g. '-[mac]foo', '-[win]foo', '-[linux]foo', '-[mac|linux]foo', etc...<br/>" +
                 "</p>" +
                 "</html>");
         runArgsDescription.setBorder(new EmptyBorder(10,10,10,10));
@@ -1304,7 +1427,11 @@ public class JDeployProjectEditor {
                         return;
                     }
                 }
-                showError("Unable to load your package details from NPM.  Either you haven't published your app yet, or there was a network error.", ex);
+                showError(
+                        "Unable to load your package details from NPM.  " +
+                                "Either you haven't published your app yet, or there was a network error.",
+                        ex
+                );
                 return;
             }
             try {
@@ -1320,15 +1447,22 @@ public class JDeployProjectEditor {
 
         publish.addActionListener(evt->{
 
-            int result = JOptionPane.showConfirmDialog(frame, new JLabel("<html><p style='width:400px'>Are you sure you want to publish your app to npm?  " +
-                    "Once published, users will be able to download your app at <a href='https://www.jdeploy.com/~"+packageJSON.getString("name")+"'>https://www.jdeploy.com/~"+packageJSON.getString("name")+"</a>.<br/>Do you wish to proceed?</p></html>"),
+            int result = JOptionPane.showConfirmDialog(
+                    frame,
+                    new JLabel("<html><p style='width:400px'>Are you sure you want to publish your app to npm?  " +
+                    "Once published, users will be able to download your app at " +
+                            "<a href='https://www.jdeploy.com/~" +
+                            packageJSON.getString("name")+"'>" +
+                            "https://www.jdeploy.com/~"+packageJSON.getString("name") +
+                            "</a>." +
+                            "<br/>Do you wish to proceed?</p>" +
+                            "</html>"
+                    ),
                     "Publish to NPM?",
                     JOptionPane.YES_NO_OPTION);
             if (result == JOptionPane.NO_OPTION) {
                 return;
             }
-
-
 
             new Thread(()->{
                 handlePublish();
@@ -1383,7 +1517,9 @@ public class JDeployProjectEditor {
         file.add(openInTextEditor);
 
         generateGithubWorkflowMenuItem = new JMenuItem("Create Github Workflow");
-        generateGithubWorkflowMenuItem.setToolTipText("Generate a Github workflow to deploy your application automatically with Github Actions");
+        generateGithubWorkflowMenuItem.setToolTipText(
+                "Generate a Github workflow to deploy your application automatically with Github Actions"
+        );
         generateGithubWorkflowMenuItem.addActionListener(evt -> generateGithubWorkflow());
 
         editGithubWorkflowMenuItem = new JMenuItem("Edit Github Workflow");
@@ -1393,18 +1529,10 @@ public class JDeployProjectEditor {
         file.add(generateGithubWorkflowMenuItem);
         file.add(editGithubWorkflowMenuItem);
 
-        /*
-        JMenuItem exportIdentity = new JMenuItem("Export Signing Keys");
-        exportIdentity.setToolTipText("Export the developer signing keys as a PEM file.  Useful for using in GitHub actions.");
-        exportIdentity.addActionListener(evt->{
-            handleExportIdentity();
-        });
-        file.add(exportIdentity);
-
-         */
-
         JMenuItem verifyHomepage = new JMenuItem("Verify Homepage");
-        verifyHomepage.setToolTipText("Verify your app's homepage so that users will know that you are the developer of your app");
+        verifyHomepage.setToolTipText(
+                "Verify your app's homepage so that users will know that you are the developer of your app"
+        );
         verifyHomepage.addActionListener(evt->{
             handleVerifyHomepage();
         });
@@ -1414,22 +1542,46 @@ public class JDeployProjectEditor {
         if (context.shouldDisplayExitMenu()) {
             file.addSeparator();
             JMenuItem quit = new JMenuItem("Exit");
-            quit.setAccelerator(KeyStroke.getKeyStroke('Q', Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+            quit.setAccelerator(
+                    KeyStroke.getKeyStroke('Q', Toolkit.getDefaultToolkit().getMenuShortcutKeyMask())
+            );
             quit.addActionListener(evt -> handleClosing());
             file.add(quit);
         }
 
         JMenu help = new JMenu("Help");
-        JMenuItem jdeployHelp = createLinkItem("https://www.jdeploy.com/docs/help", "jDeploy Help", "Open jDeploy application help in your web browser");
+        JMenuItem jdeployHelp = createLinkItem(
+                "https://www.jdeploy.com/docs/help",
+                "jDeploy Help", "Open jDeploy application help in your web browser"
+        );
         help.add(jdeployHelp);
 
         help.addSeparator();
-        help.add(createLinkItem("https://www.jdeploy.com/", "jDeploy Website", "Open the jDeploy website in your web browser."));
-        help.add(createLinkItem("https://www.jdeploy.com/docs/manual", "jDeploy Developers Guide", "Open the jDeploy developers guide in your web browser."));
+        help.add(createLinkItem(
+                "https://www.jdeploy.com/",
+                "jDeploy Website",
+                "Open the jDeploy website in your web browser."
+        ));
+        help.add(createLinkItem(
+                "https://www.jdeploy.com/docs/manual",
+                "jDeploy Developers Guide",
+                "Open the jDeploy developers guide in your web browser."
+        ));
         help.addSeparator();
-        help.add(createLinkItem("https://groups.google.com/g/jdeploy-developers", "jDeploy Developers Mailing List", "A mailing list for developers who are developing apps with jDeploy"));
-        help.add(createLinkItem("https://github.com/shannah/jdeploy/discussions", "Support Forum", "A place to ask questions and get help from the community"));
-        help.add(createLinkItem("https://github.com/shannah/jdeploy/issues", "Issue Tracker", "Find and report bugs"));
+        help.add(createLinkItem(
+                "https://groups.google.com/g/jdeploy-developers",
+                "jDeploy Developers Mailing List",
+                "A mailing list for developers who are developing apps with jDeploy"
+        ));
+        help.add(createLinkItem(
+                "https://github.com/shannah/jdeploy/discussions",
+                "Support Forum",
+                "A place to ask questions and get help from the community"));
+        help.add(createLinkItem(
+                "https://github.com/shannah/jdeploy/issues",
+                "Issue Tracker",
+                "Find and report bugs"
+        ));
 
         jmb.add(file);
         jmb.add(help);
@@ -1518,8 +1670,6 @@ public class JDeployProjectEditor {
         }
     }
 
-
-
     private void handleSave() {
         try {
             FileUtil.writeStringToFile(packageJSON.toString(4), packageJSONFile);
@@ -1534,9 +1684,15 @@ public class JDeployProjectEditor {
     }
 
     private void showError(String message, Throwable exception) {
-        JOptionPane.showMessageDialog(frame, new JLabel("<html><p style='width:400px'>"+message+"</p></html>"), "Error", JOptionPane.ERROR_MESSAGE);
+        JOptionPane.showMessageDialog(
+                frame,
+                new JLabel(
+                        "<html><p style='width:400px'>"+message+"</p></html>"
+                ),
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+        );
         exception.printStackTrace(System.err);
-
     }
 
     private static final int NOT_LOGGED_IN = 1;
@@ -1567,15 +1723,16 @@ public class JDeployProjectEditor {
         }
     }
 
-
-
     private void validateJar(File jar) throws ValidationException {
         try {
             JarFile jarFile = new JarFile(jar);
             if(jarFile.getManifest().getMainAttributes().getValue(Attributes.Name.MAIN_CLASS) != null) {
                 return;
             }
-            throw new ValidationException("Selected jar file is not an executable Jar file.  \nPlease see https://www.jdeploy.com/docs/manual/#_appendix_building_executable_jar_file");
+            throw new ValidationException(
+                    "Selected jar file is not an executable Jar file.  " +
+                            "\nPlease see https://www.jdeploy.com/docs/manual/#_appendix_building_executable_jar_file"
+            );
         } catch (IOException ex) {
             throw new ValidationException("Failed to load jar file", ex);
         }
@@ -1586,19 +1743,56 @@ public class JDeployProjectEditor {
     private void handlePublish() {
         if (publishInProgress) return;
         publishInProgress = true;
-
         try {
             handlePublish0();
         } catch (ValidationException ex) {
             if (ex.type == NOT_LOGGED_IN) {
-                LoginDialog dlg = new LoginDialog();
-                dlg.onLogin(()->{
-                    new Thread(()->{
-                        publishInProgress = false;
-                        handlePublish();
-                    }).start();
-                });
-                dlg.show(frame);
+
+                try {
+                    TerminalLoginLauncher.launchLoginTerminal();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } catch (URISyntaxException e) {
+                    throw new RuntimeException(e);
+                }
+
+                // Create a JOptionPane with the desired message
+                JOptionPane optionPane = new JOptionPane(
+                        "<html><p style='width:400px'>You must be logged into NPM in order to publish your app. " +
+                                "We have opened a terminal window for you to login. " +
+                                "Please login to NPM in the terminal window and then try to publish again.</p></html>",
+                        JOptionPane.INFORMATION_MESSAGE,
+                        JOptionPane.DEFAULT_OPTION
+                );
+
+                // Create a JDialog from the JOptionPane
+                JDialog dialog = optionPane.createDialog(frame, "Login to NPM");
+                dialog.setModal(false); // Set to non-modal
+
+                // Display the dialog
+                dialog.setVisible(true);
+
+                new Thread(()->{
+                    NPM npm = new NPM(System.out, System.err);
+                    try {
+                        while (!npm.isLoggedIn() || !dialog.isShowing()) {
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException ex1) {
+                                throw new RuntimeException(ex1);
+                            }
+                        }
+                    } finally {
+                        EventQueue.invokeLater(()->{
+                            dialog.setVisible(false);
+                            dialog.dispose();
+                        });
+                    }
+
+                    handlePublish();
+
+                }).start();
+
             } else {
                 showError(ex.getMessage(), ex);
             }
@@ -1615,8 +1809,6 @@ public class JDeployProjectEditor {
         }
     }
 
-
-
     private void handleExportIdentity0() throws IOException {
         ExportIdentityService exportIdentityService = new ExportIdentityService();
         JDeploy jdeploy = new JDeploy(packageJSONFile.getAbsoluteFile().getParentFile(), false);
@@ -1630,12 +1822,9 @@ public class JDeployProjectEditor {
         exportIdentityService.exportIdentityToFile(dest[0]);
     }
 
-
     private void handlePublish0() throws ValidationException {
 
-
         File absDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
-
         String[] requiredFields = new String[]{
                 "name",
                 "author",
@@ -1648,7 +1837,6 @@ public class JDeployProjectEditor {
             }
         }
 
-
         if (!packageJSON.has("jdeploy")) {
             throw new ValidationException("This package.json is missing the jdeploy object which is required.");
         }
@@ -1658,10 +1846,14 @@ public class JDeployProjectEditor {
         }
         File jarFile = new File(absDirectory, toNativePath(jdeploy.getString("jar")));
         if (!jarFile.getName().endsWith(".jar")) {
-            throw new ValidationException("The selected jar file is not a jar file.  Jar files must have the .jar extension");
+            throw new ValidationException(
+                    "The selected jar file is not a jar file.  Jar files must have the .jar extension"
+            );
         }
         if (!jarFile.exists()) {
-            throw new ValidationException("The selected jar file does not exist.  Please check the selected jar file and try again.");
+            throw new ValidationException(
+                    "The selected jar file does not exist.  Please check the selected jar file and try again."
+            );
         }
         // This validates that the jar file is an executable jar file.
         validateJar(jarFile);
@@ -1671,12 +1863,13 @@ public class JDeployProjectEditor {
         String packageName = packageJSON.getString("name");
         String source = packageJSON.has("source") ? packageJSON.getString("source") : "";
         if (new NPM(System.out, System.err).isVersionPublished(packageName, version, source)) {
-            throw new ValidationException("The package " + packageName + " already has a published version " + version + ".  Please increment the version number and try to publish again.");
+            throw new ValidationException(
+                    "The package " + packageName + " already has a published version " + version + ".  " +
+                            "Please increment the version number and try to publish again."
+            );
         }
 
-
         // Let's check to see if we're logged into
-
         if (!new NPM(System.out, System.err).isLoggedIn()) {
             throw new ValidationException("You must be logged into NPM in order to publish", NOT_LOGGED_IN);
         }
@@ -1705,19 +1898,5 @@ public class JDeployProjectEditor {
                 progressDialog.setFailed();
             });
         }
-
-
-
-
-
-
-
-
-
-
-
-
     }
-
-
 }

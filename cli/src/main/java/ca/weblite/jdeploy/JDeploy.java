@@ -21,6 +21,7 @@ import ca.weblite.jdeploy.helpers.GithubReleaseNotesMutator;
 import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.npm.NPM;
+import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
 import ca.weblite.jdeploy.services.*;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
@@ -2650,7 +2651,13 @@ public class JDeploy implements BundleConstants {
                 }
             }
 
-            if ("dmg".equals(stripFlags(args)[0])) {
+            if ("login".equals(args[0])) {
+                new NPMLoginController().run();
+                System.exit(0);
+            } else if ("launch-login".equals(args[0])) {
+                TerminalLoginLauncher.launchLoginTerminal();
+                System.exit(0);
+            } else if ("dmg".equals(stripFlags(args)[0])) {
                 prog.overrideInstallers(BUNDLE_MAC_X64_DMG, BUNDLE_MAC_ARM64_DMG);
                 BundlerSettings bundlerSettings = new BundlerSettings();
                 bundlerSettings.setAutoUpdateEnabled(isWithAutoUpdateEnabled(args));
