@@ -735,7 +735,7 @@ public class JDeploy implements BundleConstants {
         }
         return out.toArray(new File[out.size()]);
     }
-    
+
     private File findBestCandidate() throws IOException{
         File[] jars = findJarCandidates();
         File[] wars = findWarCandidates();
@@ -1352,120 +1352,74 @@ public class JDeploy implements BundleConstants {
      * @throws IOException
      */
     private void init(String commandName, boolean prompt, boolean generateGithubWorkflow) throws IOException {
-        final int javaVersionInt = new JavaVersionExtractor().extractJavaVersionFromSystemProperties(11);
-
-        commandName = directory.getAbsoluteFile().getName().toLowerCase();
-        if (".".equals(commandName)) {
-            commandName = directory.getAbsoluteFile().getParentFile().getName().toLowerCase();
+        ProjectInitializer projectInitializer = DIContext.getInstance().getInstance(ProjectInitializer.class);
+        boolean dryRun = prompt; // If prompting, then we should do dry run first
+        ProjectInitializer.Response plan = null;
+        try {
+            plan = projectInitializer.decorate(
+                    new ProjectInitializer.Request(
+                        directory.getAbsolutePath(),
+                            null,
+                            dryRun,
+                            generateGithubWorkflow,
+                            null
+                    )
+            );
+        } catch (ProjectInitializer.ValidationFailedException e) {
+            out.println("Validation failed: "+e.getMessage());
+            return;
         }
-        File packageJson = new File(directory, "package.json");
-        if (packageJson.exists()) {
-            updatePackageJson(commandName);
-        } else {
-            File candidate = findBestCandidate();
-            if (candidate != null) {
-                commandName = candidate.getName();
-                if (commandName.endsWith(".jar") || commandName.endsWith(".war")) {
-                    commandName = commandName.substring(0, commandName.lastIndexOf("."));
-                }
-                commandName = commandName.replaceAll("[^a-zA-Z0-9_\\-]", "-");
-            }
+        if (!prompt) {
+            return;
+        }
 
-            Map m = new HashMap(); // for package.json
-            m.put("name", commandName);
-            m.put("version", "1.0.0");
-            m.put("repository", "");
-            m.put("description", "");
-            m.put("main", "index.js");
-            Map bin = new HashMap();
-            bin.put(commandName, getBinDir()+"/jdeploy.js");
-            m.put("bin", bin);
-            m.put("preferGlobal", true);
-            m.put("author", "");
+        out.println("Creating your package.json file with following content:\n ");
+        out.println(plan.packageJsonContents);
+        out.println("");
+        out.print("Proceed? (y/N)");
+        final Scanner reader = new Scanner(System.in);
+        final String response = reader.next();
 
-            Map scripts = new HashMap();
-            scripts.put("test", "echo \"Error: no test specified\" && exit 1");
+        if (!"y".equals(response.toLowerCase().trim())) {
+            out.println("Cancelled");
+            return;
+        }
+        if (generateGithubWorkflow && plan.githubWorkflowExists) {
+            out.print("Would you like to generate a workflow run jDeploy with Github Actions? (y/N)");
+            final String githubWorkflowResponse = reader.next();
+            generateGithubWorkflow = "y".equalsIgnoreCase(githubWorkflowResponse.trim());
+        }
 
+        try {
+            projectInitializer.decorate(new ProjectInitializer.Request(
+                    directory.getAbsolutePath(),
+                    plan.jarFilePath,
+                    false,
+                    generateGithubWorkflow,
+                    new ProjectInitializer.Delegate() {
+                        @Override
+                        public void onBeforeWritePackageJson(String path, String contents) {
+                            out.print("Writing " + path+"...");
+                        }
 
-            m.put("scripts", scripts);
-            m.put("license", "ISC");
+                        @Override
+                        public void onAfterWritePackageJson(String path, String contents) {
+                            out.println("Done.");
+                        }
 
-            Map dependencies = new HashMap();
-            dependencies.put("shelljs", "^0.8.4");
-            dependencies.put("command-exists-promise", "^2.0.2");
-            dependencies.put("node-fetch", "2.6.7");
-            dependencies.put("tar", "^4.4.8");
-            dependencies.put("yauzl", "^2.10.0");
-            m.put("dependencies", dependencies);
+                        @Override
+                        public void onBeforeWriteGithubWorkflow(String path) {
+                            out.print("Writing " + path+"...");
+                        }
 
-            List files = new ArrayList();
-            files.add("jdeploy-bundle");
-
-            m.put("files", files);
-
-            Map jdeploy = new HashMap();
-            if (candidate == null) {
-            } else if (candidate.getName().endsWith(".jar")) {
-                jdeploy.put("jar", getRelativePath(candidate));
-            } else {
-                jdeploy.put("war", getRelativePath(candidate));
-            }
-
-            jdeploy.put("javaVersion", String.valueOf(javaVersionInt));
-            jdeploy.put("javafx", false);
-            jdeploy.put("jdk", false);
-
-            String title = toTitleCase(commandName);
-
-            jdeploy.put("title", title);
-
-            m.put("jdeploy", jdeploy);
-
-            final Result res = Result.fromContent(m);
-            final String jsonStr = res.toString();
-            final GithubWorkflowGenerator githubWorkflowGenerator = new GithubWorkflowGenerator(directory);
-            if (prompt) {
-                out.println("Creating your package.json file with following content:\n ");
-                out.println(jsonStr);
-                out.println("");
-                out.print("Proceed? (y/N)");
-                final Scanner reader = new Scanner(System.in);
-                final String response = reader.next();
-                if ("y".equals(response.toLowerCase().trim())) {
-                    out.println("Writing package.json...");
-                    FileUtils.writeStringToFile(packageJson, jsonStr, "UTF-8");
-                    out.println("Complete!");
-
-                    if (generateGithubWorkflow && !githubWorkflowGenerator.getGithubWorkflowFile().exists()) {
-                        out.print("Would you like to generate a workflow run jDeploy with Github Actions? (y/N)");
-                        final String githubWorkflowResponse = reader.next();
-                        if ("y".equalsIgnoreCase(githubWorkflowResponse.trim())) {
-                            try {
-                                out.println("Generating Github workflow...");
-                                githubWorkflowGenerator.generateGithubWorkflow(javaVersionInt, "master");
-                                out.println("Github Workflow generated at " + githubWorkflowGenerator.getGithubWorkflowFile());
-                            } catch (IOException ex) {
-                                err.println("Failed to generate workflow file");
-                                ex.printStackTrace(err);
-                            }
+                        @Override
+                        public void onAfterWriteGithubWorkflow(String path) {
+                            out.println("Done.");
                         }
                     }
-                } else {
-                    out.println("Cancelled");
-                }
-            } else {
-                FileUtils.writeStringToFile(packageJson, jsonStr, "UTF-8");
-                if (generateGithubWorkflow && !githubWorkflowGenerator.getGithubWorkflowFile().exists()) {
-                    try {
-                        out.println("Generating Github workflow...");
-                        githubWorkflowGenerator.generateGithubWorkflow(javaVersionInt, "master");
-                        out.println("Github Workflow generated at " + githubWorkflowGenerator.getGithubWorkflowFile());
-                    } catch (IOException ex) {
-                        err.println("Failed to generate workflow file");
-                        ex.printStackTrace(err);
-                    }
-                }
-            }
+            ));
+        } catch (ProjectInitializer.ValidationFailedException e) {
+            out.println("Validation failed: "+e.getMessage());
         }
     }
     
