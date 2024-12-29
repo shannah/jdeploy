@@ -101,6 +101,12 @@ public class JDeploy implements BundleConstants {
 
     private PackageSigningService packageSigningService;
 
+    private boolean useManagedNode = false;
+
+    private NPM npm = null;
+
+    private String npmToken = null;
+
     public static String JDEPLOY_REGISTRY = "https://www.jdeploy.com/";
     static {
         if (System.getenv("JDEPLOY_REGISTRY_URL") != null) {
@@ -112,6 +118,22 @@ public class JDeploy implements BundleConstants {
                 JDEPLOY_REGISTRY += "/";
             }
         }
+    }
+
+    public void setNpmToken(String token) {
+        if (!Objects.equals(token, this.npmToken)) {
+            this.npm = null;
+        }
+        this.npmToken = token;
+    }
+
+    private NPM getNPM() {
+        if (npm == null) {
+            npm = new NPM(out, err, useManagedNode);
+            npm.setNpmToken(npmToken);
+        }
+
+        return npm;
     }
 
     public PrintStream getOut() {
@@ -264,6 +286,13 @@ public class JDeploy implements BundleConstants {
             packageJsonFile = new File(directory, "package.json");
         }
         return packageJsonFile;
+    }
+
+    public void setUseManagedNode(boolean useManagedNode) {
+        if (this.useManagedNode != useManagedNode) {
+            this.npm = null;
+        }
+        this.useManagedNode = useManagedNode;
     }
     
     private File f() {
@@ -2083,7 +2112,7 @@ public class JDeploy implements BundleConstants {
     private void install() throws IOException {
         
         _package();
-        new NPM(out, err).link(exitOnFail);
+        getNPM().link(exitOnFail);
     }
     
     private File getGithubReleaseFilesDir() {
@@ -2173,12 +2202,12 @@ public class JDeploy implements BundleConstants {
     }
 
     private JSONObject fetchPackageInfoFromNpm(String packageName, String source) throws IOException {
-        return new NPM(out, err).fetchPackageInfoFromNpm(packageName, source);
+        return getNPM().fetchPackageInfoFromNpm(packageName, source);
 
     }
 
     private boolean isVersionPublished(String packageName, String version, String source) {
-        return new NPM(out, err).isVersionPublished(packageName, version, source);
+        return getNPM().isVersionPublished(packageName, version, source);
     }
 
     // This variable is set in prepublish().  It points to a directory where the publishable
@@ -2336,7 +2365,7 @@ public class JDeploy implements BundleConstants {
 
         JSONObject packageJSON = prepublish(bundlerSettings);
         getGithubReleaseFilesDir().mkdirs();
-        new NPM(out, err).pack(publishDir, getGithubReleaseFilesDir(), exitOnFail);
+        getNPM().pack(publishDir, getGithubReleaseFilesDir(), exitOnFail);
         saveGithubReleaseFiles();
         PackageInfoBuilder builder = new PackageInfoBuilder();
         if (oldPackageInfo != null) {
@@ -2364,11 +2393,15 @@ public class JDeploy implements BundleConstants {
     }
 
     public void publish() throws IOException {
+        publish(null);
+    }
+
+    public void publish(String npmToken) throws IOException {
         if (alwaysPackageOnPublish) {
             _package();
         }
         JSONObject packageJSON = prepublish(new BundlerSettings());
-        new NPM(out, err).publish(publishDir, exitOnFail);
+       getNPM().publish(publishDir, exitOnFail);
         out.println("Package published to npm successfully.");
         out.println("Waiting for npm to update its registry...");
 

@@ -28,6 +28,8 @@ public class NPM {
 
     private final boolean useManagedNode;
 
+    private String npmToken;
+
     private NPMManager npmManager;
     public NPM(PrintStream out, PrintStream err) {
         this(out, err, false);
@@ -40,6 +42,18 @@ public class NPM {
         if (useManagedNode) {
             npmManager = new NPMManager();
         }
+    }
+
+    public void setNpmToken(String npmToken) {
+        this.npmToken = npmToken;
+    }
+
+    public String getNpmToken() {
+        return npmToken;
+    }
+
+    public boolean isUseManagedNode() {
+        return useManagedNode;
     }
 
     public void cancelLogin() {
@@ -92,11 +106,13 @@ public class NPM {
     public void startInteractiveLogin() throws IOException {
         try {
             ProcessBuilder pb;
+            Map<String,String> env = new HashMap<String,String>();
             if (useManagedNode) {
                 npmManager.install();
-                pb = npmManager.npmExecBuilder(new HashMap<>(), null, new String[]{"login"});
+                pb = npmManager.npmExecBuilder(env, null, new String[]{"login"});
             } else {
                 pb = new ProcessBuilder();
+                pb.environment().putAll(env);
                 pb.command(npm, "login");
             }
             pb.inheritIO();
@@ -206,13 +222,13 @@ public class NPM {
             ProcessBuilder pb;
             if (useManagedNode) {
                 npmManager.install();
-                pb = npmManager.npmExecBuilder(new HashMap<>(), publishDir, new String[]{"publish"});
+                pb = npmManager.npmExecBuilder(getEnvironment(), publishDir, new String[]{"publish"});
             } else {
                 pb = new ProcessBuilder();
+                pb.environment().putAll(getEnvironment());
                 pb.directory(publishDir);
             }
-            pb = new ProcessBuilder();
-            pb.directory(publishDir);
+
             if (out == System.out) {
                 pb.inheritIO();
             }
@@ -312,9 +328,10 @@ public class NPM {
             ProcessBuilder pb;
             if (useManagedNode) {
                 npmManager.install();
-                pb = npmManager.npmExecBuilder(new HashMap<>(), null, new String[]{"link"});
+                pb = npmManager.npmExecBuilder(getEnvironment(), null, new String[]{"link"});
             } else {
                 pb = new ProcessBuilder();
+                pb.environment().putAll(getEnvironment());
                 pb.command(npm, "link");
             }
             pb.inheritIO();
@@ -335,6 +352,9 @@ public class NPM {
     }
 
     public boolean isLoggedIn() {
+        if (npmToken != null) {
+            return true;
+        }
         Path npmrcPath = Paths.get(System.getProperty("user.home"), ".npmrc");
         if (Files.exists(npmrcPath)) {
             List<String> lines = null;
@@ -358,5 +378,13 @@ public class NPM {
         } else {
             return REGISTRY_URL+ URLEncoder.encode(packageName, "UTF-8");
         }
+    }
+
+    private Map<String,String> getEnvironment() {
+        Map<String,String> env = new HashMap<String,String>();
+        if (npmToken != null) {
+            env.put("NPM_TOKEN", npmToken);
+        }
+        return env;
     }
 }

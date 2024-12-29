@@ -3,6 +3,7 @@ package ca.weblite.jdeploy.gui;
 import ca.weblite.jdeploy.DIContext;
 import ca.weblite.jdeploy.interop.DesktopInterop;
 import ca.weblite.jdeploy.interop.FileChooserInterop;
+import ca.weblite.jdeploy.npm.NpmAccountChooserInterface;
 import ca.weblite.tools.platform.Platform;
 
 import javax.swing.*;
@@ -11,6 +12,8 @@ import java.io.File;
 import java.net.URI;
 
 public class JDeployProjectEditorContext {
+    private String npmToken = null;
+
     public DesktopInterop getDesktopInterop() {
         return DIContext.getInstance().getInstance(DesktopInterop.class);
     }
@@ -62,4 +65,21 @@ public class JDeployProjectEditorContext {
     public void onFileUpdated(File file) {
 
     }
+
+    public boolean useManagedNode() {
+        return false;
+    }
+
+    public void setNpmToken(String npmToken) {
+        this.npmToken = npmToken;
+    }
+
+    public String getNpmToken() {
+        if (npmToken != null) {
+            return npmToken;
+        }
+
+        return System.getenv("NPM_TOKEN");
+    }
+
 }

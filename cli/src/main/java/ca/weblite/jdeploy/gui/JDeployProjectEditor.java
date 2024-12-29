@@ -4,12 +4,14 @@ import ca.weblite.jdeploy.DIContext;
 import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
+import ca.weblite.jdeploy.gui.controllers.NpmAccountChooserController;
 import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
 import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
+import ca.weblite.jdeploy.npm.NpmAccountServiceInterface;
 import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
 import ca.weblite.jdeploy.services.ExportIdentityService;
 import ca.weblite.jdeploy.services.GithubService;
@@ -30,6 +32,7 @@ import org.kordamp.ikonli.material.Material;
 import org.kordamp.ikonli.swing.FontIcon;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.MatteBorder;
 import javax.swing.event.DocumentEvent;
@@ -39,13 +42,11 @@ import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 
@@ -69,6 +70,21 @@ public class JDeployProjectEditor {
 
     private JMenuItem generateGithubWorkflowMenuItem;
     private JMenuItem editGithubWorkflowMenuItem;
+
+    private NPM npm = null;
+
+    private NPM getNPM() {
+        if (
+                npm == null
+                        || npm.isUseManagedNode() != context.useManagedNode()
+                        ||!Objects.equals(npm.getNpmToken(), context.getNpmToken())
+        ) {
+            npm = new NPM(System.out, System.err, context.useManagedNode());
+            npm.setNpmToken(context.getNpmToken());
+        }
+
+        return npm;
+    }
 
     private class MainFields {
         private JTextField name, title, version, iconUrl, jar, urlSchemes, author,
@@ -1407,7 +1423,8 @@ public class JDeployProjectEditor {
             String packageName = packageJSON.getString("name");
             String source = packageJSON.has("source") ? packageJSON.getString("source") : "";
             try {
-                JSONObject packageInfo = new NPM(System.out, System.err).fetchPackageInfoFromNpm(packageName, source);
+                JSONObject packageInfo = getNPM()
+                        .fetchPackageInfoFromNpm(packageName, source);
 
             } catch (Exception ex) {
                 GithubService githubService = DIContext.getInstance().getInstance(GithubService.class);
@@ -1599,6 +1616,8 @@ public class JDeployProjectEditor {
     private void generateGithubWorkflow() {
         final File projectDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
         final JDeploy jdeploy = new JDeploy(projectDirectory, false);
+        jdeploy.setNpmToken(context.getNpmToken());
+        jdeploy.setUseManagedNode(context.useManagedNode());
 
         EventQueue.invokeLater(
                 new GenerateGithubWorkflowController(
@@ -1773,7 +1792,7 @@ public class JDeployProjectEditor {
                 dialog.setVisible(true);
 
                 new Thread(()->{
-                    NPM npm = new NPM(System.out, System.err);
+                    NPM npm = getNPM();
                     try {
                         while (!npm.isLoggedIn() || !dialog.isShowing()) {
                             try {
@@ -1812,6 +1831,8 @@ public class JDeployProjectEditor {
     private void handleExportIdentity0() throws IOException {
         ExportIdentityService exportIdentityService = new ExportIdentityService();
         JDeploy jdeploy = new JDeploy(packageJSONFile.getAbsoluteFile().getParentFile(), false);
+        jdeploy.setNpmToken(context.getNpmToken());
+        jdeploy.setUseManagedNode(context.useManagedNode());
         exportIdentityService.setDeveloperIdentityKeyStore(jdeploy.getKeyStore());
         FileDialog saveDialog = new FileDialog(frame, "Select Destination", FileDialog.SAVE);
         saveDialog.setVisible(true);
@@ -1823,6 +1844,55 @@ public class JDeployProjectEditor {
     }
 
     private void handlePublish0() throws ValidationException {
+        handlePublish0(true);
+    }
+
+    private void handlePublish0(boolean promptForAccount) throws ValidationException {
+
+        if (promptForAccount) {
+            final boolean[] accountChosen = {false};
+            final boolean[] accountChosenResult = {false};
+            final Object lock = new Object();
+
+            Runnable runnablePublish = () -> {
+                NpmAccountChooserController accountChooserController = new NpmAccountChooserController(
+                        frame, DIContext.getInstance().getInstance(NpmAccountServiceInterface.class)
+                );
+
+                accountChooserController.show().thenAccept(account -> {
+                    if (account == null) {
+                        System.out.println("Account was null");
+                        accountChosen[0] = true;
+                        synchronized (lock) {
+                            lock.notify();
+                            return;
+                        }
+                    }
+                    System.out.println("Account was not null");
+                    context.setNpmToken(account.getNpmToken());
+                    accountChosen[0] = true;
+                    accountChosenResult[0] = true;
+                    synchronized (lock) {
+                        lock.notify();
+                    }
+                });
+
+            };
+            SwingUtilities.invokeLater(runnablePublish);
+
+            while (!accountChosen[0]) {
+                try {
+                    synchronized (lock) {
+                        lock.wait(1000);
+                    }
+                } catch (InterruptedException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+            if (!accountChosenResult[0]) {
+                return;
+            }
+        }
 
         File absDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
         String[] requiredFields = new String[]{
@@ -1862,7 +1932,7 @@ public class JDeployProjectEditor {
         String version = packageJSON.getString("version");
         String packageName = packageJSON.getString("name");
         String source = packageJSON.has("source") ? packageJSON.getString("source") : "";
-        if (new NPM(System.out, System.err).isVersionPublished(packageName, version, source)) {
+        if (getNPM().isVersionPublished(packageName, version, source)) {
             throw new ValidationException(
                     "The package " + packageName + " already has a published version " + version + ".  " +
                             "Please increment the version number and try to publish again."
@@ -1870,7 +1940,7 @@ public class JDeployProjectEditor {
         }
 
         // Let's check to see if we're logged into
-        if (!new NPM(System.out, System.err).isLoggedIn()) {
+        if (!getNPM().isLoggedIn()) {
             throw new ValidationException("You must be logged into NPM in order to publish", NOT_LOGGED_IN);
         }
 
@@ -1878,6 +1948,8 @@ public class JDeployProjectEditor {
         JDeploy jdeployObject = new JDeploy(packageJSONFile.getAbsoluteFile().getParentFile(), false);
         jdeployObject.setOut(new PrintStream(progressDialog.createOutputStream()));
         jdeployObject.setErr(new PrintStream(progressDialog.createOutputStream()));
+        jdeployObject.setNpmToken(context.getNpmToken());
+        jdeployObject.setUseManagedNode(context.useManagedNode());
         EventQueue.invokeLater(()->{
             progressDialog.show(frame, "Publishing in Progress...");
             progressDialog.setMessage1("Publishing "+packageJSON.get("name")+" to npm.  Please wait...");
