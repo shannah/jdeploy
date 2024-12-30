@@ -3,7 +3,6 @@ package ca.weblite.jdeploy.gui;
 import ca.weblite.jdeploy.DIContext;
 import ca.weblite.jdeploy.interop.DesktopInterop;
 import ca.weblite.jdeploy.interop.FileChooserInterop;
-import ca.weblite.jdeploy.npm.NpmAccountChooserInterface;
 import ca.weblite.tools.platform.Platform;
 
 import javax.swing.*;
@@ -68,6 +67,10 @@ public class JDeployProjectEditorContext {
 
     public boolean useManagedNode() {
         return false;
+    }
+
+    public void promptForNpmToken(Object parent) {
+
     }
 
     public void setNpmToken(String npmToken) {

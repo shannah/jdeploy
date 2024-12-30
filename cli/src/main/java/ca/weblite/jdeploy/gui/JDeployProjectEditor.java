@@ -4,14 +4,12 @@ import ca.weblite.jdeploy.DIContext;
 import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
-import ca.weblite.jdeploy.gui.controllers.NpmAccountChooserController;
 import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
 import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
-import ca.weblite.jdeploy.npm.NpmAccountServiceInterface;
 import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
 import ca.weblite.jdeploy.services.ExportIdentityService;
 import ca.weblite.jdeploy.services.GithubService;
@@ -20,10 +18,8 @@ import ca.weblite.jdeploy.services.WebsiteVerifier;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.MD5;
 import com.sun.nio.file.SensitivityWatchEventModifier;
-import io.codeworth.panelmatic.PanelBuilder;
 import io.codeworth.panelmatic.PanelMatic;
 import io.codeworth.panelmatic.util.Groupings;
-import io.codeworth.panelmatic.util.PanelPostProcessors;
 import net.coobird.thumbnailator.Thumbnails;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONArray;
@@ -42,7 +38,6 @@ import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
-import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.*;
@@ -1844,52 +1839,9 @@ public class JDeployProjectEditor {
     }
 
     private void handlePublish0() throws ValidationException {
-        handlePublish0(true);
-    }
-
-    private void handlePublish0(boolean promptForAccount) throws ValidationException {
-
-        if (promptForAccount) {
-            final boolean[] accountChosen = {false};
-            final boolean[] accountChosenResult = {false};
-            final Object lock = new Object();
-
-            Runnable runnablePublish = () -> {
-                NpmAccountChooserController accountChooserController = new NpmAccountChooserController(
-                        frame, DIContext.getInstance().getInstance(NpmAccountServiceInterface.class)
-                );
-
-                accountChooserController.show().thenAccept(account -> {
-                    if (account == null) {
-                        accountChosen[0] = true;
-                        synchronized (lock) {
-                            lock.notify();
-                            return;
-                        }
-                    }
-                    context.setNpmToken(account.getNpmToken());
-                    accountChosen[0] = true;
-                    accountChosenResult[0] = true;
-                    synchronized (lock) {
-                        lock.notify();
-                    }
-                });
-
-            };
-            SwingUtilities.invokeLater(runnablePublish);
-
-            while (!accountChosen[0]) {
-                try {
-                    synchronized (lock) {
-                        lock.wait(1000);
-                    }
-                } catch (InterruptedException ex) {
-                    throw new RuntimeException(ex);
-                }
-            }
-            if (!accountChosenResult[0]) {
-                return;
-            }
+        if (!EventQueue.isDispatchThread()) {
+            // We don't prompt on the dispatch thread because promptForNpmToken blocks
+            context.promptForNpmToken(frame);
         }
 
         File absDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
