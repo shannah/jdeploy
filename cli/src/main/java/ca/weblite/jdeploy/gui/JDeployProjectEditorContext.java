@@ -69,8 +69,8 @@ public class JDeployProjectEditorContext {
         return false;
     }
 
-    public void promptForNpmToken(Object parent) {
-
+    public boolean promptForNpmToken(Object parent) {
+        return true;
     }
 
     public void setNpmToken(String npmToken) {

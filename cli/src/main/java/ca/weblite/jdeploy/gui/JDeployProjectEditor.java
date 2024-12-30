@@ -1841,7 +1841,9 @@ public class JDeployProjectEditor {
     private void handlePublish0() throws ValidationException {
         if (!EventQueue.isDispatchThread()) {
             // We don't prompt on the dispatch thread because promptForNpmToken blocks
-            context.promptForNpmToken(frame);
+            if (!context.promptForNpmToken(frame)) {
+                return;
+            }
         }
 
         File absDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
