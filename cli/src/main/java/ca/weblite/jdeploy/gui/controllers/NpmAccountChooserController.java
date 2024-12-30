@@ -33,7 +33,7 @@ public class NpmAccountChooserController {
 
     public CompletableFuture<NpmAccountInterface> showDialog(List<NpmAccountInterface> accounts) {
         NpmAccountChooserDialog dialog = new NpmAccountChooserDialog(parentFrame, accounts);
-        JButton newAccountButton = dialog.getNewAccountButton();
+        JButton newAccountButton = dialog.getAddAccountButton();
         newAccountButton.addActionListener(evt -> {
            EditNpmAccountController controller = new EditNpmAccountController(
                    dialog,
@@ -55,15 +55,11 @@ public class NpmAccountChooserController {
             selectedAccount = sel;
         }
         if (selectedAccount != null) {
-            System.out.println("Selected account is " + selectedAccount.getNpmAccountName());
             return npmAccountService.loadNpmAccount(selectedAccount).thenApplyAsync(account -> {
 
                 if (account == null) {
-                    System.out.println("Account not loaded: " + selectedAccount.getNpmAccountName());
                     return selectedAccount;
                 }
-                System.out.println("Account loaded: " + account.getNpmAccountName());
-                System.out.println("Token: " + account.getNpmToken());
                 return account;
             }, EDT_EXECUTOR);
         }

@@ -28,10 +28,7 @@ public class JavaKeyringPasswordService implements PasswordServiceInterface {
 
                 Keyring keyring = Keyring.create();
                 // Retrieve the password associated with (service=SERVICE_NAME, account=name).
-                System.out.println("Getting password for " + name + " from keyring");
                 String password = keyring.getPassword(SERVICE_NAME, name);
-                System.out.println("Gotten password from keyring: " + password);
-
                 // Return as char[] if present, or null if not found.
                 return password != null ? password.toCharArray() : null;
             } catch (PasswordAccessException e) {

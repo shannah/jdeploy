@@ -1861,14 +1861,12 @@ public class JDeployProjectEditor {
 
                 accountChooserController.show().thenAccept(account -> {
                     if (account == null) {
-                        System.out.println("Account was null");
                         accountChosen[0] = true;
                         synchronized (lock) {
                             lock.notify();
                             return;
                         }
                     }
-                    System.out.println("Account was not null");
                     context.setNpmToken(account.getNpmToken());
                     accountChosen[0] = true;
                     accountChosenResult[0] = true;
