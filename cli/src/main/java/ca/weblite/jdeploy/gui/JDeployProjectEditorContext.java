@@ -11,6 +11,8 @@ import java.io.File;
 import java.net.URI;
 
 public class JDeployProjectEditorContext {
+    private String npmToken = null;
+
     public DesktopInterop getDesktopInterop() {
         return DIContext.getInstance().getInstance(DesktopInterop.class);
     }
@@ -62,4 +64,25 @@ public class JDeployProjectEditorContext {
     public void onFileUpdated(File file) {
 
     }
+
+    public boolean useManagedNode() {
+        return false;
+    }
+
+    public boolean promptForNpmToken(Object parent) {
+        return true;
+    }
+
+    public void setNpmToken(String npmToken) {
+        this.npmToken = npmToken;
+    }
+
+    public String getNpmToken() {
+        if (npmToken != null) {
+            return npmToken;
+        }
+
+        return System.getenv("NPM_TOKEN");
+    }
+
 }

@@ -8,9 +8,10 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
-import java.util.Scanner;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -25,9 +26,34 @@ public class NPM {
     }
     static String npm = isWindows() ? "npm.cmd" : "npm";
 
+    private final boolean useManagedNode;
+
+    private String npmToken;
+
+    private NPMManager npmManager;
     public NPM(PrintStream out, PrintStream err) {
+        this(out, err, false);
+    }
+
+    public NPM(PrintStream out, PrintStream err, boolean useManagedNode) {
         this.out = out;
         this.err = err;
+        this.useManagedNode = useManagedNode;
+        if (useManagedNode) {
+            npmManager = new NPMManager();
+        }
+    }
+
+    public void setNpmToken(String npmToken) {
+        this.npmToken = npmToken;
+    }
+
+    public String getNpmToken() {
+        return npmToken;
+    }
+
+    public boolean isUseManagedNode() {
+        return useManagedNode;
     }
 
     public void cancelLogin() {
@@ -77,14 +103,44 @@ public class NPM {
         }
     }
 
+    public void startInteractiveLogin() throws IOException {
+        try {
+            ProcessBuilder pb;
+            Map<String,String> env = new HashMap<String,String>();
+            if (useManagedNode) {
+                npmManager.install();
+                pb = npmManager.npmExecBuilder(env, null, new String[]{"login"});
+            } else {
+                pb = new ProcessBuilder();
+                pb.environment().putAll(env);
+                pb.command(npm, "login");
+            }
+            pb.inheritIO();
+            Process p = pb.start();
+
+            int result = p.waitFor();
+            if (result != 0) {
+                throw new JDeploy.FailException("Failed to run npm login.  Please ensure npm is installed and in your PATH.", result);
+            }
+        } catch (InterruptedException ex) {
+            Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
+            throw new RuntimeException(ex);
+        }
+    }
+
     public boolean login(String username, String password, String email, OTPCallback otpCallback) throws IOException{
         final boolean[] timeout = new boolean[1];
         try {
 
 
-            ProcessBuilder pb = new ProcessBuilder();
-
-            pb.command(npm, "login");
+            ProcessBuilder pb;
+            if (useManagedNode) {
+                npmManager.install();
+                pb = npmManager.npmExecBuilder(new HashMap<>(), null, new String[]{"login"});
+            } else {
+                pb = new ProcessBuilder();
+                pb.command(npm, "login");
+            }
             final Process p = pb.start();
             pendingLoginProcess = p;
             final boolean[] usernameEntered = new boolean[]{false};
@@ -163,8 +219,16 @@ public class NPM {
 
     public void publish(File publishDir, boolean exitOnFail) throws IOException {
         try {
-            ProcessBuilder pb = new ProcessBuilder();
-            pb.directory(publishDir);
+            ProcessBuilder pb;
+            if (useManagedNode) {
+                npmManager.install();
+                pb = npmManager.npmExecBuilder(getEnvironment(), publishDir, new String[]{"publish"});
+            } else {
+                pb = new ProcessBuilder();
+                pb.environment().putAll(getEnvironment());
+                pb.directory(publishDir);
+            }
+
             if (out == System.out) {
                 pb.inheritIO();
             }
@@ -193,7 +257,10 @@ public class NPM {
                 if (exitOnFail) {
                     System.exit(result);
                 } else {
-                    throw new JDeploy.FailException("npm publish command failed.  Please ensure npm is installed and in your PATH.", result);
+                    throw new JDeploy.FailException(
+                            "npm publish command failed.  Please ensure npm is installed and in your PATH.",
+                            result
+                    );
                 }
             }
         } catch (InterruptedException ex) {
@@ -204,13 +271,25 @@ public class NPM {
 
     public void pack(File publishDir, File outputDir, boolean exitOnFail) throws IOException {
         try {
-            ProcessBuilder pb = new ProcessBuilder();
-            pb.directory(publishDir);
+            ProcessBuilder pb;
+            if (useManagedNode) {
+                npmManager.install();
+                pb = npmManager.npmExecBuilder(
+                        new HashMap<>(),
+                        publishDir,
+                        new String[]{"pack", "--pack-destination", outputDir.getAbsolutePath()}
+                );
+            } else {
+
+                pb = new ProcessBuilder();
+                pb.directory(publishDir);
+
+                pb.command(npm, "pack", "--pack-destination", outputDir.getAbsolutePath());
+            }
             if (out == System.out) {
                 pb.inheritIO();
             }
             out.println("Running npm pack --pack-destination" + outputDir);
-            pb.command(npm, "pack", "--pack-destination", outputDir.getAbsolutePath());
             Process p = pb.start();
             if (out != System.out) {
                 new Thread(()->{
@@ -246,9 +325,17 @@ public class NPM {
 
     public void link(boolean exitOnFail) throws IOException  {
         try {
-            ProcessBuilder pb = new ProcessBuilder();
+            ProcessBuilder pb;
+            if (useManagedNode) {
+                npmManager.install();
+                pb = npmManager.npmExecBuilder(getEnvironment(), null, new String[]{"link"});
+            } else {
+                pb = new ProcessBuilder();
+                pb.environment().putAll(getEnvironment());
+                pb.command(npm, "link");
+            }
             pb.inheritIO();
-            pb.command(npm, "link");
+
             Process p = pb.start();
             int result = p.waitFor();
             if (result != 0) {
@@ -264,20 +351,25 @@ public class NPM {
         }
     }
 
-    public boolean isLoggedIn()  {
-        try {
-            ProcessBuilder pb = new ProcessBuilder();
-            //pb.inheritIO();
-            pb.command(npm, "whoami");
-            Process p = pb.start();
-            int result = p.waitFor();
-            if (result != 0) {
+    public boolean isLoggedIn() {
+        if (npmToken != null) {
+            return true;
+        }
+        Path npmrcPath = Paths.get(System.getProperty("user.home"), ".npmrc");
+        if (Files.exists(npmrcPath)) {
+            List<String> lines = null;
+            try {
+                lines = Files.readAllLines(npmrcPath);
+            } catch (IOException e) {
                 return false;
             }
-        } catch (Exception ex) {
-            return false;
+            for (String line : lines) {
+                if (line.startsWith("//registry.npmjs.org/:_authToken=")) {
+                    return true;
+                }
+            }
         }
-        return true;
+        return false;
     }
 
     private String getPackageUrl(String packageName, String source) throws UnsupportedEncodingException {
@@ -286,5 +378,13 @@ public class NPM {
         } else {
             return REGISTRY_URL+ URLEncoder.encode(packageName, "UTF-8");
         }
+    }
+
+    private Map<String,String> getEnvironment() {
+        Map<String,String> env = new HashMap<String,String>();
+        if (npmToken != null) {
+            env.put("NPM_TOKEN", npmToken);
+        }
+        return env;
     }
 }

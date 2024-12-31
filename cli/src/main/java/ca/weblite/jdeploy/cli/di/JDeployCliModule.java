@@ -24,4 +24,5 @@ public class JDeployCliModule {
     public ProjectLoader projectLoader(DefaultProjectLoader impl) {
         return impl;
     }
+
 }

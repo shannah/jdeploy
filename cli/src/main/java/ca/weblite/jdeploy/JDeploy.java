@@ -21,6 +21,7 @@ import ca.weblite.jdeploy.helpers.GithubReleaseNotesMutator;
 import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.npm.NPM;
+import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
 import ca.weblite.jdeploy.services.*;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
@@ -100,6 +101,12 @@ public class JDeploy implements BundleConstants {
 
     private PackageSigningService packageSigningService;
 
+    private boolean useManagedNode = false;
+
+    private NPM npm = null;
+
+    private String npmToken = null;
+
     public static String JDEPLOY_REGISTRY = "https://www.jdeploy.com/";
     static {
         if (System.getenv("JDEPLOY_REGISTRY_URL") != null) {
@@ -111,6 +118,22 @@ public class JDeploy implements BundleConstants {
                 JDEPLOY_REGISTRY += "/";
             }
         }
+    }
+
+    public void setNpmToken(String token) {
+        if (!Objects.equals(token, this.npmToken)) {
+            this.npm = null;
+        }
+        this.npmToken = token;
+    }
+
+    private NPM getNPM() {
+        if (npm == null) {
+            npm = new NPM(out, err, useManagedNode);
+            npm.setNpmToken(npmToken);
+        }
+
+        return npm;
     }
 
     public PrintStream getOut() {
@@ -263,6 +286,13 @@ public class JDeploy implements BundleConstants {
             packageJsonFile = new File(directory, "package.json");
         }
         return packageJsonFile;
+    }
+
+    public void setUseManagedNode(boolean useManagedNode) {
+        if (this.useManagedNode != useManagedNode) {
+            this.npm = null;
+        }
+        this.useManagedNode = useManagedNode;
     }
     
     private File f() {
@@ -734,7 +764,7 @@ public class JDeploy implements BundleConstants {
         }
         return out.toArray(new File[out.size()]);
     }
-    
+
     private File findBestCandidate() throws IOException{
         File[] jars = findJarCandidates();
         File[] wars = findWarCandidates();
@@ -1351,120 +1381,74 @@ public class JDeploy implements BundleConstants {
      * @throws IOException
      */
     private void init(String commandName, boolean prompt, boolean generateGithubWorkflow) throws IOException {
-        final int javaVersionInt = new JavaVersionExtractor().extractJavaVersionFromSystemProperties(11);
-
-        commandName = directory.getAbsoluteFile().getName().toLowerCase();
-        if (".".equals(commandName)) {
-            commandName = directory.getAbsoluteFile().getParentFile().getName().toLowerCase();
+        ProjectInitializer projectInitializer = DIContext.getInstance().getInstance(ProjectInitializer.class);
+        boolean dryRun = prompt; // If prompting, then we should do dry run first
+        ProjectInitializer.Response plan = null;
+        try {
+            plan = projectInitializer.decorate(
+                    new ProjectInitializer.Request(
+                        directory.getAbsolutePath(),
+                            null,
+                            dryRun,
+                            generateGithubWorkflow,
+                            null
+                    )
+            );
+        } catch (ProjectInitializer.ValidationFailedException e) {
+            out.println("Validation failed: "+e.getMessage());
+            return;
         }
-        File packageJson = new File(directory, "package.json");
-        if (packageJson.exists()) {
-            updatePackageJson(commandName);
-        } else {
-            File candidate = findBestCandidate();
-            if (candidate != null) {
-                commandName = candidate.getName();
-                if (commandName.endsWith(".jar") || commandName.endsWith(".war")) {
-                    commandName = commandName.substring(0, commandName.lastIndexOf("."));
-                }
-                commandName = commandName.replaceAll("[^a-zA-Z0-9_\\-]", "-");
-            }
+        if (!prompt) {
+            return;
+        }
 
-            Map m = new HashMap(); // for package.json
-            m.put("name", commandName);
-            m.put("version", "1.0.0");
-            m.put("repository", "");
-            m.put("description", "");
-            m.put("main", "index.js");
-            Map bin = new HashMap();
-            bin.put(commandName, getBinDir()+"/jdeploy.js");
-            m.put("bin", bin);
-            m.put("preferGlobal", true);
-            m.put("author", "");
+        out.println("Creating your package.json file with following content:\n ");
+        out.println(plan.packageJsonContents);
+        out.println("");
+        out.print("Proceed? (y/N)");
+        final Scanner reader = new Scanner(System.in);
+        final String response = reader.next();
 
-            Map scripts = new HashMap();
-            scripts.put("test", "echo \"Error: no test specified\" && exit 1");
+        if (!"y".equals(response.toLowerCase().trim())) {
+            out.println("Cancelled");
+            return;
+        }
+        if (generateGithubWorkflow && plan.githubWorkflowExists) {
+            out.print("Would you like to generate a workflow run jDeploy with Github Actions? (y/N)");
+            final String githubWorkflowResponse = reader.next();
+            generateGithubWorkflow = "y".equalsIgnoreCase(githubWorkflowResponse.trim());
+        }
 
+        try {
+            projectInitializer.decorate(new ProjectInitializer.Request(
+                    directory.getAbsolutePath(),
+                    plan.jarFilePath,
+                    false,
+                    generateGithubWorkflow,
+                    new ProjectInitializer.Delegate() {
+                        @Override
+                        public void onBeforeWritePackageJson(String path, String contents) {
+                            out.print("Writing " + path+"...");
+                        }
 
-            m.put("scripts", scripts);
-            m.put("license", "ISC");
+                        @Override
+                        public void onAfterWritePackageJson(String path, String contents) {
+                            out.println("Done.");
+                        }
 
-            Map dependencies = new HashMap();
-            dependencies.put("shelljs", "^0.8.4");
-            dependencies.put("command-exists-promise", "^2.0.2");
-            dependencies.put("node-fetch", "2.6.7");
-            dependencies.put("tar", "^4.4.8");
-            dependencies.put("yauzl", "^2.10.0");
-            m.put("dependencies", dependencies);
+                        @Override
+                        public void onBeforeWriteGithubWorkflow(String path) {
+                            out.print("Writing " + path+"...");
+                        }
 
-            List files = new ArrayList();
-            files.add("jdeploy-bundle");
-
-            m.put("files", files);
-
-            Map jdeploy = new HashMap();
-            if (candidate == null) {
-            } else if (candidate.getName().endsWith(".jar")) {
-                jdeploy.put("jar", getRelativePath(candidate));
-            } else {
-                jdeploy.put("war", getRelativePath(candidate));
-            }
-
-            jdeploy.put("javaVersion", String.valueOf(javaVersionInt));
-            jdeploy.put("javafx", false);
-            jdeploy.put("jdk", false);
-
-            String title = toTitleCase(commandName);
-
-            jdeploy.put("title", title);
-
-            m.put("jdeploy", jdeploy);
-
-            final Result res = Result.fromContent(m);
-            final String jsonStr = res.toString();
-            final GithubWorkflowGenerator githubWorkflowGenerator = new GithubWorkflowGenerator(directory);
-            if (prompt) {
-                out.println("Creating your package.json file with following content:\n ");
-                out.println(jsonStr);
-                out.println("");
-                out.print("Proceed? (y/N)");
-                final Scanner reader = new Scanner(System.in);
-                final String response = reader.next();
-                if ("y".equals(response.toLowerCase().trim())) {
-                    out.println("Writing package.json...");
-                    FileUtils.writeStringToFile(packageJson, jsonStr, "UTF-8");
-                    out.println("Complete!");
-
-                    if (generateGithubWorkflow && !githubWorkflowGenerator.getGithubWorkflowFile().exists()) {
-                        out.print("Would you like to generate a workflow run jDeploy with Github Actions? (y/N)");
-                        final String githubWorkflowResponse = reader.next();
-                        if ("y".equalsIgnoreCase(githubWorkflowResponse.trim())) {
-                            try {
-                                out.println("Generating Github workflow...");
-                                githubWorkflowGenerator.generateGithubWorkflow(javaVersionInt, "master");
-                                out.println("Github Workflow generated at " + githubWorkflowGenerator.getGithubWorkflowFile());
-                            } catch (IOException ex) {
-                                err.println("Failed to generate workflow file");
-                                ex.printStackTrace(err);
-                            }
+                        @Override
+                        public void onAfterWriteGithubWorkflow(String path) {
+                            out.println("Done.");
                         }
                     }
-                } else {
-                    out.println("Cancelled");
-                }
-            } else {
-                FileUtils.writeStringToFile(packageJson, jsonStr, "UTF-8");
-                if (generateGithubWorkflow && !githubWorkflowGenerator.getGithubWorkflowFile().exists()) {
-                    try {
-                        out.println("Generating Github workflow...");
-                        githubWorkflowGenerator.generateGithubWorkflow(javaVersionInt, "master");
-                        out.println("Github Workflow generated at " + githubWorkflowGenerator.getGithubWorkflowFile());
-                    } catch (IOException ex) {
-                        err.println("Failed to generate workflow file");
-                        ex.printStackTrace(err);
-                    }
-                }
-            }
+            ));
+        } catch (ProjectInitializer.ValidationFailedException e) {
+            out.println("Validation failed: "+e.getMessage());
         }
     }
     
@@ -2128,7 +2112,7 @@ public class JDeploy implements BundleConstants {
     private void install() throws IOException {
         
         _package();
-        new NPM(out, err).link(exitOnFail);
+        getNPM().link(exitOnFail);
     }
     
     private File getGithubReleaseFilesDir() {
@@ -2218,12 +2202,12 @@ public class JDeploy implements BundleConstants {
     }
 
     private JSONObject fetchPackageInfoFromNpm(String packageName, String source) throws IOException {
-        return new NPM(out, err).fetchPackageInfoFromNpm(packageName, source);
+        return getNPM().fetchPackageInfoFromNpm(packageName, source);
 
     }
 
     private boolean isVersionPublished(String packageName, String version, String source) {
-        return new NPM(out, err).isVersionPublished(packageName, version, source);
+        return getNPM().isVersionPublished(packageName, version, source);
     }
 
     // This variable is set in prepublish().  It points to a directory where the publishable
@@ -2381,7 +2365,7 @@ public class JDeploy implements BundleConstants {
 
         JSONObject packageJSON = prepublish(bundlerSettings);
         getGithubReleaseFilesDir().mkdirs();
-        new NPM(out, err).pack(publishDir, getGithubReleaseFilesDir(), exitOnFail);
+        getNPM().pack(publishDir, getGithubReleaseFilesDir(), exitOnFail);
         saveGithubReleaseFiles();
         PackageInfoBuilder builder = new PackageInfoBuilder();
         if (oldPackageInfo != null) {
@@ -2409,11 +2393,15 @@ public class JDeploy implements BundleConstants {
     }
 
     public void publish() throws IOException {
+        publish(null);
+    }
+
+    public void publish(String npmToken) throws IOException {
         if (alwaysPackageOnPublish) {
             _package();
         }
         JSONObject packageJSON = prepublish(new BundlerSettings());
-        new NPM(out, err).publish(publishDir, exitOnFail);
+       getNPM().publish(publishDir, exitOnFail);
         out.println("Package published to npm successfully.");
         out.println("Waiting for npm to update its registry...");
 
@@ -2650,7 +2638,13 @@ public class JDeploy implements BundleConstants {
                 }
             }
 
-            if ("dmg".equals(stripFlags(args)[0])) {
+            if ("login".equals(args[0])) {
+                new NPMLoginController().run();
+                System.exit(0);
+            } else if ("launch-login".equals(args[0])) {
+                TerminalLoginLauncher.launchLoginTerminal();
+                System.exit(0);
+            } else if ("dmg".equals(stripFlags(args)[0])) {
                 prog.overrideInstallers(BUNDLE_MAC_X64_DMG, BUNDLE_MAC_ARM64_DMG);
                 BundlerSettings bundlerSettings = new BundlerSettings();
                 bundlerSettings.setAutoUpdateEnabled(isWithAutoUpdateEnabled(args));
