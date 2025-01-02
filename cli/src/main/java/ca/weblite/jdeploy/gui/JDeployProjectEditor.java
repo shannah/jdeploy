@@ -1525,8 +1525,23 @@ public class JDeployProjectEditor {
         openInTextEditor.setToolTipText("Open the package.json file for editing in your system text editor");
 
         openInTextEditor.addActionListener(evt-> handleOpenInTextEditor());
+
+        JMenuItem openProjectDirectory = new JMenuItem("Open Project Directory");
+        openProjectDirectory.setToolTipText("Open the project directory in your system file manager");
+        openProjectDirectory.addActionListener(evt->{
+            if (context.getDesktopInterop().isDesktopSupported()) {
+                try {
+                    context.getDesktopInterop().openDirectory(packageJSONFile.getParentFile());
+                } catch (Exception ex) {
+                    showError("Failed to open project directory in file manager", ex);
+                }
+            } else {
+                showError("That feature isn't supported on this platform.", null);
+            }
+        });
         file.addSeparator();
         file.add(openInTextEditor);
+        file.add(openProjectDirectory);
 
         generateGithubWorkflowMenuItem = new JMenuItem("Create Github Workflow");
         generateGithubWorkflowMenuItem.setToolTipText(
