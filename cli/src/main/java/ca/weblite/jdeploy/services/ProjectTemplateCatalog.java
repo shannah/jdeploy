@@ -70,6 +70,14 @@ public class ProjectTemplateCatalog {
         return f;
     }
 
+    public File[] getProjectTemplates() {
+        return getProjectsDir().listFiles();
+    }
+
+    public boolean isCatalogInitialized() {
+        return new File(localPath).exists();
+    }
+
     private File getProjectsDir() {
         return new File(localPath, "projects");
     }

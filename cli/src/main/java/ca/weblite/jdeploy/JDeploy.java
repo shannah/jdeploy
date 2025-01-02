@@ -2538,7 +2538,6 @@ public class JDeploy implements BundleConstants {
      */
     public static void main(String[] args) {
         try {
-            Feather feather = Feather.with(new JDeployModule());
             JDeploy prog = new JDeploy(new File(".").getAbsoluteFile());
             if (args.length > 0 && "generate".equals(args[0])) {
                 String[] generateArgs = new String[args.length-1];
