@@ -17,4 +17,8 @@ public class GithubConfig {
     public String getToken() {
         return config.getProperties().getProperty("github.token");
     }
+
+    public String setToken(String token) {
+        return (String) config.getProperties().setProperty("github.token", token);
+    }
 }

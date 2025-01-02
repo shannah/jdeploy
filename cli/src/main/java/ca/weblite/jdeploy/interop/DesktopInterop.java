@@ -15,6 +15,10 @@ public class DesktopInterop {
         Desktop.getDesktop().browse(url);
     }
 
+    public void openDirectory(File file) throws Exception {
+        Desktop.getDesktop().open(file);
+    }
+
     public boolean isDesktopSupported() {
         return Desktop.isDesktopSupported();
     }
