@@ -195,6 +195,10 @@ public class PackagingContext {
         return "jdeploy-bundle";
     }
 
+    public File getJdeployBundleDir() {
+        return new File(directory, "jdeploy-bundle");
+    }
+
     public String getJar(String defaultVal) {
         return getString("jar", defaultVal);
     }

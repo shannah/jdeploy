@@ -18,6 +18,9 @@ import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
 import ca.weblite.jdeploy.packaging.JarFinder;
 import ca.weblite.jdeploy.packaging.PackageService;
 import ca.weblite.jdeploy.packaging.PackagingContext;
+import ca.weblite.jdeploy.publishing.PublishService;
+import ca.weblite.jdeploy.publishing.PublishingContext;
+import ca.weblite.jdeploy.publishing.ResourceUploader;
 import ca.weblite.jdeploy.services.*;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.security.KeyProvider;
@@ -67,7 +70,6 @@ public class JDeploy implements BundleConstants {
         System.setProperty("apple.eawt.quitStrategy", "CLOSE_ALL_WINDOWS");
     }
 
-    private boolean alwaysPackageOnPublish = !Boolean.getBoolean("jdeploy.doNotPackage");
     private final File directory;
     private File packageJsonFile;
     private Map packageJsonMap;
@@ -550,138 +552,12 @@ public class JDeploy implements BundleConstants {
         out.println("Assets copied to " + releaseFilesDir);
     }
 
-    private void uploadResources() throws IOException {
-        File icon = new File(directory, "icon.png");
-        File installSplash = new File(directory,"installsplash.png");
-        File publishDir = new File(directory, "jdeploy" + File.separator + "publish");
-        JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File(publishDir, "package.json"), "UTF-8"));
-
-        if (icon.exists() || installSplash.exists()) {
-            // If there is a custom icon or install splash we need to upload
-            // them to jdeploy.com so that they are available when generating
-            // the installer.  Without this, jdeploy.com would need to download the
-            // full package from npm and extract the icon and installsplash from there.
-            JSONObject jdeployFiles = new JSONObject();
-            byte[] iconBytes = FileUtils.readFileToByteArray(icon);
-            jdeployFiles.put("icon.png", Base64.getEncoder().encodeToString(iconBytes));
-            if (installSplash.exists()) {
-                byte[] splashBytes = FileUtils.readFileToByteArray(installSplash);
-                jdeployFiles.put("installsplash.png", Base64.getEncoder().encodeToString(splashBytes));
-            }
-            jdeployFiles.put("packageName", packageJSON.get("name"));
-            jdeployFiles.put("version", packageJSON.get("version"));
-            try {
-                out.println("Uploading icon to jdeploy.com...");
-                JSONObject response = makeServiceCall(JDEPLOY_REGISTRY + "publish.php", jdeployFiles.toString());
-                out.println("Upload complete");
-                if (response.has("code") && response.getInt("code") == 200) {
-                    out.println("Your package was published successfully.");
-                    out.println("You can download native installers for your app at " + JDEPLOY_REGISTRY + "~" + packageJSON.getString("name"));
-                } else {
-                    err.println("There was a problem publishing the icon to " + JDEPLOY_REGISTRY);
-                    if (response.has("error")) {
-                        err.println("Error message: " + response.getString("error"));
-                    } else if (response.has("code")) {
-                        err.println("Unexpected response code: " + response.getInt("code"));
-                    } else {
-                        err.println("Unexpected server response: " + response.toString());
-                    }
-                }
-
-            } catch (Exception ex) {
-                err.println("Failed to publish icon and splash image to jdeploy.com.  " + ex.getMessage());
-                ex.printStackTrace(err);
-                fail("Failed to publish icon and splash image to jdeploy.com. "+ex.getMessage(), 1);
-                return;
-            }
-        } else {
-            out.println("Your package was published successfully.");
-            out.println("You can download native installers for your app at " + JDEPLOY_REGISTRY + "~" + packageJSON.getString("name"));
-
-        }
-    }
-
-    private boolean isVersionPublished(String packageName, String version, String source) {
-        return getNPM().isVersionPublished(packageName, version, source);
-    }
-
-    // This variable is set in prepublish().  It points to a directory where the publishable
-    // bundle is stored.
-    private File publishDir;
-
-    private JSONObject prepublish(BundlerSettings bundlerSettings) throws IOException {
-        // Copy all publishable artifacts to a temporary
-        // directory so that we can add some information to the
-        // package.json without having to modify the actual package.json
-        publishDir = new File(directory,"jdeploy" + File.separator+ "publish");
-        if (publishDir.exists()) {
-            FileUtils.deleteDirectory(publishDir);
-        }
-        if (!publishDir.exists()) {
-            publishDir.mkdirs();
-        }
-        File publishJdeployBundleDir = new File(publishDir, "jdeploy-bundle");
-        FileUtils.copyDirectory(new File(directory, "jdeploy-bundle"), publishJdeployBundleDir);
-        FileUtils.copyFile(new File("package.json"), new File(publishDir, "package.json"));
-        File readme = new File("README.md");
-        if (readme.exists()) {
-            FileUtils.copyFile(readme, new File(publishDir, readme.getName()));
-        }
-        File license = new File("LICENSE");
-        if (license.exists()) {
-            FileUtils.copyFile(license, new File(publishDir, license.getName()));
-        }
-
-        // Now add checksums
-        JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File(directory, "package.json"), "UTF-8"));
-        if (bundlerSettings.getSource() != null && !bundlerSettings.getSource().isEmpty()) {
-            packageJSON.put("source", bundlerSettings.getSource());
-        }
-        JSONObject jdeployObj = packageJSON.getJSONObject("jdeploy");
-
-        File icon = new File(directory, "icon.png");
-        JSONObject checksums = new JSONObject();
-        jdeployObj.put("checksums", checksums);
-        if (icon.exists()) {
-            String md5 = MD5.getMD5Checksum(icon);
-            checksums.put("icon.png", md5);
-        }
-
-        File installSplash = new File(directory, "installsplash.png");
-        if (installSplash.exists()) {
-            checksums.put("installsplash.png", MD5.getMD5Checksum(installSplash));
-        }
-
-        FileUtils.writeStringToFile(new File(publishDir,"package.json"), packageJSON.toString(), "UTF-8");
-
-        if (isPackageSigningEnabled()) {
-            try {
-                packageSigningService.signPackage(
-                        getPackageSigningVersionString(packageJSON),
-                        publishJdeployBundleDir.getAbsolutePath()
-                );
-                JSONArray packageSignCertificateSignatures = new JSONArray();
-                packageSignCertificateSignatures.putAll(packageSigningService.calculateCertificateHashes());
-                jdeployObj.put("packageSignCertificateSignatures", packageSignCertificateSignatures);
-            } catch (Exception ex) {
-                throw new IOException("Failed to sign package", ex);
-            }
-        }
-
-        return packageJSON;
-    }
-
-    private String getPackageSigningVersionString(JSONObject packageJSON) {
-        String versionString = packageJSON.getString("version");
-        if (packageJSON.has("commitHash")) {
-            versionString += "#" + packageJSON.getString("commitHash");
-        }
-
-        return versionString;
-    }
-
-    private boolean isPackageSigningEnabled() {
-        return rj().getAsBoolean("signPackage");
+    private void uploadResources(PackagingContext packagingContext) throws IOException {
+        PublishingContext context = PublishingContext.builder()
+                .setPackagingContext(packagingContext)
+                .setNPM(getNPM())
+                .build();
+        DIContext.get(ResourceUploader.class).uploadResources(context);
     }
 
     private String getFullPackageName(String source, String packageName) {
@@ -742,10 +618,13 @@ public class JDeploy implements BundleConstants {
         bundlerSettings.setCompressBundles(true);
         bundlerSettings.setDoNotZipExeInstaller(true);
         _package(context.withInstallers(BUNDLE_MAC_X64, BUNDLE_MAC_ARM64, BUNDLE_WIN, BUNDLE_LINUX), bundlerSettings);
-
-        JSONObject packageJSON = prepublish(bundlerSettings);
+        PublishingContext publishingContext = PublishingContext.builder()
+                .setPackagingContext(context)
+                .setNPM(getNPM())
+                .build();
+        JSONObject packageJSON = DIContext.get(PublishService.class).prepublish(publishingContext, bundlerSettings);
         getGithubReleaseFilesDir().mkdirs();
-        getNPM().pack(publishDir, getGithubReleaseFilesDir(), exitOnFail);
+        getNPM().pack(publishingContext.getPublishDir(), getGithubReleaseFilesDir(), context.exitOnFail);
         saveGithubReleaseFiles();
         PackageInfoBuilder builder = new PackageInfoBuilder();
         if (oldPackageInfo != null) {
@@ -755,7 +634,7 @@ public class JDeploy implements BundleConstants {
         }
         builder.setModifiedTime();
         builder.setVersionTimestamp(packageJSON.getString("version"));
-        builder.addVersion(packageJSON.getString("version"), new FileInputStream(new File(publishDir, "package.json")));
+        builder.addVersion(packageJSON.getString("version"), new FileInputStream(publishingContext.getPublishPackageJsonFile()));
         if (!PrereleaseHelper.isPrereleaseVersion(packageJSON.getString("version"))) {
             builder.setLatestVersion(packageJSON.getString("version"));
         }
@@ -764,7 +643,7 @@ public class JDeploy implements BundleConstants {
         loadJdeployBundleCodeToCache(getFullPackageName(bundlerSettings.getSource(), packageJSON.getString("name")));
         out.println("Release files created in " + getGithubReleaseFilesDir());
 
-        CheerpjController cheerpjController = new CheerpjController(packageJsonFile, new String[0]);
+        CheerpjController cheerpjController = new CheerpjController(context.packageJsonFile, new String[0]);
         if (cheerpjController.isEnabled()) {
             out.println("CheerpJ detected, uploading to CheerpJ CDN...");
             cheerpjController.run();
@@ -773,25 +652,11 @@ public class JDeploy implements BundleConstants {
     }
 
     public void publish(PackagingContext context) throws IOException {
-        if (alwaysPackageOnPublish) {
-            _package(context);
-        }
-        JSONObject packageJSON = prepublish(new BundlerSettings());
-        getNPM().publish(publishDir, exitOnFail);
-        out.println("Package published to npm successfully.");
-        out.println("Waiting for npm to update its registry...");
-
-        long timeout = System.currentTimeMillis()+30000;
-        while (System.currentTimeMillis() < timeout) {
-            String source = packageJSON.has("source") ? packageJSON.getString("source") : "";
-            if (isVersionPublished(packageJSON.getString("name"), packageJSON.getString("version"), source)) {
-                break;
-            }
-            try {
-                Thread.sleep(1000);
-            } catch (Exception ex){}
-        }
-        uploadResources();
+        PublishingContext publishingContext = PublishingContext.builder()
+                .setPackagingContext(context)
+                .setNPM(getNPM())
+                .build();
+        DIContext.get(PublishService.class).publish(publishingContext);
     }
 
     public DeveloperIdentityKeyStore getKeyStore() throws IOException {
@@ -831,43 +696,6 @@ public class JDeploy implements BundleConstants {
         return out;
     }
 
-    private JSONObject makeServiceCall(String url,
-                                        String jsonString) {
-        try{
-            CloseableHttpClient client = HttpClientBuilder.create().build();
-            HttpPost httpPost = new HttpPost(url);
-
-            httpPost.setHeader("Content-Type", "application/json; charset='utf-8'");
-            httpPost.setHeader("Accept-Charset", "UTF-8");
-            httpPost.setEntity(new StringEntity(jsonString));
-
-
-            CloseableHttpResponse response = client.execute(httpPost);
-            if (response.getStatusLine().getStatusCode() != 200) {
-                //System.err.println("Headers: "+conn.getHeaderFields());
-                throw new IOException("Failed to publish resources to jdeploy.com.  "+response.getStatusLine().getReasonPhrase());
-            }
-            String resultLine = EntityUtils.toString(response.getEntity());
-            try {
-                return new JSONObject(resultLine);
-            } catch (Exception ex) {
-                err.println("Unexpected server response.  Expected JSON but found "+resultLine+" Response code was: "+response.getStatusLine().getStatusCode()+".  Message was "+response.getStatusLine().getReasonPhrase());
-                ex.printStackTrace(err);
-                throw new Exception("Unexpected server response.  Expected JSON but found "+resultLine);
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace(err);
-            JSONObject out = new JSONObject();
-            out.put("code", 500);
-            out.put("error", ex.getMessage());
-            return out;
-        }
-
-
-    }
-
-
-    
     private void scan(PackagingContext context) throws IOException {
         File[] jars = findJarCandidates(context);
         out.println("Found "+jars.length+" jars: "+Arrays.toString(jars));
@@ -978,7 +806,7 @@ public class JDeploy implements BundleConstants {
 
             }
             if ("upload-resources".equals(args[0])) {
-                prog.uploadResources();
+                prog.uploadResources(context);
                 System.exit(0);
             }
 
