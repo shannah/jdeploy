@@ -11,6 +11,7 @@ import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
+import ca.weblite.jdeploy.packaging.PackagingContext;
 import ca.weblite.jdeploy.services.ExportIdentityService;
 import ca.weblite.jdeploy.services.GithubService;
 import ca.weblite.jdeploy.services.GithubWorkflowGenerator;
@@ -1912,9 +1913,16 @@ public class JDeployProjectEditor {
         }
 
         ProgressDialog progressDialog = new ProgressDialog(packageJSON.getString("name"));
+
+        PackagingContext packagingContext = PackagingContext.builder()
+                .directory(packageJSONFile.getAbsoluteFile().getParentFile())
+                .out(new PrintStream(progressDialog.createOutputStream()))
+                .err(new PrintStream(progressDialog.createOutputStream()))
+                .exitOnFail(false)
+                .build();
         JDeploy jdeployObject = new JDeploy(packageJSONFile.getAbsoluteFile().getParentFile(), false);
-        jdeployObject.setOut(new PrintStream(progressDialog.createOutputStream()));
-        jdeployObject.setErr(new PrintStream(progressDialog.createOutputStream()));
+        jdeployObject.setOut(packagingContext.out);
+        jdeployObject.setErr(packagingContext.err);
         jdeployObject.setNpmToken(context.getNpmToken());
         jdeployObject.setUseManagedNode(context.useManagedNode());
         EventQueue.invokeLater(()->{
@@ -1925,7 +1933,7 @@ public class JDeployProjectEditor {
         });
         try {
             handleSave();
-            jdeployObject.publish();
+            jdeployObject.publish(packagingContext);
             EventQueue.invokeLater(()->{
                 progressDialog.setComplete();
 
