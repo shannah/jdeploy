@@ -51,6 +51,10 @@ public class PublishingContext {
         return packagingContext.directory;
     }
 
+    public File getGithubReleaseFilesDir() {
+        return new File(directory(), "jdeploy" + File.separator + "github-release-files");
+    }
+
     public static class Builder {
         private PackagingContext packagingContext;
         private boolean alwaysPackageOnPublish = !Boolean.getBoolean("jdeploy.doNotPackage");;

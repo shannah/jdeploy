@@ -1630,10 +1630,15 @@ public class JDeployProjectEditor {
         jdeploy.setNpmToken(context.getNpmToken());
         jdeploy.setUseManagedNode(context.useManagedNode());
 
+        final PackagingContext packagingContext = PackagingContext.builder()
+                .directory(projectDirectory)
+                .exitOnFail(false)
+                .build();
+
         EventQueue.invokeLater(
                 new GenerateGithubWorkflowController(
                         frame,
-                        jdeploy.getJavaVersion(17),
+                        packagingContext.getJavaVersion(17),
                         "master",
                         new GithubWorkflowGenerator(projectDirectory)
                 )

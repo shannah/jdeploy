@@ -7,5 +7,9 @@ public enum PublishTargetType {
     S3,
     NPM,
     MAVEN,
-    DOCKER
+    DOCKER;
+
+    public boolean isDefaultSource() {
+        return this == NPM;
+    }
 }

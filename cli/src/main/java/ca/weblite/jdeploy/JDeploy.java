@@ -7,54 +7,35 @@ package ca.weblite.jdeploy;
 
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.cli.controllers.*;
-import ca.weblite.jdeploy.factories.JDeployKeyProviderFactory;
+import ca.weblite.jdeploy.factories.PublishTargetFactory;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
-import ca.weblite.jdeploy.helpers.GithubReleaseNotesMutator;
-import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
-import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
 import ca.weblite.jdeploy.packaging.JarFinder;
 import ca.weblite.jdeploy.packaging.PackageService;
 import ca.weblite.jdeploy.packaging.PackagingContext;
+import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
+import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import ca.weblite.jdeploy.publishing.PublishService;
 import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.jdeploy.publishing.ResourceUploader;
 import ca.weblite.jdeploy.services.*;
-import ca.weblite.tools.io.*;
-import ca.weblite.tools.security.KeyProvider;
-import com.codename1.io.JSONParser;
-import com.codename1.processing.Result;
 import java.awt.*;
 import java.io.*;
-import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.*;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Pattern;
-
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
-
-
 import org.apache.commons.io.FileUtils;
-
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.util.EntityUtils;
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import javax.swing.*;
@@ -70,35 +51,14 @@ public class JDeploy implements BundleConstants {
         System.setProperty("apple.eawt.quitStrategy", "CLOSE_ALL_WINDOWS");
     }
 
-    private final File directory;
-    private File packageJsonFile;
-    private Map packageJsonMap;
-    private Result packageJsonResult;
     private PrintStream out = System.out;
     private PrintStream err = System.err;
-
-    private KeyProvider keyProvider;
-
-    private PackageSigningService packageSigningService;
 
     private boolean useManagedNode = false;
 
     private NPM npm = null;
 
     private String npmToken = null;
-
-    public static String JDEPLOY_REGISTRY = "https://www.jdeploy.com/";
-    static {
-        if (System.getenv("JDEPLOY_REGISTRY_URL") != null) {
-            JDEPLOY_REGISTRY = System.getenv("JDEPLOY_REGISTRY_URL");
-            if (!JDEPLOY_REGISTRY.startsWith("http://") && !JDEPLOY_REGISTRY.startsWith("https://")) {
-                throw new RuntimeException("INVALID_JDEPLOY_REGISTRY_URL environment variable.  Expecting URL but found "+JDEPLOY_REGISTRY);
-            }
-            if (!JDEPLOY_REGISTRY.endsWith("/")) {
-                JDEPLOY_REGISTRY += "/";
-            }
-        }
-    }
 
     public void setNpmToken(String token) {
         if (!Objects.equals(token, this.npmToken)) {
@@ -125,8 +85,6 @@ public class JDeploy implements BundleConstants {
     }
     
     public JDeploy(File directory, boolean exitOnFail) {
-        this.directory = directory;
-        this.exitOnFail = exitOnFail;
     }
 
     public JDeploy(File directory) {
@@ -145,166 +103,11 @@ public class JDeploy implements BundleConstants {
         return old;
     }
 
-    public File getDirectory() {
-        return directory;
-    }
-    
-    public File getPackageJsonFile() {
-        if (packageJsonFile == null) {
-            packageJsonFile = new File(directory, "package.json");
-        }
-        return packageJsonFile;
-    }
-
     public void setUseManagedNode(boolean useManagedNode) {
         if (this.useManagedNode != useManagedNode) {
             this.npm = null;
         }
         this.useManagedNode = useManagedNode;
-    }
-    
-    public Map getPackageJsonMap()  {
-        if (packageJsonMap == null) {
-            try {
-                JSONParser p = new JSONParser();
-                packageJsonMap = (Map)p.parseJSON(
-                        new StringReader(
-                                FileUtils.readFileToString(getPackageJsonFile(),
-                                        "UTF-8"
-                                )
-                        )
-                );
-                if (packageJsonMap.containsKey("jdeploy")) {
-                    ((Map)packageJsonMap.get("jdeploy")).putAll(getJdeployConfigOverrides());
-                } else {
-                    packageJsonMap.put("jdeploy", getJdeployConfigOverrides());
-                }
-
-                setupPackageSigningConfig((Map)packageJsonMap.get("jdeploy"));
-            } catch (IOException ex) {
-                Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
-                throw new RuntimeException(ex);
-            }
-        }
-        return packageJsonMap;
-    }
-
-    private void setupPackageSigningConfig(Map jdeployConfig) {
-        keyProvider = new JDeployKeyProviderFactory().createKeyProvider(createKeyProviderFactoryConfig(jdeployConfig));
-        packageSigningService = new PackageSigningService(keyProvider);
-    }
-
-    private JDeployKeyProviderFactory.KeyConfig createKeyProviderFactoryConfig(final Map jdeployConfig) {
-
-        String developerIdKey = "jdeployDeveloperId";
-        String keystorePathKey = "keystorePath";
-
-        final String developerId = jdeployConfig.containsKey(developerIdKey)
-                ? (String)jdeployConfig.get(developerIdKey) : null;
-        final String keystorePath = jdeployConfig.containsKey(keystorePathKey)
-                ? (String)jdeployConfig.get(keystorePathKey) : null;
-        class LocalConfig extends JDeployKeyProviderFactory.DefaultKeyConfig {
-            @Override
-            public String getKeystorePath() {
-                return keystorePath == null ? super.getKeystorePath() : keystorePath;
-            }
-
-            @Override
-            public String getDeveloperId() {
-                return developerId == null ? super.getDeveloperId() : developerId;
-            }
-
-            @Override
-            public char[] getKeystorePassword() {
-                return super.getKeystorePassword();
-            }
-        }
-
-        return new LocalConfig();
-    }
-
-    private Map<String,?> getJdeployConfigOverrides() {
-        Map<String,?> overrides = new HashMap<String,Object>();
-        if (System.getenv("JDEPLOY_CONFIG") != null) {
-            System.out.println("Found JDEPLOY_CONFIG environment variable");
-            System.out.println("Injecting jdeploy config overrides from environment variable");
-            System.out.println(System.getenv("JDEPLOY_CONFIG"));
-            try {
-                JSONParser p = new JSONParser();
-                Map m = (Map)p.parseJSON(new StringReader(System.getenv("JDEPLOY_CONFIG")));
-                overrides.putAll(m);
-            } catch (IOException ex) {
-                Logger.getLogger(JDeploy.class.getName()).log(Level.SEVERE, null, ex);
-            }
-        }
-
-        return overrides;
-    }
-
-    /**
-     * Get package.json root object as a map.
-     */
-    private Map m() {
-        return getPackageJsonMap();
-    }
-
-    /**
-     * Get jdeploy config object as a Map
-     */
-    private Map mj() {
-        if (!m().containsKey("jdeploy")) {
-            m().put("jdeploy", new HashMap());
-        }
-        return (Map)m().get("jdeploy");
-    }
-
-    /**
-     * Get jdeploy config as a Result object
-     */
-    private Result rj() {
-        return Result.fromContent(mj());
-    }
-    
-    public Result getPackageJsonResult() {
-        if (packageJsonResult == null) {
-            packageJsonResult = Result.fromContent(getPackageJsonMap());
-        }
-        return packageJsonResult;
-    }
-    
-    private Result r() {
-        return getPackageJsonResult();
-    }
-
-    
-    public void set(String property, String value) {
-        mj().put(property, value);
-    }
-    
-    public void set(String property, int value) {
-        mj().put(property, value);
-    }
-    
-    public void set(String property, List value) {
-        mj().put(property, value);
-    }
-    
-    public String getString(String property, String defaultValue) {
-        if (mj().containsKey(property)) {
-            return r().getAsString("jdeploy/"+property);
-        }
-        return defaultValue;
-    }
-    
-    public int getInt(String property, int defaultValue) {
-        if (mj().containsKey(property)) {
-            return r().getAsInteger("jdeploy/"+property);
-        }
-        return defaultValue;
-    }
-
-    public int getJavaVersion(int defaultValue) {
-        return getInt("javaVersion", defaultValue);
     }
     
     private File[] findJarCandidates(PackagingContext context) throws IOException {
@@ -332,8 +135,6 @@ public class JDeploy implements BundleConstants {
         return out;
     }
 
-    private boolean exitOnFail = true;
-
     public static class FailException extends RuntimeException {
         private int exitCode;
         public FailException(String message, int exitCode) {
@@ -345,7 +146,7 @@ public class JDeploy implements BundleConstants {
             return exitCode;
         }
     }
-    private void fail(String message, int code) {
+    private void fail(String message, int code, boolean exitOnFail) {
         if (exitOnFail) {
             err.println(message);
             System.exit(code);
@@ -375,14 +176,20 @@ public class JDeploy implements BundleConstants {
      * @param generateGithubWorkflow True if this should also generate a github workflow.
      * @throws IOException
      */
-    private void init(String commandName, boolean prompt, boolean generateGithubWorkflow) throws IOException {
+    private void init(
+            File packageJSON,
+            String commandName,
+            boolean prompt,
+            boolean generateGithubWorkflow
+    ) throws IOException {
+        final File directory = packageJSON.getParentFile();
         ProjectInitializer projectInitializer = DIContext.getInstance().getInstance(ProjectInitializer.class);
         boolean dryRun = prompt; // If prompting, then we should do dry run first
         ProjectInitializer.Response plan = null;
         try {
             plan = projectInitializer.decorate(
                     new ProjectInitializer.Request(
-                        directory.getAbsolutePath(),
+                        packageJSON.getParentFile().getAbsolutePath(),
                             null,
                             dryRun,
                             generateGithubWorkflow,
@@ -447,14 +254,6 @@ public class JDeploy implements BundleConstants {
         }
     }
 
-    private void loadJdeployBundleCodeToCache(String fullPackageName) throws IOException {
-        DIContext.get(BundleCodeService.class).fetchJdeployBundleCode(fullPackageName);
-    }
-
-    private File getInstallersDir() {
-        return new File("jdeploy" + File.separator + "installers");
-    }
-
     private void cheerpjCLI(PackagingContext context, String[] args) {
         CheerpjController cheerpjController = new CheerpjController(context.packageJsonFile, args);
 
@@ -514,42 +313,7 @@ public class JDeploy implements BundleConstants {
     
     private void install(PackagingContext context) throws IOException {
         _package(context);
-        getNPM().link(exitOnFail);
-    }
-    
-    private File getGithubReleaseFilesDir() {
-        return new File(directory, "jdeploy" + File.separator + "github-release-files");
-    }
-
-    private String createGithubReleaseNotes() {
-        return new GithubReleaseNotesMutator(directory, err).createGithubReleaseNotes();
-    }
-
-    private void saveGithubReleaseFiles() throws IOException {
-        File icon = new File(directory, "icon.png");
-        File installSplash = new File(directory,"installsplash.png");
-        File releaseFilesDir = getGithubReleaseFilesDir();
-        releaseFilesDir.mkdirs();
-        if (icon.exists()) {
-            FileUtils.copyFile(icon, new File(releaseFilesDir, icon.getName()));
-
-        }
-        if (installSplash.exists()) {
-            FileUtils.copyFile(installSplash, new File(releaseFilesDir, installSplash.getName()));
-        }
-
-        File installerFiles = getInstallersDir();
-        if (installerFiles.isDirectory()) {
-            for (File installerFile : installerFiles.listFiles()) {
-                FileUtils.copyFile(installerFile, new File(releaseFilesDir, installerFile.getName().replace(' ', '.')));
-
-            }
-        }
-
-        final String releaseNotes = createGithubReleaseNotes();
-        FileUtil.writeStringToFile(releaseNotes, new File(releaseFilesDir, "jdeploy-release-notes.md"));
-
-        out.println("Assets copied to " + releaseFilesDir);
+        getNPM().link(context.exitOnFail);
     }
 
     private void uploadResources(PackagingContext packagingContext) throws IOException {
@@ -558,14 +322,6 @@ public class JDeploy implements BundleConstants {
                 .setNPM(getNPM())
                 .build();
         DIContext.get(ResourceUploader.class).uploadResources(context);
-    }
-
-    private String getFullPackageName(String source, String packageName) {
-        if (source == null || source.isEmpty()) {
-            return packageName;
-        }
-
-        return source + "#" + packageName;
     }
 
     public String injectGithubReleaseNotes(String originalNotes, String jdeployReleaseNotes) {
@@ -589,15 +345,15 @@ public class JDeploy implements BundleConstants {
         return sb.toString();
     }
 
-    public int updateReleaseLinks(String[] args) {
-        return new UpdateReleaseLinksCLIController(directory, err, out).run(args);
+    public int updateReleaseLinks(PackagingContext context, String[] args) {
+        return new UpdateReleaseLinksCLIController(context.directory, context.err, context.out).run(args);
     }
 
     /**
      * Prepares a self-publish release.
      * @throws IOException
      */
-    public void prepareGithubRelease(PackagingContext context, BundlerSettings bundlerSettings, InputStream oldPackageInfo) throws IOException {
+    public void prepareGithubRelease(PackagingContext context, BundlerSettings bundlerSettings) throws IOException {
         if (bundlerSettings.getSource() == null) {
             String repoName = System.getenv("GITHUB_REPOSITORY");
             if (repoName == null) {
@@ -605,14 +361,14 @@ public class JDeploy implements BundleConstants {
             }
             bundlerSettings.setSource("https://github.com/" + repoName);
         }
+        PublishTargetInterface target = DIContext.get(PublishTargetFactory.class)
+                .createWithUrlAndName(
+                        bundlerSettings.getSource(),
+                        context.getString("name", "jdeploy-app")
+                );
 
-        if (oldPackageInfo == null) {
-            String packageInfoUrl = bundlerSettings.getSource() + "/releases/download/jdeploy/package-info.json";
-            try {
-                oldPackageInfo = URLUtil.openStream(new URL(packageInfoUrl));
-            } catch (IOException ex) {
-                out.println("Failed to open stream for existing package-info.json at " + packageInfoUrl + ". Perhaps it doesn't exist yet");
-            }
+        if (target.getType() != PublishTargetType.GITHUB) {
+            throw new IllegalArgumentException("prepare-github-release requires the source to be a github repository.");
         }
 
         bundlerSettings.setCompressBundles(true);
@@ -622,32 +378,7 @@ public class JDeploy implements BundleConstants {
                 .setPackagingContext(context)
                 .setNPM(getNPM())
                 .build();
-        JSONObject packageJSON = DIContext.get(PublishService.class).prepublish(publishingContext, bundlerSettings);
-        getGithubReleaseFilesDir().mkdirs();
-        getNPM().pack(publishingContext.getPublishDir(), getGithubReleaseFilesDir(), context.exitOnFail);
-        saveGithubReleaseFiles();
-        PackageInfoBuilder builder = new PackageInfoBuilder();
-        if (oldPackageInfo != null) {
-            builder.load(oldPackageInfo);
-        } else {
-            builder.setCreatedTime();
-        }
-        builder.setModifiedTime();
-        builder.setVersionTimestamp(packageJSON.getString("version"));
-        builder.addVersion(packageJSON.getString("version"), new FileInputStream(publishingContext.getPublishPackageJsonFile()));
-        if (!PrereleaseHelper.isPrereleaseVersion(packageJSON.getString("version"))) {
-            builder.setLatestVersion(packageJSON.getString("version"));
-        }
-        builder.save(new FileOutputStream(new File(getGithubReleaseFilesDir(), "package-info.json")));
-        // Trigger register of package name
-        loadJdeployBundleCodeToCache(getFullPackageName(bundlerSettings.getSource(), packageJSON.getString("name")));
-        out.println("Release files created in " + getGithubReleaseFilesDir());
-
-        CheerpjController cheerpjController = new CheerpjController(context.packageJsonFile, new String[0]);
-        if (cheerpjController.isEnabled()) {
-            out.println("CheerpJ detected, uploading to CheerpJ CDN...");
-            cheerpjController.run();
-        }
+        DIContext.get(PublishService.class).prepublish(publishingContext, bundlerSettings, target);
 
     }
 
@@ -741,10 +472,13 @@ public class JDeploy implements BundleConstants {
      */
     public static void main(String[] args) {
         try {
+            File packageJSON = new File("package.json");
             JDeploy prog = new JDeploy(new File(".").getAbsoluteFile());
-            PackagingContext context = PackagingContext.builder()
+            PackagingContext context = packageJSON.exists()
+                    ? PackagingContext.builder()
                     .directory(new File(".").getAbsoluteFile())
-                    .build();
+                    .build()
+                    : null;
             if (args.length > 0 && "generate".equals(args[0])) {
                 String[] generateArgs = new String[args.length-1];
                 System.arraycopy(args, 1, generateArgs, 0, generateArgs.length);
@@ -758,7 +492,7 @@ public class JDeploy implements BundleConstants {
             if (args.length > 0 && "github".equals(args[0]) && args.length> 1 && "init".equals(args[1])) {
                 String[] githubInitArgs = new String[args.length-2];
                 System.arraycopy(args, 2, githubInitArgs, 0, githubInitArgs.length);
-                prog.githubInit(githubInitArgs);
+                prog.githubInit(packageJSON, githubInitArgs, true);
                 return;
             }
 
@@ -777,7 +511,6 @@ public class JDeploy implements BundleConstants {
             }
             if (args.length == 0 || "gui".equals(args[0])) {
                 System.out.println("Launching jdeploy gui.  Use jdeploy help for help");
-                File packageJSON = new File("package.json");
                 if (packageJSON.exists()) {
                     JSONObject packageJSONObject = new JSONObject(FileUtils.readFileToString(packageJSON, "UTF-8"));
                     boolean hasAllExpectedProperties = packageJSONObject.has("name") &&
@@ -874,13 +607,13 @@ public class JDeploy implements BundleConstants {
                 }
                 final boolean prompt = !noPromptFlag;
                 final boolean generateGithubWorkflow = !noWorkflowFlag;
-                prog.init(commandName, prompt, generateGithubWorkflow);
+                prog.init(packageJSON, commandName, prompt, generateGithubWorkflow);
             } else if ("install".equals(args[0])) {
                 prog.install(context);
             } else if ("publish".equals(args[0])) {
                 prog.publish(context);
             } else if ("github-prepare-release".equals(args[0])) {
-                prog.prepareGithubRelease(context, new BundlerSettings(), null);
+                prog.prepareGithubRelease(context, new BundlerSettings());
             } else if ("github-build-release-body".equals(args[0])) {
                 String oldBody = System.getenv("GITHUB_RELEASE_BODY");
                 String jdeployReleaseNotes = System.getenv("JDEPLOY_RELEASE_NOTES");
@@ -890,7 +623,7 @@ public class JDeploy implements BundleConstants {
                 }
                 System.out.println(prog.injectGithubReleaseNotes(oldBody, jdeployReleaseNotes));
             } else if ("github-update-release-links".equals(args[0])) {
-                int result = prog.updateReleaseLinks(subArray(args,1 ));
+                int result = prog.updateReleaseLinks(context, subArray(args,1 ));
                 System.exit(result);
             } else if ("scan".equals(args[0])) {
                 prog.scan(context);
@@ -927,11 +660,14 @@ public class JDeploy implements BundleConstants {
         });
     }
 
-    private void githubInit(String[] githubInitArgs) {
-        GitHubRepositoryInitializerCLIController controller = new GitHubRepositoryInitializerCLIController(getPackageJsonFile(), githubInitArgs);
+    private void githubInit(File packageJsonFile, String[] githubInitArgs, boolean exitOnFail) {
+        GitHubRepositoryInitializerCLIController controller = new GitHubRepositoryInitializerCLIController(
+                packageJsonFile,
+                githubInitArgs
+        );
         controller.run();
         if (controller.getExitCode() != 0) {
-            fail("Failed to initialize github repository", controller.getExitCode());
+            fail("Failed to initialize github repository", controller.getExitCode(), exitOnFail);
         }
     }
 
@@ -958,9 +694,8 @@ public class JDeploy implements BundleConstants {
                     "Create Github Workflow?",
                     JOptionPane.YES_NO_OPTION);
             final boolean addGithubWorkflow = addWorkflowResult == JOptionPane.YES_OPTION;
-            exitOnFail = false;
             try {
-                init(null, false, addGithubWorkflow);
+                init(packageJSON, null, false, addGithubWorkflow);
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(null,  new JLabel(
                                 "<html><p style='width:400px'>Failed to create package.json file. "+ex.getMessage()+"</p></html>"),
@@ -971,9 +706,8 @@ public class JDeploy implements BundleConstants {
 
             }
             try {
-                File packageJSONFile = new File(directory, "package.json");
-                JSONObject packageJSONObject = new JSONObject(FileUtils.readFileToString(packageJSONFile, "UTF-8"));
-                new JDeployProjectEditor(packageJSONFile, packageJSONObject).show();
+                JSONObject packageJSONObject = new JSONObject(FileUtils.readFileToString(packageJSON, "UTF-8"));
+                new JDeployProjectEditor(packageJSON, packageJSONObject).show();
             } catch (Exception ex) {
                 ex.printStackTrace(err);
                 JOptionPane.showMessageDialog(null,  new JLabel(
