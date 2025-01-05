@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.publishTargets;
 
+import ca.weblite.jdeploy.factories.PublishTargetFactory;
 import ca.weblite.jdeploy.io.FileSystemInterface;
 import ca.weblite.tools.io.IOUtil;
 import org.apache.commons.io.IOUtils;
@@ -23,24 +24,31 @@ public class PublishTargetService implements PublishTargetServiceInterface {
 
     private final FileSystemInterface fileSystem;
 
+    private final PublishTargetFactory publishTargetFactory;
+
     @Inject
-    public PublishTargetService(PublishTargetSerializer serializer, FileSystemInterface fileSystem) {
+    public PublishTargetService(
+            PublishTargetSerializer serializer,
+            FileSystemInterface fileSystem,
+            PublishTargetFactory publishTargetFactory
+    ) {
         this.serializer = serializer;
         this.fileSystem = fileSystem;
+        this.publishTargetFactory = publishTargetFactory;
     }
 
     @Override
-    public List<PublishTargetInterface> getTargetsForProject(String projectPath) throws IOException {
+    public List<PublishTargetInterface> getTargetsForProject(String projectPath, boolean includeDefaultTarget) throws IOException {
         if (!fileSystem.exists(getPackageJsonPathForProject(projectPath))) {
             return new ArrayList<PublishTargetInterface>();
         }
         String packageJsonContents = IOUtil.readToString(fileSystem.getInputStream(getPackageJsonPathForProject(projectPath)));
-        return getTargetsForPackageJson(new JSONObject(packageJsonContents));
+        return getTargetsForPackageJson(new JSONObject(packageJsonContents), includeDefaultTarget);
     }
 
     @Override
-    public List<PublishTargetInterface> getTargetsForPackageJson(JSONObject packageJson) {
-        return serializer.deserialize(getPublishTargets(packageJson));
+    public List<PublishTargetInterface> getTargetsForPackageJson(JSONObject packageJson, boolean includeDefaultTarget) {
+        return serializer.deserialize(getPublishTargets(packageJson, includeDefaultTarget));
     }
 
     @Override
@@ -74,12 +82,23 @@ public class PublishTargetService implements PublishTargetServiceInterface {
         return Paths.get(projectPath, "package.json");
     }
 
-    private JSONArray getPublishTargets(JSONObject packageJson) {
+    private JSONArray getPublishTargets(JSONObject packageJson, boolean includeDefaultTarget) {
         JSONObject jdeploy = getJdeployConfig(packageJson);
         if (!jdeploy.has("publishTargets")) {
             jdeploy.put("publishTargets", new JSONArray());
         }
-        return jdeploy.getJSONArray("publishTargets");
+        JSONArray targets = jdeploy.getJSONArray("publishTargets");
+        if (includeDefaultTarget && targets.isEmpty()) {
+            PublishTargetInterface defaultTarget = publishTargetFactory
+                    .createWithUrlAndName(
+                            packageJson.getString("name"),
+                            packageJson.getString("name")
+                    );
+
+            targets.put(serializer.serialize(defaultTarget));
+        }
+
+        return targets;
     }
 
     private void setPublishTargets(JSONObject packageJson, JSONArray targets) {

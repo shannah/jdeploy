@@ -46,13 +46,15 @@ public class PublishService {
             packageService.createJdeployBundle(context.packagingContext);
         }
         JSONObject packageJson = new JSONObject(context.packagingContext.packageJsonMap);
-        for (PublishTargetInterface target : publishTargetService.getTargetsForPackageJson(packageJson)) {
+        for (PublishTargetInterface target : publishTargetService.getTargetsForPackageJson(packageJson, true)) {
             publish(context, target);
         }
 
-        for (PublishTargetInterface target : publishTargetService.getTargetsForPackageJson(packageJson)) {
+        for (PublishTargetInterface target : publishTargetService.getTargetsForPackageJson(packageJson, true)) {
             wait(context, getDriverForTarget(target), target);
         }
+
+        resourceUploader.uploadResources(context);
     }
 
     public void prepublish(

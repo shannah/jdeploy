@@ -232,7 +232,7 @@ public class PackageService implements BundleConstants {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 XMLUtil.write(document, baos);
                 appXmlBytes = baos.toByteArray();
-                bundledAppXmlFile = new File(context.getBinDir(), "app.xml");
+                bundledAppXmlFile = new File(context.getJdeployBundleDir(), "app.xml");
                 FileUtils.writeByteArrayToFile(bundledAppXmlFile, appXmlBytes);
             }
             byte[] iconBytes;
@@ -244,7 +244,7 @@ public class PackageService implements BundleConstants {
                 if (!iconFile.exists()) {
                     FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("icon.png"), iconFile);
                 }
-                File bin = new File(context.getBinDir());
+                File bin = context.getJdeployBundleDir();
 
                 bundledIconFile = new File(bin, "icon.png");
                 if (!bundledIconFile.exists()) {
@@ -261,7 +261,7 @@ public class PackageService implements BundleConstants {
                 if (!splashFile.exists()) {
                     FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("installsplash.png"), splashFile);
                 }
-                File bin = new File(context.getBinDir());
+                File bin = context.getJdeployBundleDir();
 
                 bundledSplashFile = new File(bin, "installsplash.png");
                 if (!bundledSplashFile.exists()) {
@@ -385,7 +385,7 @@ public class PackageService implements BundleConstants {
 
             String excludes = null;
 
-            includes.add(new CopyRule(context, parentPath, jarFile.getName(), null));
+            includes.add(new CopyRule(context, parentPath, jarFile.getName(), null, true));
             for (String path : classPathFinder.findClassPath(jarFile)) {
                 File f = new File(path);
 
@@ -398,7 +398,7 @@ public class PackageService implements BundleConstants {
                         File strippedFile = new File(parentPath,path + ".stripped");
                         if (strippedFile.getParentFile().exists()) {
                             FileUtil.writeStringToFile("", strippedFile);
-                            includes.add(new CopyRule(context, parentPath, path + ".stripped", excludes));
+                            includes.add(new CopyRule(context, parentPath, path + ".stripped", excludes, true));
                         }
                         continue;
                     }
@@ -408,7 +408,7 @@ public class PackageService implements BundleConstants {
                 if (stripFXFiles && f.getName().startsWith("javafx-") && f.getName().endsWith(".jar")) {
                     continue;
                 }
-                includes.add(new CopyRule(context, parentPath, path, excludes));
+                includes.add(new CopyRule(context, parentPath, path, excludes, true));
             }
 
             System.out.println("Includes: "+includes);
@@ -419,7 +419,7 @@ public class PackageService implements BundleConstants {
             }
             String parentPath = warFile.getParentFile() != null ? warFile.getParentFile().getPath() : ".";
 
-            includes.add(new CopyRule(context, parentPath, warFile.getName(), null));
+            includes.add(new CopyRule(context, parentPath, warFile.getName(), null, true));
             //if (warFile.isDirectory()) {
             //    includes.add(new CopyRule(parentPath, warFile.getName()+"/**", null));
             //}
@@ -897,9 +897,9 @@ public class PackageService implements BundleConstants {
                         excs.addAll(Arrays.asList(((String)i).split(",")));
                     }
                 }
-                out.add(new CopyRule(context, dir, incs, excs));
+                out.add(new CopyRule(context, dir, incs, excs, false));
             } else if (o instanceof String) {
-                out.add(new CopyRule(context, (String)o, (String)null, (String)null));
+                out.add(new CopyRule(context, (String)o, (String)null, (String)null, false));
             }
         }
         return out;
@@ -931,8 +931,8 @@ public class PackageService implements BundleConstants {
     }
 
     private void bundleJdeploy(PackagingContext context) throws IOException {
-        File bin = new File(context.getBinDir());
-        InputStream jdeployJs = this.getClass().getResourceAsStream("jdeploy.js");
+        File bin = context.getJdeployBundleDir();
+        InputStream jdeployJs = JDeploy.class.getResourceAsStream("jdeploy.js");
         File jDeployFile = new File(bin, "jdeploy.js");
         FileUtils.copyInputStreamToFile(jdeployJs, jDeployFile);
         String jdeployContents = FileUtils.readFileToString(jDeployFile, "UTF-8");
@@ -972,10 +972,10 @@ public class PackageService implements BundleConstants {
 
     private void bundleJetty(PackagingContext context) throws IOException {
         // Now we need to create the stub.
-        File bin = new File(context.getBinDir());
-        InputStream warRunnerInput = getClass().getResourceAsStream("WarRunner.jar");
+        File bin = context.getJdeployBundleDir();
+        InputStream warRunnerInput = JDeploy.class.getResourceAsStream("WarRunner.jar");
 
-        InputStream jettyRunnerJarInput = getClass().getResourceAsStream("jetty-runner.jar");
+        InputStream jettyRunnerJarInput = JDeploy.class.getResourceAsStream("jetty-runner.jar");
         File libDir = new File(bin, "lib");
         libDir.mkdir();
         File jettyRunnerDest = new File(libDir, "jetty-runner.jar");
@@ -989,8 +989,8 @@ public class PackageService implements BundleConstants {
     }
 
     private void bundleJarRunner(PackagingContext context) throws IOException {
-        File bin = new File(context.getBinDir());
-        InputStream jarRunnerJar = this.getClass().getResourceAsStream("jar-runner.jar");
+        File bin = context.getJdeployBundleDir();
+        InputStream jarRunnerJar = JDeploy.class.getResourceAsStream("jar-runner.jar");
         File jarRunnerFile = new File(bin, "jar-runner.jar");
         FileUtils.copyInputStreamToFile(jarRunnerJar, jarRunnerFile);
     }
@@ -1008,7 +1008,7 @@ public class PackageService implements BundleConstants {
         if (!iconFile.exists()) {
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("icon.png"), iconFile);
         }
-        File bin = new File(context.getBinDir());
+        File bin = context.getJdeployBundleDir();
 
         File bundledIconFile = new File(bin, "icon.png");
         FileUtils.copyFile(iconFile, bundledIconFile);
@@ -1041,7 +1041,7 @@ public class PackageService implements BundleConstants {
 
             return;
         }
-        File bin = new File(context.getBinDir());
+        File bin = context.getJdeployBundleDir();
 
         File bundledSplashFile = new File(bin, splashFile.getName());
         FileUtils.copyFile(splashFile, bundledSplashFile);

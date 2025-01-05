@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.publishTargets;
 
+import ca.weblite.jdeploy.factories.PublishTargetFactory;
 import ca.weblite.jdeploy.io.FileSystemInterface;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -26,11 +27,14 @@ public class PublishTargetServiceTest {
     private PublishTargetSerializer serializer;
     private FileSystemInterface fileSystem;
 
+    private PublishTargetFactory publishTargetFactory;
+
     @BeforeEach
     public void setup() {
         serializer = mock(PublishTargetSerializer.class);
         fileSystem = mock(FileSystemInterface.class);
-        service = new PublishTargetService(serializer, fileSystem);
+        publishTargetFactory = mock(PublishTargetFactory.class);
+        service = new PublishTargetService(serializer, fileSystem, publishTargetFactory);
     }
 
     @Test
@@ -45,7 +49,7 @@ public class PublishTargetServiceTest {
         when(serializer.deserialize(any(JSONArray.class))).thenReturn(Collections.singletonList(mock(PublishTargetInterface.class)));
 
         // Act
-        List<PublishTargetInterface> targets = service.getTargetsForProject(projectPath);
+        List<PublishTargetInterface> targets = service.getTargetsForProject(projectPath, false);
 
         // Assert
         assertNotNull(targets);
@@ -62,7 +66,7 @@ public class PublishTargetServiceTest {
         when(fileSystem.exists(any(Path.class))).thenReturn(false);
 
         // Act
-        List<PublishTargetInterface> targets = service.getTargetsForProject(projectPath);
+        List<PublishTargetInterface> targets = service.getTargetsForProject(projectPath, false);
 
         // Assert
         assertNotNull(targets);

@@ -18,37 +18,52 @@ public class CopyRule {
     List<String> includes;
     List<String> excludes;
 
-    private final String sanitizeDirPath(String dir) {
-        if (new File(dir).isAbsolute()) {
-            try {
-                //System.out.println("dir="+new File(dir).getCanonicalPath()+"; directory="+directory.getCanonicalPath());
-                dir = new File(dir).getCanonicalPath().substring(context.directory.getCanonicalPath().length());
-            } catch (Exception ex) {
-                dir = dir.substring(context.directory.getAbsolutePath().length());
-            }
-        }
-        if (dir.startsWith("/") || dir.startsWith("\\")) {
-            dir = dir.substring(1);
-        }
-        if (dir.isEmpty()) dir = ".";
-
-        return dir.replace("\\", "/");
-    }
-
-    public CopyRule(PackagingContext context, String dir, List<String> includes, List<String> excludes) {
+    public CopyRule(PackagingContext context, String dir, List<String> includes, List<String> excludes, boolean escape) {
         this.context = context;
-        this.dir = sanitizeDirPath(dir);
+        this.dir = dir;
 
         this.includes = includes;
         this.excludes = excludes;
+
+        if (escape) {
+            if (this.includes != null) {
+                for (int i=0; i<this.includes.size(); i++) {
+                    this.includes.set(i, escapeGlob(this.includes.get(i)));
+                }
+            }
+            if (this.excludes != null) {
+                for (int i=0; i<this.excludes.size(); i++) {
+                    this.excludes.set(i, escapeGlob(this.excludes.get(i)));
+                }
+            }
+        }
     }
 
-    public CopyRule(PackagingContext context, String dir, String includes, String excludes) {
+    public CopyRule(PackagingContext context, String dir, String includes, String excludes, boolean escape) {
         this.context = context;
-        this.dir = sanitizeDirPath(dir);
+        this.dir = dir;
 
-        this.includes = includes == null ? null : Arrays.asList(includes.split(","));
-        this.excludes = excludes == null ? null : Arrays.asList(excludes.split(","));
+        this.includes = includes == null
+                ? null
+                : Arrays.asList(includes.split(","));
+        this.excludes = excludes == null
+                ? null
+                : Arrays.asList(excludes.split(","));
+
+        if (escape) {
+            if (this.includes != null) {
+                for (int i=0; i<this.includes.size(); i++) {
+                    this.includes.set(i, escapeGlob(this.includes.get(i)));
+                }
+            }
+            if (this.excludes != null) {
+                for (int i=0; i<this.excludes.size(); i++) {
+                    this.excludes.set(i, escapeGlob(this.excludes.get(i)));
+                }
+            }
+        }
+
+
     }
 
     public String toString() {
@@ -56,7 +71,10 @@ public class CopyRule {
     }
 
     public void copyTo(File destDirectory) throws IOException {
-        final File srcDir = new File(dir);
+        final File srcDir = new File(dir).isAbsolute()
+                ? new File(dir)
+                : new File(context.directory, dir);
+
         if (!srcDir.exists()) {
             throw new IOException("Source directory of copy rule does not exist: "+srcDir);
         }
@@ -91,7 +109,15 @@ public class CopyRule {
                 }
                 if (excludes != null) {
                     for (String pattern : excludes) {
-                        PathMatcher matcher = srcDir.toPath().getFileSystem().getPathMatcher("glob:"+dir+"/"+pattern.replace("\\", "/"));
+                        PathMatcher matcher = srcDir
+                                .toPath()
+                                .getFileSystem()
+                                .getPathMatcher(
+                                        "glob:"
+                                                + escapeGlob(srcDir.getPath())
+                                                + "/"
+                                                + pattern
+                                );
                         if (matcher.matches(pathname.toPath())) {
                             return false;
                         }
@@ -101,7 +127,15 @@ public class CopyRule {
                 if (includes != null) {
                     for (String pattern : includes) {
 
-                        PathMatcher matcher = srcDir.toPath().getFileSystem().getPathMatcher("glob:"+dir+"/"+pattern.replace("\\", "/"));
+                        PathMatcher matcher = srcDir
+                                .toPath()
+                                .getFileSystem()
+                                .getPathMatcher(
+                                        "glob:"
+                                                + escapeGlob(srcDir.getPath())
+                                                + "/"
+                                                + pattern
+                                );
                         if (matcher.matches(pathname.toPath())) {
                             if (pathname.isDirectory()) {
                                 includedDirectories.add(pathname.getPath());
@@ -120,5 +154,20 @@ public class CopyRule {
             }
 
         });
+    }
+
+    public static String escapeGlob(String path) {
+        StringBuilder escaped = new StringBuilder();
+        for (char c : path.toCharArray()) {
+            switch (c) {
+                case '*': case '?': case '[': case ']': case '{': case '}':
+                case '(': case ')': case ',': case '\\':
+                    escaped.append('\\'); // Add the escape character
+                    // Fallthrough to append the actual character
+                default:
+                    escaped.append(c);
+            }
+        }
+        return escaped.toString();
     }
 }
