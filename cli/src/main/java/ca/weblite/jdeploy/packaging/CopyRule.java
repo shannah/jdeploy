@@ -5,6 +5,7 @@ import org.apache.commons.io.FileUtils;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -76,11 +77,11 @@ public class CopyRule {
                 : new File(context.directory, dir);
 
         if (!srcDir.exists()) {
-            throw new IOException("Source directory of copy rule does not exist: "+srcDir);
+            throw new IOException("Source directory of copy rule does not exist: " + srcDir);
         }
 
         if (!destDirectory.exists()) {
-            throw new IOException("Destination directory of copy rule does not exist: "+destDirectory);
+            throw new IOException("Destination directory of copy rule does not exist: " + destDirectory);
         }
 
         if (srcDir.equals(destDirectory)) {
@@ -89,7 +90,6 @@ public class CopyRule {
         final Set<String> includedDirectories = new HashSet<String>();
 
         FileUtils.copyDirectory(srcDir, destDirectory, new FileFilter() {
-
             @Override
             public boolean accept(File pathname) {
                 if (pathname.isDirectory()) {
@@ -98,6 +98,7 @@ public class CopyRule {
                             return true;
                         }
                     }
+                    return false;
                 }
                 File parent = pathname.getParentFile();
                 if (parent != null && includedDirectories.contains(parent.getPath())) {
@@ -115,7 +116,7 @@ public class CopyRule {
                                 .getPathMatcher(
                                         "glob:"
                                                 + escapeGlob(srcDir.getPath())
-                                                + "/"
+                                                + escapeGlob("/")
                                                 + pattern
                                 );
                         if (matcher.matches(pathname.toPath())) {
@@ -126,7 +127,6 @@ public class CopyRule {
 
                 if (includes != null) {
                     for (String pattern : includes) {
-
                         PathMatcher matcher = srcDir
                                 .toPath()
                                 .getFileSystem()
@@ -143,7 +143,6 @@ public class CopyRule {
                             return true;
                         }
                     }
-                    //System.out.println(pathname+" does not match any patterns.");
                     return false;
                 } else {
                     if (pathname.isDirectory()) {

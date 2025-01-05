@@ -50,19 +50,23 @@ public class PackageService implements BundleConstants {
 
     private final BundleCodeService bundleCodeService;
 
+    private final CopyJarRuleBuilder copyJarRuleBuilder;
+
     @Inject
     public PackageService(
             Environment environment,
             JarFinder jarFinder,
             ClassPathFinder classPathFinder,
             CompressionService compressionService,
-            BundleCodeService bundleCodeService
+            BundleCodeService bundleCodeService,
+            CopyJarRuleBuilder copyJarRuleBuilder
     ) {
         this.environment = environment;
         this.jarFinder = jarFinder;
         this.classPathFinder = classPathFinder;
         this.compressionService = compressionService;
         this.bundleCodeService = bundleCodeService;
+        this.copyJarRuleBuilder = copyJarRuleBuilder;
     }
 
     public void createJdeployBundle(
@@ -366,9 +370,6 @@ public class PackageService implements BundleConstants {
         boolean javafxVersionProvided = !context.getString("javafxVersion", "").isEmpty();
         boolean stripFXFiles = stripJavaFXFilesFlag && (serverProvidedJavaFX || javafxVersionProvided);
 
-        List<String> mavenDependencies = (List<String>) context.getList("mavenDependencies", true);
-        boolean useMavenDependencies =!mavenDependencies.isEmpty();
-
         if (context.doNotStripJavaFXFiles) {
             stripFXFiles = false;
         }
@@ -380,49 +381,14 @@ public class PackageService implements BundleConstants {
             if (jarFile == null) {
                 throw new IOException("Could not find jar file: "+context.getJar(null));
             }
-            String parentPath = jarFile.getParentFile() != null ? jarFile.getParentFile().getPath() : ".";
-
-
-            String excludes = null;
-
-            includes.add(new CopyRule(context, parentPath, jarFile.getName(), null, true));
-            for (String path : classPathFinder.findClassPath(jarFile)) {
-                File f = new File(path);
-
-                if (useMavenDependencies) {
-                    // If we are using maven dependencies, then we won't
-                    // We add this stripped file placeholder to mark that it was stripped.
-                    // This also ensures that the parent directory will be included in distribution.
-
-                    if (f.getName().endsWith(".jar")) {
-                        File strippedFile = new File(parentPath,path + ".stripped");
-                        if (strippedFile.getParentFile().exists()) {
-                            FileUtil.writeStringToFile("", strippedFile);
-                            includes.add(new CopyRule(context, parentPath, path + ".stripped", excludes, true));
-                        }
-                        continue;
-                    }
-
-
-                }
-                if (stripFXFiles && f.getName().startsWith("javafx-") && f.getName().endsWith(".jar")) {
-                    continue;
-                }
-                includes.add(new CopyRule(context, parentPath, path, excludes, true));
-            }
-
-            System.out.println("Includes: "+includes);
+            includes.addAll(copyJarRuleBuilder.build(context, jarFile));
         } else if (context.getWar(null) != null) {
             File warFile = jarFinder.findWarFile(context);
             if (warFile == null) {
                 throw new IOException("Could not find war file: "+context.getWar(null));
             }
             String parentPath = warFile.getParentFile() != null ? warFile.getParentFile().getPath() : ".";
-
             includes.add(new CopyRule(context, parentPath, warFile.getName(), null, true));
-            //if (warFile.isDirectory()) {
-            //    includes.add(new CopyRule(parentPath, warFile.getName()+"/**", null));
-            //}
         } else {
 
             throw new RuntimeException("No jar, war, or web app was found to build in this directory.");
