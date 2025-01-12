@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.publishing;
 
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.packaging.PackageService;
+import ca.weblite.jdeploy.packaging.PackagingContext;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetServiceInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetType;
@@ -14,6 +15,8 @@ import javax.inject.Singleton;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static ca.weblite.jdeploy.BundleConstants.*;
 
 @Singleton
 public class PublishService {
@@ -42,19 +45,22 @@ public class PublishService {
     }
 
     public void publish(PublishingContext context) throws IOException {
-        if (context.alwaysPackageOnPublish) {
-            packageService.createJdeployBundle(context.packagingContext);
-        }
         JSONObject packageJson = new JSONObject(context.packagingContext.packageJsonMap);
         for (PublishTargetInterface target : publishTargetService.getTargetsForPackageJson(packageJson, true)) {
             publish(context, target);
         }
+    }
 
-        for (PublishTargetInterface target : publishTargetService.getTargetsForPackageJson(packageJson, true)) {
-            wait(context, getDriverForTarget(target), target);
+    public void publish(PublishingContext context, PublishTargetInterface publishTargetInterface) throws IOException {
+        PublishDriverInterface driver = getDriverForTarget(publishTargetInterface);
+        if (alwaysPackageOnPublish(context)) {
+            driver.makePackage(context, publishTargetInterface, new BundlerSettings());
         }
-
+        driver.prepare(context, publishTargetInterface, new BundlerSettings());
+        driver.publish(context, publishTargetInterface);
+        wait(context, getDriverForTarget(publishTargetInterface), publishTargetInterface);
         resourceUploader.uploadResources(context);
+
     }
 
     public void prepublish(
@@ -69,8 +75,8 @@ public class PublishService {
         long timeout = System.currentTimeMillis()+30000;
         while (System.currentTimeMillis() < timeout) {
             if (driver.isVersionPublished(
-                    context.packagingContext.getString("name", ""),
-                    context.packagingContext.getString("version", ""),
+                    context.packagingContext.getName(),
+                    context.packagingContext.getVersion(),
                     target
             )) {
                 break;
@@ -81,13 +87,6 @@ public class PublishService {
         }
     }
 
-    private void publish(PublishingContext context, PublishTargetInterface publishTargetInterface) throws IOException {
-        PublishDriverInterface driver = getDriverForTarget(publishTargetInterface);
-        driver.prepare(context, publishTargetInterface, new BundlerSettings());
-        driver.publish(context, publishTargetInterface);
-
-    }
-
     private PublishDriverInterface getDriverForTarget(PublishTargetInterface target) {
         PublishDriverInterface driver = publishDrivers.get(target.getType());
         if (driver == null) {
@@ -95,5 +94,25 @@ public class PublishService {
         }
 
         return driver;
+    }
+
+    private PackagingContext getPackagingContext(PublishingContext context) {
+        if (shouldGenerateInstallers(context)) {
+            return context.packagingContext.withInstallers(BUNDLE_MAC_X64, BUNDLE_MAC_ARM64, BUNDLE_WIN, BUNDLE_LINUX);
+        }
+
+        return context.packagingContext;
+    }
+
+    private boolean shouldGenerateInstallers(PublishingContext context) {
+        return publishTargetService
+                .getTargetsForPackageJson(new JSONObject(context.packagingContext.packageJsonMap), false)
+                .stream().anyMatch(target -> target.getType() == PublishTargetType.GITHUB);
+    }
+
+    private boolean alwaysPackageOnPublish(PublishingContext context) {
+        return context.alwaysPackageOnPublish ||
+                publishTargetService.getTargetsForPackageJson(new JSONObject(context.packagingContext.packageJsonMap), false)
+                        .stream().anyMatch(target -> target.getType() == PublishTargetType.GITHUB);
     }
 }

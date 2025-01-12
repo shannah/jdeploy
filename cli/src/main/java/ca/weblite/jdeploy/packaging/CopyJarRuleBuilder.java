@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.packaging;
 
 import ca.weblite.tools.io.FileUtil;
 
+import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.io.File;
 import java.io.IOException;
@@ -12,6 +13,7 @@ import java.util.List;
 public class CopyJarRuleBuilder {
     private final ClassPathFinder classPathFinder;
 
+    @Inject
     public CopyJarRuleBuilder(ClassPathFinder classPathFinder) {
         this.classPathFinder = classPathFinder;
     }

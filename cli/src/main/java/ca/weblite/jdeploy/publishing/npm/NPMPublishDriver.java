@@ -43,6 +43,11 @@ public class NPMPublishDriver implements PublishDriverInterface {
         basePublishDriver.prepare(context, target, bundlerSettings);
     }
 
+    @Override
+    public void makePackage(PublishingContext context, PublishTargetInterface target, BundlerSettings bundlerSettings) throws IOException {
+        basePublishDriver.makePackage(context, target, bundlerSettings);
+    }
+
     public JSONObject fetchPackageInfoFromPublicationChannel(String packageName, PublishTargetInterface target) throws IOException {
         URL u = new URL(getPackageUrl(packageName, target));
         HttpURLConnection conn = (HttpURLConnection)u.openConnection();

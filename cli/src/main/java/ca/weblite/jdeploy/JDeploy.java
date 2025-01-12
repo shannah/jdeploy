@@ -67,7 +67,7 @@ public class JDeploy implements BundleConstants {
         this.npmToken = token;
     }
 
-    private NPM getNPM() {
+    public NPM getNPM() {
         if (npm == null) {
             npm = new NPM(out, err, useManagedNode);
             npm.setNpmToken(npmToken);
@@ -364,7 +364,7 @@ public class JDeploy implements BundleConstants {
         PublishTargetInterface target = DIContext.get(PublishTargetFactory.class)
                 .createWithUrlAndName(
                         bundlerSettings.getSource(),
-                        context.getString("name", "jdeploy-app")
+                        context.getName()
                 );
 
         if (target.getType() != PublishTargetType.GITHUB) {
@@ -374,11 +374,19 @@ public class JDeploy implements BundleConstants {
         bundlerSettings.setCompressBundles(true);
         bundlerSettings.setDoNotZipExeInstaller(true);
         _package(context.withInstallers(BUNDLE_MAC_X64, BUNDLE_MAC_ARM64, BUNDLE_WIN, BUNDLE_LINUX), bundlerSettings);
+
         PublishingContext publishingContext = PublishingContext.builder()
                 .setPackagingContext(context)
                 .setNPM(getNPM())
+                .setGithubRepository(System.getenv("GITHUB_REPOSITORY"))
+                .setGithubRefName(System.getenv("GITHUB_REF_NAME"))
+                .setGithubRefType(System.getenv("GITHUB_REF_TYPE"))
                 .build();
-        DIContext.get(PublishService.class).prepublish(publishingContext, bundlerSettings, target);
+        DIContext.get(PublishService.class).prepublish(
+                publishingContext,
+                bundlerSettings,
+                target
+        );
 
     }
 
@@ -387,7 +395,11 @@ public class JDeploy implements BundleConstants {
                 .setPackagingContext(context)
                 .setNPM(getNPM())
                 .build();
-        DIContext.get(PublishService.class).publish(publishingContext);
+        publish(publishingContext);
+    }
+
+    public void publish(PublishingContext context) throws IOException {
+        DIContext.get(PublishService.class).publish(context);
     }
 
     public DeveloperIdentityKeyStore getKeyStore() throws IOException {

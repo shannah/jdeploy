@@ -11,6 +11,8 @@ public interface PublishDriverInterface {
     void publish(PublishingContext context, PublishTargetInterface target) throws IOException;
     void prepare(PublishingContext context, PublishTargetInterface target, BundlerSettings bundlerSettings) throws IOException;
 
+    void makePackage(PublishingContext context, PublishTargetInterface target, BundlerSettings bundlerSettings) throws IOException;
+
     JSONObject fetchPackageInfoFromPublicationChannel(String packageName, PublishTargetInterface target) throws IOException;
     boolean isVersionPublished(String packageName, String version, PublishTargetInterface target);
 }

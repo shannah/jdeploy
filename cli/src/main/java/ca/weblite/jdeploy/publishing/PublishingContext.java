@@ -13,14 +13,46 @@ public class PublishingContext {
 
     public final NPM npm;
 
+    private String githubToken;
+
+    public final String githubRepository;
+
+    public final String githubRefName;
+
+    public final String githubRefType;
+
     public PublishingContext(
             PackagingContext packagingContext,
             boolean alwaysPackageOnPublish,
-            NPM npm
+            NPM npm,
+            String githubToken,
+            String githubRepository,
+            String githubRefName,
+            String githubRefType
     ) {
         this.packagingContext = packagingContext;
         this.alwaysPackageOnPublish = alwaysPackageOnPublish;
         this.npm = npm;
+        this.githubToken = githubToken;
+        this.githubRepository = githubRepository;
+        this.githubRefName = githubRefName;
+        this.githubRefType = githubRefType;
+    }
+
+    public String getGithubToken() {
+        return githubToken;
+    }
+
+    public PublishingContext withPackagingContext(PackagingContext packagingContext) {
+        return new PublishingContext(
+                packagingContext,
+                alwaysPackageOnPublish,
+                npm,
+                githubToken,
+                githubRepository,
+                githubRefName,
+                githubRefType
+        );
     }
 
     public static Builder builder() {
@@ -60,6 +92,14 @@ public class PublishingContext {
         private boolean alwaysPackageOnPublish = !Boolean.getBoolean("jdeploy.doNotPackage");;
         private NPM npm;
 
+        private String githubToken;
+
+        private String githubRepository;
+
+        private String githubRefName;
+
+        private String githubRefType;
+
         public Builder setPackagingContext(PackagingContext packagingContext) {
             this.packagingContext = packagingContext;
             return this;
@@ -72,6 +112,26 @@ public class PublishingContext {
 
         public Builder setNPM(NPM npm) {
             this.npm = npm;
+            return this;
+        }
+
+        public Builder setGithubToken(String githubToken) {
+            this.githubToken = githubToken;
+            return this;
+        }
+
+        public Builder setGithubRepository(String githubRepository) {
+            this.githubRepository = githubRepository;
+            return this;
+        }
+
+        public Builder setGithubRefName(String githubRefName) {
+            this.githubRefName = githubRefName;
+            return this;
+        }
+
+        public Builder setGithubRefType(String githubRefType) {
+            this.githubRefType = githubRefType;
             return this;
         }
 
@@ -90,7 +150,15 @@ public class PublishingContext {
         }
 
         public PublishingContext build() {
-            return new PublishingContext(packagingContext(), alwaysPackageOnPublish, npm());
+            return new PublishingContext(
+                    packagingContext(),
+                    alwaysPackageOnPublish,
+                    npm(),
+                    githubToken,
+                    githubRepository,
+                    githubRefName,
+                    githubRefType
+            );
         }
     }
 }

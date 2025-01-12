@@ -12,6 +12,7 @@ import java.net.URI;
 
 public class JDeployProjectEditorContext {
     private String npmToken = null;
+    private String githubToken = null;
 
     public DesktopInterop getDesktopInterop() {
         return DIContext.getInstance().getInstance(DesktopInterop.class);
@@ -85,4 +86,23 @@ public class JDeployProjectEditorContext {
         return System.getenv("NPM_TOKEN");
     }
 
+    public boolean promptForGithubToken(Object parent) {
+        return true;
+    }
+
+    public void setGithubToken(String githubToken) {
+        this.githubToken = githubToken;
+    }
+
+    public String getGithubToken() {
+        if (githubToken != null) {
+            return githubToken;
+        }
+
+        return System.getenv("GITHUB_TOKEN");
+    }
+
+    public boolean shouldDisplayPublishSettingsTab() {
+        return false;
+    }
 }

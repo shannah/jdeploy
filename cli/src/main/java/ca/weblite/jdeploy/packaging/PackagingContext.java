@@ -125,6 +125,20 @@ public class PackagingContext {
         return packageJsonMap;
     }
 
+    public String getVersion() {
+        if (m().containsKey("version")) {
+            return r().getAsString("version");
+        }
+        return "";
+    }
+
+    public String getName() {
+        if (m().containsKey("name")) {
+            return r().getAsString("name");
+        }
+        return "";
+    }
+
     public boolean isPackageSigningEnabled() {
         return rj().getAsBoolean("signPackage");
     }
@@ -235,7 +249,7 @@ public class PackagingContext {
     }
 
     public File getInstallersDir() {
-        return new File("jdeploy" + File.separator + "installers");
+        return new File(directory, "jdeploy" + File.separator + "installers");
     }
 
     public void set(String property, String value) {

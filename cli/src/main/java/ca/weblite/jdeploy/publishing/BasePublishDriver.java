@@ -1,12 +1,15 @@
 package ca.weblite.jdeploy.publishing;
 
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
+import ca.weblite.jdeploy.packaging.PackageService;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
+import ca.weblite.jdeploy.services.PackageNameService;
 import ca.weblite.tools.io.MD5;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.io.File;
 import java.io.IOException;
@@ -14,6 +17,14 @@ import java.io.UnsupportedEncodingException;
 
 @Singleton
 public class BasePublishDriver implements PublishDriverInterface {
+
+    private final PackageService packageService;
+
+    @Inject
+    public BasePublishDriver(PackageService packageService) {
+        this.packageService = packageService;
+    }
+
     @Override
     public void publish(PublishingContext context, PublishTargetInterface target) throws IOException {
         throw new UnsupportedOperationException("Not implemented");
@@ -85,6 +96,11 @@ public class BasePublishDriver implements PublishDriverInterface {
                 throw new IOException("Failed to sign package", ex);
             }
         }
+    }
+
+    @Override
+    public void makePackage(PublishingContext context, PublishTargetInterface target, BundlerSettings bundlerSettings) throws IOException {
+        packageService.createJdeployBundle(context.packagingContext, bundlerSettings);
     }
 
     @Override
