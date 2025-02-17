@@ -80,6 +80,7 @@ public class PublishService {
             BundlerSettings bundlerSettings,
             PublishTargetInterface target
     ) throws IOException {
+        validateContext(context);
         getDriverForTarget(target).prepare(context, target, bundlerSettings);
     }
 
