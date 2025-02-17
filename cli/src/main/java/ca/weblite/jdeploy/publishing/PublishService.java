@@ -8,6 +8,7 @@ import ca.weblite.jdeploy.publishTargets.PublishTargetServiceInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import ca.weblite.jdeploy.publishing.github.GitHubPublishDriver;
 import ca.weblite.jdeploy.publishing.npm.NPMPublishDriver;
+import ca.weblite.jdeploy.services.VersionCleaner;
 import org.json.JSONObject;
 
 import javax.inject.Inject;
@@ -45,9 +46,20 @@ public class PublishService {
     }
 
     public void publish(PublishingContext context) throws IOException {
+        validateContext(context);
         JSONObject packageJson = new JSONObject(context.packagingContext.packageJsonMap);
         for (PublishTargetInterface target : publishTargetService.getTargetsForPackageJson(packageJson, true)) {
             publish(context, target);
+        }
+    }
+
+    public void validateContext(PublishingContext context) {
+        String rawVersion = context.packagingContext.getVersion();
+        String cleanVersion = VersionCleaner.cleanVersion(rawVersion);
+        if (!rawVersion.equals(cleanVersion)) {
+            throw new IllegalArgumentException(
+                    "Version "+rawVersion+" is not a valid version string.  It should be of the form "+cleanVersion
+            );
         }
     }
 

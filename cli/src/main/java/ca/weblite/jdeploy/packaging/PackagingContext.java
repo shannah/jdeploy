@@ -128,7 +128,7 @@ public class PackagingContext {
 
     public String getVersion() {
         if (m().containsKey("version")) {
-            return VersionCleaner.cleanVersion(r().getAsString("version"));
+            return r().getAsString("version");
         }
         return "";
     }
