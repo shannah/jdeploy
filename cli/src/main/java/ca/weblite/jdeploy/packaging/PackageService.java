@@ -12,6 +12,7 @@ import ca.weblite.jdeploy.appbundler.mac.DmgCreator;
 import ca.weblite.jdeploy.environment.Environment;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.services.BundleCodeService;
+import ca.weblite.jdeploy.services.VersionCleaner;
 import ca.weblite.tools.io.ArchiveUtil;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.XMLUtil;
@@ -143,6 +144,7 @@ public class PackageService implements BundleConstants {
         String packageJSONVersion = (String)context.m().get("version");
         appInfo.setNpmVersion(version);
         if (packageJSONVersion != null) {
+            packageJSONVersion = VersionCleaner.cleanVersion(packageJSONVersion);
             appInfo.setNpmVersion(packageJSONVersion);
         }
 

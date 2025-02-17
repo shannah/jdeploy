@@ -4,6 +4,7 @@ import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.packaging.PackageService;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.services.PackageNameService;
+import ca.weblite.jdeploy.services.VersionCleaner;
 import ca.weblite.tools.io.MD5;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONArray;
@@ -114,7 +115,7 @@ public class BasePublishDriver implements PublishDriverInterface {
     }
 
     private String getPackageSigningVersionString(JSONObject packageJSON) {
-        String versionString = packageJSON.getString("version");
+        String versionString = VersionCleaner.cleanVersion(packageJSON.getString("version"));
         if (packageJSON.has("commitHash")) {
             versionString += "#" + packageJSON.getString("commitHash");
         }

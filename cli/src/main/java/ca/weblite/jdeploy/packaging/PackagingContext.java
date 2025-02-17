@@ -3,6 +3,7 @@ package ca.weblite.jdeploy.packaging;
 import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.factories.JDeployKeyProviderFactory;
 import ca.weblite.jdeploy.services.PackageSigningService;
+import ca.weblite.jdeploy.services.VersionCleaner;
 import ca.weblite.tools.security.KeyProvider;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
@@ -127,7 +128,7 @@ public class PackagingContext {
 
     public String getVersion() {
         if (m().containsKey("version")) {
-            return r().getAsString("version");
+            return VersionCleaner.cleanVersion(r().getAsString("version"));
         }
         return "";
     }

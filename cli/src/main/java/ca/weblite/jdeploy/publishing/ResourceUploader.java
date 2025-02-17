@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.publishing;
 
 import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.packaging.PackagingConfig;
+import ca.weblite.jdeploy.services.VersionCleaner;
 import org.apache.commons.io.FileUtils;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -46,7 +47,7 @@ public class ResourceUploader {
                 jdeployFiles.put("installsplash.png", Base64.getEncoder().encodeToString(splashBytes));
             }
             jdeployFiles.put("packageName", packageJSON.get("name"));
-            jdeployFiles.put("version", packageJSON.get("version"));
+            jdeployFiles.put("version", VersionCleaner.cleanVersion(""+packageJSON.get("version")));
             try {
                 context.out().println("Uploading icon to jdeploy.com...");
                 JSONObject response = makeServiceCall(

@@ -19,10 +19,7 @@ import ca.weblite.jdeploy.publishTargets.PublishTargetServiceInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.jdeploy.publishing.github.GitHubPublishDriver;
-import ca.weblite.jdeploy.services.ExportIdentityService;
-import ca.weblite.jdeploy.services.GithubService;
-import ca.weblite.jdeploy.services.GithubWorkflowGenerator;
-import ca.weblite.jdeploy.services.WebsiteVerifier;
+import ca.weblite.jdeploy.services.*;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.MD5;
 import com.sun.nio.file.SensitivityWatchEventModifier;
@@ -43,6 +40,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.JTextComponent;
 import java.awt.*;
+import java.awt.event.FocusAdapter;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
@@ -651,11 +649,18 @@ public class JDeployProjectEditor {
 
         mainFields.version = detailsPanel.getVersion();
         if (packageJSON.has("version")) {
-            mainFields.version.setText(packageJSON.getString("version"));
+            mainFields.version.setText(VersionCleaner.cleanVersion(packageJSON.getString("version")));
         }
         addChangeListenerTo(mainFields.version, () -> {
-            packageJSON.put("version", mainFields.version.getText());
+            String cleanVersion = VersionCleaner.cleanVersion(mainFields.version.getText());
+            packageJSON.put("version", cleanVersion);
             setModified();
+        });
+        mainFields.version.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(java.awt.event.FocusEvent evt) {
+                mainFields.version.setText(VersionCleaner.cleanVersion(mainFields.version.getText()));
+            }
         });
         mainFields.iconUrl = new JTextField();
         if (jdeploy.has("iconUrl")) {
@@ -2054,7 +2059,8 @@ public class JDeployProjectEditor {
         validateJar(jarFile);
 
         // Now let's make sure that this version isn't already published.
-        String version = packageJSON.getString("version");
+        String rawVersion = packageJSON.getString("version");
+        String version = VersionCleaner.cleanVersion(packageJSON.getString("version"));
         String packageName = packageJSON.getString("name");
         String source = packageJSON.has("source") ? packageJSON.getString("source") : "";
         if (isNpmPublishingEnabled()) {
@@ -2078,7 +2084,10 @@ public class JDeployProjectEditor {
                         .filter(t -> t.getType() == PublishTargetType.GITHUB)
                         .findFirst()
                         .orElse(null);
-                if (gitHubPublishDriver.isVersionPublished(packageName, version, githubTarget)) {
+                if (
+                        gitHubPublishDriver.isVersionPublished(packageName, version, githubTarget)
+                        || gitHubPublishDriver.isVersionPublished(packageName, rawVersion, githubTarget)
+                ) {
                     throw new ValidationException(
                             "The package " + packageName + " already has a published version " + version + " on Github.  " +
                                     "Please increment the version number and try to publish again."

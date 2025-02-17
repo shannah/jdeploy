@@ -62,7 +62,8 @@ public class NPMPublishDriver implements PublishDriverInterface {
     public boolean isVersionPublished(String packageName, String version, PublishTargetInterface target) {
         try {
             JSONObject jsonObject = fetchPackageInfoFromPublicationChannel(packageName, target);
-            return jsonObject.has("versions") && jsonObject.getJSONObject("versions").has(version);
+            return (jsonObject.has("versions") && jsonObject.getJSONObject("versions").has(version))
+                    || (jsonObject.has("versions") && jsonObject.getJSONObject("versions").has(cleanVersion(version)));
         } catch (Exception ex) {
             return false;
         }
@@ -70,5 +71,26 @@ public class NPMPublishDriver implements PublishDriverInterface {
 
     private String getPackageUrl(String packageName, PublishTargetInterface target) throws UnsupportedEncodingException {
         return REGISTRY_URL+ URLEncoder.encode(packageName, "UTF-8");
+    }
+
+    private String cleanVersion(String version) {
+        // Extract suffix from version to make it exempt from cleaning.  We re-append at the end
+        String suffix = "";
+        int suffixIndex = version.indexOf("-");
+        if (suffixIndex != -1) {
+            suffix = version.substring(suffixIndex);
+            version = version.substring(0, suffixIndex);
+        }
+
+        // strip leading zeroes from each component of the version
+        String[] parts = version.split("\\.");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < parts.length; i++) {
+            if (i > 0) {
+                sb.append(".");
+            }
+            sb.append(Integer.parseInt(parts[i]));
+        }
+        return sb.toString() + suffix;
     }
 }
