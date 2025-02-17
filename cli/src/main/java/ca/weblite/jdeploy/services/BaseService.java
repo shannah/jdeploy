@@ -128,7 +128,7 @@ public class BaseService {
     }
 
     protected String getAppVersion() {
-        return packageJSON.getString("version");
+        return VersionCleaner.cleanVersion(packageJSON.getString("version"));
     }
 
     protected File getIconFile() throws IOException {

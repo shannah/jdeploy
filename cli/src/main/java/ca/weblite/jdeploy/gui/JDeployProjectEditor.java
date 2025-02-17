@@ -2,19 +2,24 @@ package ca.weblite.jdeploy.gui;
 
 import ca.weblite.jdeploy.DIContext;
 import ca.weblite.jdeploy.JDeploy;
+import ca.weblite.jdeploy.factories.PublishTargetFactory;
 import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
 import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
+import ca.weblite.jdeploy.gui.tabs.PublishSettingsPanel;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
-import ca.weblite.jdeploy.services.ExportIdentityService;
-import ca.weblite.jdeploy.services.GithubService;
-import ca.weblite.jdeploy.services.GithubWorkflowGenerator;
-import ca.weblite.jdeploy.services.WebsiteVerifier;
+import ca.weblite.jdeploy.packaging.PackagingContext;
+import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
+import ca.weblite.jdeploy.publishTargets.PublishTargetServiceInterface;
+import ca.weblite.jdeploy.publishTargets.PublishTargetType;
+import ca.weblite.jdeploy.publishing.PublishingContext;
+import ca.weblite.jdeploy.publishing.github.GitHubPublishDriver;
+import ca.weblite.jdeploy.services.*;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.MD5;
 import com.sun.nio.file.SensitivityWatchEventModifier;
@@ -35,6 +40,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.JTextComponent;
 import java.awt.*;
+import java.awt.event.FocusAdapter;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
@@ -42,6 +48,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.*;
 import java.util.*;
+import java.util.List;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 
@@ -642,11 +649,18 @@ public class JDeployProjectEditor {
 
         mainFields.version = detailsPanel.getVersion();
         if (packageJSON.has("version")) {
-            mainFields.version.setText(packageJSON.getString("version"));
+            mainFields.version.setText(VersionCleaner.cleanVersion(packageJSON.getString("version")));
         }
         addChangeListenerTo(mainFields.version, () -> {
-            packageJSON.put("version", mainFields.version.getText());
+            String cleanVersion = VersionCleaner.cleanVersion(mainFields.version.getText());
+            packageJSON.put("version", cleanVersion);
             setModified();
+        });
+        mainFields.version.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(java.awt.event.FocusEvent evt) {
+                mainFields.version.setText(VersionCleaner.cleanVersion(mainFields.version.getText()));
+            }
         });
         mainFields.iconUrl = new JTextField();
         if (jdeploy.has("iconUrl")) {
@@ -1405,6 +1419,10 @@ public class JDeployProjectEditor {
             tabs.add("CheerpJ", cheerpjSettingsRoot);
         }
 
+        if (context.shouldDisplayPublishSettingsTab()) {
+            tabs.add("Publish Settings", createPublishSettingsPanel());
+        }
+
         cnt.removeAll();
         cnt.setLayout(new BorderLayout());
         cnt.add(tabs, BorderLayout.CENTER);
@@ -1499,6 +1517,111 @@ public class JDeployProjectEditor {
         }
         cnt.add(bottomButtons, BorderLayout.SOUTH);
 
+
+    }
+
+    private Component createPublishSettingsPanel() {
+        PublishSettingsPanel panel = new PublishSettingsPanel();
+        PublishTargetFactory factory = DIContext.get(PublishTargetFactory.class);
+        PublishTargetServiceInterface publishTargetService = DIContext.get(PublishTargetServiceInterface.class);
+        try {
+            List<PublishTargetInterface> targets = publishTargetService.getTargetsForPackageJson(packageJSON, true);
+            PublishTargetInterface npmTarget = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
+            PublishTargetInterface gitHubTarget = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
+            panel.getNpmCheckbox().setSelected(npmTarget != null);
+            panel.getGithubCheckbox().setSelected(gitHubTarget != null);
+            if (gitHubTarget != null) {
+                panel.getGithubRepositoryField().setText(gitHubTarget.getUrl());
+            }
+
+            panel.getNpmCheckbox().addActionListener(evt -> {
+                if (panel.getNpmCheckbox().isSelected()) {
+                    try {
+                        PublishTargetInterface existingNpm = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
+                        if (existingNpm == null) {
+                            targets.add(factory.createWithUrlAndName(packageJSON.getString("name"), packageJSON.getString("name")));
+                            publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
+                            setModified();
+                        }
+                    } catch (Exception ex) {
+                        showError("Failed to create NPM publish target", ex);
+                    }
+                } else {
+                    try {
+                        PublishTargetInterface existingNpm = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
+                        if (existingNpm != null) {
+                            targets.remove(existingNpm);
+                            publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
+                            setModified();
+                        }
+                    } catch (Exception ex) {
+                        showError("Failed to delete NPM publish target", ex);
+                    }
+                }
+            });
+
+            panel.getGithubCheckbox().addActionListener(evt -> {
+                if (panel.getGithubCheckbox().isSelected()) {
+                    try {
+                        PublishTargetInterface existingGithub = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
+                        if (existingGithub == null) {
+                            targets.add(factory.createWithUrlAndName(panel.getGithubRepositoryField().getText(), packageJSON.getString("name")));
+                            publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
+                            setModified();
+                        }
+                    } catch (Exception ex) {
+                        showError("Failed to create NPM publish target", ex);
+                    }
+                } else {
+                    try {
+                        PublishTargetInterface existingGithub = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
+                        if (existingGithub != null) {
+                            targets.remove(existingGithub);
+                            publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
+                            setModified();
+                        }
+                    } catch (Exception ex) {
+                        showError("Failed to delete NPM publish target", ex);
+                    }
+                }
+            });
+
+            panel.getGithubRepositoryField().getDocument().addDocumentListener(new DocumentListener() {
+                @Override
+                public void insertUpdate(DocumentEvent e) {
+                    updateGithubUrl();
+                }
+
+                @Override
+                public void removeUpdate(DocumentEvent e) {
+                    updateGithubUrl();
+                }
+
+                @Override
+                public void changedUpdate(DocumentEvent e) {
+                    updateGithubUrl();
+                }
+
+                private void updateGithubUrl() {
+                    try {
+                        PublishTargetInterface existingGithub = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
+                        if (existingGithub != null) {
+                            targets.remove(existingGithub);
+                        }
+                        PublishTargetInterface newGithub = factory.createWithUrlAndName(panel.getGithubRepositoryField().getText(), packageJSON.getString("name"));
+                        targets.add(newGithub);
+                        publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
+                        setModified();
+                    } catch (Exception ex) {
+                        showError("Failed to update Github URL", ex);
+                    }
+                }
+            });
+        } catch (Exception ex) {
+            showError("Failed to load publish targets", ex);
+        }
+
+        return panel;
 
     }
 
@@ -1629,10 +1752,15 @@ public class JDeployProjectEditor {
         jdeploy.setNpmToken(context.getNpmToken());
         jdeploy.setUseManagedNode(context.useManagedNode());
 
+        final PackagingContext packagingContext = PackagingContext.builder()
+                .directory(projectDirectory)
+                .exitOnFail(false)
+                .build();
+
         EventQueue.invokeLater(
                 new GenerateGithubWorkflowController(
                         frame,
-                        jdeploy.getJavaVersion(17),
+                        packagingContext.getJavaVersion(17),
                         "master",
                         new GithubWorkflowGenerator(projectDirectory)
                 )
@@ -1853,10 +1981,45 @@ public class JDeployProjectEditor {
         exportIdentityService.exportIdentityToFile(dest[0]);
     }
 
+    private boolean isNpmPublishingEnabled() {
+        try {
+            return DIContext.get(PublishTargetServiceInterface.class)
+                    .getTargetsForProject(
+                            packageJSONFile
+                                    .getAbsoluteFile()
+                                    .getParentFile()
+                                    .getAbsolutePath(),
+                            true
+                    ).stream()
+                    .anyMatch(t -> t.getType() == PublishTargetType.NPM);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private boolean isGitHubPublishingEnabled() {
+        try {
+            return DIContext.get(PublishTargetServiceInterface.class)
+                    .getTargetsForProject(
+                            packageJSONFile
+                                    .getAbsoluteFile()
+                                    .getParentFile()
+                                    .getAbsolutePath(),
+                            true
+                    ).stream()
+                    .anyMatch(t -> t.getType() == PublishTargetType.GITHUB);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private void handlePublish0() throws ValidationException {
         if (!EventQueue.isDispatchThread()) {
             // We don't prompt on the dispatch thread because promptForNpmToken blocks
-            if (!context.promptForNpmToken(frame)) {
+            if (isNpmPublishingEnabled() && !context.promptForNpmToken(frame)) {
+                return;
+            }
+            if (isGitHubPublishingEnabled() && !context.promptForGithubToken(frame)) {
                 return;
             }
         }
@@ -1896,25 +2059,59 @@ public class JDeployProjectEditor {
         validateJar(jarFile);
 
         // Now let's make sure that this version isn't already published.
-        String version = packageJSON.getString("version");
+        String rawVersion = packageJSON.getString("version");
+        String version = VersionCleaner.cleanVersion(packageJSON.getString("version"));
         String packageName = packageJSON.getString("name");
         String source = packageJSON.has("source") ? packageJSON.getString("source") : "";
-        if (getNPM().isVersionPublished(packageName, version, source)) {
-            throw new ValidationException(
-                    "The package " + packageName + " already has a published version " + version + ".  " +
-                            "Please increment the version number and try to publish again."
-            );
+        if (isNpmPublishingEnabled()) {
+            if (getNPM().isVersionPublished(packageName, version, source)) {
+                throw new ValidationException(
+                        "The package " + packageName + " already has a published version " + version + ".  " +
+                                "Please increment the version number and try to publish again."
+                );
+            }
+            if (!getNPM().isLoggedIn()) {
+                throw new ValidationException("You must be logged into NPM in order to publish", NOT_LOGGED_IN);
+            }
+        }
+
+        if (isGitHubPublishingEnabled()) {
+            GitHubPublishDriver gitHubPublishDriver = DIContext.get(GitHubPublishDriver.class);
+            try {
+                PublishTargetInterface githubTarget = DIContext.get(PublishTargetServiceInterface.class)
+                        .getTargetsForProject(absDirectory.getAbsolutePath(), true)
+                        .stream()
+                        .filter(t -> t.getType() == PublishTargetType.GITHUB)
+                        .findFirst()
+                        .orElse(null);
+                if (
+                        gitHubPublishDriver.isVersionPublished(packageName, version, githubTarget)
+                        || gitHubPublishDriver.isVersionPublished(packageName, rawVersion, githubTarget)
+                ) {
+                    throw new ValidationException(
+                            "The package " + packageName + " already has a published version " + version + " on Github.  " +
+                                    "Please increment the version number and try to publish again."
+                    );
+                }
+            } catch (IOException ex) {
+                throw new ValidationException("Failed to load github publish target", ex);
+            }
         }
 
         // Let's check to see if we're logged into
-        if (!getNPM().isLoggedIn()) {
-            throw new ValidationException("You must be logged into NPM in order to publish", NOT_LOGGED_IN);
-        }
+
 
         ProgressDialog progressDialog = new ProgressDialog(packageJSON.getString("name"));
+
+        PackagingContext packagingContext = PackagingContext.builder()
+                .directory(packageJSONFile.getAbsoluteFile().getParentFile())
+                .out(new PrintStream(progressDialog.createOutputStream()))
+                .err(new PrintStream(progressDialog.createOutputStream()))
+                .exitOnFail(false)
+                .build();
         JDeploy jdeployObject = new JDeploy(packageJSONFile.getAbsoluteFile().getParentFile(), false);
-        jdeployObject.setOut(new PrintStream(progressDialog.createOutputStream()));
-        jdeployObject.setErr(new PrintStream(progressDialog.createOutputStream()));
+        jdeployObject.setOut(packagingContext.out);
+        jdeployObject.setErr(packagingContext.err);
         jdeployObject.setNpmToken(context.getNpmToken());
         jdeployObject.setUseManagedNode(context.useManagedNode());
         EventQueue.invokeLater(()->{
@@ -1925,7 +2122,13 @@ public class JDeployProjectEditor {
         });
         try {
             handleSave();
-            jdeployObject.publish();
+            PublishingContext publishingContext = PublishingContext
+                    .builder()
+                    .setPackagingContext(packagingContext)
+                    .setNPM(jdeployObject.getNPM())
+                    .setGithubToken(context.getGithubToken())
+                    .build();
+            jdeployObject.publish(publishingContext);
             EventQueue.invokeLater(()->{
                 progressDialog.setComplete();
 

@@ -34,10 +34,19 @@ public class GithubReleaseNotesMutator implements BundleConstants {
     }
 
     public String createGithubReleaseNotes() {
-        final String repo = env.get("GITHUB_REPOSITORY");
+        return createGithubReleaseNotes(
+                env.get("GITHUB_REPOSITORY"),
+                env.get("GITHUB_REF_NAME"),
+                env.get("GITHUB_REF_TYPE")
+        );
+    }
+
+    public String createGithubReleaseNotes(
+            final String repo,
+            final String branchTag,
+            final String refType
+    ) {
         final String releasesPrefix = "/releases/download/";
-        final String branchTag = env.get("GITHUB_REF_NAME");
-        final String refType = env.get("GITHUB_REF_TYPE");
         final File releaseFilesDir = getGithubReleaseFilesDir();
         final Optional<File> macIntelBundle = Arrays.asList(
                 releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_MAC_X64))
