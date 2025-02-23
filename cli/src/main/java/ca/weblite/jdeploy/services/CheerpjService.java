@@ -1,6 +1,9 @@
 package ca.weblite.jdeploy.services;
 
 import ca.weblite.jdeploy.cheerpj.services.BuildCheerpjAppService;
+import ca.weblite.jdeploy.http.StaticFileServer;
+import ca.weblite.tools.io.jetty.JettyWrapper;
+import fi.iki.elonen.NanoHTTPD;
 import net.coobird.thumbnailator.Thumbnails;
 import net.sf.image4j.codec.ico.ICOEncoder;
 import org.json.JSONArray;
@@ -15,6 +18,16 @@ public class CheerpjService extends BaseService {
     private BuildCheerpjAppService buildCheerpjAppService;
 
     private static final String DEFAULT_CHEERPJ_LOADER = "https://cjrtnc.leaningtech.com/3.0rc2/cj3loader.js";
+
+    public static class Result {
+        public final File dest;
+        public final StaticFileServer server;
+
+        public Result(File dest, StaticFileServer server) {
+            this.dest = dest;
+            this.server = server;
+        }
+    }
 
     public CheerpjService(File packageJSONFile, JSONObject packageJSON) throws IOException {
         super(packageJSONFile, packageJSON);
@@ -76,8 +89,24 @@ public class CheerpjService extends BaseService {
 
     }
 
-    public void execute() throws IOException {
+    public Result execute() throws IOException {
         this.run();
+        if (flags.contains("serve")) {
+            return new Result(getDestDirectory(), serve());
+        }
+
+        return new Result(getDestDirectory(), null);
+    }
+
+    public StaticFileServer serve() {
+        System.out.println("Serving cheerpj app");
+        try {
+            StaticFileServer server = new StaticFileServer(0, getDestDirectory());
+            server.start();
+            return server;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private JSONObject getGithubPagesConfig() {

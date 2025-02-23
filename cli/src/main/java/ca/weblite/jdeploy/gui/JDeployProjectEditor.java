@@ -1471,6 +1471,11 @@ public class JDeployProjectEditor {
             }
         });
 
+        JButton preview = new JButton("Web Preview");
+        preview.addActionListener(evt->{
+            context.showWebPreview(frame);
+        });
+
 
         JButton publish = new JButton("Publish");
         publish.setDefaultCapable(true);
@@ -1506,6 +1511,9 @@ public class JDeployProjectEditor {
         closeBtn.addActionListener(evt -> handleClosing());
 
         bottomButtons.add(viewDownloadPage);
+        if (context.isWebPreviewSupported()) {
+            bottomButtons.add(preview);
+        }
         if (context.shouldShowPublishButton()) {
             bottomButtons.add(publish);
         }

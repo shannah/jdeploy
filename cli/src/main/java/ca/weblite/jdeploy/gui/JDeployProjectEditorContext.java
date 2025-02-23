@@ -5,7 +5,6 @@ import ca.weblite.jdeploy.interop.DesktopInterop;
 import ca.weblite.jdeploy.interop.FileChooserInterop;
 import ca.weblite.tools.platform.Platform;
 
-import javax.swing.*;
 import java.awt.*;
 import java.io.File;
 import java.net.URI;
@@ -104,5 +103,13 @@ public class JDeployProjectEditorContext {
 
     public boolean shouldDisplayPublishSettingsTab() {
         return false;
+    }
+
+    public boolean isWebPreviewSupported() {
+        return false;
+    }
+
+    public void showWebPreview(Frame projectEditorFrame) {
+        // Do nothing
     }
 }
