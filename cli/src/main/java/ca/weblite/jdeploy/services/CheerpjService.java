@@ -2,8 +2,6 @@ package ca.weblite.jdeploy.services;
 
 import ca.weblite.jdeploy.cheerpj.services.BuildCheerpjAppService;
 import ca.weblite.jdeploy.http.StaticFileServer;
-import ca.weblite.tools.io.jetty.JettyWrapper;
-import fi.iki.elonen.NanoHTTPD;
 import net.coobird.thumbnailator.Thumbnails;
 import net.sf.image4j.codec.ico.ICOEncoder;
 import org.json.JSONArray;
@@ -17,7 +15,7 @@ import java.util.List;
 public class CheerpjService extends BaseService {
     private BuildCheerpjAppService buildCheerpjAppService;
 
-    private static final String DEFAULT_CHEERPJ_LOADER = "https://cjrtnc.leaningtech.com/3.0rc2/cj3loader.js";
+    private static final String DEFAULT_CHEERPJ_LOADER = "https://cjrtnc.leaningtech.com/3.1/cj3loader.js";
 
     public static class Result {
         public final File dest;
@@ -57,7 +55,7 @@ public class CheerpjService extends BaseService {
         copyIconToDirectory(dest);
         createFavicon(new File(dest, "icon.png"), new File(dest, "favicon.ico"));
         createManifest(new File(dest, "manifest.json"));
-        if (isGithubPagesEnabled()) {
+        if (!flags.contains("--preview") && isGithubPagesEnabled()) {
             try {
                 publishToGithubPages();
             } catch (InterruptedException e) {
@@ -91,7 +89,7 @@ public class CheerpjService extends BaseService {
 
     public Result execute() throws IOException {
         this.run();
-        if (flags.contains("serve")) {
+        if (flags.contains("--serve")) {
             return new Result(getDestDirectory(), serve());
         }
 
