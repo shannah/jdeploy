@@ -27,7 +27,11 @@ public class BasePublishDriver implements PublishDriverInterface {
     }
 
     @Override
-    public void publish(PublishingContext context, PublishTargetInterface target) throws IOException {
+    public void publish(
+            PublishingContext context,
+            PublishTargetInterface target,
+            OneTimePasswordProviderInterface otpProvider
+    ) throws IOException {
         throw new UnsupportedOperationException("Not implemented");
     }
 

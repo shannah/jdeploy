@@ -1,8 +1,10 @@
 package ca.weblite.jdeploy.publishing.npm;
 
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
+import ca.weblite.jdeploy.npm.OneTimePasswordRequestedException;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishing.BasePublishDriver;
+import ca.weblite.jdeploy.publishing.OneTimePasswordProviderInterface;
 import ca.weblite.jdeploy.publishing.PublishDriverInterface;
 import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.tools.io.IOUtil;
@@ -29,11 +31,33 @@ public class NPMPublishDriver implements PublishDriverInterface {
     }
 
     @Override
-    public void publish(PublishingContext context, PublishTargetInterface target) throws IOException {
-        context.npm.publish(
-                context.getPublishDir(),
-                context.packagingContext.exitOnFail
-        );
+    public void publish(
+            PublishingContext context,
+            PublishTargetInterface target,
+            OneTimePasswordProviderInterface otpProvider
+    ) throws IOException {
+        try {
+            context.npm.publish(
+                    context.getPublishDir(),
+                    context.packagingContext.exitOnFail,
+                    null
+            );
+        } catch (OneTimePasswordRequestedException ex) {
+            String otp = otpProvider.promptForOneTimePassword(context, target);
+            if (otp == null || otp.isEmpty()){
+                throw new IOException("Failed to publish package to npm.  No OTP provided.");
+            }
+            try {
+                context.npm.publish(
+                        context.getPublishDir(),
+                        context.packagingContext.exitOnFail,
+                        otp
+                );
+            } catch (OneTimePasswordRequestedException ex2) {
+                throw new IOException("Failed to publish package to npm.  Invalid OTP provided.");
+            }
+        }
+
         context.out().println("Package published to npm successfully.");
         context.out().println("Waiting for npm to update its registry...");
     }

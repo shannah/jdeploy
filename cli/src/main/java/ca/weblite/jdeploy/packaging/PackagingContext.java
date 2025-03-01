@@ -9,10 +9,7 @@ import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
 import org.apache.commons.io.FileUtils;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintStream;
-import java.io.StringReader;
+import java.io.*;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -39,6 +36,8 @@ public class PackagingContext {
 
     public final PrintStream err;
 
+    public final InputStream in;
+
     public final boolean exitOnFail;
 
     public static Builder builder() {
@@ -57,6 +56,7 @@ public class PackagingContext {
             PackageSigningService packageSigningService,
             PrintStream out,
             PrintStream err,
+            InputStream in,
             boolean exitOnFail
     ) {
         this.directory = directory;
@@ -70,6 +70,7 @@ public class PackagingContext {
         this.packageSigningService = packageSigningService;
         this.out = out;
         this.err = err;
+        this.in = in;
         this.exitOnFail = exitOnFail;
     }
 
@@ -86,6 +87,7 @@ public class PackagingContext {
                 packageSigningService,
                 out,
                 err,
+                in,
                 exitOnFail
         );
     }
@@ -103,6 +105,7 @@ public class PackagingContext {
                 packageSigningService,
                 out,
                 err,
+                in,
                 exitOnFail
         );
     }
@@ -297,6 +300,9 @@ public class PackagingContext {
         private PackageSigningService packageSigningService;
         private PrintStream out;
         private PrintStream err;
+
+        private InputStream in;
+
         private boolean exitOnFail = true;
 
         public Builder directory(File directory) {
@@ -351,6 +357,11 @@ public class PackagingContext {
 
         public Builder err(PrintStream err) {
             this.err = err;
+            return this;
+        }
+
+        public Builder in(InputStream in) {
+            this.in = in;
             return this;
         }
 
@@ -474,6 +485,13 @@ public class PackagingContext {
             return System.err;
         }
 
+        private InputStream in() {
+            if (in != null) {
+                return in;
+            }
+            return System.in;
+        }
+
         public PackagingContext build() {
             initPackageJsonMap();
             initPackageSigningConfig();
@@ -489,6 +507,7 @@ public class PackagingContext {
                     packageSigningService,
                     out(),
                     err(),
+                    in(),
                     exitOnFail
             );
         }

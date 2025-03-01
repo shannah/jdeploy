@@ -46,10 +46,17 @@ public class PublishService {
     }
 
     public void publish(PublishingContext context) throws IOException {
+        publish(context, (OneTimePasswordProviderInterface) null);
+    }
+
+    public void publish(
+            PublishingContext context,
+            OneTimePasswordProviderInterface otpProvider
+    ) throws IOException {
         validateContext(context);
         JSONObject packageJson = new JSONObject(context.packagingContext.packageJsonMap);
         for (PublishTargetInterface target : publishTargetService.getTargetsForPackageJson(packageJson, true)) {
-            publish(context, target);
+            publish(context, target, otpProvider);
         }
     }
 
@@ -63,13 +70,24 @@ public class PublishService {
         }
     }
 
-    public void publish(PublishingContext context, PublishTargetInterface publishTargetInterface) throws IOException {
+    public void publish(
+            PublishingContext context,
+            PublishTargetInterface target
+    ) throws IOException {
+        publish(context, target, null);
+    }
+
+    public void publish(
+            PublishingContext context,
+            PublishTargetInterface publishTargetInterface,
+            OneTimePasswordProviderInterface otpProvider
+    ) throws IOException {
         PublishDriverInterface driver = getDriverForTarget(publishTargetInterface);
         if (alwaysPackageOnPublish(context)) {
             driver.makePackage(context, publishTargetInterface, new BundlerSettings());
         }
         driver.prepare(context, publishTargetInterface, new BundlerSettings());
-        driver.publish(context, publishTargetInterface);
+        driver.publish(context, publishTargetInterface, otpProvider);
         wait(context, getDriverForTarget(publishTargetInterface), publishTargetInterface);
         resourceUploader.uploadResources(context);
 
