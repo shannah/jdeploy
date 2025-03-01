@@ -8,6 +8,7 @@ import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import ca.weblite.jdeploy.publishing.BasePublishDriver;
+import ca.weblite.jdeploy.publishing.OneTimePasswordProviderInterface;
 import ca.weblite.jdeploy.publishing.PublishDriverInterface;
 import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.jdeploy.services.BundleCodeService;
@@ -58,7 +59,8 @@ public class GitHubPublishDriver implements PublishDriverInterface {
 
     @Override
     public void publish(PublishingContext context,
-                        PublishTargetInterface target
+                        PublishTargetInterface target,
+                        OneTimePasswordProviderInterface otpProvider
     ) throws IOException {
         String githubToken = context.getGithubToken();
         if (githubToken == null) {

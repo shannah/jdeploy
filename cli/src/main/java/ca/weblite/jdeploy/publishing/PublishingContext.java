@@ -4,6 +4,7 @@ import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.packaging.PackagingContext;
 
 import java.io.File;
+import java.io.InputStream;
 import java.io.PrintStream;
 
 public class PublishingContext {
@@ -77,6 +78,10 @@ public class PublishingContext {
 
     public PrintStream err() {
         return packagingContext.err;
+    }
+
+    public InputStream in() {
+        return packagingContext.in;
     }
 
     public File directory() {

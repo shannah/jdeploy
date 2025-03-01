@@ -6,6 +6,7 @@ import ca.weblite.jdeploy.factories.PublishTargetFactory;
 import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
+import ca.weblite.jdeploy.gui.services.SwingOneTimePasswordProvider;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
 import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
 import ca.weblite.jdeploy.gui.tabs.PublishSettingsPanel;
@@ -2136,7 +2137,10 @@ public class JDeployProjectEditor {
                     .setNPM(jdeployObject.getNPM())
                     .setGithubToken(context.getGithubToken())
                     .build();
-            jdeployObject.publish(publishingContext);
+            jdeployObject.publish(
+                    publishingContext,
+                    new SwingOneTimePasswordProvider(frame)
+            );
             EventQueue.invokeLater(()->{
                 progressDialog.setComplete();
 

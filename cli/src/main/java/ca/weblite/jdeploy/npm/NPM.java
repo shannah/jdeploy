@@ -93,6 +93,18 @@ public class NPM {
         //os.close();
     }
 
+    private void pipe(InputStream input, StringBuilder builder) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                builder.append(line).append(System.lineSeparator());
+                out.println(line); // Echoing to console
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     public static interface OTPCallback {
         public String getOTPPassword();
     }
@@ -217,43 +229,51 @@ public class NPM {
         }
     }
 
-    public void publish(File publishDir, boolean exitOnFail) throws IOException {
+    public void publish(
+            File publishDir,
+            boolean exitOnFail,
+            String oneTimePassword
+    ) throws IOException, OneTimePasswordRequestedException {
         try {
             ProcessBuilder pb;
             if (useManagedNode) {
                 npmManager.install();
-                pb = npmManager.npmExecBuilder(getEnvironment(), publishDir, new String[]{"publish"});
+                if (oneTimePassword != null) {
+                    pb = npmManager.npmExecBuilder(getEnvironment(), publishDir, new String[]{"publish", "--otp=" + oneTimePassword});
+                } else {
+                    pb = npmManager.npmExecBuilder(getEnvironment(), publishDir, new String[]{"publish"});
+                }
             } else {
                 pb = new ProcessBuilder();
                 pb.environment().putAll(getEnvironment());
                 pb.directory(publishDir);
+                if (oneTimePassword != null) {
+                    pb.command(npm, "publish", "--otp=" + oneTimePassword);
+                } else {
+                    pb.command(npm, "publish");
+                }
             }
 
-            if (out == System.out) {
-                pb.inheritIO();
-            }
-            pb.command(npm, "publish");
+            out.println("Using command " + pb.command());
             Process p = pb.start();
-            if (out != System.out) {
-                new Thread(()->{
-                    try {
-                        pipe(p.getInputStream(), out);
-                    } catch (Exception ex){
-                        ex.printStackTrace(System.err);
-                    }
-                }).start();
-            }
-            if (err != System.err) {
-                new Thread(()->{
-                    try {
-                        pipe(p.getErrorStream(), err);
-                    } catch (Exception ex){
-                        ex.printStackTrace(System.err);
-                    }
-                }).start();
-            }
+            // Capture stdout/stderr
+            StringBuilder outputBuilder = new StringBuilder();
+            StringBuilder errorBuilder = new StringBuilder();
+
+            Thread stdoutThread = new Thread(() -> pipe(p.getInputStream(), outputBuilder));
+            Thread stderrThread = new Thread(() -> pipe(p.getErrorStream(), errorBuilder));
+
+            stdoutThread.start();
+            stderrThread.start();
+
             int result = p.waitFor();
+            stdoutThread.join();
+            stderrThread.join();
+
             if (result != 0) {
+                if (oneTimePassword == null && isOtpRequired("" + outputBuilder + errorBuilder)) {
+                    throw new OneTimePasswordRequestedException();
+                }
                 if (exitOnFail) {
                     System.exit(result);
                 } else {
@@ -386,5 +406,11 @@ public class NPM {
             env.put("NPM_TOKEN", npmToken);
         }
         return env;
+    }
+
+    private boolean isOtpRequired(String npmOutput) {
+        return npmOutput.toLowerCase().contains("one-time password")
+                || npmOutput.toLowerCase().contains("otp code")
+                || npmOutput.contains("npm ERR! code EOTP");
     }
 }

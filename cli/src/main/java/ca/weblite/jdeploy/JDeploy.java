@@ -7,6 +7,7 @@ package ca.weblite.jdeploy;
 
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.cli.controllers.*;
+import ca.weblite.jdeploy.cli.services.CLIOneTimePasswordProvider;
 import ca.weblite.jdeploy.factories.PublishTargetFactory;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
@@ -17,6 +18,7 @@ import ca.weblite.jdeploy.packaging.PackageService;
 import ca.weblite.jdeploy.packaging.PackagingContext;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetType;
+import ca.weblite.jdeploy.publishing.OneTimePasswordProviderInterface;
 import ca.weblite.jdeploy.publishing.PublishService;
 import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.jdeploy.publishing.ResourceUploader;
@@ -395,11 +397,21 @@ public class JDeploy implements BundleConstants {
                 .setPackagingContext(context)
                 .setNPM(getNPM())
                 .build();
-        publish(publishingContext);
+        publish(
+                publishingContext,
+                DIContext.get(CLIOneTimePasswordProvider.class)
+        );
     }
 
     public void publish(PublishingContext context) throws IOException {
-        DIContext.get(PublishService.class).publish(context);
+        publish(context, (OneTimePasswordProviderInterface) null);
+    }
+
+    public void publish(
+            PublishingContext context,
+            OneTimePasswordProviderInterface otpProvider
+    ) throws IOException {
+        DIContext.get(PublishService.class).publish(context, otpProvider);
     }
 
     public DeveloperIdentityKeyStore getKeyStore() throws IOException {

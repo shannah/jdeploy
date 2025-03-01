@@ -8,7 +8,11 @@ import org.json.JSONObject;
 import java.io.IOException;
 
 public interface PublishDriverInterface {
-    void publish(PublishingContext context, PublishTargetInterface target) throws IOException;
+    void publish(
+            PublishingContext context,
+            PublishTargetInterface target,
+            OneTimePasswordProviderInterface otpProvider
+    ) throws IOException;
     void prepare(PublishingContext context, PublishTargetInterface target, BundlerSettings bundlerSettings) throws IOException;
 
     void makePackage(PublishingContext context, PublishTargetInterface target, BundlerSettings bundlerSettings) throws IOException;
