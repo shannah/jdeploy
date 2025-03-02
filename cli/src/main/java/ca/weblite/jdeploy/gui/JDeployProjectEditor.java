@@ -52,6 +52,7 @@ import java.util.*;
 import java.util.List;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 
 import static ca.weblite.jdeploy.PathUtil.fromNativePath;
 import static ca.weblite.jdeploy.PathUtil.toNativePath;
@@ -1434,39 +1435,8 @@ public class JDeployProjectEditor {
 
         JButton viewDownloadPage = new JButton("View Download Page");
         viewDownloadPage.addActionListener(evt->{
-            String packageName = packageJSON.getString("name");
-            String source = packageJSON.has("source") ? packageJSON.getString("source") : "";
             try {
-                JSONObject packageInfo = getNPM()
-                        .fetchPackageInfoFromNpm(packageName, source);
-
-            } catch (Exception ex) {
-                GithubService githubService = DIContext.getInstance().getInstance(GithubService.class);
-                String githubUrl = githubService.getFirstRemoteHttpsUrl(
-                        packageJSONFile.getParentFile().getAbsolutePath()
-                );
-                if (githubUrl != null) {
-                    String releasesUrl = githubUrl + "/releases";
-                    if (githubService.isRepoPrivateOrDoesNotExist(githubUrl)) {
-                        releasesUrl = githubUrl + "-releases/releases";
-                    }
-                    try {
-                        context.browse(new URI(releasesUrl));
-                        return;
-                    } catch (Exception ex2) {
-                        showError("Failed to open download page.  "+ex2.getMessage(), ex2);
-                        return;
-                    }
-                }
-                showError(
-                        "Unable to load your package details from NPM.  " +
-                                "Either you haven't published your app yet, or there was a network error.",
-                        ex
-                );
-                return;
-            }
-            try {
-                context.browse(new URI("https://www.jdeploy.com/~" + packageName));
+                context.browse(new URI(getDownloadPageUrl()));
             } catch (Exception ex) {
                 showError("Failed to open download page.  "+ex.getMessage(), ex);
             }
@@ -1482,19 +1452,19 @@ public class JDeployProjectEditor {
         publish.setDefaultCapable(true);
 
         publish.addActionListener(evt->{
-
+            String publishTargetName = getPublishTargetNames();
+            String downloadPageUrl = getDownloadPageUrl();
             int result = JOptionPane.showConfirmDialog(
                     frame,
-                    new JLabel("<html><p style='width:400px'>Are you sure you want to publish your app to npm?  " +
+                    new JLabel("<html><p style='width:400px'>Are you sure you want to publish your app to " + publishTargetName + "?  " +
                     "Once published, users will be able to download your app at " +
-                            "<a href='https://www.jdeploy.com/~" +
-                            packageJSON.getString("name")+"'>" +
-                            "https://www.jdeploy.com/~"+packageJSON.getString("name") +
+                            "<a href='" + downloadPageUrl + "'>" +
+                            downloadPageUrl +
                             "</a>." +
                             "<br/>Do you wish to proceed?</p>" +
                             "</html>"
                     ),
-                    "Publish to NPM?",
+                    "Publish to " + publishTargetName + "?",
                     JOptionPane.YES_NO_OPTION);
             if (result == JOptionPane.NO_OPTION) {
                 return;
@@ -2022,6 +1992,50 @@ public class JDeployProjectEditor {
         }
     }
 
+    private String getPublishTargetNames() {
+        try {
+            return DIContext.get(PublishTargetServiceInterface.class)
+                    .getTargetsForProject(
+                            packageJSONFile
+                                    .getAbsoluteFile()
+                                    .getParentFile()
+                                    .getAbsolutePath(),
+                            true
+                    ).stream()
+                    .map(t -> t.getType().name())
+                    .collect(Collectors.joining(", "));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private String getDownloadPageUrl() {
+        try {
+            List<PublishTargetInterface> targets = DIContext.get(PublishTargetServiceInterface.class)
+                    .getTargetsForProject(
+                            packageJSONFile
+                                    .getAbsoluteFile()
+                                    .getParentFile()
+                                    .getAbsolutePath(),
+                            true
+                    );
+            PublishTargetInterface npmTarget = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
+            if (npmTarget != null) {
+                return "https://www.jdeploy.com/~"+packageJSON.getString("name");
+            }
+
+            PublishTargetInterface githubTarget = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
+            if (githubTarget != null) {
+                return githubTarget.getUrl() + "/releases/tag/" + packageJSON.getString("version");
+            }
+
+        } catch (IOException e) {
+            return "https://www.jdeploy.com/~"+packageJSON.getString("name");
+        }
+
+        return "https://www.jdeploy.com/~"+packageJSON.getString("name");
+    }
+
     private void handlePublish0() throws ValidationException {
         if (!EventQueue.isDispatchThread()) {
             // We don't prompt on the dispatch thread because promptForNpmToken blocks
@@ -2110,7 +2124,7 @@ public class JDeployProjectEditor {
         // Let's check to see if we're logged into
 
 
-        ProgressDialog progressDialog = new ProgressDialog(packageJSON.getString("name"));
+        ProgressDialog progressDialog = new ProgressDialog(packageJSON.getString("name"), getDownloadPageUrl());
 
         PackagingContext packagingContext = PackagingContext.builder()
                 .directory(packageJSONFile.getAbsoluteFile().getParentFile())
@@ -2125,7 +2139,7 @@ public class JDeployProjectEditor {
         jdeployObject.setUseManagedNode(context.useManagedNode());
         EventQueue.invokeLater(()->{
             progressDialog.show(frame, "Publishing in Progress...");
-            progressDialog.setMessage1("Publishing "+packageJSON.get("name")+" to npm.  Please wait...");
+            progressDialog.setMessage1("Publishing "+packageJSON.get("name")+" to " + getPublishTargetNames()+".  Please wait...");
             progressDialog.setMessage2("");
 
         });

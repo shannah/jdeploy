@@ -39,7 +39,7 @@ public class GenerateGithubWorkflowController implements Runnable {
                         "<p style='width:400px'>\" +\n" +
                         "This will create a workflow file at .github/workflows/jdeploy.yml, which you can then customize to suit your needs.</p>" +
                         "</html>"),
-                "Publish to NPM?",
+                "Generate GitHub Workflow?",
                 JOptionPane.YES_NO_OPTION);
         if (result == JOptionPane.NO_OPTION) {
             return;
