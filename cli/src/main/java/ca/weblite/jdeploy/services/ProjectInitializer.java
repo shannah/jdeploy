@@ -167,6 +167,12 @@ public class ProjectInitializer {
             if (commandName.endsWith(".jar") || commandName.endsWith(".war")) {
                 commandName = commandName.substring(0, commandName.lastIndexOf("."));
             }
+            if (commandName.endsWith("-SNAPSHOT")) {
+                commandName = commandName.substring(0, commandName.lastIndexOf("-SNAPSHOT"));
+            }
+            // Strip version suffixes like -1.0.0, 1.0, 1.0-rc1, etc..
+            commandName = commandName.replaceAll("-[0-9]+(\\.[0-9]+)*(-[a-zA-Z0-9]+)?$", "");
+
             commandName = commandName.replaceAll("[^a-zA-Z0-9_\\-]", "-");
         }
 
