@@ -185,14 +185,13 @@ runs:
       env:
         GH_TOKEN: ${{ github.actor }}:${{ inputs.github_token }}
 
-    - name: Publish package-info.json to Github
-      uses: marvinpinto/action-automatic-releases@latest
+    - name: Publish package-info.json to GitHub
+      uses: softprops/action-gh-release@v2
       if: ${{ inputs.deploy_target == 'github' && inputs.target_repository == github.repository }}
       with:
-        repo_token: "${{ inputs.github_token }}"
-        automatic_release_tag: "jdeploy"
+        token: ${{ inputs.github_token }}
+        tag_name: "jdeploy"
         prerelease: true
-        title: "jDeploy Package Info"
         files: ./jdeploy/github-release-files/package-info.json
 
     - name: Publish package-info.json to Github
@@ -204,15 +203,15 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.github_token }}
 
-    - name: Upload files to Github Snapshot Release for Branch
-      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' && inputs.target_repository == github.repository }}
-      uses: marvinpinto/action-automatic-releases@latest
+    - name: Upload files to GitHub Snapshot Release for Branch
+      uses: softprops/action-gh-release@v2
+      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
       with:
-        repo_token: "${{ inputs.github_token }}"
-        automatic_release_tag: "${{ github.ref_name }}"
+        tag_name: "${{ github.ref_name }}"
+        token: "${{ inputs.github_token }}"
         prerelease: true
-        title: "Native Bundles (${{ github.ref_name }})"
-        files: "./jdeploy/github-release-files/*"
+        files: |
+          ./jdeploy/github-release-files/*
 
     - name: Upload files to Github Snapshot Release for Branch
       if: ${{ inputs.deploy_target == 'github' && inputs.target_repository != github.repository }}
@@ -225,7 +224,7 @@ runs:
 
     - name: Upload Files to Github Release for Tag
       if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' && inputs.target_repository == github.repository }}
-      uses: xresloader/upload-to-github-release@v1
+      uses: xresloader/upload-to-github-release@v1.6.0
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       with:
