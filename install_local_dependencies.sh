@@ -19,3 +19,7 @@ mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
                          -Dfile=lib/image4j-0.7.2.jar -DgroupId=ca.weblite.jdeploy \
                          -DartifactId=image4j -Dversion=0.7.2 \
                          -Dpackaging=jar -DlocalRepositoryPath=maven-repository
+mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
+                         -Dfile=lib/Blake2b-dfb5dcaa85.jar -DgroupId=ca.weblite.jdeploy \
+                         -DartifactId=blake2b -Dversion=1.0.0 \
+                         -Dpackaging=jar -DlocalRepositoryPath=maven-repository

@@ -240,10 +240,11 @@
 
         <!-- https://mvnrepository.com/artifact/com.github.alphazero/Blake2b -->
         <dependency>
-            <groupId>com.github.alphazero</groupId>
-            <artifactId>Blake2b</artifactId>
-            <version>bbf094983c</version>
+            <groupId>ca.weblite.jdeploy</groupId>
+            <artifactId>blake2b</artifactId>
+            <version>1.0.0</version>
         </dependency>
+
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -336,11 +337,6 @@
                 <enabled>false</enabled>
             </snapshots>
         </repository>
-        <repository>
-            <id>sci-java</id>
-            <url>https://maven.scijava.org/content/repositories/public</url>
-        </repository>
-
     </repositories>
 
 </project>
