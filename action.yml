@@ -225,7 +225,7 @@ runs:
 
     - name: Upload Files to Github Release for Tag
       if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' && inputs.target_repository == github.repository }}
-      uses: xresloader/upload-to-github-release@v1
+      uses: xresloader/upload-to-github-release@v1.6.0
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       with:
