@@ -4,7 +4,7 @@
     <groupId>ca.weblite</groupId>
     <artifactId>jdeploy-javafx-starter</artifactId>
     <packaging>pom</packaging>
-    <version>1.0.7</version>
+    <version>1.0.8</version>
     <name>jDeploy JavaFX Starter Parent</name>
     <description>Parent for JavaFX starter project</description>
     <url>https://www.jdeploy.com</url>
@@ -104,20 +104,6 @@
                     <configuration>
                         <mainClass>${maven.compiler.main.class}</mainClass>
                     </configuration>
-                </plugin>
-                <plugin>
-                    <groupId>ca.weblite</groupId>
-                    <artifactId>jdeploy-maven-plugin</artifactId>
-                    <version>${jdeploy.maven.plugin.version}</version>
-                    <executions>
-                        <execution>
-                            <id>jdeploy</id>
-                            <phase>package</phase>
-                            <goals>
-                                <goal>sync-package-json</goal>
-                            </goals>
-                        </execution>
-                    </executions>
                 </plugin>
             </plugins>
         </pluginManagement>
