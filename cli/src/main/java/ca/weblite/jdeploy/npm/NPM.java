@@ -1,7 +1,9 @@
 package ca.weblite.jdeploy.npm;
 
 import ca.weblite.jdeploy.JDeploy;
+import ca.weblite.jdeploy.services.PlatformService;
 import ca.weblite.tools.io.IOUtil;
+import ca.weblite.tools.platform.Platform;
 import org.json.JSONObject;
 
 import java.io.*;
@@ -404,7 +406,9 @@ public class NPM {
         Map<String,String> env = new HashMap<String,String>();
         if (npmToken != null) {
             env.put("NPM_TOKEN", npmToken);
-            env.put("npm_config_//registry.npmjs.org/:_authToken", npmToken);
+            if (!Platform.getSystemPlatform().isWindows()) {
+                env.put("npm_config_//registry.npmjs.org/:_authToken", npmToken);
+            }
         }
 
         return env;
