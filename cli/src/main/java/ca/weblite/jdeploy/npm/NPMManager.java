@@ -195,9 +195,20 @@ public class NPMManager {
         command.addAll(Arrays.asList(args));
 
         ProcessBuilder builder = new ProcessBuilder(command);
-        if (env != null) {
-            builder.environment().putAll(env);
+        if (env == null) {
+            env = new HashMap<String,String>();
         }
+
+        Map<String,String> systemEnv = System.getenv();
+        // Append to PATH
+        String existingPath = systemEnv.getOrDefault("PATH", "");
+        String newPathEntry = Paths.get(getNodePath()).getParent().toString();
+        String pathSeparator = File.pathSeparator;
+        String updatedPath = newPathEntry + pathSeparator + existingPath;
+
+        env.put("PATH", updatedPath);
+        builder.environment().putAll(env);
+
         if (directory != null) {
             builder.directory(directory);
         }
@@ -380,7 +391,56 @@ public class NPMManager {
         }
     }
 
-    private void extractTarArchive(File tarFile, File destinationDir) throws IOException {
+    public void extractTarArchive(File tarFile, File destinationDir) throws IOException {
+        if (isUnixLike()) {
+            try {
+                extractWithSystemTar(tarFile, destinationDir);
+                return;
+            } catch (IOException | InterruptedException e) {
+                throw new IOException("System tar extraction failed: " + e.getMessage(), e);
+            }
+        }
+
+        // Fallback to Java extraction (Windows)
+        extractTarArchiveWithJava(tarFile, destinationDir);
+    }
+
+    private boolean isUnixLike() {
+        String os = System.getProperty("os.name").toLowerCase(Locale.ENGLISH);
+        return os.contains("mac") || os.contains("nix") || os.contains("nux") || os.contains("aix");
+    }
+
+    private void extractWithSystemTar(File tarFile, File destinationDir) throws IOException, InterruptedException {
+        if (!destinationDir.exists()) {
+            destinationDir.mkdirs();
+        }
+        List<String> command = new ArrayList<>();
+        if (tarFile.getName().endsWith(".tar.gz")) {
+            command.add("tar");
+            command.add("-xzf");
+        } else if (tarFile.getName().endsWith(".tar.xz")) {
+            command.add("tar");
+            command.add("-xJf");
+        } else {
+            throw new IllegalArgumentException("Unsupported archive format: " + tarFile.getName());
+        }
+
+        command.add(tarFile.getAbsolutePath());
+        command.add("--strip-components=1");
+        command.add("-C");
+        command.add(destinationDir.getAbsolutePath());
+
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.inheritIO(); // Optional: pipe output to console
+        Process process = pb.start();
+        int exitCode = process.waitFor();
+
+        if (exitCode != 0) {
+            throw new IOException("System tar command failed with exit code " + exitCode);
+        }
+    }
+
+    private void extractTarArchiveWithJava(File tarFile, File destinationDir) throws IOException {
         String topLevelDir = null;
         try (FileInputStream fi = new FileInputStream(tarFile);
              BufferedInputStream bi = new BufferedInputStream(fi);
@@ -394,7 +454,6 @@ public class NPMManager {
                 String entryName = entry.getName();
 
                 if (topLevelDir == null) {
-                    // Determine the top-level directory
                     int slashIndex = entryName.indexOf('/');
                     if (slashIndex > 0) {
                         topLevelDir = entryName.substring(0, slashIndex + 1);
@@ -405,20 +464,15 @@ public class NPMManager {
                     if (entryName.startsWith(topLevelDir)) {
                         entryName = entryName.substring(topLevelDir.length());
                     } else {
-                        // Entry does not start with the expected top-level directory
-                        // Skip this entry
                         continue;
                     }
                 }
 
-                // Skip empty entry names
                 if (entryName.isEmpty()) {
                     continue;
                 }
 
                 File newFile = new File(destinationDir, entryName);
-
-                // Prevent Zip Slip vulnerability
                 String destDirPath = destinationDir.getCanonicalPath();
                 String destFilePath = newFile.getCanonicalPath();
                 if (!destFilePath.startsWith(destDirPath + File.separator)) {
@@ -426,24 +480,20 @@ public class NPMManager {
                 }
 
                 if (entry.isDirectory()) {
-                    // Create directories
                     if (!newFile.exists()) {
                         newFile.mkdirs();
                     }
                 } else {
-                    // Ensure parent directories exist
                     File parent = newFile.getParentFile();
                     if (!parent.exists()) {
                         parent.mkdirs();
                     }
 
-                    // Write file content
                     try (OutputStream out = new FileOutputStream(newFile)) {
                         IOUtils.copy(tarIn, out);
                     }
 
-                    // Set executable permissions if necessary
-                    if ((entry.getMode() & 0100) != 0) { // Owner execute bit
+                    if ((entry.getMode() & 0100) != 0) {
                         newFile.setExecutable(true, true);
                     }
                 }
@@ -488,12 +538,12 @@ public class NPMManager {
     }
 
     private String archForDownload(String arch) {
-        if (arch.contains("64")) {
+        if (arch.startsWith("arm") || arch.startsWith("aarch")) {
+            return "arm64";
+        } else if (arch.contains("64")) {
             return "x64";
         } else if (arch.contains("86")) {
             return "x86";
-        } else if (arch.startsWith("arm")) {
-            return "arm64";
         } else {
             throw new UnsupportedOperationException("Unsupported architecture: " + arch);
         }

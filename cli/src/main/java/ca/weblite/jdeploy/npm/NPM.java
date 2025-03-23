@@ -404,7 +404,9 @@ public class NPM {
         Map<String,String> env = new HashMap<String,String>();
         if (npmToken != null) {
             env.put("NPM_TOKEN", npmToken);
+            env.put("npm_config_//registry.npmjs.org/:_authToken", npmToken);
         }
+
         return env;
     }
 
