@@ -178,6 +178,7 @@
                         </executions>
                         <configuration>
                             <!-- Prevent gpg from using pinentry programs -->
+                            <executable>/opt/homebrew/bin/gpg</executable>
                             <gpgArguments>
                                 <arg>--pinentry-mode</arg>
                                 <arg>loopback</arg>
