@@ -41,6 +41,8 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.JTextComponent;
 import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.FocusAdapter;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -548,6 +550,17 @@ public class JDeployProjectEditor {
     private void initMainFields(Container cnt) {
         mainFields = new MainFields();
         DetailsPanel detailsPanel = new DetailsPanel();
+        detailsPanel.getProjectPath().setText(packageJSONFile.getAbsoluteFile().getParentFile().getAbsolutePath());
+        // Set a small font in the project path
+        detailsPanel.getProjectPath().setFont(detailsPanel.getProjectPath().getFont().deriveFont(10f));
+
+        detailsPanel.getCopyPath().setText("");
+        detailsPanel.getCopyPath().setIcon(FontIcon.of(Material.CONTENT_COPY));
+        detailsPanel.getCopyPath().addActionListener(evt -> {
+            StringSelection stringSelection = new StringSelection(detailsPanel.getProjectPath().getText());
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(stringSelection, null);
+        });
         mainFields.name = detailsPanel.getName();
         if (packageJSON.has("name")) {
             mainFields.name.setText(packageJSON.getString("name"));
