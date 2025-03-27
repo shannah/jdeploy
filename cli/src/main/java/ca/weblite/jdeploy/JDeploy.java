@@ -16,6 +16,7 @@ import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
 import ca.weblite.jdeploy.packaging.JarFinder;
 import ca.weblite.jdeploy.packaging.PackageService;
 import ca.weblite.jdeploy.packaging.PackagingContext;
+import ca.weblite.jdeploy.publishTargets.PublishTarget;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import ca.weblite.jdeploy.publishing.OneTimePasswordProviderInterface;

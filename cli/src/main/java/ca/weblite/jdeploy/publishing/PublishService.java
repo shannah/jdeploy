@@ -89,8 +89,9 @@ public class PublishService {
         driver.prepare(context, publishTargetInterface, new BundlerSettings());
         driver.publish(context, publishTargetInterface, otpProvider);
         wait(context, getDriverForTarget(publishTargetInterface), publishTargetInterface);
-        resourceUploader.uploadResources(context);
-
+        if (publishTargetInterface.getType().requiresAssetsUploadToJdeployServer()) {
+            resourceUploader.uploadResources(context);
+        }
     }
 
     public void prepublish(

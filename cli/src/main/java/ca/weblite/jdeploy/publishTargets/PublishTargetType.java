@@ -12,4 +12,8 @@ public enum PublishTargetType {
     public boolean isDefaultSource() {
         return this == NPM;
     }
+
+    public boolean requiresAssetsUploadToJdeployServer() {
+        return this == NPM;
+    }
 }

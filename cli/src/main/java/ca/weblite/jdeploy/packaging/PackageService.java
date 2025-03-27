@@ -85,6 +85,9 @@ public class PackageService implements BundleConstants {
             if (jdeployBundle.exists()) {
                 FileUtils.deleteDirectory(jdeployBundle);
             }
+            if (context.getInstallersDir().exists()) {
+                FileUtils.deleteDirectory(context.getInstallersDir());
+            }
         }
         copyToBin(context);
         if (context.isPackageSigningEnabled()) {

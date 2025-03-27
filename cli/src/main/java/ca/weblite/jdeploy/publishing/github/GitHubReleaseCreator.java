@@ -62,7 +62,13 @@ public class GitHubReleaseCreator {
         }
     }
 
-    public void createRelease(String repositoryUrl, String githubToken, String releaseName, File releaseDescriptionFile, File[] artifacts) throws IOException {
+    public void createRelease(
+            String repositoryUrl,
+            String githubToken,
+            String releaseName,
+            File releaseDescriptionFile,
+            File[] artifacts
+    ) throws IOException {
         String description = new String(Files.readAllBytes(releaseDescriptionFile.toPath()), "UTF-8");
         createRelease(repositoryUrl, githubToken, releaseName, description, artifacts);
     }
