@@ -47,7 +47,7 @@ public class ZipUtil {
                 if (entry.getLastModifiedTime() != null) {
                     newEntry.setLastModifiedTime(entry.getLastModifiedTime());
                 }
-                //newEntry.setDiskNumberStart(entry.getDiskNumberStart());
+                newEntry.setDiskNumberStart(entry.getDiskNumberStart());
                 newEntry.setVersionMadeBy(entry.getVersionMadeBy());
                 newEntry.setVersionRequired(entry.getVersionRequired());
                 newEntry.setLastAccessTime(entry.getLastAccessTime());
