@@ -146,6 +146,7 @@ public class ProjectGenerator {
                         ".java",
                         ".properties",
                         ".xml",
+                        ".fxml",
                         ".gradle",
                         ".json",
                         ".yml",

@@ -82,6 +82,10 @@ public class ProjectBuilderService {
             }
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException("Error executing build command", e);
+        } finally {
+            if (fileOutputStream != null) {
+                fileOutputStream.close();
+            }
         }
     }
 
