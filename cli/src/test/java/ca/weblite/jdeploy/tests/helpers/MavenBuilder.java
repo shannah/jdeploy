@@ -28,11 +28,16 @@ public class MavenBuilder {
         if (mvnwUnixWrapper.exists() || mvnwWindowsWrapper.exists()) {
             // Use the Maven Wrapper
             invoker.setMavenHome(new File(projectDirectory));
-            if (platformService.isWindows() && mvnwWindowsWrapper.exists())
+            if (platformService.isWindows() && mvnwWindowsWrapper.exists()) {
+                mvnwWindowsWrapper.setExecutable(true, false);
                 invoker.setMavenExecutable(mvnwWindowsWrapper);
-            else if (!platformService.isWindows() && mvnwUnixWrapper.exists()) {
+            } else if (!platformService.isWindows() && mvnwUnixWrapper.exists()) {
+                mvnwUnixWrapper.setExecutable(true, false);
                 invoker.setMavenExecutable(mvnwUnixWrapper);
             } else {
+                // If both wrappers exist, prefer the Unix one
+                mvnwUnixWrapper.setExecutable(true, false);
+                mvnwWindowsWrapper.setExecutable(true, false);
                 invoker.setMavenExecutable(mvnwUnixWrapper.exists() ? mvnwUnixWrapper : mvnwWindowsWrapper);
             }
         } else {

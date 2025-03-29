@@ -1,8 +1,10 @@
 package ca.weblite.jdeploy.services;
 
 import ca.weblite.jdeploy.packaging.PackagingContext;
+import ca.weblite.tools.platform.Platform;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.List;
 
 public class ProjectBuilderService {
@@ -14,6 +16,9 @@ public class ProjectBuilderService {
         // Execute the build command
         List<String> buildCommand = context.getProjectBuildCommand();
 
+        if (Platform.getSystemPlatform().isWindows()) {
+            buildCommand = appendWindowsSuffixes(buildCommand);
+        }
         if (
                 buildCommand.size() > 0
                         && (
@@ -91,5 +96,40 @@ public class ProjectBuilderService {
 
     public boolean isBuildSupported(PackagingContext context) {
         return context.getProjectBuildCommand() != null;
+    }
+
+    private List<String> appendWindowsSuffixes(List<String> buildCommand) {
+        List<String> out = new ArrayList<>();
+        for (String command : buildCommand) {
+            out.add(applyWindowsSuffix(command));
+        }
+
+        return out;
+    }
+
+    private String applyWindowsSuffix(String command) {
+        if (command.endsWith("/gradlew") || command.endsWith("mvnw")) {
+            String batCommand = command += ".bat";
+            String cmdCommand = command += ".cmd";
+            if (new File(batCommand).exists()) {
+                return batCommand;
+            } else if (new File(cmdCommand).exists()) {
+                return cmdCommand;
+            } else {
+                return command;
+            }
+        } else if (command.endsWith(".sh")) {
+            String batCommand = command.replace(".sh", ".bat");
+            String cmdCommand = command.replace(".sh", ".cmd");
+            if (new File(batCommand).exists()) {
+                return batCommand;
+            } else if (new File(cmdCommand).exists()) {
+                return cmdCommand;
+            } else {
+                return command;
+            }
+        }
+
+        return command;
     }
 }
