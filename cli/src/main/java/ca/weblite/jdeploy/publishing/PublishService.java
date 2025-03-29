@@ -147,4 +147,5 @@ public class PublishService {
                 publishTargetService.getTargetsForPackageJson(new JSONObject(context.packagingContext.packageJsonMap), false)
                         .stream().anyMatch(target -> target.getType() == PublishTargetType.GITHUB);
     }
+
 }

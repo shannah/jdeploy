@@ -12,6 +12,7 @@ import ca.weblite.jdeploy.appbundler.mac.DmgCreator;
 import ca.weblite.jdeploy.environment.Environment;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.services.BundleCodeService;
+import ca.weblite.jdeploy.services.ProjectBuilderService;
 import ca.weblite.jdeploy.services.VersionCleaner;
 import ca.weblite.tools.io.ArchiveUtil;
 import ca.weblite.tools.io.FileUtil;
@@ -53,6 +54,8 @@ public class PackageService implements BundleConstants {
 
     private final CopyJarRuleBuilder copyJarRuleBuilder;
 
+    private final ProjectBuilderService projectBuilderService;
+
     @Inject
     public PackageService(
             Environment environment,
@@ -60,7 +63,8 @@ public class PackageService implements BundleConstants {
             ClassPathFinder classPathFinder,
             CompressionService compressionService,
             BundleCodeService bundleCodeService,
-            CopyJarRuleBuilder copyJarRuleBuilder
+            CopyJarRuleBuilder copyJarRuleBuilder,
+            ProjectBuilderService projectBuilderService
     ) {
         this.environment = environment;
         this.jarFinder = jarFinder;
@@ -68,6 +72,7 @@ public class PackageService implements BundleConstants {
         this.compressionService = compressionService;
         this.bundleCodeService = bundleCodeService;
         this.copyJarRuleBuilder = copyJarRuleBuilder;
+        this.projectBuilderService = projectBuilderService;
     }
 
     public void createJdeployBundle(
@@ -80,6 +85,14 @@ public class PackageService implements BundleConstants {
             PackagingContext context,
             BundlerSettings bundlerSettings
         ) throws IOException {
+        if (isBuildRequired(context)) {
+            if (projectBuilderService.isBuildSupported(context)) {
+                context.out.println("Building project...");
+                projectBuilderService.buildProject(context, null);
+            } else {
+                context.out.println("Skipping build step.  No build tool detected.");
+            }
+        }
         File jdeployBundle = new File(context.directory, "jdeploy-bundle");
         if (context.alwaysClean) {
             if (jdeployBundle.exists()) {
@@ -1025,7 +1038,19 @@ public class PackageService implements BundleConstants {
         } else {
             throw new JDeploy.FailException(message, code);
         }
+    }
 
+    private boolean isBuildRequired(PackagingContext context) {
+        if (context.isBuildRequired) {
+            return true;
+        }
+
+        String jar = context.getJar(null);
+        if (jar != null) {
+            return jarFinder.findJarFile(context) == null;
+        }
+
+        return false;
     }
 
 }

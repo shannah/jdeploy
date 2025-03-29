@@ -40,6 +40,8 @@ public class PackagingContext {
 
     public final boolean exitOnFail;
 
+    public boolean isBuildRequired = false;
+
     public static Builder builder() {
         return new Builder();
     }
@@ -57,7 +59,8 @@ public class PackagingContext {
             PrintStream out,
             PrintStream err,
             InputStream in,
-            boolean exitOnFail
+            boolean exitOnFail,
+            boolean isBuildRequired
     ) {
         this.directory = directory;
         this.packageJsonMap = packageJsonMap;
@@ -88,7 +91,8 @@ public class PackagingContext {
                 out,
                 err,
                 in,
-                exitOnFail
+                exitOnFail,
+                isBuildRequired
         );
     }
 
@@ -106,7 +110,8 @@ public class PackagingContext {
                 out,
                 err,
                 in,
-                exitOnFail
+                exitOnFail,
+                isBuildRequired
         );
     }
 
@@ -188,6 +193,26 @@ public class PackagingContext {
             return r().getAsArray("jdeploy/"+property);
         }
         return defaultEmptyList ? new ArrayList() : null;
+    }
+
+    public List<String> getProjectBuildCommand() {
+        List buildCommand = getList("buildCommand", false);
+        if (buildCommand == null) {
+            return null;
+        }
+
+        List<String> out = new ArrayList<>();
+        for (Object o : buildCommand) {
+            if (o instanceof String) {
+                out.add((String)o);
+            } else {
+                throw new IllegalArgumentException(
+                        "Invalid buildCommand entry: "+o+" is not a String.  All entries must be Strings."
+                );
+            }
+        }
+
+        return out;
     }
 
     public int getJavaVersion(int defaultValue) {
@@ -304,6 +329,7 @@ public class PackagingContext {
         private InputStream in;
 
         private boolean exitOnFail = true;
+        private boolean isBuildRequired = false;
 
         public Builder directory(File directory) {
             this.directory = directory;
@@ -322,6 +348,11 @@ public class PackagingContext {
 
         public Builder alwaysClean(boolean alwaysClean) {
             this.alwaysClean = alwaysClean;
+            return this;
+        }
+
+        public Builder isBuildRequired(boolean isBuildRequired) {
+            this.isBuildRequired = isBuildRequired;
             return this;
         }
 
@@ -508,7 +539,8 @@ public class PackagingContext {
                     out(),
                     err(),
                     in(),
-                    exitOnFail
+                    exitOnFail,
+                    isBuildRequired
             );
         }
     }

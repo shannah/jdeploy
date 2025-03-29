@@ -15,6 +15,8 @@ import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
 import ca.weblite.jdeploy.packaging.PackagingContext;
+import ca.weblite.jdeploy.packaging.PackagingPreferences;
+import ca.weblite.jdeploy.packaging.PackagingPreferencesService;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetServiceInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetType;
@@ -1488,6 +1490,17 @@ public class JDeployProjectEditor {
             }).start();
         });
 
+        JCheckBox buildOnPublish = new JCheckBox("Build Project");
+        buildOnPublish.setToolTipText("Build the project before publishing.  " +
+                "This will ensure that the latest changes are included in the published app.");
+        PackagingPreferencesService packagingPreferencesService = DIContext.get(PackagingPreferencesService.class);
+        PackagingPreferences packagingPreferences = packagingPreferencesService.getPackagingPreferences(packageJSONFile.getAbsolutePath());
+        buildOnPublish.setSelected(packagingPreferences.isBuildProjectBeforePackaging());
+        buildOnPublish.addActionListener(evt->{
+            packagingPreferences.setBuildProjectBeforePackaging(buildOnPublish.isSelected());
+            packagingPreferencesService.setPackagingPreferences(packagingPreferences);
+        });
+
         JButton apply = new JButton("Apply");
         apply.addActionListener(evt -> handleSave());
 
@@ -1500,6 +1513,7 @@ public class JDeployProjectEditor {
         }
         if (context.shouldShowPublishButton()) {
             bottomButtons.add(publish);
+            bottomButtons.add(buildOnPublish);
         }
         if (context.shouldDisplayApplyButton()) {
             bottomButtons.add(apply);
@@ -2086,6 +2100,40 @@ public class JDeployProjectEditor {
                     "The selected jar file is not a jar file.  Jar files must have the .jar extension"
             );
         }
+
+        ProjectBuilderService projectBuilderService = DIContext.get(ProjectBuilderService.class);
+        PackagingPreferencesService packagingPreferencesService = DIContext.get(PackagingPreferencesService.class);
+        PackagingPreferences packagingPreferences = packagingPreferencesService.getPackagingPreferences(packageJSONFile.getAbsolutePath());
+        boolean buildRequired = packagingPreferences.isBuildProjectBeforePackaging();
+        PackagingContext buildContext = PackagingContext.builder()
+                .directory(absDirectory)
+                .exitOnFail(false)
+                .isBuildRequired(buildRequired)
+                .build();
+
+        if (!jarFile.exists()) {
+            // If the jar file doesn't exist, then we need to build the project.
+            if (projectBuilderService.isBuildSupported(buildContext)) {
+                try {
+                    File buildLogFile = File.createTempFile("jdeploy-build-log", ".txt");
+                    try {
+                        projectBuilderService.buildProject(buildContext, buildLogFile);
+                        buildRequired = false;
+                    } catch (Exception ex) {
+                        ex.printStackTrace(System.err);
+                        throw new ValidationException(
+                                "Failed to build project before publishing.  See build log at "
+                                        + buildLogFile.getAbsolutePath(),
+                                ex
+                        );
+                    }
+                } catch (IOException ex) {
+                    ex.printStackTrace(System.err);
+                    throw new ValidationException("Failed to create build log file", ex);
+                }
+
+            }
+        }
         if (!jarFile.exists()) {
             throw new ValidationException(
                     "The selected jar file does not exist.  Please check the selected jar file and try again."
@@ -2144,6 +2192,7 @@ public class JDeployProjectEditor {
                 .out(new PrintStream(progressDialog.createOutputStream()))
                 .err(new PrintStream(progressDialog.createOutputStream()))
                 .exitOnFail(false)
+                .isBuildRequired(buildRequired)
                 .build();
         JDeploy jdeployObject = new JDeploy(packageJSONFile.getAbsoluteFile().getParentFile(), false);
         jdeployObject.setOut(packagingContext.out);
