@@ -75,6 +75,7 @@ public class PackagingContext {
         this.err = err;
         this.in = in;
         this.exitOnFail = exitOnFail;
+        this.isBuildRequired = isBuildRequired;
     }
 
     public PackagingContext withInstallers(String... installers) {
