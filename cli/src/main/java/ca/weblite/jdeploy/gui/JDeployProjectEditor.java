@@ -1847,24 +1847,67 @@ public class JDeployProjectEditor {
     }
 
     private void showError(String message, Throwable exception) {
-        JOptionPane.showMessageDialog(
-                frame,
-                new JLabel(
-                        "<html><p style='width:400px'>"+message+"</p></html>"
-                ),
-                "Error",
-                JOptionPane.ERROR_MESSAGE
-        );
+        File logFile = exception instanceof ValidationException
+                ? ((ValidationException) exception).getLogFile()
+                : null;
+
+        JPanel dialogComponent = new JPanel();
+        dialogComponent.setLayout(new BoxLayout(dialogComponent, BoxLayout.Y_AXIS));
+        dialogComponent.setOpaque(false);
+        dialogComponent.setBorder(new EmptyBorder(10, 10, 10, 10));
+        dialogComponent.add(new JLabel(
+                "<html><p style='width:400px'>" + message + "</p></html>"
+        ));
+
+        if (logFile != null) {
+            String[] options = {"Copy Path", "OK"};
+            int choice = JOptionPane.showOptionDialog(
+                    frame,
+                    dialogComponent,
+                    "Error",
+                    JOptionPane.DEFAULT_OPTION,
+                    JOptionPane.ERROR_MESSAGE,
+                    null,
+                    options,
+                    options[1]
+            );
+
+            if (choice == 0) { // Copy Path selected
+                try {
+                    StringSelection stringSelection = new StringSelection(logFile.getAbsolutePath());
+                    Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+                    clipboard.setContents(stringSelection, null);
+                } catch (Exception ex) {
+                    showError("Failed to copy path to clipboard. " + ex.getMessage(), ex);
+                }
+            }
+        } else {
+            JOptionPane.showMessageDialog(
+                    frame,
+                    dialogComponent,
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
+
         exception.printStackTrace(System.err);
     }
+
 
     private static final int NOT_LOGGED_IN = 1;
 
     private class ValidationException extends Exception {
         private int type;
 
-        ValidationException(String msg) {
+        private File logFile;
+
+        ValidationException(String msg){
+            this(msg, (File)null);
+        }
+
+        ValidationException(String msg, File logFile) {
             super(msg);
+            this.logFile = logFile;
         }
 
         ValidationException(String msg, int type) {
@@ -1872,8 +1915,25 @@ public class JDeployProjectEditor {
             this.type = type;
         }
 
+        ValidationException(String msg, int type, File logFile) {
+            super(msg);
+            this.type = type;
+            this.logFile = logFile;
+        }
+
+        ValidationException(String msg, Throwable cause, File logFile) {
+            super(msg, cause);
+            this.logFile = logFile;
+        }
+
         ValidationException(String msg, Throwable cause) {
             super(msg, cause);
+        }
+
+        ValidationException(String msg, Throwable cause, int type, File logFile) {
+            super(msg, cause);
+            this.type = type;
+            this.logFile = logFile;
         }
 
         ValidationException(String msg, Throwable cause, int type) {
@@ -1883,6 +1943,10 @@ public class JDeployProjectEditor {
 
         int getType() {
             return type;
+        }
+
+        File getLogFile() {
+            return logFile;
         }
     }
 
@@ -2116,7 +2180,16 @@ public class JDeployProjectEditor {
             if (projectBuilderService.isBuildSupported(buildContext)) {
                 try {
                     File buildLogFile = File.createTempFile("jdeploy-build-log", ".txt");
+                    final JDialog[] buildProgressDialog = new JDialog[1];
                     try {
+
+                        EventQueue.invokeLater(() -> {
+                            buildProgressDialog[0] = createProgressDialog(
+                                    "Building Project",
+                                    "Building project.  Please wait..."
+                            );
+                            buildProgressDialog[0].setVisible(true);
+                        });
                         projectBuilderService.buildProject(buildContext, buildLogFile);
                         buildRequired = false;
                     } catch (Exception ex) {
@@ -2124,8 +2197,16 @@ public class JDeployProjectEditor {
                         throw new ValidationException(
                                 "Failed to build project before publishing.  See build log at "
                                         + buildLogFile.getAbsolutePath(),
-                                ex
+                                ex,
+                                buildLogFile
                         );
+                    } finally {
+                        EventQueue.invokeLater(()-> {
+                            if (buildProgressDialog[0] != null) {
+                                buildProgressDialog[0].setVisible(false);
+                                buildProgressDialog[0].dispose();
+                            }
+                        });
                     }
                 } catch (IOException ex) {
                     ex.printStackTrace(System.err);
@@ -2228,5 +2309,19 @@ public class JDeployProjectEditor {
                 progressDialog.setFailed();
             });
         }
+    }
+
+    private JDialog createProgressDialog(String title, String message) {
+        JDialog dialog = new JDialog(frame, title, true);
+        dialog.setLayout(new FlowLayout());
+        dialog.add(new JLabel(message));
+        JProgressBar progressBar = progressBar = new JProgressBar();
+        progressBar.setIndeterminate(true);
+        dialog.add(progressBar);
+        dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+        dialog.pack();
+        dialog.setLocationRelativeTo(frame);
+        dialog.setModal(false);
+        return dialog;
     }
 }
