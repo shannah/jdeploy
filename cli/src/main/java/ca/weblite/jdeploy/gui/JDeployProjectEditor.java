@@ -11,6 +11,8 @@ import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
 import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
 import ca.weblite.jdeploy.gui.tabs.PublishSettingsPanel;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
+import ca.weblite.jdeploy.ideInterop.IdeInteropInterface;
+import ca.weblite.jdeploy.ideInterop.IdeInteropService;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
@@ -1668,9 +1670,44 @@ public class JDeployProjectEditor {
                 showError("That feature isn't supported on this platform.", null);
             }
         });
+
+        JMenu openInIde = new JMenu("Open in IDE");
+        IdeInteropService ideInteropService = DIContext.get(IdeInteropService.class);
+        openInIde.setToolTipText("Open the project directory in your IDE");
+        try {
+            for (IdeInteropInterface ideInterop : ideInteropService.findAll()) {
+                try {
+                    JMenuItem ideMenuItem = new JMenuItem(ideInterop.getName());
+                    ideMenuItem.setToolTipText("Open the project directory in " + ideInterop.getPath());
+                    ideMenuItem.addActionListener(evt -> {
+                        SwingWorker worker = new SwingWorker() {
+                            @Override
+                            protected Object doInBackground() throws Exception {
+                                try {
+                                    ideInterop.openProject(packageJSONFile.getParentFile().getAbsolutePath());
+                                } catch (Exception ex) {
+                                    showError("Failed to open project directory in " + ideInterop.getName(), ex);
+                                }
+                                return null;
+                            }
+                        };
+
+                        worker.execute();
+                    });
+                    openInIde.add(ideMenuItem);
+                } catch (Exception ex) {
+                    System.err.println("Failed to create menu item for IDE: " + ideInterop.getName());
+                    ex.printStackTrace(System.err);
+                }
+            }
+        } catch (Exception ideInteropException) {
+            ideInteropException.printStackTrace();
+        }
+
         file.addSeparator();
         file.add(openInTextEditor);
         file.add(openProjectDirectory);
+        file.add(openInIde);
 
         generateGithubWorkflowMenuItem = new JMenuItem("Create Github Workflow");
         generateGithubWorkflowMenuItem.setToolTipText(
