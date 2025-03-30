@@ -11,6 +11,8 @@ public class IdeInteropService {
 
     private final IdeInteropFactory ideInteropFactory;
 
+    private static final boolean debug = false;
+
     @Inject
     public IdeInteropService(IdeInteropFactory ideInteropFactory) {
         this.ideInteropFactory = ideInteropFactory;
@@ -78,19 +80,19 @@ public class IdeInteropService {
     }
 
     private void findIde(File root, List<File> ideFiles, String keyword, String winPath, String unixPath, String macPath) {
-        System.out.println("Searching for IDE in " + root);
+        debug("Searching for IDE in " + root);
         File[] files = root.listFiles();
         if (files == null) return;
 
         for (File file : files) {
             String name = file.getName().toLowerCase();
-            System.out.println("Candidate: " + name);
+            debug("Candidate: " + name);
             if (name.contains(keyword)) {
                 // Check for executable or app bundle
                 File candidate = null;
                 if (winPath != null && System.getProperty("os.name").toLowerCase().contains("win")) {
                     candidate = new File(file, winPath);
-                    System.out.println("Full candidate path: " + candidate);
+                    debug("Full candidate path: " + candidate);
                 } else if (System.getProperty("os.name").toLowerCase().contains("mac")) {
                     if (macPath != null && file.getName().endsWith(".app")) {
                         candidate = file; // macOS .app bundle
@@ -103,11 +105,14 @@ public class IdeInteropService {
                     continue;
                 }
 
+                if (candidate == null) {
+                    continue;
+                }
                 if (candidate.exists() && (candidate.isFile() || candidate.getName().endsWith(".app"))) {
-                    System.out.println("Adding candidate: " + candidate);
+                    debug("Adding candidate: " + candidate);
                     ideFiles.add(candidate);
                 } else {
-                    System.out.println("Not a valid candidate: " + candidate);
+                    debug("Not a valid candidate: " + candidate);
                 }
             }
 
@@ -119,6 +124,12 @@ public class IdeInteropService {
                // recurse into this directory
                 findIde(file, ideFiles, keyword, winPath, unixPath, macPath);
             }
+        }
+    }
+
+    private void debug(String message) {
+        if (debug) {
+            System.out.println(message);
         }
     }
 
