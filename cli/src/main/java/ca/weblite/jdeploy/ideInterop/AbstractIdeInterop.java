@@ -5,6 +5,7 @@ import ca.weblite.tools.platform.Platform;
 import javax.swing.*;
 import javax.swing.filechooser.FileSystemView;
 import java.io.File;
+import java.util.Map;
 
 public class AbstractIdeInterop implements IdeInteropInterface{
     private final File path;
@@ -19,6 +20,7 @@ public class AbstractIdeInterop implements IdeInteropInterface{
             // On macOS, we can use the "open" command to open the IDE
             try {
                 ProcessBuilder processBuilder = new ProcessBuilder("open", "-a", path.getAbsolutePath(), projectPath);
+                decorateProcessEnvironment(processBuilder.environment());
                 processBuilder.inheritIO();
                 processBuilder.start();
             } catch (Exception e) {
@@ -31,6 +33,7 @@ public class AbstractIdeInterop implements IdeInteropInterface{
         try {
             // Assuming the IDE can be opened with the project path as an argument
             ProcessBuilder processBuilder = new ProcessBuilder(path.getAbsolutePath(), projectPath);
+            decorateProcessEnvironment(processBuilder.environment());
             processBuilder.inheritIO();
             processBuilder.start();
         } catch (Exception e) {
@@ -52,5 +55,9 @@ public class AbstractIdeInterop implements IdeInteropInterface{
     @Override
     public File getPath() {
         return path;
+    }
+
+    protected void decorateProcessEnvironment(Map<String, String> env) {
+        // Default implementation does nothing
     }
 }

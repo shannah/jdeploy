@@ -11,13 +11,13 @@ import java.io.File;
 @Singleton
 public class IdeInteropFactory {
     public IdeInteropInterface createIdeInterop(File path) {
-        if (path.getName().contains("IntelliJ IDEA")) {
+        if (path.getAbsolutePath().contains("IntelliJ IDEA")) {
             return new IntelliJIdeInterop(path);
-        } else if (path.getName().contains("Eclipse")) {
+        } else if (path.getAbsolutePath().contains("Eclipse")) {
             return new EclipseIdeInterop(path);
-        } else if (path.getName().contains("NetBeans")) {
+        } else if (path.getAbsolutePath().contains("NetBeans")) {
             return new NetBeansIdeInterop(path);
-        } else if (path.getName().contains("Visual Studio Code")) {
+        } else if (path.getName().contains("Code") && (path.getAbsolutePath().contains("VS") || path.getAbsolutePath().contains("Visual Studio"))) {
             return new VscodeInterop(path);
         } else {
             return null;
