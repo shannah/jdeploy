@@ -174,6 +174,7 @@ public class ProjectBuilderService {
             paths.add("C:\\Program Files\\Eclipse Adoptium");
             paths.add("C:\\Program Files\\Adoptium");
         } else if (osName.contains("mac")) {
+            paths.add(userHome + "/Library/Java/JavaVirtualMachines");
             paths.add("/Library/Java/JavaVirtualMachines");
             paths.add(userHome + "/.jdks");
             paths.add(userHome + "/.jbang/cache/jdks");
