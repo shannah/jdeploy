@@ -49,11 +49,16 @@ public class DefaultInstallationContext implements InstallationContext {
             if (isMac && appBundle != null && appBundle.exists()) {
                 launcherFileName = appBundle.getName();
                 tmpBundleFile = appBundle;
-
             }
 
-            String code = extractJDeployBundleCodeFromFileName(launcherFileName);
-            String version = extractVersionFromFileName(launcherFileName);
+            String code = System.getProperty(
+                    "jdeploy.bundle-code",
+                    extractJDeployBundleCodeFromFileName(launcherFileName)
+            );
+            String version = System.getProperty(
+                    "jdeploy.bundle-version",
+                    extractVersionFromFileName(launcherFileName)
+            );
             if (code != null && version != null) {
                 try {
                     System.setProperty("jdeploy.bundle-code", code);
