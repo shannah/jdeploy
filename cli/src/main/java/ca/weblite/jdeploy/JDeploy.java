@@ -532,12 +532,14 @@ public class JDeploy implements BundleConstants {
             opts.addOption("W", "no-workflow", false,"Indicates not to create a github workflow if true");
             boolean noPromptFlag = false;
             boolean noWorkflowFlag = false;
+            String distTag = null;
             if (args.length > 0 && !"jpackage".equals(args[0])) {
                 CommandLineParser parser = new DefaultParser();
                 CommandLine line = parser.parse(opts, args);
                 args = line.getArgs();
                 noPromptFlag = line.hasOption("no-prompt");
                 noWorkflowFlag = line.hasOption("no-workflow");
+                distTag = line.getOptionValue("tag", null);
 
             }
             if (args.length == 0 || "gui".equals(args[0])) {
@@ -642,7 +644,7 @@ public class JDeploy implements BundleConstants {
             } else if ("install".equals(args[0])) {
                 prog.install(context);
             } else if ("publish".equals(args[0])) {
-                prog.publish(context, getDistTagArg(args));
+                prog.publish(context, distTag);
             } else if ("github-prepare-release".equals(args[0])) {
                 prog.prepareGithubRelease(context, new BundlerSettings());
             } else if ("github-build-release-body".equals(args[0])) {
@@ -749,17 +751,6 @@ public class JDeploy implements BundleConstants {
             }
 
         });
-    }
-
-    private static String getDistTagArg(String[] args) {
-        for (int i = 0; i < args.length; i++) {
-            String arg = args[i];
-            if ("--tag".equals(arg) && i + 1 < args.length) {
-                return args[i+1].trim();
-            }
-        }
-
-        return null;
     }
 
     private static boolean isWithAutoUpdateEnabled(String[] args) {
