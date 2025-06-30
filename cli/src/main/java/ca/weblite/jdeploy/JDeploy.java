@@ -527,6 +527,7 @@ public class JDeploy implements BundleConstants {
             }
 
             Options opts = new Options();
+            opts.addOption("t", "tag", true, "Optional tag for publish.");
             opts.addOption("y", "no-prompt", false,"Indicates not to prompt_ user ");
             opts.addOption("W", "no-workflow", false,"Indicates not to create a github workflow if true");
             boolean noPromptFlag = false;
