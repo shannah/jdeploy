@@ -40,7 +40,8 @@ public class NPMPublishDriver implements PublishDriverInterface {
             context.npm.publish(
                     context.getPublishDir(),
                     context.packagingContext.exitOnFail,
-                    null
+                    null,
+                    context.getDistTag()
             );
         } catch (OneTimePasswordRequestedException ex) {
             String otp = otpProvider.promptForOneTimePassword(context, target);
@@ -51,7 +52,8 @@ public class NPMPublishDriver implements PublishDriverInterface {
                 context.npm.publish(
                         context.getPublishDir(),
                         context.packagingContext.exitOnFail,
-                        otp
+                        otp,
+                        context.getDistTag()
                 );
             } catch (OneTimePasswordRequestedException ex2) {
                 throw new IOException("Failed to publish package to npm.  Invalid OTP provided.");

@@ -234,7 +234,8 @@ public class NPM {
     public void publish(
             File publishDir,
             boolean exitOnFail,
-            String oneTimePassword
+            String oneTimePassword,
+            String distTag
     ) throws IOException, OneTimePasswordRequestedException {
         try {
             ProcessBuilder pb;
@@ -255,7 +256,10 @@ public class NPM {
                     pb.command(npm, "publish");
                 }
             }
-
+            if (distTag != null && !distTag.isEmpty()) {
+                pb.command().add("--tag");
+                pb.command().add(distTag);
+            }
             out.println("Using command " + pb.command());
             Process p = pb.start();
             // Capture stdout/stderr
