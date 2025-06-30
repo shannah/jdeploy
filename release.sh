@@ -97,12 +97,36 @@ mvn clean package
 CLI_VERSION=$(../json.php version)
 if [ "$GITHUB_REF_TYPE" == "tag" ]; then
   npm version "$GITHUB_REF_NAME"
-  npm publish
+  VERSION="$GITHUB_REF_NAME"
+  DIST_TAG="latest"  # Default fallback
+
+  if [[ "$VERSION" =~ -alpha\.[0-9]+$ ]]; then
+    DIST_TAG="alpha"
+  elif [[ "$VERSION" =~ -beta\.[0-9]+$ ]]; then
+    DIST_TAG="next"
+  elif [[ "$VERSION" =~ -rc\.[0-9]+$ ]]; then
+    DIST_TAG="next"
+  elif [[ "$VERSION" =~ -dev\.[0-9]+$ ]]; then
+    DIST_TAG="dev"
+  fi
+  npm publish --tag "$DIST_TAG"
 fi
 
 cd ../installer
 INSTALLER_VERSION=$(../json.php version)
 if [ "$GITHUB_REF_TYPE" == "tag" ]; then
   npm version "$GITHUB_REF_NAME"
-  java -jar "$JDEPLOY" publish
+  VERSION="$GITHUB_REF_NAME"
+  DIST_TAG="latest"  # Default fallback
+
+  if [[ "$VERSION" =~ -alpha\.[0-9]+$ ]]; then
+    DIST_TAG="alpha"
+  elif [[ "$VERSION" =~ -beta\.[0-9]+$ ]]; then
+    DIST_TAG="next"
+  elif [[ "$VERSION" =~ -rc\.[0-9]+$ ]]; then
+    DIST_TAG="next"
+  elif [[ "$VERSION" =~ -dev\.[0-9]+$ ]]; then
+    DIST_TAG="dev"
+  fi
+  java -jar "$JDEPLOY" publish --tag "$DIST_TAG"
 fi

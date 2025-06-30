@@ -394,9 +394,14 @@ public class JDeploy implements BundleConstants {
     }
 
     public void publish(PackagingContext context) throws IOException {
+        publish(context, (String)null);
+    }
+
+    public void publish(PackagingContext context, String distTag) throws IOException {
         PublishingContext publishingContext = PublishingContext.builder()
                 .setPackagingContext(context)
                 .setNPM(getNPM())
+                .setDistTag(distTag)
                 .build();
         publish(
                 publishingContext,
@@ -636,7 +641,7 @@ public class JDeploy implements BundleConstants {
             } else if ("install".equals(args[0])) {
                 prog.install(context);
             } else if ("publish".equals(args[0])) {
-                prog.publish(context);
+                prog.publish(context, getDistTagArg(args));
             } else if ("github-prepare-release".equals(args[0])) {
                 prog.prepareGithubRelease(context, new BundlerSettings());
             } else if ("github-build-release-body".equals(args[0])) {
@@ -743,6 +748,17 @@ public class JDeploy implements BundleConstants {
             }
 
         });
+    }
+
+    private static String getDistTagArg(String[] args) {
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
+            if ("--tag".equals(arg) && i + 1 < args.length) {
+                return args[i+1].trim();
+            }
+        }
+
+        return null;
     }
 
     private static boolean isWithAutoUpdateEnabled(String[] args) {

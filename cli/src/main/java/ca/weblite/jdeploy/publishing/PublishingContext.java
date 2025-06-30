@@ -22,6 +22,8 @@ public class PublishingContext {
 
     public final String githubRefType;
 
+    private final String distTag;
+
     public PublishingContext(
             PackagingContext packagingContext,
             boolean alwaysPackageOnPublish,
@@ -29,7 +31,8 @@ public class PublishingContext {
             String githubToken,
             String githubRepository,
             String githubRefName,
-            String githubRefType
+            String githubRefType,
+            String distTag
     ) {
         this.packagingContext = packagingContext;
         this.alwaysPackageOnPublish = alwaysPackageOnPublish;
@@ -38,6 +41,7 @@ public class PublishingContext {
         this.githubRepository = githubRepository;
         this.githubRefName = githubRefName;
         this.githubRefType = githubRefType;
+        this.distTag = distTag;
     }
 
     public String getGithubToken() {
@@ -52,7 +56,8 @@ public class PublishingContext {
                 githubToken,
                 githubRepository,
                 githubRefName,
-                githubRefType
+                githubRefType,
+                distTag
         );
     }
 
@@ -92,6 +97,10 @@ public class PublishingContext {
         return new File(directory(), "jdeploy" + File.separator + "github-release-files");
     }
 
+    public String getDistTag() {
+        return distTag;
+    }
+
     public static class Builder {
         private PackagingContext packagingContext;
         private boolean alwaysPackageOnPublish = !Boolean.getBoolean("jdeploy.doNotPackage");;
@@ -104,6 +113,8 @@ public class PublishingContext {
         private String githubRefName;
 
         private String githubRefType;
+
+        private String distTag;
 
         public Builder setPackagingContext(PackagingContext packagingContext) {
             this.packagingContext = packagingContext;
@@ -140,6 +151,11 @@ public class PublishingContext {
             return this;
         }
 
+        public Builder setDistTag(String distTag) {
+            this.distTag = distTag;
+            return this;
+        }
+
         private PackagingContext packagingContext() {
             if (packagingContext == null) {
                 packagingContext = PackagingContext.builder().build();
@@ -162,7 +178,8 @@ public class PublishingContext {
                     githubToken,
                     githubRepository,
                     githubRefName,
-                    githubRefType
+                    githubRefType,
+                    distTag
             );
         }
     }
