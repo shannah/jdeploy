@@ -5,6 +5,8 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import java.io.*;
 import java.nio.file.*;
+import java.util.ArrayList;
+import java.util.List;
 
 import static net.lingala.zip4j.util.FileUtils.isWindows;
 import static org.junit.jupiter.api.Assertions.*;
@@ -81,11 +83,41 @@ class JDeployIntegrationTest {
             javacPath += ".exe";
         }
 
+        // Get the Java version being used to run the test
+        String javaVersion = System.getProperty("java.version");
+        System.out.println("Running Java version: " + javaVersion);
+
+// Determine the target bytecode version based on the Java version
+        String targetBytecode = "17";  // Default to Java 17 bytecode
+        String sourceBytecode = "17";  // Set both source and target bytecode to 17
+
+        if (javaVersion != null) {
+            // Parse the major version from the Java version string
+            int majorVersion = Integer.parseInt(javaVersion.split("\\.")[0]);
+
+            // If the Java version is less than 17, don't use -target 17
+            if (majorVersion < 17) {
+                targetBytecode = null;
+                sourceBytecode = null;
+            }
+        }
+
         // Ensure javac exists in the directory
         File javacFile = new File(javacPath);
         assertTrue(javacFile.exists(), "javac not found in " + javacPath);
 
-        ProcessBuilder compileProcessBuilder = new ProcessBuilder(javacPath, JAVA_APP);
+        // Build the compile command with the target bytecode version
+        List<String> compileCommand = new ArrayList<>();
+        compileCommand.add(javacPath);
+        if (targetBytecode != null) {
+            compileCommand.add("-source");
+            compileCommand.add(sourceBytecode);  // Use source bytecode version
+            compileCommand.add("-target");
+            compileCommand.add(targetBytecode);  // Use target bytecode version
+        }
+        compileCommand.add(JAVA_APP);
+
+        ProcessBuilder compileProcessBuilder = new ProcessBuilder(compileCommand);
         compileProcessBuilder.directory(tempDir.toFile());
         Process compileProcess = compileProcessBuilder.start();
         assertEquals(0, compileProcess.waitFor(), "Java compilation failed");
