@@ -60,7 +60,10 @@ jobs:
           java-version: ${{ matrix.java-version }}
           distribution: 'temurin'
           cache: maven
-
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '24'
       - name: Build Windows
         env:
           JDEPLOY_TEST_JVM_DOWNLOADS: true
