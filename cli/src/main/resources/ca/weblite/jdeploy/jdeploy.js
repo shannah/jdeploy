@@ -1,5 +1,8 @@
 #! /usr/bin/env node
 
+var path = require('path');
+var os = require('os');
+var jdeployHomeDir = process.env.JDEPLOY_HOME || path.join(os.homedir(), '.jdeploy');
 var jarName = "{{JAR_NAME}}";
 var mainClass = "{{MAIN_CLASS}}";
 var classPath = "{{CLASSPATH}}";
@@ -23,9 +26,7 @@ var jdkProvider = 'zulu';
 function njreWrap() {
     'use strict'
 
-    const path = require('path')
     const fs = require('fs')
-    const os = require('os')
     const crypto = require('crypto')
     const fetch = require('node-fetch')
     const yauzl = require('yauzl')
@@ -105,7 +106,7 @@ function njreWrap() {
 
     function move (file) {
       return new Promise((resolve, reject) => {
-        const jdeployDir = path.join(os.homedir(), '.jdeploy');
+        const jdeployDir = jdeployHomeDir;
         if (!fs.existsSync(jdeployDir)) {
             fs.mkdirSync(jdeployDir);
         }
@@ -231,8 +232,16 @@ function njreWrap() {
       const { openjdk_impl = 'hotspot', release = 'latest', type = 'jre', javafx = false, provider = 'zulu' } = options
       options = { ...options, openjdk_impl, release, type }
 
+      // Determine the architecture based on the platform and environment
+      let arch = process.arch;
+      if (arch === 'arm64' || arch === 'aarch64') {
+        arch = 'aarch64';  // For ARM-based systems, standardize on aarch64
+      } else {
+        arch = 'x64';  // Default to x64 for non-ARM systems
+      }
+
       if (provider === 'zulu') {
-          return installZulu(version, options);
+          return installZulu(version, options, arch);
       }
 
       let url = 'https://api.adoptopenjdk.net/v2/info/releases/openjdk' + version + '?'
@@ -258,13 +267,9 @@ function njreWrap() {
             return Promise.reject(new Error('Unsupported operating system'))
         }
       }
+
       if (!options.arch) {
-          if (options.os == 'mac') {
-              // For now, for compatibility reasons use x64 always
-              options.arch = 'x64';
-          } else if (/^ppc64|s390x|x32|x64$/g.test(process.arch)) options.arch = process.arch
-            else if (process.arch === 'ia32') options.arch = 'x32'
-            else return Promise.reject(new Error('Unsupported architecture'))
+        options.arch = arch; // Use the detected architecture
       }
 
       Object.keys(options).forEach(key => { url += key + '=' + options[key] + '&' })
@@ -279,68 +284,53 @@ function njreWrap() {
         .then(extract)
     }
 
-    function installZulu(version = 11, options = {}) {
-         const { type = 'jre', javafx = false } = options
-         var q = {
-
+    function installZulu(version = 11, options = {}, arch) {
+        const { type = 'jre', javafx = false } = options
+        var q = {
             java_version: version,
             ext: 'zip',
             bundle_type: type,
-            javafx: ''+javafx,
-            arch: 'x86',
+            javafx: '' + javafx,
+            arch: arch,  // Use the detected architecture
             hw_bitness: '64',
+        };
 
-         };
+        var zuluBaseURL = "https://api.azul.com/zulu/download/community/v1.0/bundles/latest/binary?"
+        if (!options.os) {
+            switch (process.platform) {
+                case 'darwin':
+                    q.os = 'macos'
+                    break
+                case 'linux':
+                    q.os = 'linux'
+                    q.ext = 'tar.gz'
+                    break
+                case 'win32':
+                case 'win64':
+                    q.os = 'windows'
+                    break
+                default:
+                    return Promise.reject(new Error('Unsupported operating system'))
+            }
+        }
 
-
-         var zuluBaseURL = "https://api.azul.com/zulu/download/community/v1.0/bundles/latest/binary?"
-         if (!options.os) {
-             switch (process.platform) {
-
-               case 'darwin':
-                 q.os = 'macos'
-                 break
-               case 'linux':
-                 q.os = 'linux'
-                 q.ext = 'tar.gz'
-                 break
-
-               case 'win32':
-               case 'win64':
-                 q.os = 'windows'
-                 break
-               default:
-                 return Promise.reject(new Error('Unsupported operating system'))
-             }
-           }
-
-
-         	var url = zuluBaseURL;
-                Object.keys(q).forEach(key => { url += key + '=' + q[key] + '&' })
-             const tmpdir = path.join(os.tmpdir(), 'njre')
-            //console.log("Downloading "+url);
-              return download(tmpdir, url)
-                .then(move)
-                .then(extract)
-
+        var url = zuluBaseURL;
+        Object.keys(q).forEach(key => { url += key + '=' + q[key] + '&' })
+        const tmpdir = path.join(os.tmpdir(), 'njre')
+        //console.log("Downloading "+url);
+        return download(tmpdir, url)
+            .then(move)
+            .then(extract)
     }
 
     return {install:install};
-
-
-
 }
 
 
 var fs = require('fs');
-var os = require('os');
-var path = require('path');
 const njre = njreWrap();
 const targetJavaVersion = parseInt(javaVersionString);
 var shell = require("shelljs/global");
-function getJdeploySupportDir() {
-    return os.homedir() + path.sep + ".jdeploy";
-}
 
 function getJavaVersion(binPath) {
 
@@ -408,7 +398,7 @@ function getJavaHomeInPath(basepath) {
 }
 
 function findSupportedRuntime(javaVersion, jdk, javafx) {
-    var jdeployDir = path.join(os.homedir(), ".jdeploy");
+    var jdeployDir = jdeployHomeDir;
     var JAVA_HOME_OVERRIDE = env['JDEPLOY_JAVA_HOME_OVERRIDE'];
 
     if (JAVA_HOME_OVERRIDE && fs.existsSync(JAVA_HOME_OVERRIDE)) {
@@ -460,7 +450,7 @@ function getEmbeddedJavaHome() {
     }
     var typeDir = jdk ? 'jdk' : 'jre';
 
-    var jreDir = path.join(os.homedir(), '.jdeploy',  'jre', vs, 'jre');
+    var jreDir = path.join(jdeployHomeDir,  'jre', vs, 'jre');
     try {
         var out = jreDir + path.sep + getDirectories(jreDir)[0] + (_driver ? (path.sep + _driver) : '');
         return out;
