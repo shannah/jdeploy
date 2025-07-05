@@ -85,7 +85,7 @@ jobs:
     runs-on: windows-11-arm
     strategy:
       matrix:
-        java-version: [ '17' ]
+        java-version: [ '21' ]
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK ${{ matrix.java-version }}
