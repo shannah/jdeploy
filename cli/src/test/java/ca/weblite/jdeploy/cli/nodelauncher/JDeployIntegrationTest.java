@@ -6,6 +6,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import java.io.*;
 import java.nio.file.*;
 
+import static net.lingala.zip4j.util.FileUtils.isWindows;
 import static org.junit.jupiter.api.Assertions.*;
 
 class JDeployIntegrationTest {
@@ -110,8 +111,10 @@ class JDeployIntegrationTest {
         Path packageJsonFile = myAppDir.resolve("package.json");
         Files.write(packageJsonFile, packageJson.getBytes());
 
+        String npmCommand = isWindows() ? "npm.cmd" : "npm"; // Use npm.cmd for Windows, npm for others
+
         // Step 11: Run npm install to install dependencies
-        ProcessBuilder npmInstallProcessBuilder = new ProcessBuilder("npm", "install");
+        ProcessBuilder npmInstallProcessBuilder = new ProcessBuilder(npmCommand, "install");
         npmInstallProcessBuilder.directory(myAppDir.toFile());
         Process npmInstallProcess = npmInstallProcessBuilder.start();
         assertEquals(0, npmInstallProcess.waitFor(), "npm install failed");
