@@ -76,6 +76,10 @@ class JDeployIntegrationTest {
         }
         String javacPath = javaHome + File.separator + "bin" + File.separator + "javac";
 
+        if (System.getProperty("os.name").toLowerCase().contains("win")) {
+            javacPath += ".exe";
+        }
+
         // Ensure javac exists in the directory
         File javacFile = new File(javacPath);
         assertTrue(javacFile.exists(), "javac not found in " + javacPath);
