@@ -80,3 +80,37 @@ jobs:
           JDEPLOY_TEST_JVM_DOWNLOADS: true
         run: bash build_and_test.sh
         shell: bash
+
+  build-win-arm:
+    runs-on: windows-11-arm
+    strategy:
+      matrix:
+        java-version: [ '17' ]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK ${{ matrix.java-version }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java-version }}
+          distribution: 'temurin'
+          cache: maven
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '24'
+      - name: Verify Node.js installation
+        run: node --version
+
+      - name: Check npm version
+        run: npm --version
+
+      - name: Print PATH and verify npm
+        run: |
+          echo "PATH: $PATH"
+          echo "NODE_PATH: $NODE_PATH"
+
+      - name: Build Windows
+        env:
+          JDEPLOY_TEST_JVM_DOWNLOADS: true
+        run: bash build_and_test.sh
+        shell: bash
