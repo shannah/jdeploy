@@ -66,6 +66,15 @@ jobs:
           node-version: '24'
       - name: Verify Node.js installation
         run: node --version
+
+      - name: Check npm version
+        run: npm --version
+
+      - name: Print PATH and verify npm
+        run: |
+          echo "PATH: $PATH"
+          echo "NODE_PATH: $NODE_PATH"
+
       - name: Build Windows
         env:
           JDEPLOY_TEST_JVM_DOWNLOADS: true
