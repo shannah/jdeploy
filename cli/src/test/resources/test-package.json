@@ -1,0 +1,41 @@
+
+{
+  "name": "myapp",
+  "author": "My App",
+  "description": "A Test command line application for testing jdeploy",
+  "homepage": "https://example.com/test-app",
+  "main": "index.js",
+  "preferGlobal": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/example.git"
+  },
+  "version": "4.8.0",
+  "bin": {
+    "myapp": "jdeploy-bundle/jdeploy.js"
+  },
+  "jdeploy": {
+    "jar": "jdeploy-bundle/myapp.jar",
+    "javaVersion": "17"
+  },
+  "dependencies": {
+    "command-exists-promise": "^2.0.2",
+    "node-fetch": "2.7.0",
+    "shelljs": "^0.8.5",
+    "tar": "^7.4.3",
+    "yauzl": "^3.2.0"
+  },
+  "license": "MIT",
+  "files": [
+    "jdeploy-bundle"
+  ],
+  "keywords": [
+  ],
+  "devDependencies": {
+    "semantic-release-replace-plugin": "^1.2.7",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/exec": "^7.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "semantic-release": "^24.2.1"
+  }
+}
