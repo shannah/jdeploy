@@ -285,8 +285,10 @@ function njreWrap() {
     }
 
     function installZulu(version = 11, options = {}, arch) {
-        const { type = 'jre', javafx = false } = options
-        var q = {
+        const { type = 'jre', javafx = false } = options;
+
+        // Prepare the query parameters for the request
+        let q = {
             java_version: version,
             ext: 'zip',
             bundle_type: type,
@@ -295,33 +297,63 @@ function njreWrap() {
             hw_bitness: '64',
         };
 
-        var zuluBaseURL = "https://api.azul.com/zulu/download/community/v1.0/bundles/latest/binary?"
+        // Base URL for the Azul API
+        const zuluBaseURL = "https://api.azul.com/zulu/download/community/v1.0/bundles/latest/binary?";
+
+        // Determine the OS
         if (!options.os) {
             switch (process.platform) {
                 case 'darwin':
-                    q.os = 'macos'
-                    break
+                    q.os = 'macos';
+                    break;
                 case 'linux':
-                    q.os = 'linux'
-                    q.ext = 'tar.gz'
-                    break
+                    q.os = 'linux';
+                    q.ext = 'tar.gz';
+                    break;
                 case 'win32':
                 case 'win64':
-                    q.os = 'windows'
-                    break
+                    q.os = 'windows';
+                    break;
                 default:
-                    return Promise.reject(new Error('Unsupported operating system'))
+                    return Promise.reject(new Error('Unsupported operating system'));
             }
         }
 
-        var url = zuluBaseURL;
-        Object.keys(q).forEach(key => { url += key + '=' + q[key] + '&' })
-        const tmpdir = path.join(os.tmpdir(), 'njre')
-        //console.log("Downloading "+url);
+        // Construct the URL for the download request
+        let url = zuluBaseURL;
+        Object.keys(q).forEach(key => { url += key + '=' + q[key] + '&' });
+
+        const tmpdir = path.join(os.tmpdir(), 'njre');
+
+        // Function to handle the download and extraction
+        const attemptDownload = (url) => {
+            return download(tmpdir, url)
+                .then(move)
+                .then(extract);
+        };
+
+        // First, attempt to download the JRE
         return download(tmpdir, url)
-            .then(move)
-            .then(extract)
+            .then(response => {
+                // If the JRE is available, proceed with the download and extraction
+                if (response.status === 200) {
+                    return attemptDownload(url);
+                } else {
+                    // If JRE is not available, switch to JDK
+                    console.log(`JRE not available for version ${version}, falling back to JDK...`);
+                    // Update the query to request JDK instead of JRE
+                    q.bundle_type = 'jdk';  // Switch to JDK
+                    url = zuluBaseURL;
+                    Object.keys(q).forEach(key => { url += key + '=' + q[key] + '&' });
+                    return attemptDownload(url); // Try downloading the JDK
+                }
+            })
+            .catch(err => {
+                console.error("Download failed: ", err);
+                throw err; // Re-throw the error after logging
+            });
     }
+
 
     return {install:install};
 }
