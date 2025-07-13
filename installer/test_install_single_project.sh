@@ -167,6 +167,10 @@ function smoke_test_linux() {
 }
 
 function uninstall_project() {
+  if [ "$SKIP_INSTALLER_SMOKE_TESTS" == "true" ]; then
+    echo "Skipping uninstall test as SKIP_INSTALLER_SMOKE_TESTS is set to true"
+    return
+  fi
   if [ "$PLATFORM" == "windows" ]; then
     uninstall_project_windows
   elif [ "$PLATFORM" == "mac" ]; then
