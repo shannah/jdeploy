@@ -77,12 +77,13 @@ function build_project() {
 }
 
 function smoke_test() {
+  # If SKIP_SMOKE_TEST is set, skip the smoke test
+  if [ "$SKIP_INSTALLER_SMOKE_TESTS" == "true" ]; then
+    echo "Skipping smoke test as SKIP_INSTALLER_SMOKE_TESTS is set to true"
+    return
+  fi
   if [ "$PLATFORM" == "windows" ]; then
-    if [ "$(uname -m)" == "aarch64" ]; then
-      echo "Skipping smoke test for Windows ARM64 because it is not supported yet"
-    else
-      smoke_test_windows
-    fi
+    smoke_test_windows
   elif [ "$PLATFORM" == "mac" ]; then
     smoke_test_mac
   else

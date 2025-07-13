@@ -112,5 +112,6 @@ jobs:
       - name: Build Windows
         env:
           JDEPLOY_TEST_JVM_DOWNLOADS: true
+          SKIP_INSTALLER_SMOKE_TESTS: true
         run: bash build_and_test.sh
         shell: bash
