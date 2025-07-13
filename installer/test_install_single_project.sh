@@ -78,7 +78,11 @@ function build_project() {
 
 function smoke_test() {
   if [ "$PLATFORM" == "windows" ]; then
-    smoke_test_windows
+    if [ "$(uname -m)" == "aarch64" ]; then
+      echo "Skipping smoke test for Windows ARM64 because it is not supported yet"
+    else
+      smoke_test_windows
+    fi
   elif [ "$PLATFORM" == "mac" ]; then
     smoke_test_mac
   else
