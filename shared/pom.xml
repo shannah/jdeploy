@@ -12,6 +12,8 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <junit.version>5.8.2</junit.version>
+        <mockito.version.jdk21>5.4.0</mockito.version.jdk21>
+        <mockito.version.jdk8>4.6.1</mockito.version.jdk8>
     </properties>
     <build>
         <plugins>
@@ -43,27 +45,12 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- add mockito dependency -->
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-core</artifactId>
-            <version>3.12.4</version>
-            <scope>test</scope>
-        </dependency>
-
         <dependency>
             <groupId>com.theokanning.openai-gpt3-java</groupId>
             <artifactId>service</artifactId>
             <version>LATEST</version>
         </dependency>
 
-        <!-- add support for Mockito extensions in tests -->
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-junit-jupiter</artifactId>
-            <version>3.12.4</version>
-            <scope>test</scope>
-        </dependency>
         <dependency>
             <groupId>ca.weblite.jdeploy</groupId>
             <artifactId>cn1-compatlib</artifactId>
@@ -202,4 +189,52 @@
             <url>file://${basedir}/../maven-repository</url>
         </repository>
     </repositories>
+
+    <profiles>
+        <!-- Profile for JDK 8 -->
+        <profile>
+            <id>jdk8</id>
+            <activation>
+                <jdk>[1.8,21)</jdk>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-core</artifactId>
+                    <version>${mockito.version.jdk8}</version>
+                    <scope>test</scope>
+                </dependency>
+                <!-- add support for Mockito extensions in tests -->
+                <dependency>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-junit-jupiter</artifactId>
+                    <version>${mockito.version.jdk8}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+
+        <!-- Profile for JDK 21 -->
+        <profile>
+            <id>jdk21</id>
+            <activation>
+                <jdk>[21,)</jdk>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-core</artifactId>
+                    <version>${mockito.version.jdk21}</version>
+                    <scope>test</scope>
+                </dependency>
+                <!-- add support for Mockito extensions in tests -->
+                <dependency>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-junit-jupiter</artifactId>
+                    <version>${mockito.version.jdk21}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 </project>

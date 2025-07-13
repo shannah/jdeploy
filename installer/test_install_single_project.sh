@@ -77,6 +77,11 @@ function build_project() {
 }
 
 function smoke_test() {
+  # If SKIP_SMOKE_TEST is set, skip the smoke test
+  if [ "$SKIP_INSTALLER_SMOKE_TESTS" == "true" ]; then
+    echo "Skipping smoke test as SKIP_INSTALLER_SMOKE_TESTS is set to true"
+    return
+  fi
   if [ "$PLATFORM" == "windows" ]; then
     smoke_test_windows
   elif [ "$PLATFORM" == "mac" ]; then
@@ -162,6 +167,10 @@ function smoke_test_linux() {
 }
 
 function uninstall_project() {
+  if [ "$SKIP_INSTALLER_SMOKE_TESTS" == "true" ]; then
+    echo "Skipping uninstall test as SKIP_INSTALLER_SMOKE_TESTS is set to true"
+    return
+  fi
   if [ "$PLATFORM" == "windows" ]; then
     uninstall_project_windows
   elif [ "$PLATFORM" == "mac" ]; then
@@ -236,6 +245,10 @@ function uninstall_smoke_test_linux() {
 }
 
 function uninstall_smoke_test() {
+  if [ "$SKIP_INSTALLER_SMOKE_TESTS" == "true" ]; then
+    echo "Skipping uninstall smoke test as SKIP_INSTALLER_SMOKE_TESTS is set to true"
+    return
+  fi
   if [ "$PLATFORM" == "windows" ]; then
     uninstall_smoke_test_windows
   elif [ "$PLATFORM" == "mac" ]; then
