@@ -27,7 +27,7 @@ jobs:
         run: bash build_and_test.sh
 
   test-linux-arm64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-ARM64
     defaults:
       run:
         shell: bash
