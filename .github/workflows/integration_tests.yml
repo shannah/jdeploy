@@ -48,6 +48,7 @@ jobs:
       - name: Test on ARM64 Linux
         env:
           JDEPLOY_TEST_JVM_DOWNLOADS: false
+          JDEPLOY_TEST_CLI_LAUNCHER: true
         run: bash build_and_test.sh
 
 
@@ -69,6 +70,7 @@ jobs:
       - name: Test Mac
         env:
           JDEPLOY_TEST_JVM_DOWNLOADS: false
+          JDEPLOY_TEST_CLI_LAUNCHER: true
         run: bash build_and_test.sh
 
 
@@ -103,6 +105,7 @@ jobs:
       - name: Build Windows
         env:
           JDEPLOY_TEST_JVM_DOWNLOADS: false
+          JDEPLOY_TEST_CLI_LAUNCHER: true
         run: bash build_and_test.sh
         shell: bash
 
@@ -138,5 +141,6 @@ jobs:
         env:
           JDEPLOY_TEST_JVM_DOWNLOADS: false
           SKIP_INSTALLER_SMOKE_TESTS: true
+          JDEPLOY_TEST_CLI_LAUNCHER: true
         run: bash build_and_test.sh
         shell: bash

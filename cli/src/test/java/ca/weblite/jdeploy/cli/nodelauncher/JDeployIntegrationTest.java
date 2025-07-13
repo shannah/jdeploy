@@ -43,7 +43,7 @@ class JDeployIntegrationTest {
     }
 
     @Test
-    @EnabledIfEnvironmentVariable(named = "JDEPLOY_TEST_JVM_DOWNLOADS", matches = "true")
+    @EnabledIfEnvironmentVariable(named = "JDEPLOY_TEST_CLI_LAUNCHER", matches = "true")
     void testJDeployScript() throws Exception {
         // Step 1: Load the jdeploy.js script from classpath
         String script = loadResource(SCRIPT_PATH);
