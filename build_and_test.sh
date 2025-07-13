@@ -17,8 +17,12 @@ mvn clean install
 cd ../cli
 mvn clean package
 
-cd ../tests
-bash test.sh
+# Skip tests if JDEPLOY_SKIP_INTEGRATION_TESTS is set
+if [ -z "$JDEPLOY_SKIP_INTEGRATION_TESTS" ]; then
+  cd ../tests
+  bash test.sh
+fi
+
 
 
 
