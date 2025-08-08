@@ -42,6 +42,24 @@ fi
 # if on windows run the mock_launcher_win.exe script in the CWD else run the mock_launcher.sh script in the CWD
 echo "Running on platform: $(uname -s)"
 echo "Running on architecture: $(uname -m)"
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+        if [[ "$PROCESSOR_ARCHITECTURE" == "ARM64" || "$PROCESSOR_ARCHITEW6432" == "ARM64" ]]; then
+            arch="arm64"
+        else
+            arch="x64"
+        fi
+        ;;
+    *)
+        if [[ "$(uname -m)" == "aarch64" ]]; then
+            arch="arm64"
+        else
+            arch="x64"
+        fi
+        ;;
+esac
+
+
 IS_WINDOWS=false
 if [ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ] || [ "$(expr substr $(uname -s) 1 10)" == "MINGW64_NT" ]; then
   IS_WINDOWS=true
@@ -72,10 +90,9 @@ function install_non_windows() {
     cp "$CWD/../mock_launcher/mock_launcher.sh" "$CWD/mock_launcher.sh"
     bash "$CWD/mock_launcher.sh" install
 }
-arch=$(uname -m)
 
 if [ "$IS_WINDOWS" = true ]; then
-  if [ "$arch" == "aarch64" ]; then
+  if [ "$arch" == "arm64" ]; then
     install_windows_arm64
   else
     install_windows_x64
