@@ -549,6 +549,7 @@ public class ShellLink
                 
                 // Detect architecture and choose appropriate DLL
                 String dllName = getShellLinkDllName();
+                System.out.println("Loading ShellLink.dll: " + dllName);
                 File dllFile = new File(jarFile.getParentFile(), dllName);
                 
                 if (!dllFile.exists()) {
