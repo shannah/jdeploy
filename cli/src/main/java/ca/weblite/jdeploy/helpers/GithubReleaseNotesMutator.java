@@ -97,7 +97,7 @@ public class GithubReleaseNotesMutator implements BundleConstants {
                     .append("\n");
         }
         if (winArmBundle.isPresent()) {
-            notes.append("* [Windows (x64)](https://github.com/")
+            notes.append("* [Windows (arm64)](https://github.com/")
                     .append(repo).append(releasesPrefix).append(branchTag).append("/")
                     .append(urlencodeFileNameForGithubRelease(winArmBundle.get().getName()))
                     .append(")")
