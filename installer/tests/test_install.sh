@@ -45,22 +45,10 @@ echo "Running on architecture: $(uname -m)"
 echo "PROCESSOR_ARCHITECTURE=$PROCESSOR_ARCHITECTURE"
 echo "PROCESSOR_ARCHITEW6432=$PROCESSOR_ARCHITEW6432"
 case "$(uname -s)" in
-    MINGW*|MSYS*|CYGWIN*)
-        if [[ "$PROCESSOR_ARCHITECTURE" == "ARM64" || "$PROCESSOR_ARCHITEW6432" == "ARM64" ]]; then
-            arch="arm64"
-        else
-            arch="x64"
-        fi
-        ;;
-    *)
-        if [[ "$(uname -m)" == "aarch64" ]]; then
-            arch="arm64"
-        else
-            arch="x64"
-        fi
-        ;;
+    *ARM64*) arch="arm64" ;;
+    *aarch64*|*AARCH64*) arch="arm64" ;;
+    *) arch="x64" ;;
 esac
-
 
 IS_WINDOWS=false
 if [ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ] || [ "$(expr substr $(uname -s) 1 10)" == "MINGW64_NT" ]; then
