@@ -49,10 +49,10 @@ public class WindowsBundler2 {
                 ? new BundlerResult(targetNameWithArch + "-installer")
                 : new BundlerResult(targetNameWithArch);
 
-        File winDir = new File(destDir, targetNameWithArch);
+        File winDir = new File(destDir, "windows-" + targetArchitecture.name().toLowerCase());
         winDir.mkdirs();
         
-        File winReleaseDir = new File(releaseDir, targetNameWithArch);
+        File winReleaseDir = new File(releaseDir, "windows-" + targetArchitecture.name().toLowerCase());
         winReleaseDir.mkdirs();
 
         File exeFile = new File(winDir, app.getName()+".exe");
