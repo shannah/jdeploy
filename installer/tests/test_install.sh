@@ -73,7 +73,7 @@ function install_non_windows() {
 }
 arch=$(uname -m)
 if [ "$IS_WINDOWS" = true ]; then
-  if [[ "$arch" == "aarch64"]]; then
+  if [ "$arch" == "aarch64" ]; then
     install_windows_arm64
   else
     install_windows_x64
