@@ -15,7 +15,6 @@ import ca.weblite.jdeploy.services.BundleCodeService;
 import ca.weblite.jdeploy.services.ProjectBuilderService;
 import ca.weblite.jdeploy.services.VersionCleaner;
 import ca.weblite.tools.io.ArchiveUtil;
-import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.XMLUtil;
 import ca.weblite.tools.platform.Platform;
 import com.codename1.processing.Result;
@@ -205,9 +204,19 @@ public class PackageService implements BundleConstants {
             macIntelDmg(context, bundlerSettings, installerDir, dmgSuffix);
             return;
         } else if (target.equals(BUNDLE_WIN)) {
-            _newName = _newName.replace("${{ platform }}", "win-x64");
+            _newName = _newName.replace("${{ platform }}", BUNDLE_WIN_X64);
             installerZip = new File(installerDir, _newName + ".exe");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-win-amd64.exe"), installerZip);
+            installerZip.setExecutable(true, false);
+            if (bundlerSettings.isCompressBundles() && !bundlerSettings.isDoNotZipExeInstaller()) {
+                installerZip = compressionService.compress(target, installerZip);
+            }
+            return;
+
+        } else if (target.equals(BUNDLE_WIN_ARM64)) {
+            _newName = _newName.replace("${{ platform }}", BUNDLE_WIN_ARM64);
+            installerZip = new File(installerDir, _newName + ".exe");
+            FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-win-arm64.exe"), installerZip);
             installerZip.setExecutable(true, false);
             if (bundlerSettings.isCompressBundles() && !bundlerSettings.isDoNotZipExeInstaller()) {
                 installerZip = compressionService.compress(target, installerZip);
@@ -303,7 +312,7 @@ public class PackageService implements BundleConstants {
                             .replaceFirst("^jdeploy-installer/jdeploy-installer\\.app/(.*)", newName + "/" + newName + ".app/$1")
                             .replaceFirst("^jdeploy-installer/\\._jdeploy-installer\\.app$", newName + "/._" + newName + ".app")
                             .replaceFirst("^jdeploy-installer/(.*)", newName + "/$1");
-                } else if ("win".equals(target)) {
+                } else if (target.startsWith("win")) {
                     name = name
 
 
@@ -599,7 +608,10 @@ public class PackageService implements BundleConstants {
             results.put(BUNDLE_MAC_ARM64, macArmBundle(context, bundlerSettings));
         }
         if (bundles.contains(BUNDLE_WIN)) {
-            results.put(BUNDLE_WIN, windowsBundle(context, bundlerSettings));
+            results.put(BUNDLE_WIN, windowsX64Bundle(context, bundlerSettings));
+        }
+        if (bundles.contains(BUNDLE_WIN_ARM64)) {
+            results.put(BUNDLE_WIN_ARM64, windowsArm64Bundle(context, bundlerSettings));
         }
         if (bundles.contains(BUNDLE_LINUX)) {
             results.put(BUNDLE_LINUX, linuxBundle(context, bundlerSettings));
@@ -686,24 +698,14 @@ public class PackageService implements BundleConstants {
         }
     }
 
-
-    private BundlerResult windowsBundle(PackagingContext context, BundlerSettings bundlerSettings) throws Exception {
+    private BundlerResult windowsX64Bundle(PackagingContext context, BundlerSettings bundlerSettings) throws Exception {
         return bundle(context, "win", bundlerSettings);
+    }
+    private BundlerResult windowsArm64Bundle(PackagingContext context, BundlerSettings bundlerSettings) throws Exception {
+        return bundle(context, "win-arm64", bundlerSettings);
     }
     private BundlerResult linuxBundle(PackagingContext context, BundlerSettings bundlerSettings) throws Exception {
         return bundle(context, "linux", bundlerSettings);
-    }
-
-    private BundlerResult windowsInstallerBundle(PackagingContext context, BundlerSettings bundlerSettings) throws Exception {
-        return bundle(context, "win-installer", bundlerSettings);
-    }
-
-    private BundlerResult linuxInstallerBundle(PackagingContext context, BundlerSettings bundlerSettings) throws Exception {
-        return bundle(context, "linux-installer", bundlerSettings);
-    }
-
-    private BundlerResult bundle(PackagingContext context, String target) throws Exception {
-        return bundle(context, target, new BundlerSettings());
     }
 
     private BundlerResult bundle(

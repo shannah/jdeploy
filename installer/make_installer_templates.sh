@@ -33,26 +33,31 @@ for MAC_ARCH in "x64" "arm64"; do
   rm -rf "$MAC_INSTALLER"
 done
 
+for WINDOWS_ARCH in "x64" "arm64"; do
+  if [ "$WINDOWS_ARCH" == "x64" ]; then
+    WINDOWS_EXT = "amd64"
+  else
+    WINDOWS_EXT = "$WINDOWS_ARCH"
+  fi
+  if [ -d "jdeploy/installers/windows-$WINDOWS_ARCH" ]; then
+    rm -rf "jdeploy/installers/windows-$WINDOWS_ARCH"
+  fi
 
-if [ -d "jdeploy/installers/windows" ]; then
-  rm -rf jdeploy/installers/windows
+  WIN_INSTALLER="jdeploy/installers/windows-$WINDOWS_ARCH"
+  mkdir "$WIN_INSTALLER"
+
+  cp -rp "jdeploy/bundles/windows-$WINDOWS_ARCH/jdeploy-installer.exe" "$WIN_INSTALLER/jdeploy-installer-win-$WINDOWS_EXT.exe"
+
+  cd "$WIN_INSTALLER"
+  jar cvf "jdeploy-installer-win-$WINDOWS_EXT.jar" *.exe
+  mvn org.apache.maven.plugins:maven-install-plugin:3.1.0:install-file \
+                           "-Dfile=jdeploy-installer-win-$WINDOWS_EXT.jar" -DgroupId=ca.weblite.jdeploy \
+                           "-DartifactId=jdeploy-installer-template-win-$WINDOWS_EXT" -Dversion=1.0-SNAPSHOT \
+                           -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository" -e
+
+  cd "$SCRIPTPATH"
+  rm -rf "$WIN_INSTALLER"
 fi
-
-WIN_INSTALLER=jdeploy/installers/windows
-mkdir "$WIN_INSTALLER"
-
-cp -rp jdeploy/bundles/windows/jdeploy-installer.exe "$WIN_INSTALLER/jdeploy-installer-win-amd64.exe"
-
-cd "$WIN_INSTALLER"
-jar cvf jdeploy-installer-win-amd64.jar *.exe
-mvn org.apache.maven.plugins:maven-install-plugin:3.1.0:install-file \
-                         -Dfile=jdeploy-installer-win-amd64.jar -DgroupId=ca.weblite.jdeploy \
-                         -DartifactId=jdeploy-installer-template-win-amd64 -Dversion=1.0-SNAPSHOT \
-                         -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository" -e
-
-cd "$SCRIPTPATH"
-rm -rf "$WIN_INSTALLER"
-
 
 if [ -d "jdeploy/installers/linux" ]; then
   rm -rf jdeploy/installers/linux
@@ -75,6 +80,7 @@ rm -rf "$LINUX_INSTALLER"
 # We need to purge the local (.m2) repositories so that on the next build it will fetch from
 # our local (in-project) repository
 mvn dependency:purge-local-repository -DmanualInclude=ca.weblite.jdeploy:jdeploy-installer-template-win-amd64 -Dverbose
+mvn dependency:purge-local-repository -DmanualInclude=ca.weblite.jdeploy:jdeploy-installer-template-win-arm64 -Dverbose
 mvn dependency:purge-local-repository -DmanualInclude=ca.weblite.jdeploy:jdeploy-installer-template-mac-amd64 -Dverbose
 mvn dependency:purge-local-repository -DmanualInclude=ca.weblite.jdeploy:jdeploy-installer-template-mac-arm64 -Dverbose
 mvn dependency:purge-local-repository -DmanualInclude=ca.weblite.jdeploy:jdeploy-installer-template-linux-amd64 -Dverbose

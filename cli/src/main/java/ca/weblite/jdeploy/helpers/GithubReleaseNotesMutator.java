@@ -57,6 +57,9 @@ public class GithubReleaseNotesMutator implements BundleConstants {
         final Optional<File> winBundle = Arrays.asList(
                 releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_WIN))
         ).stream().findFirst();
+        final Optional<File> winArmBundle = Arrays.asList(
+                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_WIN_ARM64))
+        ).stream().findFirst();
         final Optional<File> linuxBundle = Arrays.asList(
                 releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_LINUX))
         ).stream().findFirst();
@@ -91,6 +94,14 @@ public class GithubReleaseNotesMutator implements BundleConstants {
                     .append(urlencodeFileNameForGithubRelease(winBundle.get().getName()))
                     .append(")")
                     .append("<!-- id:").append(BUNDLE_WIN).append("-link -->")
+                    .append("\n");
+        }
+        if (winArmBundle.isPresent()) {
+            notes.append("* [Windows (x64)](https://github.com/")
+                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
+                    .append(urlencodeFileNameForGithubRelease(winArmBundle.get().getName()))
+                    .append(")")
+                    .append("<!-- id:").append(BUNDLE_WIN_ARM64).append("-link -->")
                     .append("\n");
         }
         if (linuxBundle.isPresent()) {

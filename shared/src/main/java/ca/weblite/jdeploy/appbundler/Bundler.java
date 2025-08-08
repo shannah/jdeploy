@@ -315,10 +315,32 @@ public class Bundler {
         }
         
         if(target == Target.WinX64) {
-            return WindowsBundler2.start(bundlerSettings, app,DEST_DIR, RELEASE_DIR);
+            return WindowsBundler2.start(
+                    bundlerSettings,
+                    WindowsBundler2.TargetArchitecture.X64,
+                    app,
+                    DEST_DIR,
+                    RELEASE_DIR
+            );
+        }
+        if(target == Target.WinArm64) {
+            return WindowsBundler2.start(
+                    bundlerSettings,
+                    WindowsBundler2.TargetArchitecture.ARM64,
+                    app,
+                    DEST_DIR,
+                    RELEASE_DIR
+            );
         }
         if(target == Target.WinX64Installer) {
-            return WindowsBundler2.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true);
+            return WindowsBundler2.start(
+                    bundlerSettings,
+                    WindowsBundler2.TargetArchitecture.X64,
+                    app,
+                    DEST_DIR,
+                    RELEASE_DIR,
+                    true
+            );
         }
         
         if (target == Target.LinuxX64) {
@@ -347,11 +369,55 @@ public class Bundler {
             );
             cleanupBundledJVM(app);
             setupBundledJVM(appInfo, app, Target.WinX64);
-            out.setResultForType("win", WindowsBundler2.start(bundlerSettings, app,DEST_DIR, RELEASE_DIR));
+            out.setResultForType(
+                    "win",
+                    WindowsBundler2.start(
+                            bundlerSettings,
+                            WindowsBundler2.TargetArchitecture.X64,
+                            app,
+                            DEST_DIR,
+                            RELEASE_DIR
+                    )
+            );
+            out.setResultForType(
+                    "win-x64",
+                    out.getResultForType("win", false)
+            );
             cleanupBundledJVM(app);
             out.setResultForType(
                     "win-installer",
-                    WindowsBundler2.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true)
+                    WindowsBundler2.start(
+                            bundlerSettings,
+                            WindowsBundler2.TargetArchitecture.X64,
+                            app,
+                            DEST_DIR,
+                            RELEASE_DIR,
+                            true
+                    )
+            );
+            cleanupBundledJVM(app);
+            setupBundledJVM(appInfo, app, Target.WinArm64);
+            out.setResultForType(
+                    "win-arm64",
+                    WindowsBundler2.start(
+                            bundlerSettings,
+                            WindowsBundler2.TargetArchitecture.ARM64,
+                            app,
+                            DEST_DIR,
+                            RELEASE_DIR
+                    )
+            );
+            cleanupBundledJVM(app);
+            out.setResultForType(
+                    "win-arm64-installer",
+                    WindowsBundler2.start(
+                            bundlerSettings,
+                            WindowsBundler2.TargetArchitecture.ARM64,
+                            app,
+                            DEST_DIR,
+                            RELEASE_DIR,
+                            true
+                    )
             );
             cleanupBundledJVM(app);
             setupBundledJVM(appInfo, app, Target.LinuxX64);
@@ -482,8 +548,8 @@ public class Bundler {
         MacX64,
         MacArm,
         WinX64,
+        WinArm64,
         LinuxX64,
-
         MacX64Installer,
 
         MacArmInstaller,
@@ -503,12 +569,14 @@ public class Bundler {
                 return MacArm;
             }
 
-            if("win".equals(target)) {
+            if("win".equals(target) || "win-x64".equals(target)) {
                 return WinX64;
+            }
+            if ("win-arm64".equals(target)) {
+                return WinArm64;
             }
             if("win-installer".equals(target)) {
                 return WinX64Installer;
-
             }
 
             if ("linux".equals(target)) {

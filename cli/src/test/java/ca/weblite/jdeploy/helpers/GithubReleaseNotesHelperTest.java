@@ -42,6 +42,7 @@ public class GithubReleaseNotesHelperTest implements BundleConstants {
         new File(releaseFilesDir, "testapp-" + BUNDLE_MAC_X64 + ".zip").createNewFile();
         new File(releaseFilesDir, "testapp-" + BUNDLE_MAC_ARM64 + ".zip").createNewFile();
         new File(releaseFilesDir, "testapp-" + BUNDLE_WIN + ".exe").createNewFile();
+        new File(releaseFilesDir, "testapp-" + BUNDLE_WIN_ARM64 + ".exe").createNewFile();
 
         // Use System.err for error output
         err = System.err;
@@ -62,6 +63,7 @@ public class GithubReleaseNotesHelperTest implements BundleConstants {
         assertTrue(releaseNotes.contains("* [Mac (Intel)](https://github.com/testuser/testrepo/releases/download/v1.0.0/testapp-" + BUNDLE_MAC_X64 + ".zip)<!-- id:" + BUNDLE_MAC_X64 + "-link -->"));
         assertTrue(releaseNotes.contains("* [Mac (Apple Silicon)](https://github.com/testuser/testrepo/releases/download/v1.0.0/testapp-" + BUNDLE_MAC_ARM64 + ".zip)<!-- id:" + BUNDLE_MAC_ARM64 + "-link -->"));
         assertTrue(releaseNotes.contains("* [Windows (x64)](https://github.com/testuser/testrepo/releases/download/v1.0.0/testapp-" + BUNDLE_WIN + ".exe)<!-- id:" + BUNDLE_WIN + "-link -->"));
+        assertTrue(releaseNotes.contains("* [Windows (arm64)](https://github.com/testuser/testrepo/releases/download/v1.0.0/testapp-" + BUNDLE_WIN_ARM64 + ".exe)<!-- id:" + BUNDLE_WIN_ARM64 + "-link -->"));
 
         // Assert that the Linux link is not present
         assertFalse(releaseNotes.contains("* [Linux (x64)]"));
@@ -84,6 +86,7 @@ public class GithubReleaseNotesHelperTest implements BundleConstants {
         // Assert that other links remain unchanged
         assertTrue(updatedNotes.contains("* [Mac (Apple Silicon)](https://github.com/testuser/testrepo/releases/download/v1.0.0/testapp-" + BUNDLE_MAC_ARM64 + ".zip)<!-- id:" + BUNDLE_MAC_ARM64 + "-link -->"));
         assertTrue(updatedNotes.contains("* [Windows (x64)](https://github.com/testuser/testrepo/releases/download/v1.0.0/testapp-" + BUNDLE_WIN + ".exe)<!-- id:" + BUNDLE_WIN + "-link -->"));
+        assertTrue(updatedNotes.contains("* [Windows (arm64)](https://github.com/testuser/testrepo/releases/download/v1.0.0/testapp-" + BUNDLE_WIN_ARM64 + ".exe)<!-- id:" + BUNDLE_WIN_ARM64 + "-link -->"));
     }
 
     // Helper method to delete directories recursively

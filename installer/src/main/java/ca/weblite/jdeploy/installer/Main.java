@@ -587,6 +587,11 @@ public class Main implements Runnable, Constants {
             }
         } else if (Platform.getSystemPlatform().isWindows()) {
             target = "win";
+            if (System.getProperty("os.arch").equals("aarch64") || System.getProperty("os.arch").equals("arm64")) {
+                target += "-arm64";
+            } else {
+                target += "-x64";
+            }
         } else if (Platform.getSystemPlatform().isLinux()) {
             target = "linux";
         } else {

@@ -376,7 +376,7 @@ public class JDeploy implements BundleConstants {
 
         bundlerSettings.setCompressBundles(true);
         bundlerSettings.setDoNotZipExeInstaller(true);
-        _package(context.withInstallers(BUNDLE_MAC_X64, BUNDLE_MAC_ARM64, BUNDLE_WIN, BUNDLE_LINUX), bundlerSettings);
+        _package(context.withInstallers(BUNDLE_MAC_X64, BUNDLE_MAC_ARM64, BUNDLE_WIN, BUNDLE_WIN_ARM64, BUNDLE_LINUX), bundlerSettings);
 
         PublishingContext publishingContext = PublishingContext.builder()
                 .setPackagingContext(context)
