@@ -203,7 +203,7 @@ public class PackageService implements BundleConstants {
             dmgSuffix = dmgSuffix.replace("${{ platform }}", BUNDLE_MAC_X64);
             macIntelDmg(context, bundlerSettings, installerDir, dmgSuffix);
             return;
-        } else if (target.equals(BUNDLE_WIN)) {
+        } else if (target.equals(BUNDLE_WIN) || target.equals(BUNDLE_WIN_LEGACY)) {
             _newName = _newName.replace("${{ platform }}", BUNDLE_WIN_X64);
             installerZip = new File(installerDir, _newName + ".exe");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-win-amd64.exe"), installerZip);
@@ -607,7 +607,7 @@ public class PackageService implements BundleConstants {
         if (bundles.contains(BUNDLE_MAC_ARM64)) {
             results.put(BUNDLE_MAC_ARM64, macArmBundle(context, bundlerSettings));
         }
-        if (bundles.contains(BUNDLE_WIN)) {
+        if (bundles.contains(BUNDLE_WIN) || bundles.contains(BUNDLE_WIN_LEGACY)) {
             results.put(BUNDLE_WIN, windowsX64Bundle(context, bundlerSettings));
         }
         if (bundles.contains(BUNDLE_WIN_ARM64)) {
