@@ -46,10 +46,20 @@ if [ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ] || [ "$(expr substr $(u
   IS_WINDOWS=true
 fi
 
-function install_windows() {
+function install_windows_x64() {
     # run the mock_launcher_win.exe script in the CWD
-    cp "$CWD/../mock_launcher/mock_launcher_win.exe" "$CWD/mock_launcher_win.exe"
-    "$CWD/mock_launcher_win.exe" install
+    cp "$CWD/../mock_launcher/mock_launcher_win_x64.exe" "$CWD/mock_launcher_win_x64.exe"
+    "$CWD/mock_launcher_win_x64.exe" install
+
+    echo "The uninstaller was written to the ~/.jdeploy/uninstallers directory."
+    echo "You should test out the installer by going to Add/Remove programs and attempting to uninstall the application."
+    echo "After running the uninstaller, you can check the results in the ~/.jdeploy/log/jdeploy-installer.log file."
+}
+
+function install_windows_arm64() {
+    # run the mock_launcher_win.exe script in the CWD
+    cp "$CWD/../mock_launcher/mock_launcher_win_arm64.exe" "$CWD/mock_launcher_win_arm64.exe"
+    "$CWD/mock_launcher_win_arm64.exe" install
 
     echo "The uninstaller was written to the ~/.jdeploy/uninstallers directory."
     echo "You should test out the installer by going to Add/Remove programs and attempting to uninstall the application."
@@ -61,9 +71,13 @@ function install_non_windows() {
     cp "$CWD/../mock_launcher/mock_launcher.sh" "$CWD/mock_launcher.sh"
     bash "$CWD/mock_launcher.sh" install
 }
-
+arch=$(uname -m)
 if [ "$IS_WINDOWS" = true ]; then
-  install_windows
+  if [[ "$arch" == "aarch64"]]; then
+    install_windows_arm64
+  else
+    install_windows_x64
+  fi
 else
   install_non_windows
 fi
