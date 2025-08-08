@@ -42,6 +42,8 @@ fi
 # if on windows run the mock_launcher_win.exe script in the CWD else run the mock_launcher.sh script in the CWD
 echo "Running on platform: $(uname -s)"
 echo "Running on architecture: $(uname -m)"
+echo "PROCESSOR_ARCHITECTURE=$PROCESSOR_ARCHITECTURE"
+echo "PROCESSOR_ARCHITEW6432=$PROCESSOR_ARCHITEW6432"
 case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*)
         if [[ "$PROCESSOR_ARCHITECTURE" == "ARM64" || "$PROCESSOR_ARCHITEW6432" == "ARM64" ]]; then
