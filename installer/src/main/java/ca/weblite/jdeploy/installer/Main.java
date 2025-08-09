@@ -594,6 +594,11 @@ public class Main implements Runnable, Constants {
             }
         } else if (Platform.getSystemPlatform().isLinux()) {
             target = "linux";
+            if (System.getProperty("os.arch").equals("aarch64") || System.getProperty("os.arch").equals("arm64")) {
+                target += "-arm64";
+            } else {
+                target += "-x64";
+            }
         } else {
             throw new RuntimeException("Installation failed.  Your platform is not currently supported.");
         }

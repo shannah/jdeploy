@@ -17,7 +17,7 @@ public class CompressionService {
      * @throws IOException
      */
     public File compress(String target, File installerZip) throws IOException {
-        if (target.startsWith("mac") || target.equals("linux")) {
+        if (target.startsWith("mac") || target.startsWith("linux")) {
             // Mac and linux use tar file
             String gzipFileName = installerZip.getName() + ".gz";
             if (gzipFileName.endsWith(".tar.gz")) {

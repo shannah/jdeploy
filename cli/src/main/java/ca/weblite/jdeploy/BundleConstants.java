@@ -9,5 +9,8 @@ public interface BundleConstants {
     public static final String BUNDLE_WIN_LEGACY = "win";
     public static final String BUNDLE_WIN_ARM64 = "win-arm64";
     public static final String BUNDLE_WIN_X64 = "win-x64";
-    public static final String BUNDLE_LINUX = "linux";
+    public static final String BUNDLE_LINUX = "linux-x64";
+    public static final String BUNDLE_LINUX_X64 = "linux-x64";
+    public static final String BUNDLE_LINUX_ARM64 = "linux-arm64";
+    public static final String BUNDLE_LINUX_LEGACY = "linux";
 }

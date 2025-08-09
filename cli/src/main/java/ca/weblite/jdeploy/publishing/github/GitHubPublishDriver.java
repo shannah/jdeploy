@@ -186,7 +186,8 @@ public class GitHubPublishDriver implements PublishDriverInterface {
                                         BUNDLE_MAC_ARM64,
                                         BUNDLE_WIN,
                                         BUNDLE_WIN_ARM64,
-                                        BUNDLE_LINUX
+                                        BUNDLE_LINUX,
+                                        BUNDLE_LINUX_ARM64
                                 )
                         ),
                 target,
