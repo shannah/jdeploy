@@ -35,9 +35,9 @@ done
 
 for WINDOWS_ARCH in "x64" "arm64"; do
   if [ "$WINDOWS_ARCH" == "x64" ]; then
-    WINDOWS_EXT = "amd64"
+    WINDOWS_EXT="amd64"
   else
-    WINDOWS_EXT = "$WINDOWS_ARCH"
+    WINDOWS_EXT="$WINDOWS_ARCH"
   fi
   if [ -d "jdeploy/installers/windows-$WINDOWS_ARCH" ]; then
     rm -rf "jdeploy/installers/windows-$WINDOWS_ARCH"
@@ -57,8 +57,8 @@ for WINDOWS_ARCH in "x64" "arm64"; do
 
   cd "$SCRIPTPATH"
   rm -rf "$WIN_INSTALLER"
-fi
-for [LINUX_ARCH in "x64" "arm64"]; do
+done
+for LINUX_ARCH in "x64" "arm64"; do
   if [ "$LINUX_ARCH" == "x64" ]; then
     LINUX_EXT="amd64"
   else
