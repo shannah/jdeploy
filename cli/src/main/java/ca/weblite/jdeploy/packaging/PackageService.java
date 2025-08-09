@@ -223,10 +223,20 @@ public class PackageService implements BundleConstants {
             }
             return;
 
-        } else if (target.equals(BUNDLE_LINUX)) {
+        } else if (target.equals(BUNDLE_LINUX) || target.equals(BUNDLE_LINUX_LEGACY)) {
             _newName = _newName.replace("${{ platform }}", "linux-x64");
             installerZip = new File(installerDir, _newName);
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-linux-amd64"), installerZip);
+            installerZip.setExecutable(true, false);
+            if (bundlerSettings.isCompressBundles()) {
+                installerZip = compressionService.compress(target, installerZip);
+            }
+            return;
+
+        } else if (target.equals(BUNDLE_LINUX_ARM64)) {
+            _newName = _newName.replace("${{ platform }}", "linux-arm64");
+            installerZip = new File(installerDir, _newName);
+            FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-linux-arm64"), installerZip);
             installerZip.setExecutable(true, false);
             if (bundlerSettings.isCompressBundles()) {
                 installerZip = compressionService.compress(target, installerZip);
@@ -335,7 +345,7 @@ public class PackageService implements BundleConstants {
             filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledSplashFile, newName + "/.jdeploy-files/installsplash.png"));
             filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledIconFile, newName + "/.jdeploy-files/icon.png"));
         }
-        if (target.startsWith("mac") || target.equals("linux")) {
+        if (target.startsWith("mac") || target.startsWith("linux")) {
             // Mac and linux use tar file
             ArchiveUtil.filterNamesInTarFile(installerZip, filter, filesToAdd);
         }  else {
@@ -613,8 +623,11 @@ public class PackageService implements BundleConstants {
         if (bundles.contains(BUNDLE_WIN_ARM64)) {
             results.put(BUNDLE_WIN_ARM64, windowsArm64Bundle(context, bundlerSettings));
         }
-        if (bundles.contains(BUNDLE_LINUX)) {
-            results.put(BUNDLE_LINUX, linuxBundle(context, bundlerSettings));
+        if (bundles.contains(BUNDLE_LINUX) || bundles.contains(BUNDLE_LINUX_LEGACY)) {
+            results.put(BUNDLE_LINUX, linuxX64Bundle(context, bundlerSettings));
+        }
+        if (bundles.contains(BUNDLE_LINUX_ARM64)) {
+            results.put(BUNDLE_LINUX, linuxArm64Bundle(context, bundlerSettings));
         }
 
         return results;
@@ -704,8 +717,11 @@ public class PackageService implements BundleConstants {
     private BundlerResult windowsArm64Bundle(PackagingContext context, BundlerSettings bundlerSettings) throws Exception {
         return bundle(context, "win-arm64", bundlerSettings);
     }
-    private BundlerResult linuxBundle(PackagingContext context, BundlerSettings bundlerSettings) throws Exception {
+    private BundlerResult linuxX64Bundle(PackagingContext context, BundlerSettings bundlerSettings) throws Exception {
         return bundle(context, "linux", bundlerSettings);
+    }
+    private BundlerResult linuxArm64Bundle(PackagingContext context, BundlerSettings bundlerSettings) throws Exception {
+        return bundle(context, "linux-arm64", bundlerSettings);
     }
 
     private BundlerResult bundle(

@@ -23,7 +23,7 @@ fi
 # if running on linux, then add the linux-x64 bundle to the bundles array
 if [ "$(uname)" == "Linux" ]; then
   BUNDLES='["linux"]'
-  LAUNCHER_PATH=./jdeploy/bundles/linux/Jdeploy\ It\ Test\ Project
+  LAUNCHER_PATH=./jdeploy/bundles/linux-x64/Jdeploy\ It\ Test\ Project
 fi
 
 # if running on windows, then add the windows-x64 bundle to the bundles array

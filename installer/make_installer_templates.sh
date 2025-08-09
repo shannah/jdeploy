@@ -58,24 +58,30 @@ for WINDOWS_ARCH in "x64" "arm64"; do
   cd "$SCRIPTPATH"
   rm -rf "$WIN_INSTALLER"
 fi
+for [LINUX_ARCH in "x64" "arm64"]; do
+  if [ "$LINUX_ARCH" == "x64" ]; then
+    LINUX_EXT="amd64"
+  else
+    LINUX_EXT="$LINUX_ARCH"
+  fi
+  if [ -d "jdeploy/installers/linux-$LINUX_ARCH" ]; then
+    rm -rf "jdeploy/installers/linux-$LINUX_ARCH"
+  fi
 
-if [ -d "jdeploy/installers/linux" ]; then
-  rm -rf jdeploy/installers/linux
-fi
+  LINUX_INSTALLER="jdeploy/installers/linux-$LINUX_ARCH"
+  mkdir "$LINUX_INSTALLER"
 
-LINUX_INSTALLER=jdeploy/installers/linux
-mkdir "$LINUX_INSTALLER"
+  cp -rp "jdeploy/bundles/linux-$LINUX_ARCH/jdeploy-installer" "$LINUX_INSTALLER/jdeploy-installer-linux-$LINUX_EXT"
 
-cp -rp jdeploy/bundles/linux/jdeploy-installer "$LINUX_INSTALLER/jdeploy-installer-linux-amd64"
-
-cd "$LINUX_INSTALLER"
-jar cvf jdeploy-installer-linux-amd64.jar *
-mvn org.apache.maven.plugins:maven-install-plugin:3.1.0:install-file \
-                         -Dfile=jdeploy-installer-linux-amd64.jar -DgroupId=ca.weblite.jdeploy \
-                         -DartifactId=jdeploy-installer-template-linux-amd64 -Dversion=1.0-SNAPSHOT \
-                         -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository" -e
-cd "$SCRIPTPATH"
-rm -rf "$LINUX_INSTALLER"
+  cd "$LINUX_INSTALLER"
+  jar cvf jdeploy-installer-linux-$LINUX_EXT.jar *
+  mvn org.apache.maven.plugins:maven-install-plugin:3.1.0:install-file \
+                           -Dfile=jdeploy-installer-linux-$LINUX_EXT.jar -DgroupId=ca.weblite.jdeploy \
+                           -DartifactId=jdeploy-installer-template-linux-$LINUX_EXT -Dversion=1.0-SNAPSHOT \
+                           -Dpackaging=jar -DlocalRepositoryPath="$SCRIPTPATH/../maven-repository" -e
+  cd "$SCRIPTPATH"
+  rm -rf "$LINUX_INSTALLER"
+done
 
 # We need to purge the local (.m2) repositories so that on the next build it will fetch from
 # our local (in-project) repository
@@ -84,5 +90,6 @@ mvn dependency:purge-local-repository -DmanualInclude=ca.weblite.jdeploy:jdeploy
 mvn dependency:purge-local-repository -DmanualInclude=ca.weblite.jdeploy:jdeploy-installer-template-mac-amd64 -Dverbose
 mvn dependency:purge-local-repository -DmanualInclude=ca.weblite.jdeploy:jdeploy-installer-template-mac-arm64 -Dverbose
 mvn dependency:purge-local-repository -DmanualInclude=ca.weblite.jdeploy:jdeploy-installer-template-linux-amd64 -Dverbose
+mvn dependency:purge-local-repository -DmanualInclude=ca.weblite.jdeploy:jdeploy-installer-template-linux-arm64 -Dverbose
 
 

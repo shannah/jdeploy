@@ -70,7 +70,7 @@ public class ZuluJVMDownloaderTest {
 
         String javafxStr = javafx ? "fx" : "default";
         String versionStr = bundleType + version + (javafx ? "fx" : "");
-        String ext = platform.equals("linux") && (javafx || "arm".equals(arch)) ? "tar.gz" : "zip";
+        String ext = platform.startsWith("linux") && (javafx || "arm".equals(arch)) ? "tar.gz" : "zip";
         String fileName = versionStr + "." + ext;
         Path savePath = tempDir.resolve(Paths.get("jre", "zulu", platform, arch + bitness, version, bundleType, javafxStr, fileName));
 

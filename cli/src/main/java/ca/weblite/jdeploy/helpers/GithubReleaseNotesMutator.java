@@ -63,6 +63,9 @@ public class GithubReleaseNotesMutator implements BundleConstants {
         final Optional<File> linuxBundle = Arrays.asList(
                 releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_LINUX))
         ).stream().findFirst();
+        final Optional<File> linuxArmBundle = Arrays.asList(
+                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_LINUX_ARM64))
+        ).stream().findFirst();
         StringBuilder notes = new StringBuilder();
         notes.append("## Application Installers");
         if ("branch".equals(refType)) {
@@ -110,6 +113,14 @@ public class GithubReleaseNotesMutator implements BundleConstants {
                     .append(urlencodeFileNameForGithubRelease(linuxBundle.get().getName()))
                     .append(")")
                     .append("<!-- id:").append(BUNDLE_LINUX).append("-link -->")
+                    .append("\n");
+        }
+        if (linuxArmBundle.isPresent()) {
+            notes.append("* [Linux (x64)](https://github.com/")
+                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
+                    .append(urlencodeFileNameForGithubRelease(linuxArmBundle.get().getName()))
+                    .append(")")
+                    .append("<!-- id:").append(BUNDLE_LINUX_ARM64).append("-link -->")
                     .append("\n");
         }
 

@@ -344,10 +344,13 @@ public class Bundler {
         }
         
         if (target == Target.LinuxX64) {
-            return LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR);
+            return LinuxBundler.start(bundlerSettings, LinuxBundler.TargetArchitecture.X64, app, DEST_DIR, RELEASE_DIR);
+        }
+        if (target == Target.LinuxArm64) {
+            return LinuxBundler.start(bundlerSettings, LinuxBundler.TargetArchitecture.ARM64, app, DEST_DIR, RELEASE_DIR);
         }
         if (target == Target.LinuxX64Installer) {
-            return LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true);
+            return LinuxBundler.start(bundlerSettings, LinuxBundler.TargetArchitecture.X64,  app, DEST_DIR, RELEASE_DIR, true);
         }
         
         if(target == Target.All) {
@@ -421,11 +424,41 @@ public class Bundler {
             );
             cleanupBundledJVM(app);
             setupBundledJVM(appInfo, app, Target.LinuxX64);
-            out.setResultForType("linux", LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR));
+            out.setResultForType(
+                    "linux",
+                    LinuxBundler.start(
+                            bundlerSettings,
+                            LinuxBundler.TargetArchitecture.X64,
+                            app,
+                            DEST_DIR,
+                            RELEASE_DIR
+                    )
+            );
+            out.setResultForType(
+                    "linux-x64",
+                    out.getResultForType("linux", false)
+            );
+            out.setResultForType(
+                    "linux-arm64",
+                    LinuxBundler.start(
+                            bundlerSettings,
+                            LinuxBundler.TargetArchitecture.ARM64,
+                            app,
+                            DEST_DIR,
+                            RELEASE_DIR
+                    )
+            );
             cleanupBundledJVM(app);
             out.setResultForType(
                     "linux-installer",
-                    LinuxBundler.start(bundlerSettings, app, DEST_DIR, RELEASE_DIR, true)
+                    LinuxBundler.start(
+                            bundlerSettings,
+                            LinuxBundler.TargetArchitecture.X64,
+                            app,
+                            DEST_DIR,
+                            RELEASE_DIR,
+                            true
+                    )
             );
             return out;
         }
@@ -550,6 +583,7 @@ public class Bundler {
         WinX64,
         WinArm64,
         LinuxX64,
+        LinuxArm64,
         MacX64Installer,
 
         MacArmInstaller,
@@ -579,9 +613,11 @@ public class Bundler {
                 return WinX64Installer;
             }
 
-            if ("linux".equals(target)) {
+            if ("linux".equals(target) || "linux-x64".equals(target)) {
                 return LinuxX64;
-
+            }
+            if ("linux-arm64".equals(target)) {
+                return LinuxArm64;
             }
             if ("linux-installer".equals(target)) {
                 return LinuxX64Installer;
