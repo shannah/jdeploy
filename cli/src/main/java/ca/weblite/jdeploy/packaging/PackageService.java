@@ -223,7 +223,7 @@ public class PackageService implements BundleConstants {
             }
             return;
 
-        } else if (target.equals(BUNDLE_LINUX)) {
+        } else if (target.equals(BUNDLE_LINUX) || target.equals(BUNDLE_LINUX_LEGACY)) {
             _newName = _newName.replace("${{ platform }}", "linux-x64");
             installerZip = new File(installerDir, _newName);
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-linux-amd64"), installerZip);
