@@ -65,7 +65,7 @@ for WINDOWS_ARCH in "x64" "arm64"; do
     rm authenticode.spc
     rm authenticode.key
   fi
-fi
+done
 
 
 
