@@ -698,7 +698,7 @@ public class Main implements Runnable, Constants {
             }
         } else if (Platform.getSystemPlatform().isLinux()) {
             File tmpExePath = null;
-            for (File exeCandidate : new File(tmpBundles, "linux").listFiles()) {
+            for (File exeCandidate : Objects.requireNonNull(new File(tmpBundles, target).listFiles())) {
                 tmpExePath = exeCandidate;
             }
             if (tmpExePath == null) {
