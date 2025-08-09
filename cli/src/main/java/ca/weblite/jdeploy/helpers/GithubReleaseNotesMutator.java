@@ -116,7 +116,7 @@ public class GithubReleaseNotesMutator implements BundleConstants {
                     .append("\n");
         }
         if (linuxArmBundle.isPresent()) {
-            notes.append("* [Linux (x64)](https://github.com/")
+            notes.append("* [Linux (arm64)](https://github.com/")
                     .append(repo).append(releasesPrefix).append(branchTag).append("/")
                     .append(urlencodeFileNameForGithubRelease(linuxArmBundle.get().getName()))
                     .append(")")
