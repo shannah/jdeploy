@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static ca.weblite.tools.io.IOUtil.copyResourceToFile;
 
@@ -236,7 +237,7 @@ public class InstallWindows {
 
     private File findTmpExeFile(File tmpBundles) {
         File tmpExePath = null;
-        for (File exeCandidate : new File(tmpBundles, "windows").listFiles()) {
+        for (File exeCandidate : Objects.requireNonNull(new File(tmpBundles, "windows" + getBundlesDirExtension()).listFiles())) {
             if (exeCandidate.getName().endsWith(".exe")) {
                 tmpExePath = exeCandidate;
             }
@@ -246,5 +247,13 @@ public class InstallWindows {
         }
 
         return tmpExePath;
+    }
+
+    private String getBundlesDirExtension() {
+        if ("arm64".equals(System.getProperty("os.arch")) || "aarch64".equals(System.getProperty("os.arch"))) {
+            return "-arm64";
+        } else {
+            return "-x64";
+        }
     }
 }

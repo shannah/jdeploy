@@ -41,15 +41,34 @@ fi
 
 # if on windows run the mock_launcher_win.exe script in the CWD else run the mock_launcher.sh script in the CWD
 echo "Running on platform: $(uname -s)"
+echo "Running on architecture: $(uname -m)"
+echo "PROCESSOR_ARCHITECTURE=$PROCESSOR_ARCHITECTURE"
+echo "PROCESSOR_ARCHITEW6432=$PROCESSOR_ARCHITEW6432"
+case "$(uname -s)" in
+    *ARM64*) arch="arm64" ;;
+    *aarch64*|*AARCH64*) arch="arm64" ;;
+    *) arch="x64" ;;
+esac
+
 IS_WINDOWS=false
 if [ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ] || [ "$(expr substr $(uname -s) 1 10)" == "MINGW64_NT" ]; then
   IS_WINDOWS=true
 fi
 
-function install_windows() {
+function install_windows_x64() {
     # run the mock_launcher_win.exe script in the CWD
-    cp "$CWD/../mock_launcher/mock_launcher_win.exe" "$CWD/mock_launcher_win.exe"
-    "$CWD/mock_launcher_win.exe" install
+    cp "$CWD/../mock_launcher/mock_launcher_win_x64.exe" "$CWD/mock_launcher_win_x64.exe"
+    "$CWD/mock_launcher_win_x64.exe" install
+
+    echo "The uninstaller was written to the ~/.jdeploy/uninstallers directory."
+    echo "You should test out the installer by going to Add/Remove programs and attempting to uninstall the application."
+    echo "After running the uninstaller, you can check the results in the ~/.jdeploy/log/jdeploy-installer.log file."
+}
+
+function install_windows_arm64() {
+    # run the mock_launcher_win.exe script in the CWD
+    cp "$CWD/../mock_launcher/mock_launcher_win_arm64.exe" "$CWD/mock_launcher_win_arm64.exe"
+    "$CWD/mock_launcher_win_arm64.exe" install
 
     echo "The uninstaller was written to the ~/.jdeploy/uninstallers directory."
     echo "You should test out the installer by going to Add/Remove programs and attempting to uninstall the application."
@@ -63,7 +82,11 @@ function install_non_windows() {
 }
 
 if [ "$IS_WINDOWS" = true ]; then
-  install_windows
+  if [ "$arch" == "arm64" ]; then
+    install_windows_arm64
+  else
+    install_windows_x64
+  fi
 else
   install_non_windows
 fi

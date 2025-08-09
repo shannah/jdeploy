@@ -130,7 +130,7 @@ public class PublishService {
 
     private PackagingContext getPackagingContext(PublishingContext context) {
         if (shouldGenerateInstallers(context)) {
-            return context.packagingContext.withInstallers(BUNDLE_MAC_X64, BUNDLE_MAC_ARM64, BUNDLE_WIN, BUNDLE_LINUX);
+            return context.packagingContext.withInstallers(BUNDLE_MAC_X64, BUNDLE_MAC_ARM64, BUNDLE_WIN, BUNDLE_WIN_ARM64, BUNDLE_LINUX);
         }
 
         return context.packagingContext;

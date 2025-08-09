@@ -3,8 +3,17 @@
 #include <string.h>
 #include <windows.h>
 #include <shlobj.h>
-#include <libgen.h>
 #include <ctype.h>
+
+void win_dirname(char *path) {
+    char *lastSlash = strrchr(path, '\\');
+    if (!lastSlash) {
+        lastSlash = strrchr(path, '/');
+    }
+    if (lastSlash) {
+        *lastSlash = '\0';
+    }
+}
 
 void convertUnixPathToWindows(const char *unixPath, char *windowsPath, size_t size) {
     // Check if the path starts with a forward slash (Unix-style)
@@ -99,7 +108,7 @@ int main(int argc, char *argv[]) {
 
     // Get the directory path of the current executable
     strcpy(scriptPath, exePath);
-    dirname(scriptPath);
+    win_dirname(scriptPath);
 
     // Construct the path to the installer JAR file using HOME
     snprintf(installerJarPath, sizeof(installerJarPath), "%s\\installer\\target\\jdeploy-installer-1.0-SNAPSHOT.jar", jdeployProjectPath);
