@@ -26,7 +26,7 @@ echo "----------- Building jDeploy Installer -------------"
 #Next build the installer because we need to sign it and bundle it
 cd ../installer
 mvn clean package
-if [ "$GITHUB_REF_TYPE" != "tag" ] || [[ "$GITHUB_REF_NAME" =~ "-alpha" ]]; then
+if [ "$GITHUB_REF_TYPE" != "tag" ] || [[ "$GITHUB_REF_NAME" =~ "-alpha" ]] || [[ "$GITHUB_REF_NAME" =~ "-dev" ]]; then
   # IF this is not a tag, or it is a tagged prerelease, then we'll mark the installer as
   # a prerelease installer so that it gets the latest installer - even prerelease.
   echo "----------------  Building Pre-release Bundle ------------------------"
