@@ -22,19 +22,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class DefaultInstallationContext implements InstallationContext {
-    public static String JDEPLOY_REGISTRY = "https://www.jdeploy.com/";
+    public static final String JDEPLOY_REGISTRY = System.getProperty(
+            "jdeploy.registry.url",
+            "https://www.jdeploy.com/"
+    );
     private static final String GITHUB_URL = "https://github.com/";
-    static {
-        if (System.getenv("JDEPLOY_REGISTRY_URL") != null) {
-            JDEPLOY_REGISTRY = System.getenv("JDEPLOY_REGISTRY_URL");
-            if (!JDEPLOY_REGISTRY.startsWith("http://") && !JDEPLOY_REGISTRY.startsWith("https://")) {
-                throw new RuntimeException("INVALID_JDEPLOY_REGISTRY_URL environment variable.  Expecting URL but found "+JDEPLOY_REGISTRY);
-            }
-            if (!JDEPLOY_REGISTRY.endsWith("/")) {
-                JDEPLOY_REGISTRY += "/";
-            }
-        }
-    }
 
     private Document appXMLDocument;
     private File cachedInstallFilesDir;
@@ -306,6 +298,4 @@ public class DefaultInstallationContext implements InstallationContext {
             throw new RuntimeException(ex);
         }
     }
-
-
 }

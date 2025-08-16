@@ -64,6 +64,7 @@ import static ca.weblite.jdeploy.PathUtil.fromNativePath;
 import static ca.weblite.jdeploy.PathUtil.toNativePath;
 
 public class JDeployProjectEditor {
+    public static final String JDEPLOY_WEBSITE_URL = System.getProperty("jdeploy.website.url", "https://www.jdeploy.com/");
     private boolean modified;
     private JSONObject packageJSON;
     private File packageJSONFile;
@@ -1040,7 +1041,7 @@ public class JDeployProjectEditor {
         doctypesTop.add(tb, BorderLayout.CENTER);
         doctypesTop.add(
                 createHelpButton(
-                        "https://www.jdeploy.com/docs/help/#filetypes",
+                        JDEPLOY_WEBSITE_URL + "docs/help/#filetypes",
                         "",
                         "Learn more about file associations in jDeploy."
                 ),
@@ -1053,7 +1054,7 @@ public class JDeployProjectEditor {
             CheerpJSettings cheerpJSettings = new CheerpJSettings();
             cheerpJSettings.getButtons().add(
                     createHelpButton(
-                            "https://www.jdeploy.com/docs/help/#cheerpj",
+                            JDEPLOY_WEBSITE_URL + "docs/help/#cheerpj",
                             "",
                             "Learn more about CheerpJ support")
             );
@@ -1236,7 +1237,7 @@ public class JDeployProjectEditor {
         helpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
         helpPanel.add(
                 createHelpButton(
-                        "https://www.jdeploy.com/docs/help/#_the_details_tab",
+                        JDEPLOY_WEBSITE_URL + "docs/help/#_the_details_tab",
                         "",
                         "Learn about what these fields do."
                 )
@@ -1262,7 +1263,7 @@ public class JDeployProjectEditor {
         imagesHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
         imagesHelpPanel.add(
                 createHelpButton(
-                        "https://www.jdeploy.com/docs/help/#splashscreens",
+                        JDEPLOY_WEBSITE_URL + "docs/help/#splashscreens",
                         "",
                         "Learn more about this panel, and how splash screen images are used in jDeploy."
                 )
@@ -1297,7 +1298,7 @@ public class JDeployProjectEditor {
         urlsHelpPanelWrapper.setOpaque(false);
         urlsHelpPanelWrapper.add(
                 createHelpButton(
-                        "https://www.jdeploy.com/docs/help/#_the_urls_tab",
+                        JDEPLOY_WEBSITE_URL + "docs/help/#_the_urls_tab",
                         "",
                         "Learn more about custom URL schemes in jDeploy"
                 )
@@ -1327,7 +1328,7 @@ public class JDeployProjectEditor {
         cliHelpPanel.setOpaque(false);
         cliHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
         cliHelpPanel.add(createHelpButton(
-                "https://www.jdeploy.com/docs/help/#cli",
+                JDEPLOY_WEBSITE_URL + "docs/help/#cli",
                 "",
                 "Learn more about this tab in the help guide."
         ));
@@ -1344,7 +1345,7 @@ public class JDeployProjectEditor {
         JButton viewCLITutorial = new JButton("Open CLI Tutorial");
         viewCLITutorial.addActionListener(evt->{
             try {
-                context.browse(new URI("https://www.jdeploy.com/docs/getting-started-tutorial-cli/"));
+                context.browse(new URI(JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/"));
             } catch (Exception ex) {
                 System.err.println("Failed to open cli tutorial.");
                 ex.printStackTrace(System.err);
@@ -1353,7 +1354,7 @@ public class JDeployProjectEditor {
                                 "<html>" +
                                         "<p style='width:400px'>" +
                                         "Failed to open the CLI tutorial.  " +
-                                        "Try opening https://www.jdeploy.com/docs/getting-started-tutorial-cli/ " +
+                                        "Try opening " + JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/ " +
                                         "manually in your browser." +
                                         "</p>" +
                                         "</html>"
@@ -1389,7 +1390,7 @@ public class JDeployProjectEditor {
         runArgsTop.setLayout(new BorderLayout());
 
         JButton runargsHelp = createHelpButton(
-                "https://www.jdeploy.com/docs/help/#runargs",
+                JDEPLOY_WEBSITE_URL + "docs/help/#runargs",
                 "",
                 "Open run arguments help in web browser"
         );
@@ -1744,19 +1745,19 @@ public class JDeployProjectEditor {
 
         JMenu help = new JMenu("Help");
         JMenuItem jdeployHelp = createLinkItem(
-                "https://www.jdeploy.com/docs/help",
+                JDEPLOY_WEBSITE_URL + "docs/help",
                 "jDeploy Help", "Open jDeploy application help in your web browser"
         );
         help.add(jdeployHelp);
 
         help.addSeparator();
         help.add(createLinkItem(
-                "https://www.jdeploy.com/",
+                JDEPLOY_WEBSITE_URL,
                 "jDeploy Website",
                 "Open the jDeploy website in your web browser."
         ));
         help.add(createLinkItem(
-                "https://www.jdeploy.com/docs/manual",
+                JDEPLOY_WEBSITE_URL + "docs/manual",
                 "jDeploy Developers Guide",
                 "Open the jDeploy developers guide in your web browser."
         ));
@@ -1995,7 +1996,7 @@ public class JDeployProjectEditor {
             }
             throw new ValidationException(
                     "Selected jar file is not an executable Jar file.  " +
-                            "\nPlease see https://www.jdeploy.com/docs/manual/#_appendix_building_executable_jar_file"
+                            "\nPlease see " + JDEPLOY_WEBSITE_URL + "docs/manual/#_appendix_building_executable_jar_file"
             );
         } catch (IOException ex) {
             throw new ValidationException("Failed to load jar file", ex);
@@ -2149,7 +2150,7 @@ public class JDeployProjectEditor {
                     );
             PublishTargetInterface npmTarget = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
             if (npmTarget != null) {
-                return "https://www.jdeploy.com/~"+packageJSON.getString("name");
+                return JDEPLOY_WEBSITE_URL + "~"+packageJSON.getString("name");
             }
 
             PublishTargetInterface githubTarget = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
@@ -2158,10 +2159,10 @@ public class JDeployProjectEditor {
             }
 
         } catch (IOException e) {
-            return "https://www.jdeploy.com/~"+packageJSON.getString("name");
+            return JDEPLOY_WEBSITE_URL + "~"+packageJSON.getString("name");
         }
 
-        return "https://www.jdeploy.com/~"+packageJSON.getString("name");
+        return JDEPLOY_WEBSITE_URL + "~"+packageJSON.getString("name");
     }
 
     private void handlePublish0() throws ValidationException {

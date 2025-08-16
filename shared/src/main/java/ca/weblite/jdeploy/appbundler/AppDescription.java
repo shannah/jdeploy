@@ -48,6 +48,7 @@ public class AppDescription {
     private String jDeployHomeWindows;
     private String jDeployHomeMac;
     private String jDeployHomeLinux;
+    private String jDeployRegistryUrl;
 
     /**
      * If package signing is enabled, then this flag tells us whether to "pin" the app to the signing certificate.
@@ -388,6 +389,13 @@ public class AppDescription {
 
     public void setjDeployHomeLinux(String jDeployHomeLinux) {
         this.jDeployHomeLinux = jDeployHomeLinux;
+    }
+
+    public void setJDeployRegistryUrl(String jDeployRegistryUrl) {
+        this.jDeployRegistryUrl = jDeployRegistryUrl;
+    }
+    public String getJDeployRegistryUrl() {
+        return jDeployRegistryUrl;
     }
 
 }

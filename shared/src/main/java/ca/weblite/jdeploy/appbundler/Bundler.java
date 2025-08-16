@@ -97,6 +97,7 @@ public class Bundler {
         app.setjDeployHomeLinux(appInfo.getLinuxJdeployHome());
         app.setjDeployHomeMac(appInfo.getMacJdeployHome());
         app.setjDeployHomeWindows(appInfo.getWindowsJdeployHome());
+        app.setJDeployRegistryUrl(appInfo.getJdeployRegistryUrl());
 
         if (url == null) throw new IllegalArgumentException("URL is required. It can be a file: url");
 
