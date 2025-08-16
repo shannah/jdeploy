@@ -35,6 +35,10 @@ import java.util.*;
 import static ca.weblite.tools.io.IOUtil.copyResourceToFile;
 
 public class Main implements Runnable, Constants {
+    private static final String JDEPLOY_REGISTRY_URL = System.getProperty(
+            "jdeploy.registry.url",
+            "https://www.jdeploy.com/"
+    );
     private final InstallationContext installationContext = new DefaultInstallationContext();
     private final InstallationSettings installationSettings;
     private UIFactory uiFactory = new DefaultUIFactory();
@@ -190,6 +194,7 @@ public class Main implements Runnable, Constants {
         }
         Element root = doc.getDocumentElement();
         appInfo(new AppInfo());
+        appInfo().setJdeployRegistryUrl(JDEPLOY_REGISTRY_URL);
         appInfo().setAppURL(appXml.toURI().toURL());
         appInfo().setTitle(ifEmpty(root.getAttribute("title"), root.getAttribute("package"), null));
         appInfo().setNpmPackage(ifEmpty(root.getAttribute("package"), null));
