@@ -30,7 +30,12 @@ if [ "$GITHUB_REF_TYPE" != "tag" ] || [[ "$GITHUB_REF_NAME" =~ "-alpha" ]] || [[
   # IF this is not a tag, or it is a tagged prerelease, then we'll mark the installer as
   # a prerelease installer so that it gets the latest installer - even prerelease.
   echo "----------------  Building Pre-release Bundle ------------------------"
-  JDEPLOY_BUNDLE_PRERELEASE=true java -jar "$JDEPLOY" clean package
+  REGISTRY_URL_PROPERTY=""
+  if [[ "$GITHUB_REF_NAME" =~ "-dev" ]]; then
+    # Builds marked dev should use the dev registry URL.
+    REGISTRY_URL_PROPERTY="-Djdeploy.registry.url=https://dev.jdeploy.com/"
+  fi
+  JDEPLOY_BUNDLE_PRERELEASE=true java "$REGISTRY_URL_PROPERTY" -jar "$JDEPLOY" clean package
 else
   # Otherwise, we just build normally - in which case the installer will only use the latest
   # stable version.
