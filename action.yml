@@ -19,11 +19,14 @@ inputs:
   jdeploy_version:
     description: The version of Jdeploy
     default: '4.1.2'
+  jdeploy_registry_url:
+    description: The URL of the jDeploy application registry
+    required: false
+    default: 'https://www.jdeploy.com/'
   target_repository:
     description: Optional target repository where to publish releases.
     required: false
     default: ${{ github.repository }}
-
 
 runs:
   using: composite
@@ -56,6 +59,11 @@ runs:
       with:
         node-version: '16.x'
         registry-url: 'https://registry.npmjs.org'
+
+    - name: Setup jDeploy Registry
+      shell: bash
+      run: |
+        echo "JDEPLOY_REGISTRY_URL=${{ inputs.jdeploy_registry_url }}" >> $GITHUB_ENV
 
     - name: Save Original JAVA_HOME
       if: env.JAVA_HOME
