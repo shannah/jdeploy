@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.helpers;
 
 import ca.weblite.jdeploy.BundleConstants;
 import ca.weblite.jdeploy.environment.Environment;
+import ca.weblite.jdeploy.gui.JDeployProjectEditor;
 
 import java.io.File;
 import java.io.PrintStream;
@@ -12,7 +13,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class GithubReleaseNotesMutator implements BundleConstants {
-
+    private static final String JDEPLOY_WEBSITE_URL = JDeployProjectEditor.JDEPLOY_WEBSITE_URL;
     private final File directory;
 
     private final PrintStream err;
@@ -127,16 +128,16 @@ public class GithubReleaseNotesMutator implements BundleConstants {
         if ("branch".equals(refType)) {
             notes.append("\nOr launch app installer via command-line on Linux, Mac, or Windows:\n\n");
             notes.append("```bash\n");
-            notes.append("/bin/bash -c \"$(curl -fsSL https://www.jdeploy.com/gh/")
+            notes.append("/bin/bash -c \"$(curl -fsSL " + JDEPLOY_WEBSITE_URL + "gh/")
                     .append(repo).append("/").append(branchTag).append("/install.sh)\"\n");
             notes.append("```\n");
-            notes.append("\nSee [download page](https://www.jdeploy.com/gh/").append(repo).append("/").append(branchTag).append(") for more download options.\n\n");
+            notes.append("\nSee [download page](" + JDEPLOY_WEBSITE_URL + "gh/").append(repo).append("/").append(branchTag).append(") for more download options.\n\n");
         } else {
             notes.append("\nOr launch app installer via command-line on Linux, Mac, or Windows:\n\n");
             notes.append("```bash\n");
-            notes.append("/bin/bash -c \"$(curl -fsSL https://www.jdeploy.com/gh/").append(repo).append("/install.sh)\"\n");
+            notes.append("/bin/bash -c \"$(curl -fsSL " + JDEPLOY_WEBSITE_URL + "gh/").append(repo).append("/install.sh)\"\n");
             notes.append("```\n");
-            notes.append("\nSee [download page](https://www.jdeploy.com/gh/").append(repo).append(") for more download options.\n\n");
+            notes.append("\nSee [download page](" + JDEPLOY_WEBSITE_URL +"gh/").append(repo).append(") for more download options.\n\n");
         }
 
         return notes.toString();

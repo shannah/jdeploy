@@ -257,6 +257,7 @@ public class MacBundler {
                 "version", app.getNpmVersion(),
                 "icon", app.getIconDataURI(),
                 "prerelease", app.isNpmPrerelease() ? "true" : "false",
+                "registry-url", app.getJDeployRegistryUrl(),
                 "fork", ""+app.isFork()
         }));
 

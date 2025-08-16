@@ -6,7 +6,9 @@
 package ca.weblite.jdeploy;
 
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
+import ca.weblite.jdeploy.cli.config.CliConfigLoader;
 import ca.weblite.jdeploy.cli.controllers.*;
+import ca.weblite.jdeploy.cli.services.AppXmlPropertyExtractor;
 import ca.weblite.jdeploy.cli.services.CLIOneTimePasswordProvider;
 import ca.weblite.jdeploy.factories.PublishTargetFactory;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
@@ -511,6 +513,12 @@ public class JDeploy implements BundleConstants {
      */
     public static void main(String[] args) {
         try {
+            DIContext.get(CliConfigLoader.class).loadConfig(JDeploy.class);
+        } catch (IOException ex) {
+            System.err.println("Failed to load configuration: " + ex.getMessage());
+            ex.printStackTrace(System.err);
+        }
+        try {
             File packageJSON = new File("package.json");
             JDeploy prog = new JDeploy(new File(".").getAbsoluteFile());
             PackagingContext context = packageJSON.exists()
@@ -583,6 +591,24 @@ public class JDeploy implements BundleConstants {
             if ("upload-resources".equals(args[0])) {
                 prog.uploadResources(context);
                 System.exit(0);
+            }
+
+            if ("get-appxml-property".equals(args[0])) {
+                if (args.length < 3) {
+                    System.err.println("Usage: jdeploy get-appxml-property <app.xml-file> <property-name>");
+                    System.exit(1);
+                }
+                String appXmlFile = args[1];
+                String propertyName = args[2];
+                String propertyValue = DIContext.get(AppXmlPropertyExtractor.class)
+                        .extractProperty(appXmlFile, propertyName);
+                if (propertyValue != null) {
+                    System.out.println(propertyValue);
+                    System.exit(0);
+                } else {
+                    System.err.println("Property "+propertyName+" not found in app.xml of "+appXmlFile);
+                    System.exit(1);
+                }
             }
 
             if ("clean".equals(args[0])) {

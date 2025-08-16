@@ -55,6 +55,8 @@ public class PackageService implements BundleConstants {
 
     private final ProjectBuilderService projectBuilderService;
 
+    private final PackagingConfig packagingConfig;
+
     @Inject
     public PackageService(
             Environment environment,
@@ -63,7 +65,8 @@ public class PackageService implements BundleConstants {
             CompressionService compressionService,
             BundleCodeService bundleCodeService,
             CopyJarRuleBuilder copyJarRuleBuilder,
-            ProjectBuilderService projectBuilderService
+            ProjectBuilderService projectBuilderService,
+            PackagingConfig packagingConfig
     ) {
         this.environment = environment;
         this.jarFinder = jarFinder;
@@ -72,6 +75,7 @@ public class PackageService implements BundleConstants {
         this.bundleCodeService = bundleCodeService;
         this.copyJarRuleBuilder = copyJarRuleBuilder;
         this.projectBuilderService = projectBuilderService;
+        this.packagingConfig = packagingConfig;
     }
 
     public void createJdeployBundle(
@@ -834,6 +838,12 @@ public class PackageService implements BundleConstants {
         }
         if (context.mj().get("jdeployHomeWindows") != null) {
             appInfo.setWindowsJdeployHome(context.rj().getAsString("jdeployHomeWindows"));
+        }
+
+        if (context.mj().get("jdeployRegistryUrl") != null) {
+            appInfo.setJdeployRegistryUrl(context.rj().getAsString("jdeployRegistryUrl"));
+        } else {
+            appInfo.setJdeployRegistryUrl(packagingConfig.getJdeployRegistry());
         }
 
         String jarPath = context.getString("jar", null);

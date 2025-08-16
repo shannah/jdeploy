@@ -63,6 +63,7 @@ public class LauncherWriterHelper {
                     "version", app.getNpmVersion(),
                     "icon", app.getIconDataURI(),
                     "prerelease", app.isNpmPrerelease()+"",
+                    "registry-url", app.getJDeployRegistryUrl(),
                     "fork", ""+app.isFork()
             ).end();
         } else {

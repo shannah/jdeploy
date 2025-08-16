@@ -16,6 +16,6 @@ public class PackagingConfig {
     }
 
     public String getJdeployRegistry() {
-        return config.getProperties().getProperty("jdeploy.registry", DEFAULT_JDEPLOY_REGISTRY);
+        return config.getProperties().getProperty("registry.url", DEFAULT_JDEPLOY_REGISTRY);
     }
 }

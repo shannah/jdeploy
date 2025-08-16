@@ -36,8 +36,9 @@ public class AppInfo  {
     private String windowsJdeployHome;
 
     private String linuxJdeployHome;
-
     private String jdeployHome;
+    private String jdeployRegistryUrl;
+
     private String tagLine;
     private String title;
     private String description;
@@ -223,6 +224,14 @@ public class AppInfo  {
 
     public String getJdeployHome() {
         return jdeployHome;
+    }
+
+    public void setJdeployRegistryUrl(String jDeployRegistryUrl) {
+        this.jdeployRegistryUrl = jDeployRegistryUrl;
+    }
+
+    public String getJdeployRegistryUrl() {
+        return jdeployRegistryUrl;
     }
 
     public CodeSignSettings getCodeSignSettings() {
