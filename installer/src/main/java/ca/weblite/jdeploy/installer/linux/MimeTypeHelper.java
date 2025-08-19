@@ -19,7 +19,45 @@ public class MimeTypeHelper {
         return new File(System.getProperty("user.home")+"/share/mime");
     }
 
-    public boolean isInstalled(String mimetype) {
+    public boolean isInstalled(String mimetype, String... extensions) {
+        java.util.List<String> extensionsToTest = new java.util.ArrayList<>();
+        
+        // Add provided extensions
+        for (String ext : extensions) {
+            extensionsToTest.add(ext);
+        }
+        
+        // Always add the portion after / in mimetype as fallback extension
+        String[] parts = mimetype.split("/");
+        if (parts.length == 2 && !parts[1].isEmpty()) {
+            extensionsToTest.add(parts[1]);
+        }
+        
+        // Test each extension with xdg-mime using actual temporary files
+        for (String extension : extensionsToTest) {
+            try {
+                File tempFile = File.createTempFile("xdg-mime-test", "." + extension);
+                tempFile.deleteOnExit();
+                
+                Process p = Runtime.getRuntime().exec(new String[]{"xdg-mime", "query", "filetype", tempFile.getAbsolutePath()});
+                p.waitFor();
+                
+                // Read the output to see if it matches our mimetype
+                java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()));
+                String detectedMimetype = reader.readLine();
+                reader.close();
+                
+                tempFile.delete();
+                
+                if (mimetype.equals(detectedMimetype)) {
+                    return true;
+                }
+            } catch (Exception ex) {
+                System.err.println("Warning: Failed to query MIME type for extension ." + extension + ": " + ex.getMessage());
+            }
+        }
+        
+        // Fallback to file-based check
         return getSystemMimeFile(mimetype).exists()
                 || getUserMimeFile(mimetype).exists();
     }
@@ -45,8 +83,11 @@ public class MimeTypeHelper {
         }
     }
 
-    public void install(String mimetype, String programName, String... extensions) throws IOException {
-        if (isInstalled(mimetype)) return;
+    public void install(String mimetype, String programName, String... extensions) {
+        if (isInstalled(mimetype, extensions)) {
+            System.err.println("Warning: MIME type " + mimetype + " is already installed, skipping installation");
+            return;
+        }
         validateMimetype(mimetype);
 
         StringBuilder sb = new StringBuilder();
@@ -62,33 +103,55 @@ public class MimeTypeHelper {
         sb.append("             </mime-type>\n" +
                 "           </mime-info>");
 
-        File temp = File.createTempFile("jdeploy-mime-"+mimetype, ".xml");
-        temp.deleteOnExit();
+        File temp;
+        try {
+            temp = File.createTempFile("jdeploy-mime-"+mimetype, ".xml");
+            temp.deleteOnExit();
+            FileUtils.writeStringToFile(temp, sb.toString(), "UTF-8");
+        } catch (IOException ex) {
+            System.err.println("Warning: Failed to create temporary MIME type file for " + mimetype + ": " + ex.getMessage());
+            return;
+        }
 
-        FileUtils.writeStringToFile(temp, sb.toString(), "UTF-8");
+        // Determine if we need --novendor flag
+        boolean isVendorType = mimetype.startsWith("application/vnd");
+        String[] xdgMimeCmd = isVendorType ? 
+            new String[]{"xdg-mime", "install", "--mode", "user", temp.getAbsolutePath()} :
+            new String[]{"xdg-mime", "install", "--mode", "user", "--novendor", temp.getAbsolutePath()};
+
         // https://unix.stackexchange.com/questions/564816/how-to-install-a-new-custom-mime-type-on-my-linux-system-using-cli-tools
-        {
-            Process p = Runtime.getRuntime().exec(new String[]{"xdg-mime", "install", "--mode", "user", temp.getAbsolutePath()});
+        try {
+            Process p = Runtime.getRuntime().exec(xdgMimeCmd);
             try {
                 int result = p.waitFor();
                 if (result != 0) {
-                    throw new IOException("Failed to install mimetype " + mimetype + " with xdg-mime.  Exit code " + result);
+                    System.err.println("Warning: xdg-mime command failed with exit code " + result + " for mimetype " + mimetype);
+                    return;
                 }
             } catch (InterruptedException ex) {
-                throw new IOException("xdg-mime was interrupted.  Failed to install mimetype " + mimetype, ex);
+                System.err.println("Warning: xdg-mime command was interrupted for mimetype " + mimetype);
+                return;
             }
+        } catch (IOException ex) {
+            System.err.println("Warning: Failed to execute xdg-mime command for mimetype " + mimetype + ": " + ex.getMessage());
+            return;
         }
 
-        {
+        try {
             Process p = Runtime.getRuntime().exec(new String[]{"update-mime-database", getUserMimeDirectory().getAbsolutePath()});
             try {
                 int result = p.waitFor();
                 if (result != 0) {
-                    throw new IOException("Failed to install mimetype " + mimetype + " with update-mime-database.  Exit code " + result);
+                    System.err.println("Warning: update-mime-database command failed with exit code " + result + " for mimetype " + mimetype);
+                    return;
                 }
             } catch (InterruptedException ex) {
-                throw new IOException("update-mime-database was interrupted.  Failed to install mimetype " + mimetype, ex);
+                System.err.println("Warning: update-mime-database command was interrupted for mimetype " + mimetype);
+                return;
             }
+        } catch (IOException ex) {
+            System.err.println("Warning: Failed to execute update-mime-database command for mimetype " + mimetype + ": " + ex.getMessage());
+            return;
         }
 
 
