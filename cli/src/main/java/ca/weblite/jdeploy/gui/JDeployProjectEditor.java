@@ -25,6 +25,9 @@ import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.jdeploy.publishing.github.GitHubPublishDriver;
 import ca.weblite.jdeploy.services.*;
+import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
+import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
+import ca.weblite.jdeploy.downloadPage.swing.DownloadPageSettingsPanel;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.MD5;
 import com.sun.nio.file.SensitivityWatchEventModifier;
@@ -81,6 +84,8 @@ public class JDeployProjectEditor {
 
     private JMenuItem generateGithubWorkflowMenuItem;
     private JMenuItem editGithubWorkflowMenuItem;
+    
+    private DownloadPageSettingsPanel downloadPageSettingsPanel;
 
     private NPM npm = null;
 
@@ -366,10 +371,16 @@ public class JDeployProjectEditor {
 
     private void setModified() {
         modified = true;
+        if (frame != null && frame.getRootPane() != null) {
+            frame.getRootPane().putClientProperty("Window.documentModified", true);
+        }
     }
 
     private void clearModified() {
         modified = false;
+        if (frame != null && frame.getRootPane() != null) {
+            frame.getRootPane().putClientProperty("Window.documentModified", false);
+        }
     }
 
     private void createDocTypeRow(JSONArray docTypes, int index, Box doctypesPanel) {
@@ -1438,6 +1449,10 @@ public class JDeployProjectEditor {
         if (context.shouldDisplayCheerpJPanel()) {
             tabs.add("CheerpJ", cheerpjSettingsRoot);
         }
+        
+        downloadPageSettingsPanel = new DownloadPageSettingsPanel(loadDownloadPageSettings());
+        downloadPageSettingsPanel.addChangeListener(evt -> setModified());
+        tabs.add("Download Page", downloadPageSettingsPanel);
 
         if (context.shouldDisplayPublishSettingsTab()) {
             tabs.add("Publish Settings", createPublishSettingsPanel());
@@ -1873,6 +1888,9 @@ public class JDeployProjectEditor {
 
     private void handleSave() {
         try {
+            if (downloadPageSettingsPanel != null) {
+                saveDownloadPageSettings(downloadPageSettingsPanel.getSettings());
+            }
             FileUtil.writeStringToFile(packageJSON.toString(4), packageJSONFile);
             packageJSONMD5 = MD5.getMD5Checksum(packageJSONFile);
             clearModified();
@@ -2361,5 +2379,15 @@ public class JDeployProjectEditor {
         dialog.setLocationRelativeTo(frame);
         dialog.setModal(false);
         return dialog;
+    }
+    
+    private DownloadPageSettings loadDownloadPageSettings() {
+        DownloadPageSettingsService service = DIContext.get(DownloadPageSettingsService.class);
+        return service.read(packageJSON);
+    }
+    
+    private void saveDownloadPageSettings(DownloadPageSettings settings) {
+        DownloadPageSettingsService service = DIContext.get(DownloadPageSettingsService.class);
+        service.write(settings, packageJSON);
     }
 }
