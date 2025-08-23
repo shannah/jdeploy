@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.PrintStream;
 import java.net.URLEncoder;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -49,24 +50,24 @@ public class GithubReleaseNotesMutator implements BundleConstants {
     ) {
         final String releasesPrefix = "/releases/download/";
         final File releaseFilesDir = getGithubReleaseFilesDir();
-        final Optional<File> macIntelBundle = Arrays.asList(
-                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_MAC_X64))
-        ).stream().findFirst();
-        final Optional<File> macArmBundle = Arrays.asList(
-                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_MAC_ARM64))
-        ).stream().findFirst();
-        final Optional<File> winBundle = Arrays.asList(
-                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_WIN))
-        ).stream().findFirst();
-        final Optional<File> winArmBundle = Arrays.asList(
-                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_WIN_ARM64))
-        ).stream().findFirst();
-        final Optional<File> linuxBundle = Arrays.asList(
-                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_LINUX))
-        ).stream().findFirst();
-        final Optional<File> linuxArmBundle = Arrays.asList(
-                releaseFilesDir.listFiles((dir, name) ->  name.contains(BUNDLE_LINUX_ARM64))
-        ).stream().findFirst();
+        final Optional<File> macIntelBundle = Arrays.stream(
+                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_MAC_X64)))
+        ).findFirst();
+        final Optional<File> macArmBundle = Arrays.stream(
+                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_MAC_ARM64)))
+        ).findFirst();
+        final Optional<File> winBundle = Arrays.stream(
+                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_WIN)))
+        ).findFirst();
+        final Optional<File> winArmBundle = Arrays.stream(
+                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_WIN_ARM64)))
+        ).findFirst();
+        final Optional<File> linuxBundle = Arrays.stream(
+                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_LINUX)))
+        ).findFirst();
+        final Optional<File> linuxArmBundle = Arrays.stream(
+                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_LINUX_ARM64)))
+        ).findFirst();
         StringBuilder notes = new StringBuilder();
         notes.append("## Application Installers");
         if ("branch".equals(refType)) {
@@ -76,68 +77,56 @@ public class GithubReleaseNotesMutator implements BundleConstants {
         }
         notes.append("\n\n");
 
-        if (macArmBundle.isPresent()) {
-            notes.append("* [Mac (Apple Silicon)](https://github.com/")
-                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                    .append(urlencodeFileNameForGithubRelease(macArmBundle.get().getName()))
-                    .append(")")
-                    .append("<!-- id:").append(BUNDLE_MAC_ARM64).append("-link -->")
-                    .append("\n");
-        }
-        if (macIntelBundle.isPresent()) {
-            notes.append("* [Mac (Intel)](https://github.com/")
-                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                    .append(urlencodeFileNameForGithubRelease(macIntelBundle.get().getName()))
-                    .append(")")
-                    .append("<!-- id:").append(BUNDLE_MAC_X64).append("-link -->")
-                    .append("\n");
-        }
-        if (winBundle.isPresent()) {
-            notes.append("* [Windows (x64)](https://github.com/")
-                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                    .append(urlencodeFileNameForGithubRelease(winBundle.get().getName()))
-                    .append(")")
-                    .append("<!-- id:").append(BUNDLE_WIN).append("-link -->")
-                    .append("\n");
-        }
-        if (winArmBundle.isPresent()) {
-            notes.append("* [Windows (arm64)](https://github.com/")
-                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                    .append(urlencodeFileNameForGithubRelease(winArmBundle.get().getName()))
-                    .append(")")
-                    .append("<!-- id:").append(BUNDLE_WIN_ARM64).append("-link -->")
-                    .append("\n");
-        }
-        if (linuxBundle.isPresent()) {
-            notes.append("* [Linux (x64)](https://github.com/")
-                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                    .append(urlencodeFileNameForGithubRelease(linuxBundle.get().getName()))
-                    .append(")")
-                    .append("<!-- id:").append(BUNDLE_LINUX).append("-link -->")
-                    .append("\n");
-        }
-        if (linuxArmBundle.isPresent()) {
-            notes.append("* [Linux (arm64)](https://github.com/")
-                    .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                    .append(urlencodeFileNameForGithubRelease(linuxArmBundle.get().getName()))
-                    .append(")")
-                    .append("<!-- id:").append(BUNDLE_LINUX_ARM64).append("-link -->")
-                    .append("\n");
-        }
+        macArmBundle.ifPresent(file -> notes.append("* [Mac (Apple Silicon)](https://github.com/")
+                .append(repo).append(releasesPrefix).append(branchTag).append("/")
+                .append(urlencodeFileNameForGithubRelease(file.getName()))
+                .append(")")
+                .append("<!-- id:").append(BUNDLE_MAC_ARM64).append("-link -->")
+                .append("\n"));
+        macIntelBundle.ifPresent(file -> notes.append("* [Mac (Intel)](https://github.com/")
+                .append(repo).append(releasesPrefix).append(branchTag).append("/")
+                .append(urlencodeFileNameForGithubRelease(file.getName()))
+                .append(")")
+                .append("<!-- id:").append(BUNDLE_MAC_X64).append("-link -->")
+                .append("\n"));
+        winBundle.ifPresent(file -> notes.append("* [Windows (x64)](https://github.com/")
+                .append(repo).append(releasesPrefix).append(branchTag).append("/")
+                .append(urlencodeFileNameForGithubRelease(file.getName()))
+                .append(")")
+                .append("<!-- id:").append(BUNDLE_WIN).append("-link -->")
+                .append("\n"));
+        winArmBundle.ifPresent(file -> notes.append("* [Windows (arm64)](https://github.com/")
+                .append(repo).append(releasesPrefix).append(branchTag).append("/")
+                .append(urlencodeFileNameForGithubRelease(file.getName()))
+                .append(")")
+                .append("<!-- id:").append(BUNDLE_WIN_ARM64).append("-link -->")
+                .append("\n"));
+        linuxBundle.ifPresent(file -> notes.append("* [Linux (x64)](https://github.com/")
+                .append(repo).append(releasesPrefix).append(branchTag).append("/")
+                .append(urlencodeFileNameForGithubRelease(file.getName()))
+                .append(")")
+                .append("<!-- id:").append(BUNDLE_LINUX).append("-link -->")
+                .append("\n"));
+        linuxArmBundle.ifPresent(file -> notes.append("* [Linux (arm64)](https://github.com/")
+                .append(repo).append(releasesPrefix).append(branchTag).append("/")
+                .append(urlencodeFileNameForGithubRelease(file.getName()))
+                .append(")")
+                .append("<!-- id:").append(BUNDLE_LINUX_ARM64).append("-link -->")
+                .append("\n"));
 
         if ("branch".equals(refType)) {
             notes.append("\nOr launch app installer via command-line on Linux, Mac, or Windows:\n\n");
             notes.append("```bash\n");
-            notes.append("/bin/bash -c \"$(curl -fsSL " + JDEPLOY_WEBSITE_URL + "gh/")
+            notes.append("/bin/bash -c \"$(curl -fsSL ").append(JDEPLOY_WEBSITE_URL).append("gh/")
                     .append(repo).append("/").append(branchTag).append("/install.sh)\"\n");
             notes.append("```\n");
-            notes.append("\nSee [download page](" + JDEPLOY_WEBSITE_URL + "gh/").append(repo).append("/").append(branchTag).append(") for more download options.\n\n");
+            notes.append("\nSee [download page](").append(JDEPLOY_WEBSITE_URL).append("gh/").append(repo).append("/").append(branchTag).append(") for more download options.\n\n");
         } else {
             notes.append("\nOr launch app installer via command-line on Linux, Mac, or Windows:\n\n");
             notes.append("```bash\n");
-            notes.append("/bin/bash -c \"$(curl -fsSL " + JDEPLOY_WEBSITE_URL + "gh/").append(repo).append("/install.sh)\"\n");
+            notes.append("/bin/bash -c \"$(curl -fsSL ").append(JDEPLOY_WEBSITE_URL).append("gh/").append(repo).append("/install.sh)\"\n");
             notes.append("```\n");
-            notes.append("\nSee [download page](" + JDEPLOY_WEBSITE_URL +"gh/").append(repo).append(") for more download options.\n\n");
+            notes.append("\nSee [download page](").append(JDEPLOY_WEBSITE_URL).append("gh/").append(repo).append(") for more download options.\n\n");
         }
 
         return notes.toString();

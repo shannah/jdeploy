@@ -1,6 +1,8 @@
 package ca.weblite.jdeploy.publishing.github;
 
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
+import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
+import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
 import ca.weblite.jdeploy.factories.CheerpjServiceFactory;
 import ca.weblite.jdeploy.helpers.GithubReleaseNotesMutator;
 import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
@@ -25,6 +27,9 @@ import javax.inject.Singleton;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static ca.weblite.jdeploy.BundleConstants.*;
 
@@ -42,19 +47,24 @@ public class GitHubPublishDriver implements PublishDriverInterface {
     private final CheerpjServiceFactory cheerpjServiceFactory;
 
     private GitHubReleaseCreator gitHubReleaseCreator;
+
+    private final DownloadPageSettingsService downloadPageSettingsService;
+
     @Inject
     public GitHubPublishDriver(
             BasePublishDriver baseDriver,
             BundleCodeService bundleCodeService,
             PackageNameService packageNameService,
             CheerpjServiceFactory cheerpjServiceFactory,
-            GitHubReleaseCreator gitHubReleaseCreator
+            GitHubReleaseCreator gitHubReleaseCreator,
+            DownloadPageSettingsService downloadPageSettingsService
     ) {
         this.baseDriver = baseDriver;
         this.bundleCodeService = bundleCodeService;
         this.packageNameService = packageNameService;
         this.cheerpjServiceFactory = cheerpjServiceFactory;
         this.gitHubReleaseCreator = gitHubReleaseCreator;
+        this.downloadPageSettingsService = downloadPageSettingsService;
     }
 
     @Override
@@ -174,6 +184,39 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         if (target.getType() != PublishTargetType.GITHUB) {
             throw new IllegalArgumentException("prepare-github-release requires the source to be a github repository.");
         }
+        DownloadPageSettings downloadPageSettings = downloadPageSettingsService.read(
+                context.packagingContext.packageJsonFile
+        );
+        List<String> installers = downloadPageSettings.getResolvedPlatforms().stream().map(
+                platform -> {
+                    switch (platform) {
+                        case MacX64:
+                            return BUNDLE_MAC_X64;
+                        case MacArm64:
+                            return BUNDLE_MAC_ARM64;
+                        case WindowsX64:
+                            return BUNDLE_WIN;
+                        case WindowsArm64:
+                            return BUNDLE_WIN_ARM64;
+                        case LinuxX64:
+                            return BUNDLE_LINUX;
+                        case LinuxArm64:
+                            return BUNDLE_LINUX_ARM64;
+                        case Default:
+                        case All:
+                        case MacHighSierra:
+                        case DebianX64:
+                        case DebianArm64:
+                        default:
+                            return "";
+                    }
+                }
+        ).collect(Collectors.toList());
+        installers.removeIf(String::isEmpty);
+        if (installers.isEmpty()) {
+            throw new IllegalArgumentException("No installers found for the selected platforms. " +
+                    "Please ensure that your package.json has the correct downloadPageSettings.");
+        }
 
         bundlerSettings.setCompressBundles(true);
         bundlerSettings.setDoNotZipExeInstaller(true);
@@ -182,12 +225,7 @@ public class GitHubPublishDriver implements PublishDriverInterface {
                         context
                                 .packagingContext
                                 .withInstallers(
-                                        BUNDLE_MAC_X64,
-                                        BUNDLE_MAC_ARM64,
-                                        BUNDLE_WIN,
-                                        BUNDLE_WIN_ARM64,
-                                        BUNDLE_LINUX,
-                                        BUNDLE_LINUX_ARM64
+                                        installers.toArray(new String[0])
                                 )
                         ),
                 target,
@@ -252,7 +290,7 @@ public class GitHubPublishDriver implements PublishDriverInterface {
 
         File installerFiles = context.packagingContext.getInstallersDir();
         if (installerFiles.isDirectory()) {
-            for (File installerFile : installerFiles.listFiles()) {
+            for (File installerFile : Objects.requireNonNull(installerFiles.listFiles())) {
                 FileUtils.copyFile(installerFile, new File(releaseFilesDir, installerFile.getName().replace(' ', '.')));
 
             }
