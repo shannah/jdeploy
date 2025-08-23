@@ -33,8 +33,16 @@ public class DownloadPageSettingsService {
         // This method should parse the packageJson string and return a DownloadPageSettings object.
         // For now, we will return a new instance with default settings.
         DownloadPageSettings settings = new DownloadPageSettings();
-        if (packageJson != null && packageJson.has("downloadPage")) {
-            jsonReader.readJson(settings, packageJson.getJSONObject("downloadPage"));
+        JSONObject jdeploy = packageJson.has("jdeploy")
+            ? packageJson.getJSONObject("jdeploy")
+                : null;
+
+        if (jdeploy == null) {
+            return settings;
+        }
+
+        if (jdeploy.has("downloadPage")) {
+            jsonReader.readJson(settings, jdeploy.getJSONObject("downloadPage"));
         }
         return settings;
     }
@@ -44,13 +52,22 @@ public class DownloadPageSettingsService {
         if (packageJson == null) {
             throw new IllegalArgumentException("packageJson cannot be null");
         }
-        JSONObject downloadPageJson = packageJson.has("downloadPage")
-            ? packageJson.getJSONObject("downloadPage")
+
+        JSONObject jdeploy = packageJson.has("jdeploy")
+            ? packageJson.getJSONObject("jdeploy")
+                : null;
+
+        if (jdeploy == null) {
+            throw new IllegalArgumentException("packageJson must have a jdeploy section");
+        }
+
+        JSONObject downloadPageJson = jdeploy.has("downloadPage")
+            ? jdeploy.getJSONObject("downloadPage")
                 : null;
 
         if (downloadPageJson == null) {
             downloadPageJson = new JSONObject();
-            packageJson.put("downloadPage", downloadPageJson);
+            jdeploy.put("downloadPage", downloadPageJson);
         }
 
         jsonWriter.write(settings, downloadPageJson);

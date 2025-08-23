@@ -48,6 +48,11 @@ public class DownloadPageSettings {
 
 
     public Set<BundlePlatform> getEnabledPlatforms() {
+        if (enabledPlatforms.isEmpty()) {
+            HashSet<BundlePlatform> defaultSet = new HashSet<>();
+            defaultSet.add(BundlePlatform.Default);
+            return Collections.unmodifiableSet(defaultSet);
+        }
         return Collections.unmodifiableSet(enabledPlatforms);
     }
 
