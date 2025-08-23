@@ -201,7 +201,10 @@ public class DownloadPageSettingsPanel extends JPanel {
     
     private JCheckBox createCheckbox(BundlePlatform platform) {
         JCheckBox checkbox = new JCheckBox();
-        checkbox.setSelected(settings.getEnabledPlatforms().contains(platform));
+        if (platform == BundlePlatform.All || platform == BundlePlatform.Default) {
+            throw new IllegalArgumentException("Cannot create checkbox for platform: " + platform);
+        }
+        checkbox.setSelected(settings.getResolvedPlatforms().contains(platform));
         checkbox.addActionListener(new PlatformCheckboxListener(platform));
         platformCheckboxes.put(platform, checkbox);
         return checkbox;
@@ -274,8 +277,7 @@ public class DownloadPageSettingsPanel extends JPanel {
         @Override
         public void actionPerformed(ActionEvent e) {
             JCheckBox checkbox = (JCheckBox) e.getSource();
-            Set<BundlePlatform> enabledPlatforms = new HashSet<>(settings.getEnabledPlatforms());
-            
+            Set<BundlePlatform> enabledPlatforms = new HashSet<>(settings.getResolvedPlatforms());
             if (checkbox.isSelected()) {
                 enabledPlatforms.add(platform);
             } else {

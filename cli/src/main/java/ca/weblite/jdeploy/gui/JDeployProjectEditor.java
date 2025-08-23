@@ -565,6 +565,7 @@ public class JDeployProjectEditor {
 
     private void initMainFields(Container cnt) {
         mainFields = new MainFields();
+        cnt.setPreferredSize(new Dimension(800, 600));
         DetailsPanel detailsPanel = new DetailsPanel();
         detailsPanel.getProjectPath().setText(packageJSONFile.getAbsoluteFile().getParentFile().getAbsolutePath());
         // Set a small font in the project path
@@ -1451,7 +1452,11 @@ public class JDeployProjectEditor {
         }
         
         downloadPageSettingsPanel = new DownloadPageSettingsPanel(loadDownloadPageSettings());
-        downloadPageSettingsPanel.addChangeListener(evt -> setModified());
+        downloadPageSettingsPanel.addChangeListener(evt -> {
+            this.saveDownloadPageSettings(downloadPageSettingsPanel.getSettings());
+            setModified();
+
+        });
         tabs.add("Download Page", downloadPageSettingsPanel);
 
         if (context.shouldDisplayPublishSettingsTab()) {
@@ -2359,8 +2364,8 @@ public class JDeployProjectEditor {
 
             });
         } catch (Exception ex) {
-            System.err.println("An error occurred during publishing");
-            ex.printStackTrace(System.err);
+            packagingContext.err.println("An error occurred during publishing");
+            ex.printStackTrace(packagingContext.err);
             EventQueue.invokeLater(() -> {
                 progressDialog.setFailed();
             });
