@@ -4,6 +4,7 @@ import org.json.JSONObject;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.io.File;
 
 @Singleton
 public class DownloadPageSettingsService {
@@ -17,6 +18,15 @@ public class DownloadPageSettingsService {
     ) {
         this.jsonReader = jsonReader;
          this.jsonWriter = jsonWriter;
+    }
+
+    public DownloadPageSettings read(File packageJsonFile) {
+        // Read the package JSON file and return a DownloadPageSettings object.
+        if (packageJsonFile == null || !packageJsonFile.exists()) {
+            throw new IllegalArgumentException("packageJsonFile cannot be null or does not exist");
+        }
+        JSONObject packageJson = new JSONObject(packageJsonFile);
+        return read(packageJson);
     }
 
     public DownloadPageSettings read(JSONObject packageJson) {
