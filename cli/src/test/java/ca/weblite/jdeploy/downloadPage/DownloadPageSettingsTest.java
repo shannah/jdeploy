@@ -118,9 +118,11 @@ class DownloadPageSettingsTest {
         settings.setEnabledPlatforms(platforms);
         
         Set<DownloadPageSettings.BundlePlatform> resolved = settings.getResolvedPlatforms();
-        
-        assertEquals(1, resolved.size());
-        assertTrue(resolved.contains(DownloadPageSettings.BundlePlatform.Default));
+
+        assertEquals(DownloadPageSettings.DEFAULT_RESOLVED_PLATFORMS.size(), resolved.size());
+        for (DownloadPageSettings.BundlePlatform platform : DownloadPageSettings.DEFAULT_RESOLVED_PLATFORMS) {
+            assertTrue(resolved.contains(platform));
+        }
     }
 
     @Test

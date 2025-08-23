@@ -9,6 +9,15 @@ public class DownloadPageSettings {
         add(BundlePlatform.Default);
     }};
 
+    public static final Set<BundlePlatform> DEFAULT_RESOLVED_PLATFORMS = new HashSet<BundlePlatform>() {{
+        add(BundlePlatform.WindowsX64);
+        add(BundlePlatform.MacX64);
+        add(BundlePlatform.LinuxX64);
+        add(BundlePlatform.MacArm64);
+        add(BundlePlatform.DebianX64);
+        add(BundlePlatform.MacHighSierra);
+    }};
+
     public static enum BundlePlatform {
         WindowsArm64("windows-arm64"),
         WindowsX64("windows-x64"),
@@ -71,7 +80,7 @@ public class DownloadPageSettings {
             resolvedPlatforms.addAll(Arrays.asList(BundlePlatform.values()));
         } else if (resolvedPlatforms.contains(BundlePlatform.Default)) {
             resolvedPlatforms.clear();
-            resolvedPlatforms.add(BundlePlatform.Default);
+            resolvedPlatforms.addAll(DEFAULT_RESOLVED_PLATFORMS);
         }
         return Collections.unmodifiableSet(resolvedPlatforms);
     }
