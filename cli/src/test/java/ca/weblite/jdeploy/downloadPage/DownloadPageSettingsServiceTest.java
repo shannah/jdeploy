@@ -5,10 +5,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.apache.commons.io.FileUtils;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -27,6 +31,9 @@ class DownloadPageSettingsServiceTest {
     private DownloadPageSettingsJsonWriter jsonWriter;
 
     private DownloadPageSettingsService service;
+
+    @TempDir
+    File tempDir;
 
     @BeforeEach
     void setUp() {
@@ -279,5 +286,150 @@ class DownloadPageSettingsServiceTest {
         JSONObject downloadPageObject = jdeploy.getJSONObject("downloadPage");
         assertNotNull(downloadPageObject);
         assertTrue(downloadPageObject.isEmpty() || downloadPageObject.length() >= 0);
+    }
+
+    @Test
+    @DisplayName("Should read settings from valid file without jdeploy section")
+    void shouldReadSettingsFromValidFileWithoutJdeploySection() throws IOException {
+        File packageJsonFile = new File(tempDir, "package.json");
+        String jsonContent = "{\n" +
+            "  \"name\": \"test-package\",\n" +
+            "  \"version\": \"1.0.0\",\n" +
+            "  \"description\": \"A test package\"\n" +
+            "}";
+        FileUtils.writeStringToFile(packageJsonFile, jsonContent, StandardCharsets.UTF_8);
+        
+        DownloadPageSettings result = service.read(packageJsonFile);
+        
+        assertNotNull(result);
+        assertTrue(result.getEnabledPlatforms().contains(DownloadPageSettings.BundlePlatform.Default));
+        verify(jsonReader, never()).readJson(any(), any());
+    }
+
+    @Test
+    @DisplayName("Should read settings from valid file with jdeploy section but no downloadPage")
+    void shouldReadSettingsFromValidFileWithJdeployButNoDownloadPage() throws IOException {
+        File packageJsonFile = new File(tempDir, "package.json");
+        String jsonContent = "{\n" +
+            "  \"name\": \"test-package\",\n" +
+            "  \"version\": \"1.0.0\",\n" +
+            "  \"jdeploy\": {\n" +
+            "    \"mainClass\": \"com.example.Main\",\n" +
+            "    \"port\": 8080\n" +
+            "  }\n" +
+            "}";
+        FileUtils.writeStringToFile(packageJsonFile, jsonContent, StandardCharsets.UTF_8);
+        
+        DownloadPageSettings result = service.read(packageJsonFile);
+        
+        assertNotNull(result);
+        assertTrue(result.getEnabledPlatforms().contains(DownloadPageSettings.BundlePlatform.Default));
+        verify(jsonReader, never()).readJson(any(), any());
+    }
+
+    @Test
+    @DisplayName("Should read settings from valid file with jdeploy and downloadPage sections")
+    void shouldReadSettingsFromValidFileWithJdeployAndDownloadPage() throws IOException {
+        File packageJsonFile = new File(tempDir, "package.json");
+        String jsonContent = "{\n" +
+            "  \"name\": \"test-package\",\n" +
+            "  \"version\": \"1.0.0\",\n" +
+            "  \"jdeploy\": {\n" +
+            "    \"mainClass\": \"com.example.Main\",\n" +
+            "    \"downloadPage\": {\n" +
+            "      \"title\": \"Download My App\",\n" +
+            "      \"platforms\": [\"windows-x64\", \"mac-arm64\"]\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+        FileUtils.writeStringToFile(packageJsonFile, jsonContent, StandardCharsets.UTF_8);
+        
+        DownloadPageSettings result = service.read(packageJsonFile);
+        
+        assertNotNull(result);
+        verify(jsonReader).readJson(eq(result), any(JSONObject.class));
+    }
+
+    @Test
+    @DisplayName("Should read settings from valid file with complex downloadPage configuration")
+    void shouldReadSettingsFromValidFileWithComplexDownloadPageConfig() throws IOException {
+        File packageJsonFile = new File(tempDir, "package.json");
+        String jsonContent = "{\n" +
+            "  \"name\": \"complex-app\",\n" +
+            "  \"version\": \"2.1.0\",\n" +
+            "  \"description\": \"A complex application\",\n" +
+            "  \"jdeploy\": {\n" +
+            "    \"mainClass\": \"com.example.ComplexMain\",\n" +
+            "    \"port\": 9090,\n" +
+            "    \"downloadPage\": {\n" +
+            "      \"title\": \"Complex App Downloads\",\n" +
+            "      \"description\": \"Download the latest version\",\n" +
+            "      \"platforms\": [\"windows-x64\", \"mac-arm64\", \"linux-x64\"],\n" +
+            "      \"customField\": \"customValue\"\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"author\": \"Test Author\"\n" +
+            "}";
+        FileUtils.writeStringToFile(packageJsonFile, jsonContent, StandardCharsets.UTF_8);
+        
+        DownloadPageSettings result = service.read(packageJsonFile);
+        
+        assertNotNull(result);
+        verify(jsonReader).readJson(eq(result), any(JSONObject.class));
+    }
+
+    @Test
+    @DisplayName("Should read settings from minimal valid file")
+    void shouldReadSettingsFromMinimalValidFile() throws IOException {
+        File packageJsonFile = new File(tempDir, "package.json");
+        String jsonContent = "{\n" +
+            "  \"name\": \"minimal-app\",\n" +
+            "  \"version\": \"1.0.0\"\n" +
+            "}";
+        FileUtils.writeStringToFile(packageJsonFile, jsonContent, StandardCharsets.UTF_8);
+        
+        DownloadPageSettings result = service.read(packageJsonFile);
+        
+        assertNotNull(result);
+        assertTrue(result.getEnabledPlatforms().contains(DownloadPageSettings.BundlePlatform.Default));
+        verify(jsonReader, never()).readJson(any(), any());
+    }
+
+    @Test
+    @DisplayName("Should read settings from file with empty jdeploy section")
+    void shouldReadSettingsFromFileWithEmptyJdeploySection() throws IOException {
+        File packageJsonFile = new File(tempDir, "package.json");
+        String jsonContent = "{\n" +
+            "  \"name\": \"empty-jdeploy-app\",\n" +
+            "  \"version\": \"1.0.0\",\n" +
+            "  \"jdeploy\": {}\n" +
+            "}";
+        FileUtils.writeStringToFile(packageJsonFile, jsonContent, StandardCharsets.UTF_8);
+        
+        DownloadPageSettings result = service.read(packageJsonFile);
+        
+        assertNotNull(result);
+        assertTrue(result.getEnabledPlatforms().contains(DownloadPageSettings.BundlePlatform.Default));
+        verify(jsonReader, never()).readJson(any(), any());
+    }
+
+    @Test
+    @DisplayName("Should read settings from file with empty downloadPage section")
+    void shouldReadSettingsFromFileWithEmptyDownloadPageSection() throws IOException {
+        File packageJsonFile = new File(tempDir, "package.json");
+        String jsonContent = "{\n" +
+            "  \"name\": \"empty-download-page-app\",\n" +
+            "  \"version\": \"1.0.0\",\n" +
+            "  \"jdeploy\": {\n" +
+            "    \"mainClass\": \"com.example.Main\",\n" +
+            "    \"downloadPage\": {}\n" +
+            "  }\n" +
+            "}";
+        FileUtils.writeStringToFile(packageJsonFile, jsonContent, StandardCharsets.UTF_8);
+        
+        DownloadPageSettings result = service.read(packageJsonFile);
+        
+        assertNotNull(result);
+        verify(jsonReader).readJson(eq(result), any(JSONObject.class));
     }
 }

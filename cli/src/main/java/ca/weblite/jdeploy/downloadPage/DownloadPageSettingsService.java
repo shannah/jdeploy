@@ -1,10 +1,13 @@
 package ca.weblite.jdeploy.downloadPage;
 
 import org.json.JSONObject;
+import org.apache.commons.io.FileUtils;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 @Singleton
 public class DownloadPageSettingsService {
@@ -25,8 +28,13 @@ public class DownloadPageSettingsService {
         if (packageJsonFile == null || !packageJsonFile.exists()) {
             throw new IllegalArgumentException("packageJsonFile cannot be null or does not exist");
         }
-        JSONObject packageJson = new JSONObject(packageJsonFile);
-        return read(packageJson);
+        try {
+            String content = FileUtils.readFileToString(packageJsonFile, StandardCharsets.UTF_8);
+            JSONObject packageJson = new JSONObject(content);
+            return read(packageJson);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read file: " + packageJsonFile.getPath(), e);
+        }
     }
 
     public DownloadPageSettings read(JSONObject packageJson) {
