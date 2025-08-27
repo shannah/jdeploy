@@ -184,39 +184,6 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         if (target.getType() != PublishTargetType.GITHUB) {
             throw new IllegalArgumentException("prepare-github-release requires the source to be a github repository.");
         }
-        DownloadPageSettings downloadPageSettings = downloadPageSettingsService.read(
-                context.packagingContext.packageJsonFile
-        );
-        List<String> installers = downloadPageSettings.getResolvedPlatforms().stream().map(
-                platform -> {
-                    switch (platform) {
-                        case MacX64:
-                            return BUNDLE_MAC_X64;
-                        case MacArm64:
-                            return BUNDLE_MAC_ARM64;
-                        case WindowsX64:
-                            return BUNDLE_WIN;
-                        case WindowsArm64:
-                            return BUNDLE_WIN_ARM64;
-                        case LinuxX64:
-                            return BUNDLE_LINUX;
-                        case LinuxArm64:
-                            return BUNDLE_LINUX_ARM64;
-                        case Default:
-                        case All:
-                        case MacHighSierra:
-                        case DebianX64:
-                        case DebianArm64:
-                        default:
-                            return "";
-                    }
-                }
-        ).collect(Collectors.toList());
-        installers.removeIf(String::isEmpty);
-        if (installers.isEmpty()) {
-            throw new IllegalArgumentException("No installers found for the selected platforms. " +
-                    "Please ensure that your package.json has the correct downloadPageSettings.");
-        }
 
         bundlerSettings.setCompressBundles(true);
         bundlerSettings.setDoNotZipExeInstaller(true);
@@ -225,7 +192,7 @@ public class GitHubPublishDriver implements PublishDriverInterface {
                         context
                                 .packagingContext
                                 .withInstallers(
-                                        installers.toArray(new String[0])
+                                        getInstallers(context)
                                 )
                         ),
                 target,
@@ -341,5 +308,43 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         }
 
         return "tag";
+    }
+
+    private String[] getInstallers(PublishingContext context) {
+        DownloadPageSettings downloadPageSettings = downloadPageSettingsService.read(
+                context.packagingContext.packageJsonFile
+        );
+        List<String> installers = downloadPageSettings.getResolvedPlatforms().stream().map(
+                platform -> {
+                    switch (platform) {
+                        case MacX64:
+                            return BUNDLE_MAC_X64;
+                        case MacArm64:
+                            return BUNDLE_MAC_ARM64;
+                        case WindowsX64:
+                            return BUNDLE_WIN;
+                        case WindowsArm64:
+                            return BUNDLE_WIN_ARM64;
+                        case LinuxX64:
+                            return BUNDLE_LINUX;
+                        case LinuxArm64:
+                            return BUNDLE_LINUX_ARM64;
+                        case Default:
+                        case All:
+                        case MacHighSierra:
+                        case DebianX64:
+                        case DebianArm64:
+                        default:
+                            return "";
+                    }
+                }
+        ).collect(Collectors.toList());
+        installers.removeIf(String::isEmpty);
+        if (installers.isEmpty()) {
+            throw new IllegalArgumentException("No installers found for the selected platforms. " +
+                    "Please ensure that your package.json has the correct downloadPageSettings.");
+        }
+
+        return installers.toArray(new String[0]);
     }
 }
