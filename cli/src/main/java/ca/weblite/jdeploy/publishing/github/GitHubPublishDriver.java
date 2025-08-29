@@ -27,6 +27,7 @@ import javax.inject.Singleton;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -148,14 +149,13 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         builder.setModifiedTime();
         String version = context.packagingContext.getVersion();
         builder.setVersionTimestamp(version);
-        builder.addVersion(version, new FileInputStream(context.getPublishPackageJsonFile()));
+        builder.addVersion(version, Files.newInputStream(context.getPublishPackageJsonFile().toPath()));
         if (!PrereleaseHelper.isPrereleaseVersion(version)) {
             builder.setLatestVersion(version);
         }
         builder.save(
-                new FileOutputStream(new File(context.getGithubReleaseFilesDir(),
-                        "package-info.json")
-                )
+                Files.newOutputStream(new File(context.getGithubReleaseFilesDir(),
+                        "package-info.json").toPath())
         );
         // Trigger register of package name
 
@@ -223,7 +223,7 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         }
     }
 
-    private String getPackageUrl(PublishTargetInterface target) throws UnsupportedEncodingException {
+    private String getPackageUrl(PublishTargetInterface target) {
         if (!target.getUrl().startsWith(GITHUB_URL)) {
             throw new IllegalArgumentException(
                     "GitHub driver only supports target URLs starting with " + GITHUB_URL + " but received " +

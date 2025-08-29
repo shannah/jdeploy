@@ -175,6 +175,14 @@ public class PackagingContext {
         return out;
     }
 
+    /**
+     * A flag that indicates that we should generate copies of the Windows and Linux X64 bundles
+     * without the new naming convention.  This is to support legacy automations.
+     */
+    public boolean isGenerateLegacyBundles() {
+        return getBoolean("generateLegacyBundles", true);
+    }
+
     public String getString(String property, String defaultValue) {
         if (mj().containsKey(property)) {
             return r().getAsString("jdeploy/"+property);
@@ -185,6 +193,13 @@ public class PackagingContext {
     public int getInt(String property, int defaultValue) {
         if (mj().containsKey(property)) {
             return r().getAsInteger("jdeploy/"+property);
+        }
+        return defaultValue;
+    }
+
+    public boolean getBoolean(String property, boolean defaultValue) {
+        if (mj().containsKey(property)) {
+            return r().getAsBoolean("jdeploy/"+property);
         }
         return defaultValue;
     }

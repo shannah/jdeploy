@@ -208,6 +208,7 @@ public class PackageService implements BundleConstants {
             macIntelDmg(context, bundlerSettings, installerDir, dmgSuffix);
             return;
         } else if (target.equals(BUNDLE_WIN) || target.equals(BUNDLE_WIN_LEGACY)) {
+            String newNameLegacy = _newName.replace("${{ platform }}", BUNDLE_WIN_LEGACY);
             _newName = _newName.replace("${{ platform }}", BUNDLE_WIN_X64);
             installerZip = new File(installerDir, _newName + ".exe");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-win-amd64.exe"), installerZip);
@@ -215,6 +216,19 @@ public class PackageService implements BundleConstants {
             if (bundlerSettings.isCompressBundles() && !bundlerSettings.isDoNotZipExeInstaller()) {
                 installerZip = compressionService.compress(target, installerZip);
             }
+
+            if (context.isGenerateLegacyBundles()) {
+                context.out.println("Generating duplicate x64 Windows installer named " + newNameLegacy +" for for compatibility with legacy automation tools");
+                context.out.println("This will be removed in a future release.  Please update your automation tools to use the "+_newName+" installer instead.");
+                context.out.println("You can disable this behavior by setting generateLegacyBundles to false in the jdeploy object of your package.json file.");
+                File legacyInstallerZip = new File(installerDir, newNameLegacy + ".exe");
+                FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-win-amd64.exe"), legacyInstallerZip);
+                legacyInstallerZip.setExecutable(true, false);
+                if (bundlerSettings.isCompressBundles() && !bundlerSettings.isDoNotZipExeInstaller()) {
+                    compressionService.compress(BUNDLE_WIN_LEGACY, legacyInstallerZip);
+                }
+            }
+
             return;
 
         } else if (target.equals(BUNDLE_WIN_ARM64)) {
@@ -228,12 +242,25 @@ public class PackageService implements BundleConstants {
             return;
 
         } else if (target.equals(BUNDLE_LINUX) || target.equals(BUNDLE_LINUX_LEGACY)) {
+            String newNameLegacy = _newName.replace("${{ platform }}", BUNDLE_LINUX_LEGACY);
             _newName = _newName.replace("${{ platform }}", "linux-x64");
             installerZip = new File(installerDir, _newName);
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-linux-amd64"), installerZip);
             installerZip.setExecutable(true, false);
             if (bundlerSettings.isCompressBundles()) {
                 installerZip = compressionService.compress(target, installerZip);
+            }
+            if (context.isGenerateLegacyBundles()) {
+                context.out.println("Generating duplicate x64 Linux installer named " + newNameLegacy +" for for compatibility with legacy automation tools");
+                context.out.println("This will be removed in a future release.  Please update your automation tools to use the "+_newName+" installer instead.");
+                context.out.println("You can disable this behavior by setting generateLegacyBundles to false in the jdeploy object of your package.json file.");
+
+                File legacyInstallerZip = new File(installerDir, newNameLegacy);
+                FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-linux-amd64"), legacyInstallerZip);
+                legacyInstallerZip.setExecutable(true, false);
+                if (bundlerSettings.isCompressBundles()) {
+                    compressionService.compress(BUNDLE_LINUX_LEGACY, legacyInstallerZip);
+                }
             }
             return;
 

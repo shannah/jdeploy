@@ -40,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+// Disable tests on Windows due to file path issues with some tests
 @ExtendWith(MockitoExtension.class)
 @DisabledOnOs(OS.WINDOWS)
 class GitHubPublishDriverTest {
