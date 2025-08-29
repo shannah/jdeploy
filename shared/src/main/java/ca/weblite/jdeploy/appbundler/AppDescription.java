@@ -50,6 +50,8 @@ public class AppDescription {
     private String jDeployHomeLinux;
     private String jDeployRegistryUrl;
 
+    private Map<String,String> macUsageDescriptions = new HashMap<>();
+
     /**
      * If package signing is enabled, then this flag tells us whether to "pin" the app to the signing certificate.
      * If the app is pinned to a signing certificate, then the launcher will verify the signature of all files
@@ -398,4 +400,11 @@ public class AppDescription {
         return jDeployRegistryUrl;
     }
 
+    public Map<String,String> getMacUsageDescriptions() {
+        return macUsageDescriptions;
+    }
+
+    public void setMacUsageDescription(String key, String value) {
+        macUsageDescriptions.put(key, value);
+    }
 }

@@ -5,6 +5,8 @@
  */
 package ca.weblite.jdeploy.app;
 
+import ca.weblite.jdeploy.app.permissions.PermissionRequest;
+
 import ca.weblite.tools.platform.Platform;
 
 import com.client4j.Client4J;
@@ -61,6 +63,8 @@ public class AppInfo  {
 
     private Set<String> urlSchemes;
 
+    private Map<PermissionRequest, String> permissionRequests;
+
     /**
      * If package signing is enabled,
      */
@@ -99,6 +103,36 @@ public class AppInfo  {
             urlSchemes = new HashSet<>();
         }
         return urlSchemes;
+    }
+
+    public void addPermissionRequest(PermissionRequest request, String description) {
+        if (permissionRequests == null) permissionRequests = new HashMap<>();
+        permissionRequests.put(request, description);
+    }
+
+    public boolean hasPermissionRequests() {
+        return permissionRequests != null && !permissionRequests.isEmpty();
+    }
+
+    public Iterable<PermissionRequest> getPermissionRequests() {
+        if (permissionRequests == null) {
+            return new HashSet<>();
+        }
+        return permissionRequests.keySet();
+    }
+
+    public String getPermissionDescription(PermissionRequest request) {
+        if (permissionRequests != null && permissionRequests.containsKey(request)) {
+            return permissionRequests.get(request);
+        }
+        return null;
+    }
+
+    public Map<PermissionRequest, String> getPermissionRequestsWithDescriptions() {
+        if (permissionRequests == null) {
+            return new HashMap<>();
+        }
+        return new HashMap<>(permissionRequests);
     }
 
     private Map<String, String> documentMimetypes() {
@@ -1337,6 +1371,13 @@ public class AppInfo  {
         out.windowsJdeployHome = windowsJdeployHome;
         out.linuxJdeployHome = linuxJdeployHome;
 
+        if (permissionRequests != null) {
+            out.permissionRequests = new HashMap<>();
+            for (Map.Entry<PermissionRequest, String> entry : permissionRequests.entrySet()) {
+                out.permissionRequests.put(entry.getKey(), entry.getValue());
+            }
+        }
+
         return out;
     }
 
@@ -1439,6 +1480,7 @@ public class AppInfo  {
                 macJdeployHome, o.macJdeployHome,
                 windowsJdeployHome, o.windowsJdeployHome,
                 linuxJdeployHome, o.linuxJdeployHome,
+                permissionRequests, o.permissionRequests,
             
         });
     }

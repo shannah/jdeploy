@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer;
 
 import ca.weblite.jdeploy.app.AppInfo;
+import ca.weblite.jdeploy.app.permissions.PermissionRequest;
 import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
@@ -149,6 +150,10 @@ public class Main implements Runnable, Constants {
             }
             for (String scheme : npmPackageVersion().getUrlSchemes()) {
                 appInfo().addUrlScheme(scheme);
+            }
+            
+            for (Map.Entry<PermissionRequest, String> entry : npmPackageVersion().getPermissionRequests().entrySet()) {
+                appInfo().addPermissionRequest(entry.getKey(), entry.getValue());
             }
 
             if (Platform.getSystemPlatform().isWindows() && "8".equals(npmPackageVersion().getJavaVersion())) {

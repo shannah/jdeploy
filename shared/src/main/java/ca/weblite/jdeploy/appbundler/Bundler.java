@@ -10,6 +10,7 @@ import ca.weblite.jdeploy.app.JVMSpecification;
 import ca.weblite.jdeploy.jvmdownloader.JVMKit;
 import ca.weblite.tools.io.URLUtil;
 import ca.weblite.tools.security.CertificateUtil;
+import com.client4j.security.net.PermissionRequest;
 import com.joshondesign.appbundler.linux.LinuxBundler;
 import com.joshondesign.appbundler.mac.MacBundler;
 import com.joshondesign.appbundler.win.WindowsBundler2;
@@ -120,6 +121,14 @@ public class Bundler {
         setupMacCodeSigning(appInfo, app);
         setupFileAssociations(appInfo, app);
         setupUrlSchemes(appInfo, app);
+        setupMacUsageDescriptions(appInfo, app);
+        return app;
+    }
+
+    private static AppDescription setupMacUsageDescriptions(AppInfo appInfo, AppDescription app) {
+        for (ca.weblite.jdeploy.app.permissions.PermissionRequest permissionRequest : appInfo.getPermissionRequests()) {
+            app.setMacUsageDescription(permissionRequest.getMacOSKey(), appInfo.getPermissionDescription(permissionRequest));
+        }
 
         return app;
     }

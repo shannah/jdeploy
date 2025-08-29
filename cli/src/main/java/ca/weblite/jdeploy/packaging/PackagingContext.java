@@ -8,6 +8,7 @@ import ca.weblite.tools.security.KeyProvider;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
 import org.apache.commons.io.FileUtils;
+import org.json.JSONObject;
 
 import java.io.*;
 import java.util.*;
@@ -133,6 +134,16 @@ public class PackagingContext {
 
     public Map m() {
         return packageJsonMap;
+    }
+
+    /**
+     * Returns the package.json content as a JSONObject for compatibility
+     * with code that expects org.json.JSONObject instead of Map.
+     * 
+     * @return JSONObject representation of the package.json
+     */
+    public JSONObject packageJsonObject() {
+        return new JSONObject(packageJsonMap);
     }
 
     public String getVersion() {

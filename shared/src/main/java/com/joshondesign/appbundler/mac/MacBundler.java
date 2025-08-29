@@ -525,10 +525,15 @@ public class MacBundler {
                 if(icon != null) {
                     out.start("key").text("CFBundleTypeIconFile").end();
                     File ifile = new File(icon);
-                    System.out.println("doing icon: " + ifile.getAbsolutePath());
                     out.start("string").text(ifile.getName()).end();
                     //copy over the icon
                 }
+
+                for (Map.Entry<String,String> usageDescriptionEntry : app.getMacUsageDescriptions().entrySet()) {
+                    out.start("key").text(usageDescriptionEntry.getKey()).end();
+                    out.start("string").text(usageDescriptionEntry.getValue()).end();
+                }
+
             out.end().end();
         }
 
