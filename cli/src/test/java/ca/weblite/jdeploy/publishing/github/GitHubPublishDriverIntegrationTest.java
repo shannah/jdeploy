@@ -1,6 +1,5 @@
 package ca.weblite.jdeploy.publishing.github;
 
-import ca.weblite.jdeploy.BundleConstants;
 import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
@@ -20,13 +19,12 @@ import ca.weblite.jdeploy.services.ProjectBuilderService;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.jupiter.api.condition.DisabledOnOs;
-import org.junit.jupiter.api.condition.OS;
 
 import java.io.File;
-import java.io.PrintStream;
+
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -35,7 +33,6 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 // Disable on Windows because of issues with file locking and deletion
-@DisabledOnOs(OS.WINDOWS)
 public class GitHubPublishDriverIntegrationTest {
 
     private File tempDir;
@@ -50,6 +47,7 @@ public class GitHubPublishDriverIntegrationTest {
 
     @Before
     public void setup() throws Exception {
+        Assume.assumeFalse(System.getProperty("os.name").toLowerCase().contains("win"));
         // Create a temporary directory for testing
         tempDir = Files.createTempDirectory("github-publish-driver-test").toFile();
         
