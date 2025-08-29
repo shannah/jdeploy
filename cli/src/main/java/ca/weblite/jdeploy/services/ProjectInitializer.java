@@ -220,6 +220,11 @@ public class ProjectInitializer {
         jdeploy.put("javafx", false);
         jdeploy.put("jdk", false);
 
+        // Necessary to avoid duplicate x64 bundles on Windows and Linux without the architecture suffix.
+        // Default is true to not break legacy automations, but in the future we will change the default.
+        // For now, just make sure that new projects have this set to false, since they don't have legacy bundles to worry about.
+        jdeploy.put("generateLegacyBundles", false);
+
         String title = toTitleCase(commandName);
 
         jdeploy.put("title", title);
