@@ -4,6 +4,8 @@ import ca.weblite.jdeploy.BundleConstants;
 import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.app.JVMSpecification;
+import ca.weblite.jdeploy.app.permissions.PermissionRequest;
+import ca.weblite.jdeploy.app.permissions.PermissionRequestService;
 import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.appbundler.BundlerCall;
 import ca.weblite.jdeploy.appbundler.BundlerResult;
@@ -57,6 +59,8 @@ public class PackageService implements BundleConstants {
 
     private final PackagingConfig packagingConfig;
 
+    private final PermissionRequestService permissionRequestService;
+
     @Inject
     public PackageService(
             Environment environment,
@@ -66,7 +70,8 @@ public class PackageService implements BundleConstants {
             BundleCodeService bundleCodeService,
             CopyJarRuleBuilder copyJarRuleBuilder,
             ProjectBuilderService projectBuilderService,
-            PackagingConfig packagingConfig
+            PackagingConfig packagingConfig,
+            PermissionRequestService permissionRequestService
     ) {
         this.environment = environment;
         this.jarFinder = jarFinder;
@@ -76,6 +81,7 @@ public class PackageService implements BundleConstants {
         this.copyJarRuleBuilder = copyJarRuleBuilder;
         this.projectBuilderService = projectBuilderService;
         this.packagingConfig = packagingConfig;
+        this.permissionRequestService = permissionRequestService;
     }
 
     public void createJdeployBundle(
@@ -856,6 +862,13 @@ public class PackageService implements BundleConstants {
             appInfo.setAppURL(new File(jarPath).toURL());
         } else {
             throw new IOException("Cannot load app info because find jar file "+jarPath);
+        }
+
+        for (
+                Map.Entry<PermissionRequest, String> permissionRequestEntry
+                : permissionRequestService.getPermissionRequests(context.packageJsonObject()).entrySet()
+        ) {
+            appInfo.addPermissionRequest(permissionRequestEntry.getKey(), permissionRequestEntry.getValue());
         }
 
         File jarFile = new File(jarPath);

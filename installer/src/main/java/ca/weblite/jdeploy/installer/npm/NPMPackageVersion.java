@@ -3,10 +3,14 @@ package ca.weblite.jdeploy.installer.npm;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 import ca.weblite.jdeploy.models.NPMApplication;
+import ca.weblite.jdeploy.app.permissions.PermissionRequest;
+import ca.weblite.jdeploy.app.permissions.PermissionRequestService;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 public class NPMPackageVersion {
     private static final String DEFAULT_JAVA_VERSION = "11";
@@ -93,8 +97,7 @@ public class NPMPackageVersion {
         return null;
     }
 
-
-
-
-
+    public Map<PermissionRequest, String> getPermissionRequests() {
+        return new PermissionRequestService().getPermissionRequests(packageJson);
+    }
 }
