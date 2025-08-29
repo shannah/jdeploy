@@ -9,6 +9,7 @@ import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
 import ca.weblite.jdeploy.gui.services.SwingOneTimePasswordProvider;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
 import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
+import ca.weblite.jdeploy.gui.tabs.PermissionsPanel;
 import ca.weblite.jdeploy.gui.tabs.PublishSettingsPanel;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.ideInterop.IdeInteropInterface;
@@ -86,6 +87,7 @@ public class JDeployProjectEditor {
     private JMenuItem editGithubWorkflowMenuItem;
     
     private DownloadPageSettingsPanel downloadPageSettingsPanel;
+    private PermissionsPanel permissionsPanel;
 
     private NPM npm = null;
 
@@ -1451,6 +1453,15 @@ public class JDeployProjectEditor {
             tabs.add("CheerpJ", cheerpjSettingsRoot);
         }
         
+        // Permissions panel
+        permissionsPanel = new PermissionsPanel();
+        permissionsPanel.loadPermissions(packageJSON);
+        permissionsPanel.addChangeListener(evt -> {
+            permissionsPanel.savePermissions(packageJSON);
+            setModified();
+        });
+        tabs.add("Permissions", permissionsPanel);
+
         downloadPageSettingsPanel = new DownloadPageSettingsPanel(loadDownloadPageSettings());
         downloadPageSettingsPanel.addChangeListener(evt -> {
             this.saveDownloadPageSettings(downloadPageSettingsPanel.getSettings());

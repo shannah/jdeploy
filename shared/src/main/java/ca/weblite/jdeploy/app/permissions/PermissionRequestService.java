@@ -53,6 +53,49 @@ public class PermissionRequestService {
     }
     
     /**
+     * Saves permission requests to a package.json JSONObject.
+     * 
+     * @param packageJson The package.json JSONObject to modify
+     * @param permissions A map of PermissionRequest to description strings
+     */
+    public void savePermissionRequests(JSONObject packageJson, Map<PermissionRequest, String> permissions) {
+        // Ensure jdeploy section exists
+        if (!packageJson.has("jdeploy")) {
+            packageJson.put("jdeploy", new JSONObject());
+        }
+        
+        JSONObject jdeploy = packageJson.getJSONObject("jdeploy");
+        
+        // If no permissions, remove the permissions array
+        if (permissions == null || permissions.isEmpty()) {
+            jdeploy.remove("permissions");
+            return;
+        }
+        
+        // Create permissions array
+        JSONArray permissionsArray = new JSONArray();
+        
+        for (Map.Entry<PermissionRequest, String> entry : permissions.entrySet()) {
+            JSONObject permission = new JSONObject();
+            String permissionName = entry.getKey().name().toLowerCase();
+            permission.put("name", permissionName);
+            
+            String description = entry.getValue();
+            if (description != null && !description.isEmpty()) {
+                // Only include description if it's not the generic one
+                String genericDescription = generateGenericDescription(permissionName);
+                if (!genericDescription.equals(description)) {
+                    permission.put("description", description);
+                }
+            }
+            
+            permissionsArray.put(permission);
+        }
+        
+        jdeploy.put("permissions", permissionsArray);
+    }
+    
+    /**
      * Maps a string permission name to a PermissionRequest enum value.
      * 
      * @param name The permission name (case-insensitive)
