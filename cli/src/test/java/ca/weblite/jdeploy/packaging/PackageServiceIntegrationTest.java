@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.packaging;
 
 import ca.weblite.jdeploy.BundleConstants;
 import ca.weblite.jdeploy.JDeploy;
+import ca.weblite.jdeploy.app.permissions.PermissionRequestService;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.environment.Environment;
 import ca.weblite.jdeploy.services.BundleCodeService;
@@ -66,6 +67,7 @@ public class PackageServiceIntegrationTest {
         CopyJarRuleBuilder copyJarRuleBuilder = mock(CopyJarRuleBuilder.class);
         ProjectBuilderService projectBuilderService = mock(ProjectBuilderService.class);
         PackagingConfig packagingConfig = mock(PackagingConfig.class);
+        PermissionRequestService permissionRequestService = mock(PermissionRequestService.class);
         
         // Configure mocks
         when(jarFinder.findJarFile(any())).thenReturn(jarFile);
@@ -82,7 +84,8 @@ public class PackageServiceIntegrationTest {
             bundleCodeService,
             copyJarRuleBuilder,
             projectBuilderService,
-            packagingConfig
+            packagingConfig,
+            permissionRequestService
         );
     }
     

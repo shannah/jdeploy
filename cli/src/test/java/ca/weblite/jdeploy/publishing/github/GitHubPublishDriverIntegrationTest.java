@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.publishing.github;
 
 import ca.weblite.jdeploy.JDeploy;
+import ca.weblite.jdeploy.app.permissions.PermissionRequestService;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
@@ -44,6 +45,7 @@ public class GitHubPublishDriverIntegrationTest {
     private PublishTargetInterface target;
     private BundlerSettings bundlerSettings;
     private DownloadPageSettingsService downloadPageSettingsService;
+    private PermissionRequestService permissionRequestService;
 
     @Before
     public void setup() throws Exception {
@@ -83,6 +85,7 @@ public class GitHubPublishDriverIntegrationTest {
         CopyJarRuleBuilder copyJarRuleBuilder = mock(CopyJarRuleBuilder.class);
         ProjectBuilderService projectBuilderService = mock(ProjectBuilderService.class);
         PackagingConfig packagingConfig = mock(PackagingConfig.class);
+        permissionRequestService = mock(PermissionRequestService.class);
         
         // Configure mocks
         when(jarFinder.findJarFile(any())).thenReturn(jarFile);
@@ -99,7 +102,8 @@ public class GitHubPublishDriverIntegrationTest {
             bundleCodeService,
             copyJarRuleBuilder,
             projectBuilderService,
-            packagingConfig
+            packagingConfig,
+            permissionRequestService
         );
         
         // Create BasePublishDriver that uses our real PackageService
