@@ -22,6 +22,8 @@ import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 
 import java.io.File;
 import java.io.PrintStream;
@@ -32,6 +34,8 @@ import java.util.HashSet;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
+// Disable on Windows because of issues with file locking and deletion
+@DisabledOnOs(OS.WINDOWS)
 public class GitHubPublishDriverIntegrationTest {
 
     private File tempDir;
