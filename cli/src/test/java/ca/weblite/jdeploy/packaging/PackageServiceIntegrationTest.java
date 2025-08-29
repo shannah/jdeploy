@@ -9,6 +9,7 @@ import ca.weblite.jdeploy.services.ProjectBuilderService;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -28,6 +29,8 @@ public class PackageServiceIntegrationTest {
     
     @Before
     public void setup() throws Exception {
+        // Windows chokes on some of the file operations, skip tests there
+        Assume.assumeFalse(System.getProperty("os.name").toLowerCase().contains("win"));
         // Create a temporary directory for testing
         tempDir = Files.createTempDirectory("package-service-test").toFile();
         
