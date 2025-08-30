@@ -68,7 +68,10 @@ public class PublishTargetService implements PublishTargetServiceInterface {
 
     @Override
     public void updatePublishTargetsForPackageJson(JSONObject packageJson, List<PublishTargetInterface> targets) {
-        setPublishTargets(packageJson, serializer.serialize(targets));
+        List<PublishTargetInterface> explicitTargets = targets.stream()
+                .filter(target -> !target.isDefault())
+                .collect(java.util.stream.Collectors.toList());
+        setPublishTargets(packageJson, serializer.serialize(explicitTargets));
     }
 
     private JSONObject getJdeployConfig(JSONObject packageJson) {
@@ -92,7 +95,8 @@ public class PublishTargetService implements PublishTargetServiceInterface {
             PublishTargetInterface defaultTarget = publishTargetFactory
                     .createWithUrlAndName(
                             packageJson.getString("name"),
-                            packageJson.getString("name")
+                            packageJson.getString("name"),
+                            true
                     );
 
             targets.put(serializer.serialize(defaultTarget));
