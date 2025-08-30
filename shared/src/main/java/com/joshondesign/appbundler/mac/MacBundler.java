@@ -528,12 +528,6 @@ public class MacBundler {
                     out.start("string").text(ifile.getName()).end();
                     //copy over the icon
                 }
-
-                for (Map.Entry<String,String> usageDescriptionEntry : app.getMacUsageDescriptions().entrySet()) {
-                    out.start("key").text(usageDescriptionEntry.getKey()).end();
-                    out.start("string").text(usageDescriptionEntry.getValue()).end();
-                }
-
             out.end().end();
         }
 
@@ -574,6 +568,10 @@ public class MacBundler {
         out.start("key").text("CFBundleInfoDictionaryVersion").end().start("string").text("6.0").end();
         out.start("key").text("CFBundleIconFile").end().start("string").text("icon.icns").end();
         out.start("key").text("NSHighResolutionCapable").end().start("true").end();
+        for (Map.Entry<String,String> usageDescriptionEntry : app.getMacUsageDescriptions().entrySet()) {
+            out.start("key").text(usageDescriptionEntry.getKey()).end();
+            out.start("string").text(usageDescriptionEntry.getValue()).end();
+        }
         out.end().end(); //dict, plist
         out.close();
         fixPlistXML(new File(contentsDir, "Info.plist"));

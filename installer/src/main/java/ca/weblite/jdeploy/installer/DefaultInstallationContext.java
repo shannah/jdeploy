@@ -119,7 +119,7 @@ public class DefaultInstallationContext implements InstallationContext {
         return null;
     }
 
-    private static File downloadJDeployBundleForCode(String code, String version, File appBundle) throws IOException {
+    public static File downloadJDeployBundleForCode(String code, String version, File appBundle) throws IOException {
         File destDirectory = File.createTempFile("jdeploy-files-download", ".tmp");
         destDirectory.delete();
         Runtime.getRuntime().addShutdownHook(new Thread(()->{
