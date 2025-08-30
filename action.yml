@@ -31,48 +31,74 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Validate Branch/Tag Name
+      shell: bash
+      run: |
+        REF_NAME="${{ github.ref_name }}"
+        
+        # Check if ref name contains only allowed characters (letters, digits, dash, underscore, dot)
+        if [[ ! "$REF_NAME" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+          echo "Branch/tag name '$REF_NAME' contains illegal characters. Only letters, digits, dash (-), underscore (_), and dot (.) are allowed."
+          echo "Skipping action execution due to invalid ref name."
+          echo "JDEPLOY_SKIP_EXECUTION=true" >> $GITHUB_ENV
+          exit 0
+        fi
+        
+        # Check if ref name length exceeds 16 characters
+        if [[ ${#REF_NAME} -gt 16 ]]; then
+          echo "Branch/tag name '$REF_NAME' is too long (${#REF_NAME} characters). Maximum allowed length is 16 characters."
+          echo "Skipping action execution due to ref name length limit."
+          echo "JDEPLOY_SKIP_EXECUTION=true" >> $GITHUB_ENV
+          exit 0
+        fi
+        
+        echo "Branch/tag name '$REF_NAME' is valid."
+        echo "JDEPLOY_SKIP_EXECUTION=false" >> $GITHUB_ENV
     - name: Check Deploy Target
-      if: ${{ inputs.deploy_target != 'github' && inputs.deploy_target != 'npm' }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target != 'github' && inputs.deploy_target != 'npm' }}
       shell: bash
       run: |
         echo "Unsupported jdeploy deploy_target: ${{ inputs.deploy_target }}"
         exit 1
     - name: Check Github Deployment Inputs
-      if: ${{ inputs.deploy_target == 'github' && inputs.github_token == '' }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && inputs.github_token == '' }}
       shell: bash
       run: |
         echo "jdeploy action missing github_token parameter"
         exit 1
     - name: Check npm Deployment Inputs
-      if: ${{ inputs.deploy_target == 'npm' && inputs.npm_token == '' }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'npm' && inputs.npm_token == '' }}
       shell: bash
       run: |
         echo "jdeploy action missing npm_token parameter"
         exit 1
     - name: Set up Git Config
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' }}
       shell: bash
       run: |
         git config user.name "GitHub Actions Bot"
         git config user.email "<>"
     - name: Set up Node
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' }}
       uses: actions/setup-node@v2
       with:
         node-version: '16.x'
         registry-url: 'https://registry.npmjs.org'
 
     - name: Setup jDeploy Registry
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' }}
       shell: bash
       run: |
         echo "JDEPLOY_REGISTRY_URL=${{ inputs.jdeploy_registry_url }}" >> $GITHUB_ENV
 
     - name: Save Original JAVA_HOME
-      if: env.JAVA_HOME
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && env.JAVA_HOME }}
       shell: bash
       run: |
         echo "ORIGINAL_JAVA_HOME=${JAVA_HOME}" >> $GITHUB_ENV
 
     - name: Set up Isolated Java for jDeploy (only for git:// version)
-      if: ${{ startsWith(inputs.jdeploy_version, 'git://') }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && startsWith(inputs.jdeploy_version, 'git://') }}
       uses: actions/setup-java@v3
       with:
         java-version: '11'
@@ -81,21 +107,21 @@ runs:
       id: setup-java-jdeploy
 
     - name: Configure Java for jDeploy Only
-      if: ${{ startsWith(inputs.jdeploy_version, 'git://') }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && startsWith(inputs.jdeploy_version, 'git://') }}
       shell: bash
       run: |
         echo "JAVA_HOME_JDEPLOY=${{ steps.setup-java-jdeploy.outputs.path }}" >> $GITHUB_ENV
         echo "Using isolated JAVA_HOME for jDeploy: $JAVA_HOME_JDEPLOY"
 
     - name: Restore Original JAVA_HOME
-      if: ${{ startsWith(inputs.jdeploy_version, 'git://') && env.ORIGINAL_JAVA_HOME }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && startsWith(inputs.jdeploy_version, 'git://') && env.ORIGINAL_JAVA_HOME }}
       shell: bash
       run: |
         echo "Restoring original JAVA_HOME"
         echo "JAVA_HOME=${ORIGINAL_JAVA_HOME}" >> $GITHUB_ENV
 
     - name: Set jDeploy Ref
-      if: ${{ startsWith(inputs.jdeploy_version, 'git://') }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && startsWith(inputs.jdeploy_version, 'git://') }}
       shell: bash
       run: |
         jdeploy_version="${{ inputs.jdeploy_version }}"
@@ -103,7 +129,7 @@ runs:
         echo "JDEPLOY_REF=$JDEPLOY_REF" >> $GITHUB_ENV
 
     - name: Checkout jDeploy Source
-      if: ${{ startsWith(inputs.jdeploy_version, 'git://') }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && startsWith(inputs.jdeploy_version, 'git://') }}
       uses: actions/checkout@v3
       with:
         repository: 'shannah/jdeploy'
@@ -112,7 +138,7 @@ runs:
 
     - name: Install jDeploy from Source
       id: jdeploy_install_source
-      if: ${{ startsWith(inputs.jdeploy_version, 'git://') }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && startsWith(inputs.jdeploy_version, 'git://') }}
       shell: bash
       run: |
         export JAVA_HOME="$JAVA_HOME_JDEPLOY"
@@ -130,7 +156,7 @@ runs:
 
     - name: Install jDeploy from NPM
       id: jdeploy_install_standard
-      if: ${{ !startsWith(inputs.jdeploy_version, 'git://') }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && !startsWith(inputs.jdeploy_version, 'git://') }}
       shell: bash
       run: |
         echo "jdeploy_exec=npx jdeploy@${JDEPLOY_VERSION}" >> $GITHUB_ENV
@@ -138,7 +164,7 @@ runs:
         JDEPLOY_VERSION: ${{ inputs.jdeploy_version }}
 
     - name: Set jdeploy.jdeployVersion for Branch
-      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
       shell: bash
       run: |
         if [[ "${{ startsWith(inputs.jdeploy_version, 'git://') }}" == "true" ]]; then
@@ -153,8 +179,8 @@ runs:
         GH_TOKEN: ${{ github.actor }}:${{ inputs.github_token }}
 
     - name: Sanitize version name
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && github.ref_type == 'tag' }}
       shell: bash
-      if: ${{ github.ref_type == 'tag' }}
       run: |
         TAG_VERSION=${{ github.ref_name }}
         if [[ $TAG_VERSION} = v* ]]; then
@@ -163,7 +189,7 @@ runs:
           echo "TAG_VERSION=${TAG_VERSION}" >> $GITHUB_ENV
         fi
     - name: Prepare Installer Bundles for Branch
-      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
       shell: bash
       run: |
         npm pkg set version="0.0.0-${{ github.ref_name }}"
@@ -178,7 +204,7 @@ runs:
         GH_TOKEN: ${{ github.actor }}:${{ inputs.github_token }}
 
     - name: Prepare Installer Bundles for Tag
-      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'tag' }}
       shell: bash
       run: |
         npm pkg set version="$TAG_VERSION"
@@ -195,7 +221,7 @@ runs:
 
     - name: Publish package-info.json to GitHub
       uses: softprops/action-gh-release@v2
-      if: ${{ inputs.deploy_target == 'github' && inputs.target_repository == github.repository }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && inputs.target_repository == github.repository }}
       with:
         token: ${{ inputs.github_token }}
         tag_name: "jdeploy"
@@ -203,7 +229,7 @@ runs:
         files: ./jdeploy/github-release-files/package-info.json
 
     - name: Publish package-info.json to Github
-      if: ${{ inputs.deploy_target == 'github' && inputs.target_repository != github.repository }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && inputs.target_repository != github.repository }}
       shell: bash
       run: |
         gh release delete -R '${{ inputs.target_repository }}' jdeploy || true
@@ -213,7 +239,7 @@ runs:
 
     - name: Upload files to GitHub Snapshot Release for Branch
       uses: softprops/action-gh-release@v2
-      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
       with:
         tag_name: "${{ github.ref_name }}"
         token: "${{ inputs.github_token }}"
@@ -222,7 +248,7 @@ runs:
           ./jdeploy/github-release-files/*
 
     - name: Upload files to Github Snapshot Release for Branch
-      if: ${{ inputs.deploy_target == 'github' && inputs.target_repository != github.repository }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && inputs.target_repository != github.repository }}
       shell: bash
       run: |
         gh release delete -R '${{ inputs.target_repository }}' '${{ github.ref_name }}' || true
@@ -231,7 +257,7 @@ runs:
         GH_TOKEN: ${{ inputs.github_token }}
 
     - name: Upload Files to Github Release for Tag
-      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' && inputs.target_repository == github.repository }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'tag' && inputs.target_repository == github.repository }}
       uses: xresloader/upload-to-github-release@v1.6.0
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
@@ -241,7 +267,7 @@ runs:
         overwrite: true
 
     - name: Update release body (for branch release)
-      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'branch' && inputs.target_repository == github.repository }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'branch' && inputs.target_repository == github.repository }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
@@ -268,7 +294,7 @@ runs:
         -d "$BODY_JSON"
 
     - name: Update release body (for tag release)
-      if: ${{ inputs.deploy_target == 'github' && github.ref_type == 'tag' && inputs.target_repository == github.repository }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'tag' && inputs.target_repository == github.repository }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
@@ -298,7 +324,7 @@ runs:
         -d "$BODY_JSON"
 
     - name: Publish to npm
-      if: ${{ inputs.deploy_target == 'npm' && github.ref_type == 'tag' }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'npm' && github.ref_type == 'tag' }}
       shell: bash
       env:
         NODE_AUTH_TOKEN: ${{ inputs.npm_token }}
