@@ -333,6 +333,7 @@ public class Main implements Runnable, Constants {
 
     private static boolean headlessInstall;
 
+
     public static void main(String[] args) {
 
         if (args.length == 1 && args[0].equals("uninstall")) {
@@ -903,8 +904,6 @@ public class Main implements Runnable, Constants {
                 throw new IOException("Failed to update desktop database.  Exit code "+result);
             }
         }
-
-
     }
 
 }
