@@ -31,6 +31,26 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Validate Branch/Tag Name
+      shell: bash
+      run: |
+        REF_NAME="${{ github.ref_name }}"
+        
+        # Check if ref name contains only allowed characters (letters, digits, dash, underscore, dot)
+        if [[ ! "$REF_NAME" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+          echo "Branch/tag name '$REF_NAME' contains illegal characters. Only letters, digits, dash (-), underscore (_), and dot (.) are allowed."
+          echo "Skipping action execution due to invalid ref name."
+          exit 0
+        fi
+        
+        # Check if ref name length exceeds 16 characters
+        if [[ ${#REF_NAME} -gt 16 ]]; then
+          echo "Branch/tag name '$REF_NAME' is too long (${#REF_NAME} characters). Maximum allowed length is 16 characters."
+          echo "Skipping action execution due to ref name length limit."
+          exit 0
+        fi
+        
+        echo "Branch/tag name '$REF_NAME' is valid."
     - name: Check Deploy Target
       if: ${{ inputs.deploy_target != 'github' && inputs.deploy_target != 'npm' }}
       shell: bash
