@@ -10,9 +10,13 @@ import javax.inject.Singleton;
 public class PublishTargetFactory {
     private static final String GITHUB_URL = "https://github.com/";
     public PublishTargetInterface createWithUrlAndName(String url, String name) {
+        return createWithUrlAndName(url, name, false);
+    }
+
+    public PublishTargetInterface createWithUrlAndName(String url, String name, boolean isDefault) {
         return url.startsWith(GITHUB_URL)
-                ? new PublishTarget(getName(url, name), PublishTargetType.GITHUB, url)
-                : new PublishTarget(getName(url, name), PublishTargetType.NPM, url);
+                ? new PublishTarget(getName(url, name), PublishTargetType.GITHUB, url, isDefault)
+                : new PublishTarget(getName(url, name), PublishTargetType.NPM, url, isDefault);
     }
 
     private String getName(String url, String name) {

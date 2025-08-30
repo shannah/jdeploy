@@ -22,10 +22,12 @@ import ca.weblite.jdeploy.packaging.PackagingPreferences;
 import ca.weblite.jdeploy.packaging.PackagingPreferencesService;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetServiceInterface;
+import ca.weblite.jdeploy.publishTargets.PublishTarget;
 import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.jdeploy.publishing.github.GitHubPublishDriver;
 import ca.weblite.jdeploy.services.*;
+import ca.weblite.jdeploy.claude.SetupClaudeService;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
 import ca.weblite.jdeploy.downloadPage.swing.DownloadPageSettingsPanel;
@@ -1578,7 +1580,10 @@ public class JDeployProjectEditor {
                 if (panel.getNpmCheckbox().isSelected()) {
                     try {
                         PublishTargetInterface existingNpm = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
-                        if (existingNpm == null) {
+                        if (existingNpm == null || existingNpm.isDefault()) {
+                            if (existingNpm != null && existingNpm.isDefault()) {
+                                targets.remove(existingNpm);
+                            }
                             targets.add(factory.createWithUrlAndName(packageJSON.getString("name"), packageJSON.getString("name")));
                             publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
                             setModified();
@@ -1605,7 +1610,9 @@ public class JDeployProjectEditor {
                     try {
                         PublishTargetInterface existingGithub = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
                         if (existingGithub == null) {
-                            targets.add(factory.createWithUrlAndName(panel.getGithubRepositoryField().getText(), packageJSON.getString("name")));
+                            String githubUrl = panel.getGithubRepositoryField().getText();
+                            String name = "github: " + (githubUrl.isEmpty() ? packageJSON.getString("name") : githubUrl);
+                            targets.add(new PublishTarget(name, PublishTargetType.GITHUB, githubUrl));
                             publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
                             setModified();
                         }
@@ -1643,12 +1650,18 @@ public class JDeployProjectEditor {
                 }
 
                 private void updateGithubUrl() {
+                    if (!panel.getGithubCheckbox().isSelected()) {
+                        return; // Only update URL if GitHub is actually selected
+                    }
                     try {
                         PublishTargetInterface existingGithub = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
                         if (existingGithub != null) {
                             targets.remove(existingGithub);
                         }
-                        PublishTargetInterface newGithub = factory.createWithUrlAndName(panel.getGithubRepositoryField().getText(), packageJSON.getString("name"));
+                        // Explicitly create GitHub target instead of relying on URL-based factory logic
+                        String githubUrl = panel.getGithubRepositoryField().getText();
+                        String name = "github: " + (githubUrl.isEmpty() ? packageJSON.getString("name") : githubUrl);
+                        PublishTargetInterface newGithub = new PublishTarget(name, PublishTargetType.GITHUB, githubUrl);
                         targets.add(newGithub);
                         publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
                         setModified();
@@ -1761,8 +1774,18 @@ public class JDeployProjectEditor {
         verifyHomepage.addActionListener(evt->{
             handleVerifyHomepage();
         });
+        
+        JMenuItem setupClaude = new JMenuItem("Setup Claude AI Assistant");
+        setupClaude.setToolTipText(
+                "Setup Claude AI assistant for this project by adding jDeploy-specific instructions to CLAUDE.md"
+        );
+        setupClaude.addActionListener(evt->{
+            handleSetupClaude();
+        });
+        
         file.addSeparator();
         file.add(verifyHomepage);
+        file.add(setupClaude);
 
         if (context.shouldDisplayExitMenu()) {
             file.addSeparator();
@@ -1819,6 +1842,34 @@ public class JDeployProjectEditor {
         NPMApplication app = NPMApplicationHelper.createFromPackageJSON(packageJSON);
         VerifyWebsiteController verifyController = new VerifyWebsiteController(frame, app);
         EventQueue.invokeLater(verifyController);
+    }
+    
+    private void handleSetupClaude() {
+        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                SetupClaudeService service = new SetupClaudeService();
+                File projectDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
+                service.setup(projectDirectory);
+                return null;
+            }
+            
+            @Override
+            protected void done() {
+                try {
+                    get();
+                    JOptionPane.showMessageDialog(
+                        frame,
+                        "Claude AI assistant has been successfully set up for this project.\nCLAUDE.md file has been created/updated with jDeploy-specific instructions.",
+                        "Claude Setup Complete",
+                        JOptionPane.INFORMATION_MESSAGE
+                    );
+                } catch (Exception ex) {
+                    showError("Failed to setup Claude AI assistant: " + ex.getMessage(), ex);
+                }
+            }
+        };
+        worker.execute();
     }
 
     private void generateGithubWorkflow() {

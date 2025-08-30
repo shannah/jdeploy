@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.services;
 
+import ca.weblite.jdeploy.claude.SetupClaudeService;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
 import org.apache.commons.io.FileUtils;
@@ -18,10 +19,15 @@ import java.util.*;
 public class ProjectInitializer {
 
     private final ProjectJarFinder projectJarFinder;
+    private final SetupClaudeService setupClaudeService;
 
     @Inject
-    public ProjectInitializer(ProjectJarFinder projectJarFinder) {
+    public ProjectInitializer(
+            ProjectJarFinder projectJarFinder,
+            SetupClaudeService setupClaudeService
+    ) {
         this.projectJarFinder = projectJarFinder;
+        this.setupClaudeService = setupClaudeService;
     }
     public static class Request {
         public final String projectDirectory;
@@ -255,6 +261,9 @@ public class ProjectInitializer {
                     }
                 }
             }
+
+            this.setupClaudeService.setup(directory);
+
         }
 
         return new Response(
@@ -332,6 +341,9 @@ public class ProjectInitializer {
 
         final GithubWorkflowGenerator githubWorkflowGenerator = new GithubWorkflowGenerator(directory);
         boolean githubWorkflowExists = githubWorkflowGenerator.getGithubWorkflowFile().exists();
+
+        setupClaudeService.setup(directory);
+
         return new Response(
                 jsonStr,
                 directory.getAbsolutePath(),
