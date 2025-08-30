@@ -14,6 +14,9 @@ public class PublishTargetSerializer {
         obj.put("name", target.getName());
         obj.put("type", target.getType().name());
         obj.put("url", target.getUrl());
+        if (target.isDefault()) {
+            obj.put("isDefault", true);
+        }
         return obj;
     }
 
@@ -29,7 +32,8 @@ public class PublishTargetSerializer {
         String name = obj.getString("name");
         PublishTargetType type = PublishTargetType.valueOf(obj.getString("type"));
         String url = obj.getString("url");
-        return new PublishTarget(name, type, url);
+        boolean isDefault = obj.optBoolean("isDefault", false);
+        return new PublishTarget(name, type, url, isDefault);
     }
 
     public List<PublishTargetInterface> deserialize(JSONArray arr) {

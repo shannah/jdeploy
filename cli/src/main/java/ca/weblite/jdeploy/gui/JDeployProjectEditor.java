@@ -22,6 +22,7 @@ import ca.weblite.jdeploy.packaging.PackagingPreferences;
 import ca.weblite.jdeploy.packaging.PackagingPreferencesService;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetServiceInterface;
+import ca.weblite.jdeploy.publishTargets.PublishTarget;
 import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.jdeploy.publishing.github.GitHubPublishDriver;
@@ -1579,7 +1580,10 @@ public class JDeployProjectEditor {
                 if (panel.getNpmCheckbox().isSelected()) {
                     try {
                         PublishTargetInterface existingNpm = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
-                        if (existingNpm == null) {
+                        if (existingNpm == null || existingNpm.isDefault()) {
+                            if (existingNpm != null && existingNpm.isDefault()) {
+                                targets.remove(existingNpm);
+                            }
                             targets.add(factory.createWithUrlAndName(packageJSON.getString("name"), packageJSON.getString("name")));
                             publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
                             setModified();
@@ -1606,7 +1610,9 @@ public class JDeployProjectEditor {
                     try {
                         PublishTargetInterface existingGithub = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
                         if (existingGithub == null) {
-                            targets.add(factory.createWithUrlAndName(panel.getGithubRepositoryField().getText(), packageJSON.getString("name")));
+                            String githubUrl = panel.getGithubRepositoryField().getText();
+                            String name = "github: " + (githubUrl.isEmpty() ? packageJSON.getString("name") : githubUrl);
+                            targets.add(new PublishTarget(name, PublishTargetType.GITHUB, githubUrl));
                             publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
                             setModified();
                         }
@@ -1644,12 +1650,18 @@ public class JDeployProjectEditor {
                 }
 
                 private void updateGithubUrl() {
+                    if (!panel.getGithubCheckbox().isSelected()) {
+                        return; // Only update URL if GitHub is actually selected
+                    }
                     try {
                         PublishTargetInterface existingGithub = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
                         if (existingGithub != null) {
                             targets.remove(existingGithub);
                         }
-                        PublishTargetInterface newGithub = factory.createWithUrlAndName(panel.getGithubRepositoryField().getText(), packageJSON.getString("name"));
+                        // Explicitly create GitHub target instead of relying on URL-based factory logic
+                        String githubUrl = panel.getGithubRepositoryField().getText();
+                        String name = "github: " + (githubUrl.isEmpty() ? packageJSON.getString("name") : githubUrl);
+                        PublishTargetInterface newGithub = new PublishTarget(name, PublishTargetType.GITHUB, githubUrl);
                         targets.add(newGithub);
                         publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
                         setModified();

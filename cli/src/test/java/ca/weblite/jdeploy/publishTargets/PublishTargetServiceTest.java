@@ -123,4 +123,73 @@ public class PublishTargetServiceTest {
         verify(fileSystem).exists(eq(Paths.get(projectPath, "package.json")));
         verifyNoInteractions(serializer);
     }
+
+    @Test
+    public void testDefaultTargetsNotPersistedUntilExplicit() {
+        // Test for the specific bug: default NPM target should not be persisted 
+        // until user explicitly adds it
+        
+        // Arrange: Empty package.json (no publish targets defined)
+        JSONObject packageJson = new JSONObject();
+        packageJson.put("name", "test-app");
+        
+        PublishTargetInterface defaultNpmTarget = mock(PublishTargetInterface.class);
+        when(defaultNpmTarget.getType()).thenReturn(PublishTargetType.NPM);
+        when(defaultNpmTarget.isDefault()).thenReturn(true);
+        when(defaultNpmTarget.getName()).thenReturn("npm: test-app");
+        when(defaultNpmTarget.getUrl()).thenReturn("test-app");
+        
+        when(publishTargetFactory.createWithUrlAndName("test-app", "test-app", true))
+                .thenReturn(defaultNpmTarget);
+        when(serializer.serialize(defaultNpmTarget)).thenReturn(new JSONObject()
+                .put("name", "npm: test-app")
+                .put("type", "NPM")
+                .put("url", "test-app")
+                .put("isDefault", true));
+        when(serializer.deserialize(any(JSONArray.class)))
+                .thenReturn(Collections.singletonList(defaultNpmTarget));
+        
+        // Act: Get targets with includeDefaultTarget=true (UI scenario)
+        List<PublishTargetInterface> targets = service.getTargetsForPackageJson(packageJson, true);
+        
+        // Assert: Should have one default NPM target in memory
+        assertEquals(1, targets.size());
+        assertEquals(PublishTargetType.NPM, targets.get(0).getType());
+        assertTrue(targets.get(0).isDefault());
+        
+        // But: package.json should still be empty of publish targets
+        JSONObject jdeploy = packageJson.optJSONObject("jdeploy");
+        if (jdeploy != null && jdeploy.has("publishTargets")) {
+            JSONArray publishTargets = jdeploy.getJSONArray("publishTargets");
+            // The default target should be in the returned JSONArray but not yet persisted
+            assertEquals(1, publishTargets.length());
+            assertTrue(publishTargets.getJSONObject(0).optBoolean("isDefault", false));
+        }
+        
+        // When: Updating targets (simulating user interaction)
+        // Default targets should be filtered out during persistence
+        PublishTargetInterface explicitGithubTarget = mock(PublishTargetInterface.class);
+        when(explicitGithubTarget.getType()).thenReturn(PublishTargetType.GITHUB);
+        when(explicitGithubTarget.isDefault()).thenReturn(false);
+        when(explicitGithubTarget.getUrl()).thenReturn("https://github.com/test/repo");
+        
+        List<PublishTargetInterface> mixedTargets = new ArrayList<>();
+        mixedTargets.add(defaultNpmTarget); // Default NPM target
+        mixedTargets.add(explicitGithubTarget); // Explicit GitHub target
+        
+        when(serializer.serialize(Collections.singletonList(explicitGithubTarget)))
+                .thenReturn(new JSONArray().put(new JSONObject()
+                        .put("name", "github: test")
+                        .put("type", "GITHUB")
+                        .put("url", "https://github.com/test/repo")));
+        
+        service.updatePublishTargetsForPackageJson(packageJson, mixedTargets);
+        
+        // Then: Only explicit (non-default) targets should be persisted
+        JSONObject updatedJdeploy = packageJson.getJSONObject("jdeploy");
+        JSONArray persistedTargets = updatedJdeploy.getJSONArray("publishTargets");
+        assertEquals(1, persistedTargets.length());
+        assertEquals("GITHUB", persistedTargets.getJSONObject(0).getString("type"));
+        assertFalse(persistedTargets.getJSONObject(0).optBoolean("isDefault", false));
+    }
 }
