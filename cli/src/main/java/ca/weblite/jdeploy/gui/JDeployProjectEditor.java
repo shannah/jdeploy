@@ -26,6 +26,7 @@ import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.jdeploy.publishing.github.GitHubPublishDriver;
 import ca.weblite.jdeploy.services.*;
+import ca.weblite.jdeploy.claude.SetupClaudeService;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
 import ca.weblite.jdeploy.downloadPage.swing.DownloadPageSettingsPanel;
@@ -1761,8 +1762,18 @@ public class JDeployProjectEditor {
         verifyHomepage.addActionListener(evt->{
             handleVerifyHomepage();
         });
+        
+        JMenuItem setupClaude = new JMenuItem("Setup Claude AI Assistant");
+        setupClaude.setToolTipText(
+                "Setup Claude AI assistant for this project by adding jDeploy-specific instructions to CLAUDE.md"
+        );
+        setupClaude.addActionListener(evt->{
+            handleSetupClaude();
+        });
+        
         file.addSeparator();
         file.add(verifyHomepage);
+        file.add(setupClaude);
 
         if (context.shouldDisplayExitMenu()) {
             file.addSeparator();
@@ -1819,6 +1830,34 @@ public class JDeployProjectEditor {
         NPMApplication app = NPMApplicationHelper.createFromPackageJSON(packageJSON);
         VerifyWebsiteController verifyController = new VerifyWebsiteController(frame, app);
         EventQueue.invokeLater(verifyController);
+    }
+    
+    private void handleSetupClaude() {
+        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                SetupClaudeService service = new SetupClaudeService();
+                File projectDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
+                service.setup(projectDirectory);
+                return null;
+            }
+            
+            @Override
+            protected void done() {
+                try {
+                    get();
+                    JOptionPane.showMessageDialog(
+                        frame,
+                        "Claude AI assistant has been successfully set up for this project.\nCLAUDE.md file has been created/updated with jDeploy-specific instructions.",
+                        "Claude Setup Complete",
+                        JOptionPane.INFORMATION_MESSAGE
+                    );
+                } catch (Exception ex) {
+                    showError("Failed to setup Claude AI assistant: " + ex.getMessage(), ex);
+                }
+            }
+        };
+        worker.execute();
     }
 
     private void generateGithubWorkflow() {

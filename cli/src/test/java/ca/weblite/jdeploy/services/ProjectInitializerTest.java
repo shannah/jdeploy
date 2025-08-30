@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.services;
 
+import ca.weblite.jdeploy.claude.SetupClaudeService;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.junit.jupiter.api.*;
@@ -21,11 +22,14 @@ class ProjectInitializerTest {
     @Mock
     private ProjectJarFinder mockProjectJarFinder;
 
+    @Mock
+    SetupClaudeService mockSetupClaudeService;
+
     private ProjectInitializer initializer;
 
     @BeforeEach
     void setUp() {
-        initializer = new ProjectInitializer(mockProjectJarFinder);
+        initializer = new ProjectInitializer(mockProjectJarFinder, mockSetupClaudeService);
     }
 
     /**
