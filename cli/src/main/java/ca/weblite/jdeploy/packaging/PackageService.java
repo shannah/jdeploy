@@ -6,10 +6,7 @@ import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.app.JVMSpecification;
 import ca.weblite.jdeploy.app.permissions.PermissionRequest;
 import ca.weblite.jdeploy.app.permissions.PermissionRequestService;
-import ca.weblite.jdeploy.appbundler.Bundler;
-import ca.weblite.jdeploy.appbundler.BundlerCall;
-import ca.weblite.jdeploy.appbundler.BundlerResult;
-import ca.weblite.jdeploy.appbundler.BundlerSettings;
+import ca.weblite.jdeploy.appbundler.*;
 import ca.weblite.jdeploy.appbundler.mac.DmgCreator;
 import ca.weblite.jdeploy.environment.Environment;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
@@ -251,10 +248,12 @@ public class PackageService implements BundleConstants {
             String newNameLegacy = _newName.replace("${{ platform }}", BUNDLE_LINUX_LEGACY);
             _newName = _newName.replace("${{ platform }}", "linux-x64");
             installerZip = new File(installerDir, _newName);
+            File installerTarGz = new File(installerDir, _newName + ".tar.gz");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-linux-amd64"), installerZip);
             installerZip.setExecutable(true, false);
             if (bundlerSettings.isCompressBundles()) {
-                installerZip = compressionService.compress(target, installerZip);
+                Util.compressAsTarGz(installerTarGz, installerZip);
+                FileUtils.deleteQuietly(installerZip);
             }
             if (context.isGenerateLegacyBundles()) {
                 context.out.println("Generating duplicate x64 Linux installer named " + newNameLegacy +" for for compatibility with legacy automation tools");
@@ -273,10 +272,12 @@ public class PackageService implements BundleConstants {
         } else if (target.equals(BUNDLE_LINUX_ARM64)) {
             _newName = _newName.replace("${{ platform }}", "linux-arm64");
             installerZip = new File(installerDir, _newName);
+            File installerTarGz = new File(installerDir, _newName + ".tar.gz");
             FileUtils.copyInputStreamToFile(JDeploy.class.getResourceAsStream("/jdeploy-installer-linux-arm64"), installerZip);
             installerZip.setExecutable(true, false);
             if (bundlerSettings.isCompressBundles()) {
-                installerZip = compressionService.compress(target, installerZip);
+                Util.compressAsTarGz(installerTarGz, installerZip);
+                FileUtils.deleteQuietly(installerZip);
             }
             return;
 

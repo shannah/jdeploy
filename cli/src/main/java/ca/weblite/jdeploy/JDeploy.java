@@ -302,7 +302,13 @@ public class JDeploy implements BundleConstants {
     }
 
     private void _package(PackagingContext context) throws IOException {
-        DIContext.get(PackageService.class).createJdeployBundle(context);
+        if (System.getProperty("jdeploy.compressBundles") != null) {
+            BundlerSettings bundlerSettings = new BundlerSettings();
+            bundlerSettings.setCompressBundles(Boolean.parseBoolean(System.getProperty("jdeploy.compressBundles")));
+            DIContext.get(PackageService.class).createJdeployBundle(context, bundlerSettings);
+        } else {
+            DIContext.get(PackageService.class).createJdeployBundle(context);
+        }
     }
 
     private void _verify(String[] args) throws Exception {
