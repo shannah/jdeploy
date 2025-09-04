@@ -91,6 +91,7 @@ public class PermissionsPanel extends JPanel {
         
         createPermissionGroup(parent, "Personal Data", new PermissionRequest[]{
             PermissionRequest.CONTACTS,
+            PermissionRequest.CONTACTS_FULL_ACCESS,
             PermissionRequest.CALENDARS,
             PermissionRequest.CALENDARS_WRITE,
             PermissionRequest.REMINDERS,
@@ -106,7 +107,8 @@ public class PermissionsPanel extends JPanel {
             PermissionRequest.NETWORK_VOLUMES,
             PermissionRequest.REMOVABLE_VOLUMES,
             PermissionRequest.SYSTEM_ADMINISTRATION,
-            PermissionRequest.APPLE_EVENTS
+            PermissionRequest.APPLE_EVENTS,
+            PermissionRequest.SCREEN_CAPTURE
         });
         
         createPermissionGroup(parent, "Device Features", new PermissionRequest[]{
@@ -115,18 +117,27 @@ public class PermissionsPanel extends JPanel {
             PermissionRequest.MOTION,
             PermissionRequest.FACE_ID,
             PermissionRequest.SPEECH_RECOGNITION,
-            PermissionRequest.LOCAL_NETWORK
+            PermissionRequest.LOCAL_NETWORK,
+            PermissionRequest.NFC_READER,
+            PermissionRequest.IDENTITY
         });
         
-        createPermissionGroup(parent, "Services & Privacy", new PermissionRequest[]{
+        createPermissionGroup(parent, "Notifications & App Features", new PermissionRequest[]{
+            PermissionRequest.USER_NOTIFICATIONS,
             PermissionRequest.SIRI,
+            PermissionRequest.FOCUS_STATUS,
+            PermissionRequest.USER_TRACKING,
+            PermissionRequest.WILLINGNESS_TO_RATE
+        });
+        
+        createPermissionGroup(parent, "Services & Entertainment", new PermissionRequest[]{
             PermissionRequest.HOMEKIT,
             PermissionRequest.MUSIC,
             PermissionRequest.TV_PROVIDER,
             PermissionRequest.VIDEO_SUBSCRIBER,
-            PermissionRequest.FOCUS_STATUS,
-            PermissionRequest.USER_TRACKING,
-            PermissionRequest.FILE_PROVIDER_PRESENCE
+            PermissionRequest.FILE_PROVIDER_PRESENCE,
+            PermissionRequest.GAMEKIT_FRIEND_REQUEST,
+            PermissionRequest.LOOK_AROUND
         });
     }
     

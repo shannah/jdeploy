@@ -36,7 +36,15 @@ public enum PermissionRequest {
     CALENDARS_WRITE("NSCalendarsWriteUsageDescription"),
     REMINDERS_WRITE("NSRemindersWriteUsageDescription"),
     FOCUS_STATUS("NSFocusStatusUsageDescription"),
-    USER_TRACKING("NSUserTrackingUsageDescription");
+    USER_TRACKING("NSUserTrackingUsageDescription"),
+    USER_NOTIFICATIONS("NSUserNotificationsUsageDescription"),
+    NFC_READER("NSNearFieldCommunicationReaderUsageDescription"),
+    SCREEN_CAPTURE("NSScreenCaptureUsageDescription"),
+    CONTACTS_FULL_ACCESS("NSContactsFullAccessUsageDescription"),
+    GAMEKIT_FRIEND_REQUEST("NSGKFriendRequestUsageDescription"),
+    IDENTITY("NSIdentityUsageDescription"),
+    WILLINGNESS_TO_RATE("NSWillingnessToRateUsageDescription"),
+    LOOK_AROUND("NSLookAroundUsageDescription");
 
     private final String macOSKey;
 
