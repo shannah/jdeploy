@@ -35,7 +35,9 @@ The launcher expects the following configuration properties in `package.json`:
       ],
       "mac-x64": [
         "ca.weblite.native.mac.x64",
-        "com.thirdparty.foo.bar.native.mac.x64"
+        "com.thirdparty.foo.bar.native.mac.x64",
+        "/my-native-lib-macos.dylib",
+        "/native/macos/"
       ],
       "mac-arm64": [
         "ca.weblite.native.mac.arm64",
@@ -43,13 +45,17 @@ The launcher expects the following configuration properties in `package.json`:
       ],
       "win-x64": [
         "ca.weblite.native.win.x64",
-        "com.thirdparty.foo.bar.native.win.x64"
+        "com.thirdparty.foo.bar.native.win.x64",
+        "/my-native-lib.dll",
+        "/native/windows/"
       ],
       "win-arm64": [
         "ca.weblite.native.win.arm64"
       ],
       "linux-x64": [
-        "ca.weblite.native.linux.x64"
+        "ca.weblite.native.linux.x64",
+        "/my-native-lib.so",
+        "/native/linux/"
       ],
       "linux-arm64": [
         "ca.weblite.native.linux.arm64"
@@ -66,6 +72,63 @@ The launcher expects the following configuration properties in `package.json`:
 - **`package{Platform}{Arch}`** - NPM package names for each platform-specific bundle
 - **`nativeNamespaces`** - Object mapping platform identifiers to arrays of Java namespaces containing native libraries
   - **`ignore`** - Array of namespaces to be stripped from all platform bundles (e.g., testing, debugging, or obsolete libraries)
+
+### Native Namespace Format
+
+Native namespaces support two formats to handle different packaging scenarios:
+
+#### 1. Java Package Notation (Default)
+Standard Java package notation using dots (e.g., `ca.weblite.native.mac.x64`):
+- Converted to JAR path format by replacing dots with forward slashes
+- Example: `ca.weblite.native.mac.x64` → `ca/weblite/native/mac/x64/`
+- Used for organized native libraries following Java package conventions
+
+#### 2. Path-based Notation (Forward Slash Prefix)
+Direct JAR path notation prefixed with `/` (e.g., `/my-native-lib.dll`, `/native/windows/`):
+- Used as literal paths within the JAR file structure
+- Enables targeting of native libraries in root namespace or custom directory structures
+- Examples:
+  - `/my-native-lib.dll` - Targets specific file in JAR root
+  - `/native/windows/` - Targets all files under the native/windows/ directory
+  - `/lib/` - Targets all files under the lib/ directory
+
+This dual format support allows handling both traditional Java package structures and native libraries placed in root or custom paths within JAR files.
+
+### Namespace Overlap Behavior
+
+When there is overlap between namespaces listed in the `ignore` section and platform-specific `nativeNamespaces`, the following resolution rules apply:
+
+#### Rule 1: Ignore Takes Precedence for General Stripping
+Namespaces listed in `ignore` are stripped from **all** platform bundles, including the default universal bundle.
+
+#### Rule 2: Platform-Specific Inclusion Overrides Ignore
+If a platform-specific namespace list explicitly includes a namespace or sub-namespace that would otherwise be ignored, that specific namespace **will be included** in that platform's bundle.
+
+#### Example Scenario
+```json
+{
+  "nativeNamespaces": {
+    "ignore": [
+      "com.myapp.native"
+    ],
+    "mac-x64": [
+      "com.myapp.native.mac.x64"
+    ]
+  }
+}
+```
+
+**Behavior:**
+- **Default/Universal Bundle**: All content under `com.myapp.native` is stripped
+- **mac-x64 Bundle**: Content under `com.myapp.native.mac.x64` is **included**, but all other content under `com.myapp.native` (like `com.myapp.native.windows` or `com.myapp.native.test`) is still stripped
+- **Other Platform Bundles**: All content under `com.myapp.native` is stripped (including `com.myapp.native.mac.x64`)
+
+#### Implementation Logic
+1. Collect all namespaces to strip for a target platform:
+   - Start with all `ignore` namespaces
+   - Add all native namespaces from other platforms
+   - **Remove** any namespaces explicitly listed in the target platform's `nativeNamespaces`
+2. Strip remaining namespaces from the platform bundle
 
 ## Implementation Plan
 
@@ -111,8 +174,10 @@ public class PlatformSpecificJarProcessor {
 1. Open original JAR file
 2. Create new JAR with same manifest
 3. For each entry in original JAR:
-   - Convert namespace to path format (e.g., `ca.weblite.native.mac.x64` → `ca/weblite/native/mac/x64/`)
-   - If entry path starts with any namespace in `namespacesToStrip`, skip it
+   - Convert namespace to path format based on namespace type:
+     - **Java package notation**: `ca.weblite.native.mac.x64` → `ca/weblite/native/mac/x64/`
+     - **Path-based notation**: `/my-native-lib.dll` → `my-native-lib.dll` (strip leading `/`)
+   - If entry path starts with any converted namespace path in `namespacesToStrip`, skip it
    - Otherwise, copy entry to new JAR
 4. Close and replace original JAR with stripped version
 
@@ -150,7 +215,9 @@ Add new "Platform Bundles" tab to the project editor containing:
 - Expandable tree/table for each platform-specific namespace list
 - Add/remove namespace entries for each platform and ignore list
 - "Scan JARs" button to auto-detect native namespaces in project JARs
-- Validation to ensure proper Java package naming format
+- Validation to ensure proper format:
+  - Java package notation: dot-separated identifiers (e.g., `com.example.native`)
+  - Path-based notation: forward slash prefix for direct paths (e.g., `/my-lib.dll`)
 
 ### Phase 4: Publishing Infrastructure
 
@@ -212,9 +279,19 @@ Add comprehensive tests covering:
 
 ## Example Namespace to Path Conversion
 
+### Java Package Notation
 - **Namespace**: `ca.weblite.native.mac.x64`
 - **JAR Path**: `ca/weblite/native/mac/x64/`
 - **Effect**: Strips all classes and resources under this path from non-macOS-x64 bundles
+
+### Path-based Notation
+- **Namespace**: `/my-native-lib.dll`
+- **JAR Path**: `my-native-lib.dll`
+- **Effect**: Strips the specific native library file from non-Windows bundles
+
+- **Namespace**: `/native/windows/`
+- **JAR Path**: `native/windows/`
+- **Effect**: Strips all files under the native/windows/ directory from non-Windows bundles
 
 ## Implementation Timeline
 
