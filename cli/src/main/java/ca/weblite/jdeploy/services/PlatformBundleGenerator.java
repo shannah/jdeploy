@@ -3,6 +3,8 @@ package ca.weblite.jdeploy.services;
 import ca.weblite.jdeploy.models.JDeployProject;
 import ca.weblite.jdeploy.models.Platform;
 import ca.weblite.jdeploy.npm.NPM;
+import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
+import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 
@@ -25,10 +27,12 @@ import java.util.*;
 public class PlatformBundleGenerator {
 
     private final PlatformSpecificJarProcessor jarProcessor;
+    private final DownloadPageSettingsService downloadPageSettingsService;
 
     @Inject
-    public PlatformBundleGenerator(PlatformSpecificJarProcessor jarProcessor) {
+    public PlatformBundleGenerator(PlatformSpecificJarProcessor jarProcessor, DownloadPageSettingsService downloadPageSettingsService) {
         this.jarProcessor = jarProcessor;
+        this.downloadPageSettingsService = downloadPageSettingsService;
     }
 
     /**
@@ -349,18 +353,58 @@ public class PlatformBundleGenerator {
 
     /**
      * Gets the list of platforms that will have bundles generated.
+     * Respects download page settings to exclude platforms not enabled for download.
      */
     public List<Platform> getPlatformsForBundleGeneration(JDeployProject project) {
         if (!project.isPlatformBundlesEnabled()) {
             return Collections.emptyList();
         }
 
-        return new ArrayList<Platform>(project.getNativeNamespaces().keySet());
+        // Get all platforms with native namespaces configured
+        List<Platform> allPlatforms = new ArrayList<>(project.getNativeNamespaces().keySet());
+        
+        // Read download page settings from project
+        DownloadPageSettings downloadPageSettings = downloadPageSettingsService.read(project.getPackageJSON());
+        Set<DownloadPageSettings.BundlePlatform> enabledBundlePlatforms = downloadPageSettings.getResolvedPlatforms();
+        
+        // Filter platforms based on download page settings
+        List<Platform> filteredPlatforms = new ArrayList<>();
+        for (Platform platform : allPlatforms) {
+            DownloadPageSettings.BundlePlatform bundlePlatform = mapToBundlePlatform(platform);
+            if (bundlePlatform != null && enabledBundlePlatforms.contains(bundlePlatform)) {
+                filteredPlatforms.add(platform);
+            }
+        }
+        
+        return filteredPlatforms;
+    }
+    
+    /**
+     * Maps a Platform enum to a DownloadPageSettings.BundlePlatform enum.
+     * Returns null if no mapping exists.
+     */
+    private DownloadPageSettings.BundlePlatform mapToBundlePlatform(Platform platform) {
+        switch (platform) {
+            case MAC_X64:
+                return DownloadPageSettings.BundlePlatform.MacX64;
+            case MAC_ARM64:
+                return DownloadPageSettings.BundlePlatform.MacArm64;
+            case WIN_X64:
+                return DownloadPageSettings.BundlePlatform.WindowsX64;
+            case WIN_ARM64:
+                return DownloadPageSettings.BundlePlatform.WindowsArm64;
+            case LINUX_X64:
+                return DownloadPageSettings.BundlePlatform.LinuxX64;
+            case LINUX_ARM64:
+                return DownloadPageSettings.BundlePlatform.LinuxArm64;
+            default:
+                return null;
+        }
     }
     
     /**
      * Gets namespaces to strip for a target platform using RFC resolution rules.
-     * 
+     *
      * Strip List includes:
      * - All namespaces from the "ignore" list (always stripped)
      * - All native namespaces from other platforms (exclude target platform)

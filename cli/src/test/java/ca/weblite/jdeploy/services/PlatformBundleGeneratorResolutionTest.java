@@ -2,6 +2,8 @@ package ca.weblite.jdeploy.services;
 
 import ca.weblite.jdeploy.models.JDeployProject;
 import ca.weblite.jdeploy.models.Platform;
+import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
+import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,13 +35,22 @@ class PlatformBundleGeneratorResolutionTest {
     File tempDir;
 
     private PlatformSpecificJarProcessor jarProcessor;
+    
+    @Mock
+    private DownloadPageSettingsService downloadPageSettingsService;
+    
     private PlatformBundleGenerator generator;
     private JDeployProject project;
 
     @BeforeEach
     void setUp() throws IOException {
         jarProcessor = new PlatformSpecificJarProcessor();
-        generator = new PlatformBundleGenerator(jarProcessor);
+        
+        // Mock the download page settings service to return default settings
+        DownloadPageSettings defaultSettings = new DownloadPageSettings();
+        when(downloadPageSettingsService.read(any(JSONObject.class))).thenReturn(defaultSettings);
+        
+        generator = new PlatformBundleGenerator(jarProcessor, downloadPageSettingsService);
         project = createTestProject();
     }
 

@@ -3,6 +3,8 @@ package ca.weblite.jdeploy.services;
 import ca.weblite.jdeploy.models.JDeployProject;
 import ca.weblite.jdeploy.models.Platform;
 import ca.weblite.jdeploy.npm.NPM;
+import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
+import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -28,6 +30,9 @@ public class PlatformBundleGeneratorTest {
     
     @Mock
     private NPM npm;
+    
+    @Mock
+    private DownloadPageSettingsService downloadPageSettingsService;
 
     @TempDir
     Path tempDir;
@@ -36,7 +41,12 @@ public class PlatformBundleGeneratorTest {
     public void setUp() {
         MockitoAnnotations.openMocks(this);
         jarProcessor = new PlatformSpecificJarProcessor();
-        generator = new PlatformBundleGenerator(jarProcessor);
+        
+        // Mock the download page settings service to return default settings
+        DownloadPageSettings defaultSettings = new DownloadPageSettings();
+        when(downloadPageSettingsService.read(any(JSONObject.class))).thenReturn(defaultSettings);
+        
+        generator = new PlatformBundleGenerator(jarProcessor, downloadPageSettingsService);
     }
 
     @Test
