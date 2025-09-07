@@ -28,6 +28,11 @@ The launcher expects the following configuration properties in `package.json`:
     "packageLinuxX64": "my-app-linux-x64",
     "packageLinuxArm64": "my-app-linux-arm64",
     "nativeNamespaces": {
+      "ignore": [
+        "com.obsolete.legacy.native",
+        "com.testing.mocklibs.native",
+        "com.development.debugging.native"
+      ],
       "mac-x64": [
         "ca.weblite.native.mac.x64",
         "com.thirdparty.foo.bar.native.mac.x64"
@@ -60,6 +65,7 @@ The launcher expects the following configuration properties in `package.json`:
 - **`fallbackToUniversal`** - Boolean flag allowing fallback to universal bundle if platform-specific version unavailable
 - **`package{Platform}{Arch}`** - NPM package names for each platform-specific bundle
 - **`nativeNamespaces`** - Object mapping platform identifiers to arrays of Java namespaces containing native libraries
+  - **`ignore`** - Array of namespaces to be stripped from all platform bundles (e.g., testing, debugging, or obsolete libraries)
 
 ## Implementation Plan
 
@@ -70,12 +76,13 @@ Extend the `JDeployProject` class to support new configuration properties:
 
 ```java
 // New methods to add:
-public boolean isPlatformBundlesEnabled()
-public boolean isFallbackToUniversal()
-public String getPackageName(Platform platform)
-public Map<Platform, List<String>> getNativeNamespaces()
-public List<String> getNativeNamespacesForPlatform(Platform platform)
-public List<String> getAllOtherPlatformNamespaces(Platform targetPlatform)
+public boolean isPlatformBundlesEnabled();
+public boolean isFallbackToUniversal();
+public String getPackageName(Platform platform);
+public Map<Platform, List<String>> getNativeNamespaces();
+public List<String> getNativeNamespacesForPlatform(Platform platform);
+public List<String> getIgnoredNamespaces();
+public List<String> getAllOtherPlatformNamespaces(Platform targetPlatform);
 ```
 
 #### 1.2 Platform Enumeration
@@ -94,9 +101,9 @@ Create `PlatformSpecificJarProcessor` service for JAR manipulation:
 
 ```java
 public class PlatformSpecificJarProcessor {
-    public void stripNativeNamespaces(File jarFile, List<String> namespacesToStrip)
-    public List<String> scanJarForNativeNamespaces(File jarFile) 
-    public File createPlatformSpecificJar(File originalJar, Platform targetPlatform, List<String> namespacesToStrip)
+    public void stripNativeNamespaces(File jarFile, List<String> namespacesToStrip);
+    public List<String> scanJarForNativeNamespaces(File jarFile); 
+    public File createPlatformSpecificJar(File originalJar, Platform targetPlatform, List<String> namespacesToStrip);
 }
 ```
 
@@ -112,9 +119,11 @@ public class PlatformSpecificJarProcessor {
 #### 2.2 Bundle Generation Process
 For each platform-specific bundle:
 1. Copy universal bundle to platform-specific directory
-2. Get all native namespaces for other platforms (exclude target platform)
+2. Collect namespaces to strip:
+   - Get all native namespaces for other platforms (exclude target platform)
+   - Add all namespaces from the "ignore" list (always stripped)
 3. Process each JAR in the bundle:
-   - Strip out classes/resources matching other platforms' namespaces
+   - Strip out classes/resources matching namespaces to strip
    - Update JAR with stripped content
 4. Create platform-specific tarball with naming pattern: `{appname}-{version}-{platform}.tgz`
 
@@ -137,8 +146,9 @@ Add new "Platform Bundles" tab to the project editor containing:
   - Linux ARM64 (`packageLinuxArm64`)
 
 **Native Namespaces Configuration:**
-- Expandable tree/table for each platform
-- Add/remove namespace entries for each platform
+- "Ignore" section for namespaces to strip from all platform bundles
+- Expandable tree/table for each platform-specific namespace list
+- Add/remove namespace entries for each platform and ignore list
 - "Scan JARs" button to auto-detect native namespaces in project JARs
 - Validation to ensure proper Java package naming format
 
