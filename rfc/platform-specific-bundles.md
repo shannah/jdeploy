@@ -123,12 +123,31 @@ If a platform-specific namespace list explicitly includes a namespace or sub-nam
 - **mac-x64 Bundle**: Content under `com.myapp.native.mac.x64` is **included**, but all other content under `com.myapp.native` (like `com.myapp.native.windows` or `com.myapp.native.test`) is still stripped
 - **Other Platform Bundles**: All content under `com.myapp.native` is stripped (including `com.myapp.native.mac.x64`)
 
+#### File Processing Example
+For mac-x64 bundle generation with the above configuration:
+
+**Strip List**: `["com.myapp.native", "ca.weblite.native.win.x64", "ca.weblite.native.linux.x64", ...]`
+**Keep List**: `["com.myapp.native.mac.x64"]`
+
+**File Processing Decisions**:
+- `com/myapp/native/mac/x64/MacLib.dylib` → **KEEP** (matches keep list)
+- `com/myapp/native/windows/WinLib.dll` → **STRIP** (matches strip list, not in keep list)  
+- `com/myapp/native/test/TestLib.so` → **STRIP** (matches strip list, not in keep list)
+- `com/myapp/core/AppCore.class` → **KEEP** (doesn't match any strip pattern)
+
 #### Implementation Logic
-1. Collect all namespaces to strip for a target platform:
-   - Start with all `ignore` namespaces
-   - Add all native namespaces from other platforms
-   - **Remove** any namespaces explicitly listed in the target platform's `nativeNamespaces`
-2. Strip remaining namespaces from the platform bundle
+1. For each target platform, create two lists:
+   - **Strip List**: All namespaces to be removed
+     - All `ignore` namespaces (always stripped)
+     - All native namespaces from other platforms (not the target platform)
+   - **Keep List**: Namespaces to preserve even if they match the strip list
+     - All native namespaces explicitly listed for the target platform
+2. Process each file in the JAR:
+   - If the file path matches any pattern in the **Keep List**: **KEEP** the file
+   - Else if the file path matches any pattern in the **Strip List**: **REMOVE** the file  
+   - Else: **KEEP** the file (default behavior)
+
+**Note**: Keep list takes precedence over strip list. This allows platform-specific sub-namespaces to be preserved even when their parent namespace is in the ignore list.
 
 ## Implementation Plan
 
@@ -146,6 +165,10 @@ public Map<Platform, List<String>> getNativeNamespaces();
 public List<String> getNativeNamespacesForPlatform(Platform platform);
 public List<String> getIgnoredNamespaces();
 public List<String> getAllOtherPlatformNamespaces(Platform targetPlatform);
+
+// Helper methods for the new strip/keep list approach:
+public List<String> getNamespacesToStrip(Platform targetPlatform);
+public List<String> getNamespacesToKeep(Platform targetPlatform);
 ```
 
 #### 1.2 Platform Enumeration
@@ -164,32 +187,40 @@ Create `PlatformSpecificJarProcessor` service for JAR manipulation:
 
 ```java
 public class PlatformSpecificJarProcessor {
-    public void stripNativeNamespaces(File jarFile, List<String> namespacesToStrip);
+    public void processJarForPlatform(File jarFile, List<String> namespacesToStrip, List<String> namespacesToKeep);
     public List<String> scanJarForNativeNamespaces(File jarFile); 
-    public File createPlatformSpecificJar(File originalJar, Platform targetPlatform, List<String> namespacesToStrip);
+    public File createPlatformSpecificJar(File originalJar, Platform targetPlatform, 
+                                         List<String> namespacesToStrip, List<String> namespacesToKeep);
 }
 ```
 
 **JAR Stripping Algorithm:**
 1. Open original JAR file
 2. Create new JAR with same manifest
-3. For each entry in original JAR:
-   - Convert namespace to path format based on namespace type:
-     - **Java package notation**: `ca.weblite.native.mac.x64` → `ca/weblite/native/mac/x64/`
-     - **Path-based notation**: `/my-native-lib.dll` → `my-native-lib.dll` (strip leading `/`)
-   - If entry path starts with any converted namespace path in `namespacesToStrip`, skip it
-   - Otherwise, copy entry to new JAR
-4. Close and replace original JAR with stripped version
+3. Convert all namespaces to path format for matching:
+   - **Java package notation**: `ca.weblite.native.mac.x64` → `ca/weblite/native/mac/x64/`
+   - **Path-based notation**: `/my-native-lib.dll` → `my-native-lib.dll` (strip leading `/`)
+4. For each entry in original JAR:
+   - **Check Keep List First**: If entry path starts with any pattern in `namespacesToKeep`: **COPY** to new JAR
+   - **Check Strip List**: Else if entry path starts with any pattern in `namespacesToStrip`: **SKIP** entry
+   - **Default**: Else **COPY** to new JAR (preserve by default)
+5. Close and replace original JAR with processed version
+
+**Key Principle**: Keep list always overrides strip list for any given file.
 
 #### 2.2 Bundle Generation Process
 For each platform-specific bundle:
 1. Copy universal bundle to platform-specific directory
-2. Collect namespaces to strip:
-   - Get all native namespaces for other platforms (exclude target platform)
-   - Add all namespaces from the "ignore" list (always stripped)
+2. Prepare namespace filtering lists:
+   - **Strip List**: 
+     - All `ignore` namespaces (always stripped)
+     - All native namespaces from other platforms (exclude target platform)
+   - **Keep List**:
+     - All native namespaces explicitly listed for the target platform
 3. Process each JAR in the bundle:
-   - Strip out classes/resources matching namespaces to strip
-   - Update JAR with stripped content
+   - Apply JAR processing with both strip and keep lists
+   - Keep list overrides strip list for any overlapping files
+   - Update JAR with processed content
 4. Create platform-specific tarball with naming pattern: `{appname}-{version}-{platform}.tgz`
 
 ### Phase 3: GUI Updates

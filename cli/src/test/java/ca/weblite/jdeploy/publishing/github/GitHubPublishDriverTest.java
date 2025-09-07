@@ -74,6 +74,12 @@ class GitHubPublishDriverTest {
     
     @Mock
     private OneTimePasswordProviderInterface otpProvider;
+    
+    @Mock
+    private ca.weblite.jdeploy.services.PlatformBundleGenerator platformBundleGenerator;
+    
+    @Mock
+    private ca.weblite.jdeploy.factories.JDeployProjectFactory projectFactory;
 
     @TempDir
     File tempDir;
@@ -95,7 +101,9 @@ class GitHubPublishDriverTest {
                 packageNameService,
                 cheerpjServiceFactory,
                 gitHubReleaseCreator,
-                downloadPageSettingsService
+                downloadPageSettingsService,
+                platformBundleGenerator,
+                projectFactory
         );
 
         packageJsonFile = new File(tempDir, "package.json");
