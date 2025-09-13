@@ -1,0 +1,277 @@
+package ca.weblite.jdeploy.services;
+
+import ca.weblite.jdeploy.models.Platform;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Service for generating recommended .jdpignore rules for common scenarios.
+ * Provides platform-specific and global ignore patterns for various frameworks and libraries.
+ */
+public class RecommendedIgnoreRulesService {
+    
+    /**
+     * Generates recommended global ignore rules that apply to all platforms.
+     * These rules typically exclude unnecessary libraries that jDeploy provides or duplicates.
+     * 
+     * @return list of recommended global ignore patterns
+     */
+    public List<String> generateGlobalIgnoreRules() {
+        List<String> rules = new ArrayList<>();
+        
+        rules.add("# JavaFX libraries - jDeploy provides JavaFX runtime");
+        rules.add("javafx");
+        rules.add("com/sun/javafx");
+        rules.add("com/sun/glass");
+        rules.add("com/sun/prism");
+        rules.add("/glass.dll");
+        rules.add("/libglass.dylib");
+        rules.add("/libglass.so");
+        rules.add("/prism_*.dll");
+        rules.add("/libprism_*.dylib");
+        rules.add("/libprism_*.so");
+        rules.add("/javafx_*.dll");
+        rules.add("/libjavafx_*.dylib");
+        rules.add("/libjavafx_*.so");
+        
+        rules.add("");
+        rules.add("# Development and testing libraries");
+        rules.add("junit");
+        rules.add("org/junit");
+        rules.add("org/mockito");
+        rules.add("org/hamcrest");
+        rules.add("org/testng");
+        rules.add("test");
+        rules.add("debug");
+        
+        return rules;
+    }
+    
+    /**
+     * Generates recommended platform-specific ignore rules for a given platform.
+     * These rules keep only the native libraries relevant to the target platform
+     * while ignoring libraries for other platforms.
+     * 
+     * @param platform the target platform
+     * @return list of recommended platform-specific patterns
+     */
+    public List<String> generatePlatformIgnoreRules(Platform platform) {
+        List<String> rules = new ArrayList<>();
+        
+        if (platform == Platform.DEFAULT) {
+            // For global/default platform, return global rules
+            return generateGlobalIgnoreRules();
+        }
+        
+        rules.add("# Keep " + getPlatformDisplayName(platform) + " native libraries");
+        rules.add("");
+        
+        // Add Skiko (Compose Multiplatform) rules
+        addSkikoRules(rules, platform);
+        
+        // Add SQLite native library rules
+        addSQLiteRules(rules, platform);
+        
+        // Add general native library patterns
+        addGeneralNativeRules(rules, platform);
+        
+        return rules;
+    }
+    
+    /**
+     * Adds Skiko (Compose Multiplatform) specific rules for the platform.
+     * Skiko includes large native rendering libraries for each platform.
+     */
+    private void addSkikoRules(List<String> rules, Platform platform) {
+        rules.add("# Skiko (Compose Multiplatform) native libraries");
+        
+        // Keep current platform's Skiko libraries
+        switch (platform) {
+            case WIN_X64:
+                rules.add("!/skiko-windows-x64.dll");
+                break;
+            case WIN_ARM64:
+                rules.add("!/skiko-windows-arm64.dll");
+                break;
+            case MAC_X64:
+                rules.add("!/libskiko-macos-x64.dylib");
+                break;
+            case MAC_ARM64:
+                rules.add("!/libskiko-macos-arm64.dylib");
+                break;
+            case LINUX_X64:
+                rules.add("!/libskiko-linux-x64.so");
+                break;
+            case LINUX_ARM64:
+                rules.add("!/libskiko-linux-arm64.so");
+                break;
+        }
+        
+        // Ignore all other Skiko platforms
+        rules.add("skiko-windows-*.dll");
+        rules.add("libskiko-macos-*.dylib");
+        rules.add("libskiko-linux-*.so");
+        rules.add("skiko-*.dll");
+        rules.add("libskiko-*.dylib");
+        rules.add("libskiko-*.so");
+        rules.add("");
+    }
+    
+    /**
+     * Adds SQLite native library rules for the platform.
+     * SQLite libraries are organized by OS and architecture in specific paths.
+     */
+    private void addSQLiteRules(List<String> rules, Platform platform) {
+        rules.add("# SQLite native libraries");
+        
+        // Keep current platform's SQLite libraries
+        switch (platform) {
+            case WIN_X64:
+                rules.add("!/org/sqlite/native/Windows/x86_64");
+                break;
+            case WIN_ARM64:
+                rules.add("!/org/sqlite/native/Windows/aarch64");
+                break;
+            case MAC_X64:
+                rules.add("!/org/sqlite/native/Mac/x86_64");
+                break;
+            case MAC_ARM64:
+                rules.add("!/org/sqlite/native/Mac/aarch64");
+                break;
+            case LINUX_X64:
+                rules.add("!/org/sqlite/native/Linux/x86_64");
+                break;
+            case LINUX_ARM64:
+                rules.add("!/org/sqlite/native/Linux/aarch64");
+                break;
+        }
+        
+        // Ignore all other SQLite platforms
+        rules.add("org/sqlite/native");
+        rules.add("");
+    }
+    
+    /**
+     * Adds general native library rules for the platform.
+     * These cover common naming patterns for native libraries.
+     */
+    private void addGeneralNativeRules(List<String> rules, Platform platform) {
+        rules.add("# General native library patterns");
+        
+        String platformId = platform.getIdentifier();
+        String osName = getOSName(platform);
+        String archName = getArchName(platform);
+        
+        // Keep patterns for current platform
+        rules.add("!*" + platformId + "*");
+        rules.add("!*" + osName.toLowerCase() + "*" + archName + "*");
+        rules.add("!*" + osName.toLowerCase() + "*" + archName.replace("_", "") + "*");
+        
+        // Ignore other common platform patterns
+        if (!platformId.equals("win-x64")) rules.add("*win-x64*");
+        if (!platformId.equals("win-arm64")) rules.add("*win-arm64*");
+        if (!platformId.equals("mac-x64")) rules.add("*mac-x64*");
+        if (!platformId.equals("mac-arm64")) rules.add("*mac-arm64*");
+        if (!platformId.equals("linux-x64")) rules.add("*linux-x64*");
+        if (!platformId.equals("linux-arm64")) rules.add("*linux-arm64*");
+        
+        // Common alternative naming patterns
+        if (!osName.equals("windows")) {
+            rules.add("*windows*");
+            rules.add("*.dll");
+        }
+        if (!osName.equals("macos")) {
+            rules.add("*macos*");
+            rules.add("*darwin*");
+            rules.add("*.dylib");
+        }
+        if (!osName.equals("linux")) {
+            rules.add("*linux*");
+            rules.add("*.so");
+        }
+        
+        rules.add("");
+    }
+    
+    /**
+     * Gets the display name for a platform.
+     */
+    private String getPlatformDisplayName(Platform platform) {
+        switch (platform) {
+            case MAC_X64: return "macOS Intel";
+            case MAC_ARM64: return "macOS Silicon";
+            case WIN_X64: return "Windows x64";
+            case WIN_ARM64: return "Windows ARM64";
+            case LINUX_X64: return "Linux x64";
+            case LINUX_ARM64: return "Linux ARM64";
+            default: return platform.getIdentifier();
+        }
+    }
+    
+    /**
+     * Gets the OS name for a platform.
+     */
+    private String getOSName(Platform platform) {
+        switch (platform) {
+            case MAC_X64:
+            case MAC_ARM64:
+                return "macos";
+            case WIN_X64:
+            case WIN_ARM64:
+                return "windows";
+            case LINUX_X64:
+            case LINUX_ARM64:
+                return "linux";
+            default:
+                return "unknown";
+        }
+    }
+    
+    /**
+     * Gets the architecture name for a platform.
+     */
+    private String getArchName(Platform platform) {
+        switch (platform) {
+            case MAC_X64:
+            case WIN_X64:
+            case LINUX_X64:
+                return "x64";
+            case MAC_ARM64:
+            case WIN_ARM64:
+            case LINUX_ARM64:
+                return "arm64";
+            default:
+                return "unknown";
+        }
+    }
+    
+    /**
+     * Converts a list of rules to a formatted string suitable for .jdpignore files.
+     * 
+     * @param rules the list of rules
+     * @return formatted string with rules separated by newlines
+     */
+    public String formatRulesAsText(List<String> rules) {
+        if (rules.isEmpty()) {
+            return "";
+        }
+        
+        StringBuilder sb = new StringBuilder();
+        for (String rule : rules) {
+            sb.append(rule).append("\n");
+        }
+        return sb.toString();
+    }
+    
+    /**
+     * Generates a complete set of recommended rules for a platform, formatted as text.
+     * 
+     * @param platform the target platform
+     * @return formatted rules as text
+     */
+    public String generateRecommendedRulesText(Platform platform) {
+        List<String> rules = generatePlatformIgnoreRules(platform);
+        return formatRulesAsText(rules);
+    }
+}

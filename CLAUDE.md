@@ -81,3 +81,16 @@ jDeploy is a Java desktop app deployment tool with a multi-module architecture:
 - `jdeploy.js` - JavaScript shim for running Java apps via NPM
 - `action.yml` - GitHub Action definition
 - `build_and_test.sh` - Main build script
+
+## Current Implementation Projects
+
+### .jdpignore File Support Implementation
+**Status**: In Progress  
+**Plan Document**: `rfc/jdpignore-implementation-plan.md`  
+**Description**: Migrating from `nativeNamespaces` in package.json to `.jdpignore` files for platform-specific native library filtering.
+
+**Important**: When working on platform-specific bundles or native library filtering:
+1. ALWAYS read `rfc/jdpignore-implementation-plan.md` first to understand the current plan and progress
+2. Update the status tracking in that document as work is completed
+3. Add implementation notes and decisions to the plan document
+4. Follow the phase-by-phase approach outlined in the plan
