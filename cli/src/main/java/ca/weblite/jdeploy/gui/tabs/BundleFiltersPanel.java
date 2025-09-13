@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.gui.tabs;
 
 import ca.weblite.jdeploy.models.Platform;
+import ca.weblite.jdeploy.services.RecommendedIgnoreRulesService;
 import org.apache.commons.io.FileUtils;
 
 import javax.swing.*;
@@ -25,6 +26,7 @@ public class BundleFiltersPanel extends JPanel {
     private final JTabbedPane tabbedPane;
     private final Map<Platform, JTextArea> textAreas;
     private final Map<Platform, JScrollPane> scrollPanes;
+    private final RecommendedIgnoreRulesService recommendedRulesService;
     private DocumentListener changeListener;
     
     // Callback to notify parent when changes occur
@@ -40,6 +42,7 @@ public class BundleFiltersPanel extends JPanel {
         this.tabbedPane = new JTabbedPane();
         this.textAreas = new HashMap<>();
         this.scrollPanes = new HashMap<>();
+        this.recommendedRulesService = new RecommendedIgnoreRulesService();
         
         initializeUI();
         loadExistingFiles();
@@ -187,21 +190,6 @@ public class BundleFiltersPanel extends JPanel {
         helpPanel.add(buttonPanel, BorderLayout.EAST);
         
         return helpPanel;
-    }
-    
-    /**
-     * Gets the display name for a platform.
-     */
-    private String getPlatformDisplayName(Platform platform) {
-        switch (platform) {
-            case MAC_X64: return "macOS Intel";
-            case MAC_ARM64: return "macOS Silicon";
-            case WIN_X64: return "Windows x64";
-            case WIN_ARM64: return "Windows ARM";
-            case LINUX_X64: return "Linux x64";
-            case LINUX_ARM64: return "Linux ARM";
-            default: return platform.getIdentifier();
-        }
     }
     
     /**
@@ -361,7 +349,7 @@ public class BundleFiltersPanel extends JPanel {
     }
     
     /**
-     * Adds common patterns to the currently selected tab.
+     * Adds common patterns to the currently selected tab using the RecommendedIgnoreRulesService.
      */
     private void addCommonPatterns() {
         int selectedTab = tabbedPane.getSelectedIndex();
@@ -369,25 +357,57 @@ public class BundleFiltersPanel extends JPanel {
         JTextArea textArea = textAreas.get(platform);
         
         if (textArea != null) {
-            String commonPatterns;
-            if (platform == Platform.DEFAULT) {
-                commonPatterns = "\n# Common ignore patterns\n" +
-                               "com.testing.mocklibs.native\n" +
-                               "com.development.debugging.native\n" +
-                               "debug\n" +
-                               "test\n\n" +
-                               "# Keep required patterns\n" +
-                               "!com.testing.mocklibs.native.required\n";
-            } else {
-                commonPatterns = "\n# Keep " + getPlatformDisplayName(platform) + " native libraries\n" +
-                               "!ca.weblite.native." + platform.getIdentifier() + "\n" +
-                               "!com.myapp.native." + platform.getIdentifier() + "\n";
-            }
+            // Show confirmation dialog
+            String platformName = getPlatformDisplayName(platform);
+            int result = JOptionPane.showConfirmDialog(this,
+                "This will append recommended ignore patterns for " + platformName + ".\n" +
+                "These patterns help optimize bundle sizes for common frameworks like:\n" +
+                "• Compose Multiplatform (Skiko)\n" +
+                "• SQLite native libraries\n" +
+                "• JavaFX (global rules only)\n" +
+                "• General native library patterns\n\n" +
+                "Continue?",
+                "Add Common Patterns",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE);
             
-            textArea.append(commonPatterns);
+            if (result == JOptionPane.YES_OPTION) {
+                String recommendedRules = recommendedRulesService.generateRecommendedRulesText(platform);
+                
+                // Add spacing if text area already has content
+                String existingText = textArea.getText();
+                if (!existingText.trim().isEmpty() && !existingText.endsWith("\n")) {
+                    textArea.append("\n\n");
+                } else if (!existingText.trim().isEmpty()) {
+                    textArea.append("\n");
+                }
+                
+                // Add header comment
+                textArea.append("# Common recommended patterns for " + platformName + "\n");
+                textArea.append("# Generated on " + new java.util.Date() + "\n");
+                textArea.append(recommendedRules);
+                
+                // Scroll to the end to show the new content
+                textArea.setCaretPosition(textArea.getDocument().getLength());
+            }
         }
     }
     
+    /**
+     * Gets the display name for a platform.
+     */
+    private String getPlatformDisplayName(Platform platform) {
+        switch (platform) {
+            case DEFAULT: return "Global";
+            case MAC_X64: return "macOS Intel";
+            case MAC_ARM64: return "macOS Silicon";
+            case WIN_X64: return "Windows x64";
+            case WIN_ARM64: return "Windows ARM";
+            case LINUX_X64: return "Linux x64";
+            case LINUX_ARM64: return "Linux ARM";
+            default: return platform.getIdentifier();
+        }
+    }
     
     /**
      * Gets the root component for embedding in the main editor.
