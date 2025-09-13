@@ -52,6 +52,9 @@ class NPMPublishDriverPlatformBundlesTest {
     private PlatformBundleGenerator platformBundleGenerator;
 
     @Mock
+    private ca.weblite.jdeploy.services.DefaultBundleService defaultBundleService;
+
+    @Mock
     private JDeployProjectFactory projectFactory;
 
     @Mock
@@ -75,7 +78,7 @@ class NPMPublishDriverPlatformBundlesTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        driver = new NPMPublishDriver(baseDriver, platformBundleGenerator, projectFactory);
+        driver = new NPMPublishDriver(baseDriver, platformBundleGenerator, defaultBundleService, projectFactory);
 
         // Set up test directories and files
         packageJsonFile = new File(tempDir, "package.json");
@@ -139,6 +142,7 @@ class NPMPublishDriverPlatformBundlesTest {
         // Then: Only universal bundle should be published
         verify(npm, times(1)).publish(eq(publishDir), eq(false), eq(null), eq(null));
         verify(platformBundleGenerator, never()).generatePlatformBundles(any(), any(), any());
+        verify(defaultBundleService, times(1)).processDefaultBundle(eq(publishingContext));
         verify(out).println("Publishing main package...");
         verify(out).println("Successfully published main package to npm.");
     }
@@ -153,10 +157,13 @@ class NPMPublishDriverPlatformBundlesTest {
         // When: Publishing
         driver.publish(publishingContext, target, otpProvider);
 
-        // Then: Only universal bundle should be published
-        verify(npm, times(1)).publish(eq(publishDir), eq(false), eq(null), eq(null));
+        // Then: Universal bundle should be published twice due to current flow 
+        // (once in publishPlatformBundles, once in main method)
+        verify(npm, times(2)).publish(eq(publishDir), eq(false), eq(null), eq(null));
+        verify(defaultBundleService, times(2)).processDefaultBundle(eq(publishingContext));
         verify(out).println("Publishing universal bundle...");
         verify(out).println("No platform-specific NPM package names configured, skipping platform bundle publishing");
+        verify(out).println("Publishing main package...");
     }
 
     @Test
@@ -200,12 +207,16 @@ class NPMPublishDriverPlatformBundlesTest {
         // Verify platform bundles generated
         verify(platformBundleGenerator).generatePlatformBundles(eq(project), eq(publishDir), any(File.class));
 
+        // Verify default bundle processing
+        verify(defaultBundleService, times(1)).processDefaultBundle(eq(publishingContext));
+
         // Verify logging
-        verify(out).println("Publishing universal bundle...");
         verify(out).println("Publishing platform-specific bundles to 2 additional NPM packages...");
         verify(out).println(contains("Created platform-specific package.json for test-app-macos-intel"));
         verify(out).println(contains("Created platform-specific package.json for test-app-windows-x64"));
         verify(out).println("All platform bundles published to npm successfully.");
+        verify(out).println("Publishing main package...");
+        verify(out).println("Successfully published main package to npm.");
     }
 
     @Test

@@ -10,6 +10,7 @@ import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.jdeploy.models.JDeployProject;
 import ca.weblite.jdeploy.models.Platform;
 import ca.weblite.jdeploy.services.PlatformBundleGenerator;
+import ca.weblite.jdeploy.services.DefaultBundleService;
 import ca.weblite.jdeploy.factories.JDeployProjectFactory;
 import ca.weblite.tools.io.IOUtil;
 import org.apache.commons.io.FileUtils;
@@ -34,16 +35,19 @@ public class NPMPublishDriver implements PublishDriverInterface {
 
     private final PublishDriverInterface basePublishDriver;
     private final PlatformBundleGenerator platformBundleGenerator;
+    private final DefaultBundleService defaultBundleService;
     private final JDeployProjectFactory projectFactory;
 
     @Inject
     public NPMPublishDriver(
             BasePublishDriver basePublishDriver,
             PlatformBundleGenerator platformBundleGenerator,
+            DefaultBundleService defaultBundleService,
             JDeployProjectFactory projectFactory
     ) {
         this.basePublishDriver = basePublishDriver;
         this.platformBundleGenerator = platformBundleGenerator;
+        this.defaultBundleService = defaultBundleService;
         this.projectFactory = projectFactory;
     }
 
@@ -58,12 +62,18 @@ public class NPMPublishDriver implements PublishDriverInterface {
         
         if (!project.isPlatformBundlesEnabled()) {
             // Legacy behavior: publish universal bundle only
+            // Process the default bundle with global .jdpignore rules before publishing
+            defaultBundleService.processDefaultBundle(context);
             publishSinglePackage(context, target, otpProvider, context.getPublishDir(), "main package");
             return;
         }
         
         // Platform bundles are enabled - publish multiple packages
         publishPlatformBundles(context, target, otpProvider, project);
+
+        // Now generate the default bundle
+        defaultBundleService.processDefaultBundle(context);
+        publishSinglePackage(context, target, otpProvider, context.getPublishDir(), "main package");
     }
 
     /**
@@ -75,14 +85,15 @@ public class NPMPublishDriver implements PublishDriverInterface {
             OneTimePasswordProviderInterface otpProvider,
             JDeployProject project
     ) throws IOException {
-        
-        // First, publish universal bundle to main package name
-        publishSinglePackage(context, target, otpProvider, context.getPublishDir(), "universal bundle");
-        
         // Get platforms that have NPM package names configured
         List<Platform> platformsWithPackageNames = project.getPlatformsWithNpmPackageNames();
         if (platformsWithPackageNames.isEmpty()) {
             context.out().println("No platform-specific NPM package names configured, skipping platform bundle publishing");
+            // Process the default bundle with global .jdpignore rules before publishing
+            defaultBundleService.processDefaultBundle(context);
+            // Publish universal bundle to main package name
+            publishSinglePackage(context, target, otpProvider, context.getPublishDir(), "universal bundle");
+
             return;
         }
         

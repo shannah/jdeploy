@@ -4,6 +4,7 @@ package ca.weblite.jdeploy.models;
  * Enumeration of supported platform-architecture combinations for platform-specific bundles.
  */
 public enum Platform {
+    DEFAULT("default"),
     MAC_X64("mac-x64"),
     MAC_ARM64("mac-arm64"),
     WIN_X64("win-x64"), 
@@ -31,6 +32,7 @@ public enum Platform {
      */
     public String getPackagePropertyName() {
         switch (this) {
+            case DEFAULT: return "package";
             case MAC_X64: return "packageMacX64";
             case MAC_ARM64: return "packageMacArm64";
             case WIN_X64: return "packageWinX64";

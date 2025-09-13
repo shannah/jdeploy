@@ -4,6 +4,7 @@ import ca.weblite.jdeploy.models.Platform;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mockito;
 
 import java.io.*;
 import java.nio.file.Path;
@@ -22,7 +23,9 @@ public class PlatformSpecificJarProcessorTest {
 
     @BeforeEach
     public void setUp() {
-        processor = new PlatformSpecificJarProcessor();
+        // Create mock ignore service
+        JDeployIgnoreService mockIgnoreService = Mockito.mock(JDeployIgnoreService.class);
+        processor = new PlatformSpecificJarProcessor(mockIgnoreService);
     }
 
     @Test
@@ -726,7 +729,7 @@ public class PlatformSpecificJarProcessorTest {
         
         // Should handle null lists gracefully
         assertDoesNotThrow(() -> {
-            processor.processJarForPlatform(jarFile, null, null);
+            processor.processJarForPlatform(jarFile, (List<String>) null, (List<String>) null);
         });
     }
 

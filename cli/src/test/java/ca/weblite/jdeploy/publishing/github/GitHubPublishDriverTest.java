@@ -79,6 +79,9 @@ class GitHubPublishDriverTest {
     private ca.weblite.jdeploy.services.PlatformBundleGenerator platformBundleGenerator;
     
     @Mock
+    private ca.weblite.jdeploy.services.DefaultBundleService defaultBundleService;
+    
+    @Mock
     private ca.weblite.jdeploy.factories.JDeployProjectFactory projectFactory;
 
     @TempDir
@@ -103,6 +106,7 @@ class GitHubPublishDriverTest {
                 gitHubReleaseCreator,
                 downloadPageSettingsService,
                 platformBundleGenerator,
+                defaultBundleService,
                 projectFactory
         );
 

@@ -82,6 +82,9 @@ class GitHubPublishDriverPlatformBundlesTest {
     private PlatformBundleGenerator platformBundleGenerator;
     
     @Mock
+    private ca.weblite.jdeploy.services.DefaultBundleService defaultBundleService;
+    
+    @Mock
     private JDeployProjectFactory projectFactory;
 
     private GitHubPublishDriver driver;
@@ -99,6 +102,7 @@ class GitHubPublishDriverPlatformBundlesTest {
                 gitHubReleaseCreator,
                 downloadPageSettingsService,
                 platformBundleGenerator,
+                defaultBundleService,
                 projectFactory
         );
 
@@ -164,29 +168,9 @@ class GitHubPublishDriverPlatformBundlesTest {
         assertEquals("platform-test-app-windows-x64", project.getPackageName(Platform.WIN_X64));
     }
 
-    @Test
-    @DisplayName("Should respect namespace resolution rules for ignore vs platform-specific")
-    void shouldRespectNamespaceResolutionRules() {
-        // Test the exact scenario from the RFC:
-        // ignore: ["com.test.obsolete.native"]
-        // mac-x64: ["ca.weblite.native.mac.x64"]
-        
-        List<String> ignoreNamespaces = project.getIgnoredNamespaces();
-        List<String> macX64Namespaces = project.getNativeNamespacesForPlatform(Platform.MAC_X64);
-        
-        assertEquals(Arrays.asList("com.test.obsolete.native"), ignoreNamespaces);
-        assertEquals(Arrays.asList("ca.weblite.native.mac.x64", "/native/macos/"), macX64Namespaces);
-    }
+    // Removed shouldRespectNamespaceResolutionRules - deprecated nativeNamespaces methods no longer exist
 
-    @Test
-    @DisplayName("Should handle mixed Java package and path-based namespaces")
-    void shouldHandleMixedNamespaceFormats() {
-        List<String> winX64Namespaces = project.getNativeNamespacesForPlatform(Platform.WIN_X64);
-        
-        // Should contain both Java package notation and path-based notation
-        assertTrue(winX64Namespaces.contains("ca.weblite.native.win.x64")); // Java package
-        assertTrue(winX64Namespaces.contains("/native/windows/")); // Path-based
-    }
+    // Removed shouldHandleMixedNamespaceFormats - deprecated nativeNamespaces methods no longer exist
 
     @Test
     @DisplayName("Should create separate tarballs for each configured platform")
@@ -238,7 +222,7 @@ class GitHubPublishDriverPlatformBundlesTest {
         
         // Should not generate platform bundles
         assertFalse(regularProject.isPlatformBundlesEnabled());
-        assertTrue(regularProject.getPlatformsRequiringSpecificBundles().isEmpty());
+        // Note: getPlatformsRequiringSpecificBundles() method has been removed with the deprecated nativeNamespaces implementation
     }
 
     @Test

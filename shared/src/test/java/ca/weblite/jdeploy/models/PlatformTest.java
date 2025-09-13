@@ -7,6 +7,7 @@ public class PlatformTest {
 
     @Test
     public void testGetIdentifier() {
+        assertEquals("default", Platform.DEFAULT.getIdentifier());
         assertEquals("mac-x64", Platform.MAC_X64.getIdentifier());
         assertEquals("mac-arm64", Platform.MAC_ARM64.getIdentifier());
         assertEquals("win-x64", Platform.WIN_X64.getIdentifier());
@@ -17,6 +18,7 @@ public class PlatformTest {
 
     @Test
     public void testGetPackagePropertyName() {
+        assertEquals("package", Platform.DEFAULT.getPackagePropertyName());
         assertEquals("packageMacX64", Platform.MAC_X64.getPackagePropertyName());
         assertEquals("packageMacArm64", Platform.MAC_ARM64.getPackagePropertyName());
         assertEquals("packageWinX64", Platform.WIN_X64.getPackagePropertyName());
@@ -27,6 +29,7 @@ public class PlatformTest {
 
     @Test
     public void testFromIdentifier() {
+        assertEquals(Platform.DEFAULT, Platform.fromIdentifier("default"));
         assertEquals(Platform.MAC_X64, Platform.fromIdentifier("mac-x64"));
         assertEquals(Platform.MAC_ARM64, Platform.fromIdentifier("mac-arm64"));
         assertEquals(Platform.WIN_X64, Platform.fromIdentifier("win-x64"));
@@ -45,9 +48,10 @@ public class PlatformTest {
     @Test
     public void testGetAllIdentifiers() {
         String[] identifiers = Platform.getAllIdentifiers();
-        assertEquals(6, identifiers.length);
+        assertEquals(7, identifiers.length);
         
         // Check that all expected identifiers are present
+        assertTrue(arrayContains(identifiers, "default"));
         assertTrue(arrayContains(identifiers, "mac-x64"));
         assertTrue(arrayContains(identifiers, "mac-arm64"));
         assertTrue(arrayContains(identifiers, "win-x64"));

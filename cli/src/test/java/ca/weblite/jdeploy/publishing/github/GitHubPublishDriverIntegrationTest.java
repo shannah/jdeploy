@@ -138,6 +138,7 @@ public class GitHubPublishDriverIntegrationTest {
         
         // Add the new required dependencies
         ca.weblite.jdeploy.services.PlatformBundleGenerator platformBundleGenerator = mock(ca.weblite.jdeploy.services.PlatformBundleGenerator.class);
+        ca.weblite.jdeploy.services.DefaultBundleService defaultBundleService = mock(ca.weblite.jdeploy.services.DefaultBundleService.class);
         ca.weblite.jdeploy.factories.JDeployProjectFactory projectFactory = mock(ca.weblite.jdeploy.factories.JDeployProjectFactory.class);
         
         when(cheerpjServiceFactory.create(any())).thenReturn(cheerpjService);
@@ -152,6 +153,7 @@ public class GitHubPublishDriverIntegrationTest {
             gitHubReleaseCreator,
             downloadPageSettingsService,
             platformBundleGenerator,
+            defaultBundleService,
             projectFactory
         );
         

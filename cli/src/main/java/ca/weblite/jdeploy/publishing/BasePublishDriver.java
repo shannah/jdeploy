@@ -61,6 +61,14 @@ public class BasePublishDriver implements PublishDriverInterface {
         if (license.exists()) {
             FileUtils.copyFile(license, new File(context.getPublishDir(), license.getName()));
         }
+        // Find all .jdpignore* files and copy them too
+        // Use a glob pattern to find them
+        File[] jdpignoreFiles = new File(".").listFiles((dir, name) -> name.startsWith(".jdpignore"));
+        if (jdpignoreFiles != null) {
+            for (File jdpignoreFile : jdpignoreFiles) {
+                FileUtils.copyFile(jdpignoreFile, new File(context.getPublishDir(), jdpignoreFile.getName()));
+            }
+        }
 
         // Now add checksums
         JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(context.packagingContext.packageJsonFile, "UTF-8"));

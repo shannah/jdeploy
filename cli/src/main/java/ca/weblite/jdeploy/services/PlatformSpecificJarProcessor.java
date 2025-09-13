@@ -1,7 +1,9 @@
 package ca.weblite.jdeploy.services;
 
+import ca.weblite.jdeploy.models.JDeployProject;
 import ca.weblite.jdeploy.models.Platform;
 
+import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.io.*;
 import java.util.*;
@@ -14,6 +16,13 @@ import java.util.zip.ZipEntry;
  */
 @Singleton
 public class PlatformSpecificJarProcessor {
+
+    private final JDeployIgnoreService ignoreService;
+
+    @Inject
+    public PlatformSpecificJarProcessor(JDeployIgnoreService ignoreService) {
+        this.ignoreService = ignoreService;
+    }
 
     /**
      * Processes a JAR file for a specific platform using strip and keep lists.
@@ -135,6 +144,163 @@ public class PlatformSpecificJarProcessor {
         }
         
         return new ArrayList<>(detectedNamespaces);
+    }
+
+    /**
+     * Processes a JAR file for a specific platform using .jdpignore files.
+     * Creates a temporary file and replaces the original.
+     * 
+     * @param jarFile the JAR file to process
+     * @param project the JDeploy project (for accessing .jdpignore files)
+     * @param platform the target platform (use Platform.DEFAULT for global .jdpignore rules only)
+     * @throws IOException if processing fails
+     */
+    public void processJarForPlatform(File jarFile, JDeployProject project, Platform platform) throws IOException {
+        if (jarFile == null || !jarFile.exists()) {
+            throw new IllegalArgumentException("JAR file must exist: " + jarFile);
+        }
+        
+        if (project == null) {
+            throw new IllegalArgumentException("Project cannot be null");
+        }
+        
+        if (platform == null) {
+            throw new IllegalArgumentException("Platform cannot be null (use Platform.DEFAULT for global rules only)");
+        }
+        
+        // Check if there are any ignore files to process
+        if (!ignoreService.hasIgnoreFiles(project)) {
+            return; // Nothing to process
+        }
+        
+        // Create temporary file
+        File tempFile = new File(jarFile.getParentFile(), jarFile.getName() + ".tmp");
+        
+        try {
+            createProcessedJarWithIgnoreService(jarFile, tempFile, project, platform);
+            
+            // Replace original file with processed version
+            if (!jarFile.delete()) {
+                throw new IOException("Failed to delete original JAR file: " + jarFile);
+            }
+            
+            if (!tempFile.renameTo(jarFile)) {
+                throw new IOException("Failed to rename temp file to original: " + tempFile + " -> " + jarFile);
+            }
+            
+        } catch (IOException e) {
+            // Clean up temp file on failure
+            if (tempFile.exists()) {
+                tempFile.delete();
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Creates a platform-specific JAR using .jdpignore files.
+     * 
+     * @param originalJar the source JAR file
+     * @param project the JDeploy project (for accessing .jdpignore files)
+     * @param platform the target platform
+     * @return the created platform-specific JAR file
+     * @throws IOException if processing fails
+     */
+    public File createPlatformSpecificJar(File originalJar, JDeployProject project, Platform platform) throws IOException {
+        if (originalJar == null || !originalJar.exists()) {
+            throw new IllegalArgumentException("Original JAR file must exist: " + originalJar);
+        }
+        
+        if (project == null) {
+            throw new IllegalArgumentException("Project cannot be null");
+        }
+        
+        if (platform == null) {
+            throw new IllegalArgumentException("Platform cannot be null");
+        }
+        
+        // Generate output file name
+        String baseName = originalJar.getName();
+        if (baseName.endsWith(".jar")) {
+            baseName = baseName.substring(0, baseName.length() - 4);
+        }
+        
+        String outputFileName = baseName + "-" + platform.getIdentifier() + ".jar";
+        File outputFile = new File(originalJar.getParentFile(), outputFileName);
+        
+        // Check if there are any ignore files to process
+        if (!ignoreService.hasIgnoreFiles(project)) {
+            // No processing needed, just copy the file
+            copyFile(originalJar, outputFile);
+            return outputFile;
+        }
+        
+        createProcessedJarWithIgnoreService(originalJar, outputFile, project, platform);
+        
+        return outputFile;
+    }
+
+    /**
+     * Creates a new JAR file using .jdpignore files for filtering.
+     */
+    private void createProcessedJarWithIgnoreService(File sourceJar, File targetJar, JDeployProject project, Platform platform) throws IOException {
+        try (JarFile inputJar = new JarFile(sourceJar)) {
+            
+            // Get manifest, create default if none exists
+            Manifest manifest = inputJar.getManifest();
+            if (manifest == null) {
+                manifest = new Manifest();
+                manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
+            }
+            
+            try (JarOutputStream outputJar = new JarOutputStream(new FileOutputStream(targetJar), manifest)) {
+            
+            Enumeration<JarEntry> entries = inputJar.entries();
+            Set<String> addedEntries = new HashSet<>(); // Prevent duplicate entries
+            
+            while (entries.hasMoreElements()) {
+                JarEntry entry = entries.nextElement();
+                String entryName = entry.getName();
+                
+                // Skip manifest entries (already handled in constructor)
+                if (entryName.startsWith("META-INF/MANIFEST.MF")) {
+                    continue;
+                }
+                
+                // Use ignore service to determine if entry should be included
+                if (!ignoreService.shouldIncludeFile(project, entryName, platform)) {
+                    continue; // Skip this entry based on ignore patterns
+                }
+                
+                // Avoid duplicate entries
+                if (addedEntries.contains(entryName)) {
+                    continue;
+                }
+                
+                // Create new entry (don't reuse the old one to avoid compression issues)
+                JarEntry newEntry = new JarEntry(entryName);
+                newEntry.setTime(entry.getTime());
+                
+                try {
+                    outputJar.putNextEntry(newEntry);
+                    
+                    // Copy entry content if it's not a directory
+                    if (!entry.isDirectory()) {
+                        try (InputStream input = inputJar.getInputStream(entry)) {
+                            copyStream(input, outputJar);
+                        }
+                    }
+                    
+                    outputJar.closeEntry();
+                    addedEntries.add(entryName);
+                    
+                } catch (Exception e) {
+                    // Log and continue - some entries might cause issues but we want to process the rest
+                    System.err.println("Warning: Failed to process JAR entry " + entryName + ": " + e.getMessage());
+                }
+            }
+            }
+        }
     }
 
     /**

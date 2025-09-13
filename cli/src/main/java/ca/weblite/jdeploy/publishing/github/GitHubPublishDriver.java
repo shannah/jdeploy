@@ -17,6 +17,7 @@ import ca.weblite.jdeploy.services.BundleCodeService;
 import ca.weblite.jdeploy.services.CheerpjService;
 import ca.weblite.jdeploy.services.PackageNameService;
 import ca.weblite.jdeploy.services.PlatformBundleGenerator;
+import ca.weblite.jdeploy.services.DefaultBundleService;
 import ca.weblite.jdeploy.models.JDeployProject;
 import ca.weblite.jdeploy.models.Platform;
 import ca.weblite.jdeploy.factories.JDeployProjectFactory;
@@ -58,6 +59,8 @@ public class GitHubPublishDriver implements PublishDriverInterface {
 
     private final PlatformBundleGenerator platformBundleGenerator;
     
+    private final DefaultBundleService defaultBundleService;
+    
     private final JDeployProjectFactory projectFactory;
 
     @Inject
@@ -69,6 +72,7 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             GitHubReleaseCreator gitHubReleaseCreator,
             DownloadPageSettingsService downloadPageSettingsService,
             PlatformBundleGenerator platformBundleGenerator,
+            DefaultBundleService defaultBundleService,
             JDeployProjectFactory projectFactory
     ) {
         this.baseDriver = baseDriver;
@@ -78,6 +82,7 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         this.gitHubReleaseCreator = gitHubReleaseCreator;
         this.downloadPageSettingsService = downloadPageSettingsService;
         this.platformBundleGenerator = platformBundleGenerator;
+        this.defaultBundleService = defaultBundleService;
         this.projectFactory = projectFactory;
     }
 
@@ -146,18 +151,18 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             FileUtils.deleteDirectory(context.getGithubReleaseFilesDir());
         }
         context.getGithubReleaseFilesDir().mkdirs();
-        // Process the default bundle first (before packing) if platform bundles are enabled
-        processDefaultBundleBeforePacking(context);
+
+        // Generate platform-specific tarballs if platform bundles are enabled
+        generatePlatformSpecificTarballs(context);
         
+        // Process the default bundle AFTER platform bundles to apply global ignore rules
+        defaultBundleService.processDefaultBundle(context);
         context.npm.pack(
                 context.getPublishDir(),
                 context.getGithubReleaseFilesDir(),
                 context.packagingContext.exitOnFail
         );
-        
-        // Generate platform-specific tarballs if platform bundles are enabled
-        generatePlatformSpecificTarballs(context);
-        
+
         saveGithubReleaseFiles(context, target);
         PackageInfoBuilder builder = new PackageInfoBuilder();
         InputStream oldPackageInfo = loadPackageInfo(context, target);
@@ -425,68 +430,6 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             // The universal bundle will still be available
             context.err().println("Warning: Failed to generate platform-specific tarballs: " + e.getMessage());
             context.err().println("Universal bundle will still be published to GitHub release");
-            e.printStackTrace(context.err());
-        }
-    }
-    
-    /**
-     * Processes the default bundle before packing according to RFC requirements.
-     * This is called BEFORE npm pack to ensure the default bundle has the correct content.
-     * 
-     * Default Bundle Rules:
-     * - Strip: Only ignore namespaces (debugging, testing libraries)
-     * - Keep: ALL platform-specific namespaces (so users can choose platform at runtime)
-     * 
-     * This allows the default bundle to work for all platforms but removes
-     * unnecessary debugging/testing code.
-     */
-    private void processDefaultBundleBeforePacking(PublishingContext context) throws IOException {
-        try {
-            // Load the project configuration from package.json
-            JDeployProject project = projectFactory.createProject(context.packagingContext.packageJsonFile.toPath());
-            
-            // Check if platform bundles are enabled and needed
-            if (!platformBundleGenerator.shouldGeneratePlatformBundles(project)) {
-                context.out().println("Platform bundles not enabled, skipping default bundle processing");
-                return;
-            }
-            
-            // Get ignore namespaces to strip from default bundle
-            List<String> ignoreNamespaces = project.getIgnoredNamespaces();
-            
-            if (ignoreNamespaces.isEmpty()) {
-                context.out().println("No ignore namespaces configured, default bundle unchanged");
-                return;
-            }
-            
-            context.out().println("Processing default bundle before packing...");
-            context.out().println("Stripping ignore namespaces from default bundle: " + ignoreNamespaces);
-            
-            // Get all platform-specific namespaces to keep in default bundle
-            // This ensures users can choose their platform at runtime
-            List<String> allPlatformNamespaces = project.getNativeNamespaces()
-                    .values()
-                    .stream()
-                    .flatMap(List::stream)
-                    .collect(Collectors.toList());
-            
-            context.out().println("Keeping all platform namespaces in default bundle: " + allPlatformNamespaces);
-            
-            // Process JARs in the publish directory with default bundle rules:
-            // Strip: ignore namespaces
-            // Keep: all platform-specific namespaces
-            platformBundleGenerator.processNativeNamespacesInBundle(
-                context.getPublishDir(), 
-                ignoreNamespaces,           // Strip ignore namespaces
-                allPlatformNamespaces       // Keep all platform namespaces
-            );
-            
-            context.out().println("Successfully processed default bundle with ignore namespace rules");
-            
-        } catch (Exception e) {
-            // Log the error but don't fail the entire publishing process
-            context.err().println("Warning: Failed to process default bundle: " + e.getMessage());
-            context.err().println("Default bundle will be published without ignore namespace processing");
             e.printStackTrace(context.err());
         }
     }

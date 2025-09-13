@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.services;
 
+import ca.weblite.jdeploy.models.JDeployIgnorePattern;
 import ca.weblite.jdeploy.models.JDeployProject;
 import ca.weblite.jdeploy.models.Platform;
 import ca.weblite.jdeploy.npm.NPM;
@@ -28,11 +29,13 @@ public class PlatformBundleGenerator {
 
     private final PlatformSpecificJarProcessor jarProcessor;
     private final DownloadPageSettingsService downloadPageSettingsService;
+    private final JDeployIgnoreService ignoreService;
 
     @Inject
-    public PlatformBundleGenerator(PlatformSpecificJarProcessor jarProcessor, DownloadPageSettingsService downloadPageSettingsService) {
+    public PlatformBundleGenerator(PlatformSpecificJarProcessor jarProcessor, DownloadPageSettingsService downloadPageSettingsService, JDeployIgnoreService ignoreService) {
         this.jarProcessor = jarProcessor;
         this.downloadPageSettingsService = downloadPageSettingsService;
+        this.ignoreService = ignoreService;
     }
 
     /**
@@ -108,12 +111,9 @@ public class PlatformBundleGenerator {
         // Update package.json with platform-specific name if configured
         updatePackageJsonForPlatform(platformBundleDir, project, targetPlatform);
 
-        // Process JARs using new dual-list resolution rules from RFC
-        List<String> namespacesToStrip = getNamespacesToStrip(project, targetPlatform);
-        List<String> namespacesToKeep = getNamespacesToKeep(project, targetPlatform);
-        
-        if (!namespacesToStrip.isEmpty() || !namespacesToKeep.isEmpty()) {
-            processNativeNamespacesInBundle(platformBundleDir, namespacesToStrip, namespacesToKeep);
+        // Process JARs using .jdpignore files if they exist
+        if (ignoreService.hasIgnoreFiles(project)) {
+            processJarsWithIgnoreService(platformBundleDir, project, targetPlatform);
         }
 
         return platformBundleDir;
@@ -246,37 +246,28 @@ public class PlatformBundleGenerator {
         FileUtils.writeStringToFile(packageJsonFile, packageJson.toString(2), "UTF-8");
     }
 
+    
     /**
-     * Processes native namespaces in all JAR files using dual-list approach.
-     * Keep list takes precedence over strip list for any given file.
+     * Processes JAR files in a bundle using .jdpignore files.
+     * This is the new approach that uses the JDeployIgnoreService.
      * 
      * @param bundleDir the bundle directory containing JAR files
-     * @param namespacesToStrip list of namespaces to strip
-     * @param namespacesToKeep list of namespaces to keep (overrides strip list)
+     * @param project the JDeploy project (for accessing .jdpignore files)
+     * @param platform the target platform (can be null to use only global .jdpignore rules)
      * @throws IOException if processing fails
      */
-    public void processNativeNamespacesInBundle(File bundleDir, List<String> namespacesToStrip, List<String> namespacesToKeep) throws IOException {
+    public void processJarsWithIgnoreService(File bundleDir, JDeployProject project, Platform platform) throws IOException {
         // Find all JAR files in the bundle
         Collection<File> jarFiles = FileUtils.listFiles(bundleDir, new String[]{"jar"}, true);
         
         for (File jarFile : jarFiles) {
             try {
-                jarProcessor.processJarForPlatform(jarFile, namespacesToStrip, namespacesToKeep);
+                jarProcessor.processJarForPlatform(jarFile, project, platform);
             } catch (Exception e) {
                 // Log warning but continue processing other JARs
-                System.err.println("Warning: Failed to process namespaces in " + jarFile.getName() + ": " + e.getMessage());
+                System.err.println("Warning: Failed to process JAR with ignore service " + jarFile.getName() + ": " + e.getMessage());
             }
         }
-    }
-    
-    /**
-     * Strips native namespaces from all JAR files in the bundle (backward compatibility).
-     * 
-     * @deprecated Use {@link #processNativeNamespacesInBundle(File, List, List)} instead
-     */
-    @Deprecated
-    private void stripNativeNamespacesFromBundle(File bundleDir, List<String> namespacesToStrip) throws IOException {
-        processNativeNamespacesInBundle(bundleDir, namespacesToStrip, Collections.emptyList());
     }
 
     /**
@@ -352,149 +343,78 @@ public class PlatformBundleGenerator {
     }
 
     /**
+     * Checks if the default bundle should be filtered with global .jdpignore rules.
+     * This is separate from platform bundle generation - we can filter the default bundle
+     * even if we don't generate platform bundles.
+     */
+    public boolean shouldFilterDefaultBundle(JDeployProject project) {
+        // Filter default bundle if global .jdpignore file exists with patterns
+        return ignoreService.hasIgnoreFiles(project);
+    }
+
+    /**
      * Gets the list of platforms that will have bundles generated.
-     * Respects download page settings to exclude platforms not enabled for download.
+     * A platform-specific bundle is generated ONLY if:
+     * 1. The platform is enabled in download page settings, AND
+     * 2. There is a .jdpignore.{platform} file for that platform with at least one pattern rule
      */
     public List<Platform> getPlatformsForBundleGeneration(JDeployProject project) {
         if (!project.isPlatformBundlesEnabled()) {
             return Collections.emptyList();
         }
-
-        // Get all platforms with native namespaces configured
-        List<Platform> allPlatforms = new ArrayList<>(project.getNativeNamespaces().keySet());
         
         // Read download page settings from project
         DownloadPageSettings downloadPageSettings = downloadPageSettingsService.read(project.getPackageJSON());
         Set<DownloadPageSettings.BundlePlatform> enabledBundlePlatforms = downloadPageSettings.getResolvedPlatforms();
         
-        // Filter platforms based on download page settings
-        List<Platform> filteredPlatforms = new ArrayList<>();
-        for (Platform platform : allPlatforms) {
-            DownloadPageSettings.BundlePlatform bundlePlatform = mapToBundlePlatform(platform);
-            if (bundlePlatform != null && enabledBundlePlatforms.contains(bundlePlatform)) {
-                filteredPlatforms.add(platform);
+        // Generate bundles only for enabled platforms that have platform-specific ignore files with patterns
+        List<Platform> platforms = new ArrayList<>();
+        for (DownloadPageSettings.BundlePlatform bundlePlatform : enabledBundlePlatforms) {
+            Platform platform = mapFromBundlePlatform(bundlePlatform);
+            if (platform != null && hasPlatformSpecificIgnoreFile(project, platform)) {
+                platforms.add(platform);
             }
         }
         
-        return filteredPlatforms;
+        return platforms;
     }
     
     /**
-     * Maps a Platform enum to a DownloadPageSettings.BundlePlatform enum.
+     * Maps a DownloadPageSettings.BundlePlatform enum to a Platform enum.
      * Returns null if no mapping exists.
      */
-    private DownloadPageSettings.BundlePlatform mapToBundlePlatform(Platform platform) {
-        switch (platform) {
-            case MAC_X64:
-                return DownloadPageSettings.BundlePlatform.MacX64;
-            case MAC_ARM64:
-                return DownloadPageSettings.BundlePlatform.MacArm64;
-            case WIN_X64:
-                return DownloadPageSettings.BundlePlatform.WindowsX64;
-            case WIN_ARM64:
-                return DownloadPageSettings.BundlePlatform.WindowsArm64;
-            case LINUX_X64:
-                return DownloadPageSettings.BundlePlatform.LinuxX64;
-            case LINUX_ARM64:
-                return DownloadPageSettings.BundlePlatform.LinuxArm64;
+    private Platform mapFromBundlePlatform(DownloadPageSettings.BundlePlatform bundlePlatform) {
+        switch (bundlePlatform) {
+            case MacX64:
+                return Platform.MAC_X64;
+            case MacArm64:
+                return Platform.MAC_ARM64;
+            case WindowsX64:
+                return Platform.WIN_X64;
+            case WindowsArm64:
+                return Platform.WIN_ARM64;
+            case LinuxX64:
+                return Platform.LINUX_X64;
+            case LinuxArm64:
+                return Platform.LINUX_ARM64;
             default:
                 return null;
         }
     }
     
     /**
-     * Gets namespaces to strip for a target platform using RFC resolution rules.
-     *
-     * Strip List includes:
-     * - All namespaces from the "ignore" list (always stripped)
-     * - All native namespaces from other platforms (exclude target platform)
-     * 
-     * @param project the jDeploy project configuration
-     * @param targetPlatform the platform to generate strip list for
-     * @return list of namespaces to strip
+     * Checks if a platform has a platform-specific .jdpignore file with at least one pattern.
+     * @param project the jDeploy project
+     * @param platform the platform to check
+     * @return true if the platform has a .jdpignore.{platform} file with patterns
      */
-    public List<String> getNamespacesToStrip(JDeployProject project, Platform targetPlatform) {
-        List<String> stripList = new ArrayList<>();
-        
-        // Add ignored namespaces (always stripped from all platform bundles)
-        stripList.addAll(project.getIgnoredNamespaces());
-        
-        // Add all native namespaces from other platforms (not the target platform)
-        Map<Platform, List<String>> allNamespaces = project.getNativeNamespaces();
-        for (Map.Entry<Platform, List<String>> entry : allNamespaces.entrySet()) {
-            Platform platform = entry.getKey();
-            if (!platform.equals(targetPlatform)) {
-                stripList.addAll(entry.getValue());
-            }
+    private boolean hasPlatformSpecificIgnoreFile(JDeployProject project, Platform platform) {
+        try {
+            List<JDeployIgnorePattern> patterns = ignoreService.getPlatformIgnorePatterns(project, platform);
+            return !patterns.isEmpty();
+        } catch (Exception e) {
+            // If we can't read the file, assume it doesn't exist
+            return false;
         }
-        
-        return stripList;
-    }
-    
-    /**
-     * Gets namespaces to keep for a target platform using RFC resolution rules.
-     * 
-     * Keep List includes:
-     * - All native namespaces explicitly listed for the target platform
-     * 
-     * Note: Keep list takes precedence over strip list for any given file.
-     * 
-     * @param project the jDeploy project configuration
-     * @param targetPlatform the platform to generate keep list for
-     * @return list of namespaces to keep
-     */
-    public List<String> getNamespacesToKeep(JDeployProject project, Platform targetPlatform) {
-        return project.getNativeNamespacesForPlatform(targetPlatform);
-    }
-    
-    /**
-     * Explains the namespace resolution logic for debugging/logging purposes.
-     * 
-     * Example output for mac-x64 platform with configuration:
-     * - ignore: ["com.example.test"]
-     * - mac-x64: ["com.example.native.mac.x64"] 
-     * - win-x64: ["com.example.native.win.x64"]
-     * 
-     * Results:
-     * - Strip: ["com.example.test", "com.example.native.win.x64"]
-     * - Keep: ["com.example.native.mac.x64"]
-     * - Processing: KEEP list overrides STRIP list for each file
-     * 
-     * @param project the jDeploy project configuration
-     * @param targetPlatform the platform to explain resolution for
-     * @return human-readable explanation of the resolution logic
-     */
-    public String explainNamespaceResolution(JDeployProject project, Platform targetPlatform) {
-        List<String> stripList = getNamespacesToStrip(project, targetPlatform);
-        List<String> keepList = getNamespacesToKeep(project, targetPlatform);
-        
-        StringBuilder explanation = new StringBuilder();
-        explanation.append("Namespace Resolution for ").append(targetPlatform.getIdentifier()).append(":\n");
-        
-        explanation.append("\nStrip List (").append(stripList.size()).append(" namespaces):\n");
-        if (stripList.isEmpty()) {
-            explanation.append("  - No namespaces to strip\n");
-        } else {
-            for (String namespace : stripList) {
-                explanation.append("  - ").append(namespace).append("\n");
-            }
-        }
-        
-        explanation.append("\nKeep List (").append(keepList.size()).append(" namespaces):\n");
-        if (keepList.isEmpty()) {
-            explanation.append("  - No explicit keep namespaces\n");
-        } else {
-            for (String namespace : keepList) {
-                explanation.append("  - ").append(namespace).append("\n");
-            }
-        }
-        
-        explanation.append("\nProcessing Logic:\n");
-        explanation.append("  1. For each file in JAR:\n");
-        explanation.append("  2. If file matches KEEP list → KEEP (keep list overrides strip list)\n");
-        explanation.append("  3. Else if file matches STRIP list → STRIP\n");
-        explanation.append("  4. Else → KEEP (default behavior)\n");
-        
-        return explanation.toString();
     }
 }
