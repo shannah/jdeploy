@@ -7,6 +7,7 @@ import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
 import ca.weblite.jdeploy.gui.services.SwingOneTimePasswordProvider;
+import ca.weblite.jdeploy.gui.tabs.BundleFiltersPanel;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
 import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
 import ca.weblite.jdeploy.gui.tabs.PermissionsPanel;
@@ -90,6 +91,7 @@ public class JDeployProjectEditor {
     
     private DownloadPageSettingsPanel downloadPageSettingsPanel;
     private PermissionsPanel permissionsPanel;
+    private BundleFiltersPanel bundleFiltersPanel;
 
     private NPM npm = null;
 
@@ -1464,6 +1466,11 @@ public class JDeployProjectEditor {
         });
         tabs.add("Permissions", permissionsPanel);
 
+        // Add Bundle Filters tab
+        bundleFiltersPanel = new BundleFiltersPanel(packageJSONFile.getParentFile());
+        bundleFiltersPanel.setOnChangeCallback(() -> setModified());
+        tabs.add("Bundle Filters", bundleFiltersPanel);
+
         downloadPageSettingsPanel = new DownloadPageSettingsPanel(loadDownloadPageSettings());
         downloadPageSettingsPanel.addChangeListener(evt -> {
             this.saveDownloadPageSettings(downloadPageSettingsPanel.getSettings());
@@ -1957,6 +1964,9 @@ public class JDeployProjectEditor {
         try {
             if (downloadPageSettingsPanel != null) {
                 saveDownloadPageSettings(downloadPageSettingsPanel.getSettings());
+            }
+            if (bundleFiltersPanel != null) {
+                bundleFiltersPanel.saveAllFiles();
             }
             FileUtil.writeStringToFile(packageJSON.toString(4), packageJSONFile);
             packageJSONMD5 = MD5.getMD5Checksum(packageJSONFile);
