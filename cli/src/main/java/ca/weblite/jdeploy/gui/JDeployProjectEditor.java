@@ -63,6 +63,8 @@ import java.net.URISyntaxException;
 import java.nio.file.*;
 import java.util.*;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
@@ -76,6 +78,8 @@ public class JDeployProjectEditor {
     private JSONObject packageJSON;
     private File packageJSONFile;
     private String packageJSONMD5;
+    private Map<String, String> jdpignoreFileMD5s = new HashMap<>(); // Maps filename to MD5
+    private boolean processingJdpignoreChange = false;
     private MainFields mainFields;
     private ArrayList<DoctypeFields> doctypeFields;
     private ArrayList<LinkFields> linkFields;
@@ -155,6 +159,79 @@ public class JDeployProjectEditor {
         }
     }
 
+    private void handleJdpignoreFileChangedOnFileSystem(String filename) {
+        if (processingJdpignoreChange || bundleFiltersPanel == null) {
+            return;
+        }
+        processingJdpignoreChange = true;
+        try {
+            File jdpignoreFile = new File(packageJSONFile.getParentFile(), filename);
+            
+            // Calculate current hash
+            String currentHash = "";
+            if (jdpignoreFile.exists()) {
+                currentHash = MD5.getMD5Checksum(jdpignoreFile);
+            }
+            
+            // Get stored hash
+            String storedHash = jdpignoreFileMD5s.get(filename);
+            
+            if (currentHash.equals(storedHash)) {
+                // File hasn't actually changed
+                return;
+            }
+            
+            if (!modified && !bundleFiltersPanel.hasUnsavedChanges()) {
+                // No unsaved changes, just reload
+                bundleFiltersPanel.reloadAllFiles();
+                updateJdpignoreFileMD5s();
+                return;
+            }
+            
+            int result = JOptionPane.showConfirmDialog(frame,
+                    "The " + filename + " file has been modified externally. " +
+                            "Would you like to reload it? Unsaved changes will be lost.",
+                    "Reload " + filename + "?",
+                    JOptionPane.YES_NO_OPTION);
+
+            if (result == JOptionPane.YES_OPTION) {
+                bundleFiltersPanel.reloadAllFiles();
+                updateJdpignoreFileMD5s();
+            }
+        } catch (Exception ex) {
+            System.err.println("A problem occurred while handling a file system change to " + filename);
+            ex.printStackTrace(System.err);
+        } finally {
+            processingJdpignoreChange = false;
+        }
+    }
+
+    private void updateJdpignoreFileMD5s() {
+        try {
+            jdpignoreFileMD5s.clear();
+            // Track global .jdpignore file
+            File globalIgnoreFile = new File(packageJSONFile.getParentFile(), ".jdpignore");
+            if (globalIgnoreFile.exists()) {
+                jdpignoreFileMD5s.put(".jdpignore", MD5.getMD5Checksum(globalIgnoreFile));
+            }
+            
+            // Track platform-specific .jdpignore files
+            ca.weblite.jdeploy.models.Platform[] platforms = ca.weblite.jdeploy.models.Platform.values();
+            for (ca.weblite.jdeploy.models.Platform platform : platforms) {
+                if (platform == ca.weblite.jdeploy.models.Platform.DEFAULT) {
+                    continue; // Skip DEFAULT, already handled above
+                }
+                String filename = ".jdpignore." + platform.getIdentifier();
+                File platformIgnoreFile = new File(packageJSONFile.getParentFile(), filename);
+                if (platformIgnoreFile.exists()) {
+                    jdpignoreFileMD5s.put(filename, MD5.getMD5Checksum(platformIgnoreFile));
+                }
+            }
+        } catch (Exception ex) {
+            System.err.println("Failed to update .jdpignore file MD5s: " + ex.getMessage());
+        }
+    }
+
     private void reloadPackageJSON() throws IOException {
         packageJSON = new JSONObject(FileUtils.readFileToString(packageJSONFile, "UTF-8"));
         packageJSONMD5 = MD5.getMD5Checksum(packageJSONFile);
@@ -179,6 +256,9 @@ public class JDeployProjectEditor {
                     String contextString = "" + event.context();
                     if ("package.json".equals(contextString)) {
                         EventQueue.invokeLater(() -> handlePackageJSONChangedOnFileSystem());
+                    } else if (contextString.startsWith(".jdpignore")) {
+                        // Handle .jdpignore file changes
+                        EventQueue.invokeLater(() -> handleJdpignoreFileChangedOnFileSystem(contextString));
                     }
                 }
 
@@ -1470,6 +1550,9 @@ public class JDeployProjectEditor {
         bundleFiltersPanel = new BundleFiltersPanel(packageJSONFile.getParentFile());
         bundleFiltersPanel.setOnChangeCallback(() -> setModified());
         tabs.add("Bundle Filters", bundleFiltersPanel);
+        
+        // Initialize .jdpignore file MD5 tracking
+        updateJdpignoreFileMD5s();
 
         downloadPageSettingsPanel = new DownloadPageSettingsPanel(loadDownloadPageSettings());
         downloadPageSettingsPanel.addChangeListener(evt -> {
@@ -1970,6 +2053,7 @@ public class JDeployProjectEditor {
             }
             FileUtil.writeStringToFile(packageJSON.toString(4), packageJSONFile);
             packageJSONMD5 = MD5.getMD5Checksum(packageJSONFile);
+            updateJdpignoreFileMD5s(); // Update .jdpignore file MD5s after saving
             clearModified();
             context.onFileUpdated(packageJSONFile);
         } catch (Exception ex) {

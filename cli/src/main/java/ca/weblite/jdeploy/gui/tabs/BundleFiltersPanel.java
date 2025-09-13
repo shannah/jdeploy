@@ -388,6 +388,7 @@ public class BundleFiltersPanel extends JPanel {
         }
     }
     
+    
     /**
      * Gets the root component for embedding in the main editor.
      */
