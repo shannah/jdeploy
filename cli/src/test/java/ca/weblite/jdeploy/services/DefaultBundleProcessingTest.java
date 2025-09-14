@@ -168,7 +168,8 @@ public class DefaultBundleProcessingTest {
         File globalIgnore = new File(projectDir, ".jdpignore");
         
         String patterns = "# Global ignore patterns\n" +
-                         "debug\n" +
+                         "**debug**\n" +
+                         "**Debug**\n" +
                          "/log\n";
         
         FileUtils.writeStringToFile(globalIgnore, patterns, "UTF-8");

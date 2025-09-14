@@ -83,7 +83,11 @@ public class JDeployIgnorePattern {
         }
         if (pattern.contains("*")) {
             // Wildcard match - convert to regex
-            String regex = pattern.replace(".", "\\.").replace("*", "[^/]*");
+            String regex = pattern
+                    .replace(".", "\\.")
+                    .replace("**", "{DOUBLE_ASTERISK}")
+                    .replace("*", "[^/]*")
+                    .replace("{DOUBLE_ASTERISK}", ".*");
             return filePath.matches(regex);
         }
         if (pattern.endsWith("/")) {
@@ -105,48 +109,6 @@ public class JDeployIgnorePattern {
         // - com/example/MyClass$InnerClass.class
         if (isClassFilePattern(pattern, filePath)) {
             return true;
-        }
-        
-        // Handle simple namespace patterns that should match file names
-        // E.g., pattern "debug" should match:
-        // - debug.class
-        // - com/example/Debug.class  
-        // - any/path/debug.log
-        if (matchesSimplePattern(pattern, filePath)) {
-            return true;
-        }
-        
-        return false;
-    }
-    
-    /**
-     * Checks if a simple pattern (like "debug") matches a file path.
-     * For simple patterns (no slashes), match if the pattern appears as:
-     * 1. The exact filename (debug.class)
-     * 2. Part of a filename with case-insensitive matching (Debug.class)
-     * 3. Part of any path component
-     */
-    private boolean matchesSimplePattern(String pattern, String filePath) {
-        if (pattern.contains("/")) {
-            return false; // Not a simple pattern
-        }
-        
-        // Split the file path into components
-        String[] pathComponents = filePath.split("/");
-        
-        // Check each component
-        for (String component : pathComponents) {
-            // Remove file extension for comparison
-            String nameWithoutExtension = component;
-            int dotIndex = component.lastIndexOf('.');
-            if (dotIndex > 0) {
-                nameWithoutExtension = component.substring(0, dotIndex);
-            }
-            
-            // Check if pattern matches the component (case-insensitive)
-            if (nameWithoutExtension.toLowerCase().contains(pattern.toLowerCase())) {
-                return true;
-            }
         }
         
         return false;

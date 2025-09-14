@@ -35,16 +35,6 @@ public class RecommendedIgnoreRulesService {
         rules.add("/libjavafx_*.dylib");
         rules.add("/libjavafx_*.so");
         
-        rules.add("");
-        rules.add("# Development and testing libraries");
-        rules.add("junit");
-        rules.add("org/junit");
-        rules.add("org/mockito");
-        rules.add("org/hamcrest");
-        rules.add("org/testng");
-        rules.add("test");
-        rules.add("debug");
-        
         return rules;
     }
     
