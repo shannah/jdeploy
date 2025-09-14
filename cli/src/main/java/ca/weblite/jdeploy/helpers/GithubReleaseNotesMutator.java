@@ -51,22 +51,22 @@ public class GithubReleaseNotesMutator implements BundleConstants {
         final String releasesPrefix = "/releases/download/";
         final File releaseFilesDir = getGithubReleaseFilesDir();
         final Optional<File> macIntelBundle = Arrays.stream(
-                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_MAC_X64)))
+                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_MAC_X64) && !name.endsWith(BUNDLE_MAC_X64 + ".tgz")))
         ).findFirst();
         final Optional<File> macArmBundle = Arrays.stream(
-                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_MAC_ARM64)))
+                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_MAC_ARM64) && !name.endsWith(BUNDLE_MAC_ARM64 + ".tgz")))
         ).findFirst();
         final Optional<File> winBundle = Arrays.stream(
-                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_WIN)))
+                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_WIN) && !name.endsWith(BUNDLE_WIN + ".tgz")))
         ).findFirst();
         final Optional<File> winArmBundle = Arrays.stream(
-                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_WIN_ARM64)))
+                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_WIN_ARM64) && !name.endsWith(BUNDLE_WIN_ARM64 + ".tgz")))
         ).findFirst();
         final Optional<File> linuxBundle = Arrays.stream(
-                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_LINUX)))
+                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_LINUX) && !name.endsWith(BUNDLE_LINUX + ".tgz")))
         ).findFirst();
         final Optional<File> linuxArmBundle = Arrays.stream(
-                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_LINUX_ARM64)))
+                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_LINUX_ARM64) && !name.endsWith(BUNDLE_LINUX_ARM64 + ".tgz")))
         ).findFirst();
         StringBuilder notes = new StringBuilder();
         notes.append("## Application Installers");

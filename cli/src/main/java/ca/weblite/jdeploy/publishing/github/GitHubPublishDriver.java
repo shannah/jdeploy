@@ -16,6 +16,11 @@ import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.jdeploy.services.BundleCodeService;
 import ca.weblite.jdeploy.services.CheerpjService;
 import ca.weblite.jdeploy.services.PackageNameService;
+import ca.weblite.jdeploy.services.PlatformBundleGenerator;
+import ca.weblite.jdeploy.services.DefaultBundleService;
+import ca.weblite.jdeploy.models.JDeployProject;
+import ca.weblite.jdeploy.models.Platform;
+import ca.weblite.jdeploy.factories.JDeployProjectFactory;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.IOUtil;
 import ca.weblite.tools.io.URLUtil;
@@ -29,6 +34,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -51,6 +57,12 @@ public class GitHubPublishDriver implements PublishDriverInterface {
 
     private final DownloadPageSettingsService downloadPageSettingsService;
 
+    private final PlatformBundleGenerator platformBundleGenerator;
+    
+    private final DefaultBundleService defaultBundleService;
+    
+    private final JDeployProjectFactory projectFactory;
+
     @Inject
     public GitHubPublishDriver(
             BasePublishDriver baseDriver,
@@ -58,7 +70,10 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             PackageNameService packageNameService,
             CheerpjServiceFactory cheerpjServiceFactory,
             GitHubReleaseCreator gitHubReleaseCreator,
-            DownloadPageSettingsService downloadPageSettingsService
+            DownloadPageSettingsService downloadPageSettingsService,
+            PlatformBundleGenerator platformBundleGenerator,
+            DefaultBundleService defaultBundleService,
+            JDeployProjectFactory projectFactory
     ) {
         this.baseDriver = baseDriver;
         this.bundleCodeService = bundleCodeService;
@@ -66,6 +81,9 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         this.cheerpjServiceFactory = cheerpjServiceFactory;
         this.gitHubReleaseCreator = gitHubReleaseCreator;
         this.downloadPageSettingsService = downloadPageSettingsService;
+        this.platformBundleGenerator = platformBundleGenerator;
+        this.defaultBundleService = defaultBundleService;
+        this.projectFactory = projectFactory;
     }
 
     @Override
@@ -133,11 +151,18 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             FileUtils.deleteDirectory(context.getGithubReleaseFilesDir());
         }
         context.getGithubReleaseFilesDir().mkdirs();
+
+        // Generate platform-specific tarballs if platform bundles are enabled
+        generatePlatformSpecificTarballs(context);
+        
+        // Process the default bundle AFTER platform bundles to apply global ignore rules
+        defaultBundleService.processDefaultBundle(context);
         context.npm.pack(
                 context.getPublishDir(),
                 context.getGithubReleaseFilesDir(),
                 context.packagingContext.exitOnFail
         );
+
         saveGithubReleaseFiles(context, target);
         PackageInfoBuilder builder = new PackageInfoBuilder();
         InputStream oldPackageInfo = loadPackageInfo(context, target);
@@ -346,5 +371,66 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         }
 
         return installers.toArray(new String[0]);
+    }
+
+    /**
+     * Generates platform-specific tarballs and processes the default bundle according to RFC rules.
+     * 
+     * Default Bundle Processing:
+     * - Strip ignore namespaces (debugging, testing libraries) 
+     * - Keep ALL platform-specific namespaces (users can choose platform at runtime)
+     * 
+     * Platform-Specific Bundles:
+     * - Use dual-list resolution (strip ignore + other platforms, keep target platform)
+     * 
+     * Creates additional .tgz files alongside the processed universal tarball for GitHub releases.
+     */
+    private void generatePlatformSpecificTarballs(PublishingContext context) throws IOException {
+        try {
+            // Load the project configuration from package.json
+            JDeployProject project = projectFactory.createProject(context.packagingContext.packageJsonFile.toPath());
+            
+            // Check if platform bundles are enabled and needed
+            if (!platformBundleGenerator.shouldGeneratePlatformBundles(project)) {
+                context.out().println("Platform bundles not enabled or not needed, skipping platform-specific processing");
+                return;
+            }
+            
+            // Note: Default bundle is already processed before packing in the prepare() method
+            
+            // Generate platform-specific tarballs
+            List<Platform> platforms = platformBundleGenerator.getPlatformsForBundleGeneration(project);
+            context.out().println("Generating platform-specific tarballs for " + platforms.size() + " platforms...");
+            
+            Map<Platform, File> tarballs = platformBundleGenerator.generatePlatformTarballs(
+                    project,
+                    context.getPublishDir(),
+                    context.getGithubReleaseFilesDir(),
+                    context.npm,
+                    context.packagingContext.exitOnFail
+            );
+            
+            // Log the generated tarballs
+            for (Map.Entry<Platform, File> entry : tarballs.entrySet()) {
+                Platform platform = entry.getKey();
+                File tarball = entry.getValue();
+                context.out().println("Generated platform-specific tarball: " + tarball.getName() + 
+                                    " for " + platform.getIdentifier());
+            }
+            
+            if (tarballs.isEmpty()) {
+                context.out().println("No platform-specific tarballs were generated");
+            } else {
+                context.out().println("Successfully generated " + tarballs.size() + 
+                                    " platform-specific tarballs for GitHub release");
+            }
+            
+        } catch (Exception e) {
+            // Log the error but don't fail the entire publishing process
+            // The universal bundle will still be available
+            context.err().println("Warning: Failed to generate platform-specific tarballs: " + e.getMessage());
+            context.err().println("Universal bundle will still be published to GitHub release");
+            e.printStackTrace(context.err());
+        }
     }
 }
