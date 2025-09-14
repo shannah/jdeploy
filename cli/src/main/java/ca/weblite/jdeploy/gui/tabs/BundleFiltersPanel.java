@@ -1,8 +1,12 @@
 package ca.weblite.jdeploy.gui.tabs;
 
+import ca.weblite.jdeploy.DIContext;
 import ca.weblite.jdeploy.models.Platform;
+import ca.weblite.jdeploy.publishTargets.PublishTargetServiceInterface;
+import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import ca.weblite.jdeploy.services.RecommendedIgnoreRulesService;
 import org.apache.commons.io.FileUtils;
+import org.json.JSONObject;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -29,8 +33,15 @@ public class BundleFiltersPanel extends JPanel {
     private final RecommendedIgnoreRulesService recommendedRulesService;
     private DocumentListener changeListener;
     
+    // Platform bundle configuration fields
+    private JCheckBox platformBundlesEnabled, fallbackToUniversal;
+    private Map<Platform, JTextField> packageNameFields;
+    private JPanel configSection;
+    
     // Callback to notify parent when changes occur
     private Runnable onChangeCallback;
+    private JSONObject packageJson;
+    private java.util.function.BooleanSupplier npmEnabledChecker;
     
     /**
      * Creates a new BundleFiltersPanel.
@@ -58,6 +69,13 @@ public class BundleFiltersPanel extends JPanel {
     }
     
     /**
+     * Sets the callback to check if NPM publishing is currently enabled in the UI.
+     */
+    public void setNpmEnabledChecker(java.util.function.BooleanSupplier checker) {
+        this.npmEnabledChecker = checker;
+    }
+    
+    /**
      * Initializes the UI components.
      */
     private void initializeUI() {
@@ -78,6 +96,9 @@ public class BundleFiltersPanel extends JPanel {
                 }
             }
         };
+        
+        // Add configuration section at top
+        add(createConfigSection(), BorderLayout.NORTH);
         
         // Create tabs for each platform
         createGlobalTab();
@@ -410,9 +431,197 @@ public class BundleFiltersPanel extends JPanel {
     }
     
     /**
+     * Refreshes the UI, including updating package field visibility.
+     * Should be called when the panel becomes visible.
+     */
+    public void refreshUI() {
+        updatePackageFieldsVisibility();
+    }
+    
+    /**
      * Gets the root component for embedding in the main editor.
      */
     public JComponent getRoot() {
         return this;
+    }
+    
+    /**
+     * Creates the platform bundle configuration section.
+     */
+    private JPanel createConfigSection() {
+        configSection = new JPanel();
+        configSection.setLayout(new BoxLayout(configSection, BoxLayout.Y_AXIS));
+        configSection.setBorder(BorderFactory.createTitledBorder("Platform Bundle Configuration"));
+        
+        // Enable/disable checkboxes
+        JPanel enablePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        platformBundlesEnabled = new JCheckBox("Enable Platform-Specific Bundles");
+        platformBundlesEnabled.setToolTipText("When enabled, jDeploy will create optimized bundles for each platform, " +
+            "containing only the native libraries needed for that specific platform");
+        
+        fallbackToUniversal = new JCheckBox("Fallback to Universal Bundle");
+        fallbackToUniversal.setToolTipText("If checked, the launcher will fall back to the universal bundle " +
+            "if a platform-specific bundle is not available");
+        
+        enablePanel.add(platformBundlesEnabled);
+        enablePanel.add(fallbackToUniversal);
+        configSection.add(enablePanel);
+        
+        // Package name fields
+        JPanel packagePanel = new JPanel(new GridBagLayout());
+        packageNameFields = new HashMap<>();
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(2, 5, 2, 5);
+        gbc.anchor = GridBagConstraints.WEST;
+        
+        int row = 0;
+        for (Platform platform : Platform.values()) {
+            if (platform == Platform.DEFAULT) continue;
+            
+            gbc.gridx = 0; gbc.gridy = row;
+            packagePanel.add(new JLabel(getPlatformDisplayName(platform) + " Package:"), gbc);
+            
+            gbc.gridx = 1; gbc.gridy = row;
+            JTextField packageField = new JTextField(20);
+            packageField.setToolTipText("NPM package name for the " + getPlatformDisplayName(platform) + 
+                " platform-specific bundle (e.g., 'myapp-" + platform.getIdentifier() + "')");
+            packageNameFields.put(platform, packageField);
+            packagePanel.add(packageField, gbc);
+            
+            row++;
+        }
+        
+        configSection.add(packagePanel);
+        
+        // Add change listeners
+        setupConfigListeners();
+        
+        // Update initial visibility
+        updatePackageFieldsVisibility();
+        
+        return configSection;
+    }
+    
+    /**
+     * Sets up change listeners for configuration fields.
+     */
+    private void setupConfigListeners() {
+        platformBundlesEnabled.addActionListener(e -> {
+            boolean enabled = platformBundlesEnabled.isSelected();
+            fallbackToUniversal.setEnabled(enabled);
+            for (JTextField field : packageNameFields.values()) {
+                field.setEnabled(enabled);
+            }
+            if (onChangeCallback != null) onChangeCallback.run();
+        });
+        
+        fallbackToUniversal.addActionListener(e -> {
+            if (onChangeCallback != null) onChangeCallback.run();
+        });
+        
+        for (JTextField field : packageNameFields.values()) {
+            field.getDocument().addDocumentListener(changeListener);
+        }
+    }
+    
+    /**
+     * Loads configuration from the jDeploy configuration object.
+     */
+    public void loadConfiguration(JSONObject packageJson) {
+        this.packageJson = packageJson;
+        JSONObject jdeployConfig = packageJson != null ? packageJson.optJSONObject("jdeploy") : null;
+        if (jdeployConfig == null) {
+            jdeployConfig = new JSONObject();
+        }
+        
+        platformBundlesEnabled.setSelected(jdeployConfig.optBoolean("platformBundlesEnabled", false));
+        fallbackToUniversal.setSelected(jdeployConfig.optBoolean("fallbackToUniversal", false));
+        
+        for (Map.Entry<Platform, JTextField> entry : packageNameFields.entrySet()) {
+            Platform platform = entry.getKey();
+            JTextField field = entry.getValue();
+            String key = "package" + getPlatformKey(platform);
+            field.setText(jdeployConfig.optString(key, ""));
+        }
+        
+        // Update enabled state
+        boolean enabled = platformBundlesEnabled.isSelected();
+        fallbackToUniversal.setEnabled(enabled);
+        for (JTextField field : packageNameFields.values()) {
+            field.setEnabled(enabled);
+        }
+        updatePackageFieldsVisibility();
+    }
+    
+    /**
+     * Saves configuration to the jDeploy configuration object.
+     */
+    public void saveConfiguration(JSONObject jdeployConfig) {
+        jdeployConfig.put("platformBundlesEnabled", platformBundlesEnabled.isSelected());
+        jdeployConfig.put("fallbackToUniversal", fallbackToUniversal.isSelected());
+        
+        for (Map.Entry<Platform, JTextField> entry : packageNameFields.entrySet()) {
+            Platform platform = entry.getKey();
+            JTextField field = entry.getValue();
+            String key = "package" + getPlatformKey(platform);
+            String value = field.getText().trim();
+            if (!value.isEmpty()) {
+                jdeployConfig.put(key, value);
+            } else {
+                jdeployConfig.remove(key);
+            }
+        }
+    }
+    
+    /**
+     * Gets the platform key for configuration properties.
+     */
+    private String getPlatformKey(Platform platform) {
+        switch (platform) {
+            case MAC_X64: return "MacX64";
+            case MAC_ARM64: return "MacArm64";
+            case WIN_X64: return "WinX64";
+            case WIN_ARM64: return "WinArm64";
+            case LINUX_X64: return "LinuxX64";
+            case LINUX_ARM64: return "LinuxArm64";
+            default: return platform.getIdentifier();
+        }
+    }
+    
+    private void updatePackageFieldsVisibility() {
+        if (packageNameFields != null) {
+            boolean npmEnabled;
+            
+            // First try to get current UI state via callback
+            if (npmEnabledChecker != null) {
+                try {
+                    npmEnabled = npmEnabledChecker.getAsBoolean();
+                } catch (Exception e) {
+                    npmEnabled = false;
+                }
+            } else {
+                // Fall back to checking package.json
+                try {
+                    if (packageJson != null) {
+                        PublishTargetServiceInterface publishTargetService = DIContext.get(PublishTargetServiceInterface.class);
+                        npmEnabled = publishTargetService.getTargetsForPackageJson(packageJson, false)
+                            .stream()
+                            .anyMatch(target -> target.getType() == PublishTargetType.NPM);
+                    } else {
+                        npmEnabled = false;
+                    }
+                } catch (Exception e) {
+                    npmEnabled = false;
+                }
+            }
+            
+            for (JTextField field : packageNameFields.values()) {
+                field.getParent().setVisible(npmEnabled);
+            }
+            if (configSection != null) {
+                configSection.revalidate();
+                configSection.repaint();
+            }
+        }
     }
 }

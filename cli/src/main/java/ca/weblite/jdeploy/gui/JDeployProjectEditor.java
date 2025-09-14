@@ -96,6 +96,7 @@ public class JDeployProjectEditor {
     private DownloadPageSettingsPanel downloadPageSettingsPanel;
     private PermissionsPanel permissionsPanel;
     private BundleFiltersPanel bundleFiltersPanel;
+    private PublishSettingsPanel publishSettingsPanel;
 
     private NPM npm = null;
 
@@ -1549,7 +1550,14 @@ public class JDeployProjectEditor {
         // Add Bundle Filters tab
         bundleFiltersPanel = new BundleFiltersPanel(packageJSONFile.getParentFile());
         bundleFiltersPanel.setOnChangeCallback(() -> setModified());
-        tabs.add("Bundle Filters", bundleFiltersPanel);
+        bundleFiltersPanel.loadConfiguration(packageJSON);
+        
+        // Set up NPM enabled checker to check current UI state
+        bundleFiltersPanel.setNpmEnabledChecker(() -> {
+            return publishSettingsPanel != null && publishSettingsPanel.getNpmCheckbox().isSelected();
+        });
+        
+        tabs.add("Platform-Specific Bundles", bundleFiltersPanel);
         
         // Initialize .jdpignore file MD5 tracking
         updateJdpignoreFileMD5s();
@@ -1569,6 +1577,18 @@ public class JDeployProjectEditor {
         cnt.removeAll();
         cnt.setLayout(new BorderLayout());
         cnt.add(tabs, BorderLayout.CENTER);
+        
+        // Add tab change listener to refresh Platform-Specific Bundles panel
+        // This handles cases where publish settings change but package.json hasn't been saved yet
+        tabs.addChangeListener(e -> {
+            int selectedIndex = tabs.getSelectedIndex();
+            if (selectedIndex >= 0) {
+                String tabTitle = tabs.getTitleAt(selectedIndex);
+                if ("Platform-Specific Bundles".equals(tabTitle) && bundleFiltersPanel != null) {
+                    bundleFiltersPanel.refreshUI();
+                }
+            }
+        });
 
         JPanel bottomButtons = new JPanel();
         bottomButtons.setLayout(new FlowLayout(FlowLayout.RIGHT));
@@ -1653,7 +1673,8 @@ public class JDeployProjectEditor {
     }
 
     private Component createPublishSettingsPanel() {
-        PublishSettingsPanel panel = new PublishSettingsPanel();
+        publishSettingsPanel = new PublishSettingsPanel();
+        PublishSettingsPanel panel = publishSettingsPanel;
         PublishTargetFactory factory = DIContext.get(PublishTargetFactory.class);
         PublishTargetServiceInterface publishTargetService = DIContext.get(PublishTargetServiceInterface.class);
         try {
@@ -2049,7 +2070,8 @@ public class JDeployProjectEditor {
                 saveDownloadPageSettings(downloadPageSettingsPanel.getSettings());
             }
             if (bundleFiltersPanel != null) {
-                bundleFiltersPanel.saveAllFiles();
+                bundleFiltersPanel.saveConfiguration(packageJSON.getJSONObject("jdeploy"));
+                                bundleFiltersPanel.saveAllFiles();
             }
             FileUtil.writeStringToFile(packageJSON.toString(4), packageJSONFile);
             packageJSONMD5 = MD5.getMD5Checksum(packageJSONFile);
