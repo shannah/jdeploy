@@ -101,6 +101,13 @@ cat > target/proguard-release.conf << 'EOF'
 # Keep security/tools classes
 -keep class ca.weblite.tools.** { *; }
 
+# Keep JNA classes - they use reflection heavily
+-keep class com.sun.jna.** { *; }
+-keep class * implements com.sun.jna.** { *; }
+
+# Keep JNA native libraries and resources  
+-keepresources com/sun/jna/**
+
 # Keep serialization
 -keepclassmembers class * implements java.io.Serializable {
     static final long serialVersionUID;
@@ -110,9 +117,10 @@ cat > target/proguard-release.conf << 'EOF'
     java.lang.Object readResolve();
 }
 
-# Keep resources
--adaptresourcefilenames **.properties,**.dll,**.exe,**.png,**.ico,**.jar,**.tiff
+# Keep resources including JNA native libraries
+-adaptresourcefilenames **.properties,**.dll,**.exe,**.png,**.ico,**.jar,**.tiff,**.so,**.jnilib
 -adaptresourcefilecontents **.properties,**.xml
+-keepresources com/sun/jna/**
 
 # Don't optimize or obfuscate
 -dontoptimize
