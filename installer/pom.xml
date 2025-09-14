@@ -69,6 +69,45 @@
             <groupId>ca.weblite</groupId>
             <artifactId>jdeploy-shared</artifactId>
             <version>1.0-SNAPSHOT</version>
+            <exclusions>
+                <!-- Exclude OpenAI client and its dependencies -->
+                <exclusion>
+                    <groupId>com.theokanning.openai-gpt3-java</groupId>
+                    <artifactId>service</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.theokanning.openai-gpt3-java</groupId>
+                    <artifactId>client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.theokanning.openai-gpt3-java</groupId>
+                    <artifactId>api</artifactId>
+                </exclusion>
+                <!-- Exclude JSON Schema generator (uses Scala) -->
+                <exclusion>
+                    <groupId>com.kjetland</groupId>
+                    <artifactId>mbknor-jackson-jsonschema_2.12</artifactId>
+                </exclusion>
+                <!-- Exclude Scala library -->
+                <exclusion>
+                    <groupId>org.scala-lang</groupId>
+                    <artifactId>scala-library</artifactId>
+                </exclusion>
+                <!-- Exclude RxJava (used by OpenAI client) -->
+                <exclusion>
+                    <groupId>io.reactivex.rxjava2</groupId>
+                    <artifactId>rxjava</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.squareup.retrofit2</groupId>
+                    <artifactId>adapter-rxjava2</artifactId>
+                </exclusion>
+                <!-- Exclude other OpenAI dependencies -->
+                <exclusion>
+                    <groupId>com.knuddels</groupId>
+                    <artifactId>jtokkit</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>ca.weblite.jdeploy</groupId>
@@ -106,5 +145,121 @@
             <url>file://${basedir}/../maven-repository</url>
         </repository>
     </repositories>
+    
+    <profiles>
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.wvengen</groupId>
+                        <artifactId>proguard-maven-plugin</artifactId>
+                        <version>2.6.0</version>
+                        <executions>
+                            <execution>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>proguard</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <proguardVersion>7.4.2</proguardVersion>
+                            <injar>${project.build.finalName}.jar</injar>
+                            <outjar>${project.build.finalName}-shrunk.jar</outjar>
+                            <outputDirectory>${project.build.directory}</outputDirectory>
+                            <includeDependency>true</includeDependency>
+                            <libs>
+                                <lib>${java.home}/lib/rt.jar</lib>
+                                <lib>${java.home}/lib/jce.jar</lib>
+                                <lib>${java.home}/lib/jsse.jar</lib>
+                            </libs>
+                            <addMavenDescriptor>true</addMavenDescriptor>
+                            <inFilter>!META-INF/**,!module-info.class</inFilter>
+                            <options>
+                                <!-- Keep main entry point -->
+                                <option>-keep public class ca.weblite.jdeploy.installer.Main { public static void main(java.lang.String[]); }</option>
+                                
+                                <!-- Keep enums -->
+                                <option>-keepclassmembers enum * { public static **[] values(); public static ** valueOf(java.lang.String); }</option>
+                                
+                                <!-- Keep native methods -->
+                                <option>-keepclasseswithmembernames class * { native &lt;methods&gt;; }</option>
+                                
+                                <!-- Keep ShellLink for DLL loading -->
+                                <option>-keep class com.izforge.izpack.util.os.ShellLink { *; }</option>
+                                
+                                <!-- Keep appbundler classes -->
+                                <option>-keep class ca.weblite.jdeploy.appbundler.** { *; }</option>
+                                <option>-keep class com.joshondesign.appbundler.** { *; }</option>
+                                
+                                <!-- Keep security/tools classes -->
+                                <option>-keep class ca.weblite.tools.** { *; }</option>
+                                
+                                <!-- Keep serialization -->
+                                <option>-keepclassmembers class * implements java.io.Serializable {
+                                    static final long serialVersionUID;
+                                    private void writeObject(java.io.ObjectOutputStream);
+                                    private void readObject(java.io.ObjectInputStream);
+                                    java.lang.Object writeReplace();
+                                    java.lang.Object readResolve();
+                                }</option>
+                                
+                                <!-- Keep resources -->
+                                <option>-adaptresourcefilenames **.properties,**.dll,**.exe,**.png,**.ico,**.jar</option>
+                                <option>-adaptresourcefilecontents **.properties,**.xml</option>
+                                
+                                <!-- Don't optimize or obfuscate -->
+                                <option>-dontoptimize</option>
+                                <option>-dontobfuscate</option>
+                                
+                                <!-- Ignore warnings -->
+                                <option>-ignorewarnings</option>
+                                <option>-dontwarn **</option>
+                                
+                                <!-- Keep attributes -->
+                                <option>-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod,SourceFile,LineNumberTable</option>
+                            </options>
+                        </configuration>
+                        <dependencies>
+                            <dependency>
+                                <groupId>com.guardsquare</groupId>
+                                <artifactId>proguard-base</artifactId>
+                                <version>7.4.2</version>
+                            </dependency>
+                            <dependency>
+                                <groupId>com.guardsquare</groupId>
+                                <artifactId>proguard-core</artifactId>
+                                <version>9.1.1</version>
+                            </dependency>
+                        </dependencies>
+                    </plugin>
+                    
+                    <!-- After ProGuard, rename the shrunk jar to the original name -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <phase>package</phase>
+                                <configuration>
+                                    <target>
+                                        <move file="${project.build.directory}/${project.build.finalName}-shrunk.jar"
+                                              tofile="${project.build.directory}/${project.build.finalName}.jar"
+                                              overwrite="true"
+                                              failonerror="false"/>
+                                    </target>
+                                </configuration>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>
