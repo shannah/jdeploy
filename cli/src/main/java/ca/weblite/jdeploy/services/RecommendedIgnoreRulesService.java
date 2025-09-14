@@ -169,12 +169,12 @@ public class RecommendedIgnoreRulesService {
         rules.add("!*" + osName.toLowerCase() + "*" + archName.replace("_", "") + "*");
         
         // Ignore other common platform patterns
-        if (!platformId.equals("win-x64")) rules.add("*win-x64*");
-        if (!platformId.equals("win-arm64")) rules.add("*win-arm64*");
-        if (!platformId.equals("mac-x64")) rules.add("*mac-x64*");
-        if (!platformId.equals("mac-arm64")) rules.add("*mac-arm64*");
-        if (!platformId.equals("linux-x64")) rules.add("*linux-x64*");
-        if (!platformId.equals("linux-arm64")) rules.add("*linux-arm64*");
+        for (Platform p : Platform.values()) {
+            String otherPlatformId = p.getIdentifier();
+            if (!platformId.equals(otherPlatformId)) {
+                rules.add("*" + otherPlatformId + "*");
+            }
+        }
         
         // Common alternative naming patterns
         if (!osName.equals("windows")) {
