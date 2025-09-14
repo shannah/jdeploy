@@ -66,14 +66,56 @@ if [ ! -f "$PROGUARD_JAR" ]; then
     cd "$SCRIPTPATH"
 fi
 
-# Create ProGuard config file
-cat > target/proguard-release.conf << 'EOF'
+# Detect Java version and create appropriate ProGuard config
+JAVA_VERSION_STRING=$($JAVA_HOME/bin/java -version 2>&1 | head -1)
+echo "Java version string: $JAVA_VERSION_STRING"
+
+# Extract major version number (works for both 1.8.x and 11+ formats)
+if [[ $JAVA_VERSION_STRING == *"1.8"* ]]; then
+    JAVA_VERSION=8
+elif [[ $JAVA_VERSION_STRING == *"11."* ]]; then
+    JAVA_VERSION=11
+elif [[ $JAVA_VERSION_STRING == *"17."* ]]; then
+    JAVA_VERSION=17
+elif [[ $JAVA_VERSION_STRING == *"21."* ]]; then
+    JAVA_VERSION=21
+else
+    # Try to extract version number
+    JAVA_VERSION=$(echo "$JAVA_VERSION_STRING" | sed -n 's/.*version "\([0-9]*\).*/\1/p')
+    if [ -z "$JAVA_VERSION" ]; then
+        JAVA_VERSION=8  # Default fallback
+    fi
+fi
+
+echo "Detected Java major version: $JAVA_VERSION"
+
+# Create ProGuard config file based on Java version
+if [ "$JAVA_VERSION" -ge 9 ]; then
+    # Java 9+ uses modules
+    cat > target/proguard-release.conf << 'EOF'
+-injars installer-fat.jar
+-outjars installer-release.jar
+
+-libraryjars <java.home>/jmods/java.base.jmod(!**.jar;!module-info.class)
+-libraryjars <java.home>/jmods/java.desktop.jmod(!**.jar;!module-info.class)
+-libraryjars <java.home>/jmods/java.xml.jmod(!**.jar;!module-info.class)
+-libraryjars <java.home>/jmods/java.logging.jmod(!**.jar;!module-info.class)
+-libraryjars <java.home>/jmods/java.prefs.jmod(!**.jar;!module-info.class)
+EOF
+else
+    # Java 8 uses rt.jar
+    cat > target/proguard-release.conf << 'EOF'
 -injars installer-fat.jar
 -outjars installer-release.jar
 
 -libraryjars <java.home>/lib/rt.jar
 -libraryjars <java.home>/lib/jce.jar
 -libraryjars <java.home>/lib/jsse.jar
+EOF
+fi
+
+# Add common ProGuard options to config file
+cat >> target/proguard-release.conf << 'EOF'
 
 # Keep main entry point
 -keep public class ca.weblite.jdeploy.installer.Main {
