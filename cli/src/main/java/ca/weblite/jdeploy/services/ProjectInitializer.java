@@ -232,9 +232,11 @@ public class ProjectInitializer {
         } else {
             jdeploy.put("war", getRelativePath(directory, candidate));
         }
+        boolean isJavaFX = projectType.getFramework() == ProjectType.Framework.JAVAFX
+                || projectType.getFramework() == ProjectType.Framework.FXGL;
 
         jdeploy.put("javaVersion", String.valueOf(javaVersionInt));
-        jdeploy.put("javafx", projectType.getFramework() == ProjectType.Framework.JAVAFX);
+        jdeploy.put("javafx", isJavaFX);
         jdeploy.put("jdk", false);
 
         // Necessary to avoid duplicate x64 bundles on Windows and Linux without the architecture suffix.

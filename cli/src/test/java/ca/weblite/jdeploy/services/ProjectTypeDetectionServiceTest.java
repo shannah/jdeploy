@@ -145,12 +145,19 @@ class ProjectTypeDetectionServiceTest {
     void testDetectFXGLProject() throws IOException {
         File pomFile = new File(tempDir, "pom.xml");
         FileUtils.writeStringToFile(pomFile, 
-            "<project>\n" +
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+            "<project xmlns=\"http://maven.apache.org/POM/4.0.0\">\n" +
             "    <dependencies>\n" +
             "        <dependency>\n" +
             "            <groupId>com.github.almasb</groupId>\n" +
             "            <artifactId>fxgl</artifactId>\n" +
             "            <version>17.2</version>\n" +
+            "        </dependency>\n" +
+            "        <!-- FXGL projects also typically include JavaFX -->\n" +
+            "        <dependency>\n" +
+            "            <groupId>org.openjfx</groupId>\n" +
+            "            <artifactId>javafx-controls</artifactId>\n" +
+            "            <version>17.0.2</version>\n" +
             "        </dependency>\n" +
             "    </dependencies>\n" +
             "</project>", StandardCharsets.UTF_8);
@@ -158,7 +165,33 @@ class ProjectTypeDetectionServiceTest {
         ProjectType projectType = service.detectProjectType(tempDir);
         
         assertEquals(ProjectType.BuildTool.MAVEN, projectType.getBuildTool());
+        // Should detect FXGL, not JavaFX, even though both are present
         assertEquals(ProjectType.Framework.FXGL, projectType.getFramework());
+    }
+    
+    @Test
+    void testDetectSpringBootProject() throws IOException {
+        File pomFile = new File(tempDir, "pom.xml");
+        FileUtils.writeStringToFile(pomFile, 
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+            "<project xmlns=\"http://maven.apache.org/POM/4.0.0\">\n" +
+            "    <parent>\n" +
+            "        <groupId>org.springframework.boot</groupId>\n" +
+            "        <artifactId>spring-boot-starter-parent</artifactId>\n" +
+            "        <version>2.7.0</version>\n" +
+            "    </parent>\n" +
+            "    <dependencies>\n" +
+            "        <dependency>\n" +
+            "            <groupId>org.springframework.boot</groupId>\n" +
+            "            <artifactId>spring-boot-starter-web</artifactId>\n" +
+            "        </dependency>\n" +
+            "    </dependencies>\n" +
+            "</project>", StandardCharsets.UTF_8);
+        
+        ProjectType projectType = service.detectProjectType(tempDir);
+        
+        assertEquals(ProjectType.BuildTool.MAVEN, projectType.getBuildTool());
+        assertEquals(ProjectType.Framework.SPRING_BOOT, projectType.getFramework());
     }
     
     @Test

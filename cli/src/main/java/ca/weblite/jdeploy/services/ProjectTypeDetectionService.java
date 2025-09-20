@@ -15,17 +15,17 @@ import java.util.regex.Pattern;
 public class ProjectTypeDetectionService {
     
     private static final Pattern JAVAFX_PATTERN = Pattern.compile(
-            "(?i).*(?:javafx|jfx|import\\s+javafx).*", Pattern.DOTALL);
+            "(?i).*(?:javafx|jfx|import\\s+javafx|openjfx).*", Pattern.DOTALL);
     private static final Pattern COMPOSE_PATTERN = Pattern.compile(
             "(?i).*(?:compose[.-]multiplatform|org\\.jetbrains\\.compose).*", Pattern.DOTALL);
     private static final Pattern LIBGDX_PATTERN = Pattern.compile(
             "(?i).*(?:libgdx|gdx-|com\\.badlogicgames\\.gdx).*", Pattern.DOTALL);
     private static final Pattern FXGL_PATTERN = Pattern.compile(
-            "(?i).*(?:fxgl|com\\.github\\.almasb).*", Pattern.DOTALL);
+            "(?i).*(?:fxgl|com\\.github\\.almasb|com\\.almasb\\.fxgl).*", Pattern.DOTALL);
     private static final Pattern SPRING_BOOT_PATTERN = Pattern.compile(
-            "(?i).*(?:spring-boot|@SpringBootApplication).*", Pattern.DOTALL);
+            "(?i).*(?:spring-boot|@SpringBootApplication|org\\.springframework\\.boot).*", Pattern.DOTALL);
     private static final Pattern ANDROID_PATTERN = Pattern.compile(
-            "(?i).*(?:android|com\\.android\\.tools\\.build).*", Pattern.DOTALL);
+            "(?i).*(?:com\\.android\\.tools\\.build|android\\s*\\{|apply\\s+plugin:\\s*['\"]com\\.android).*", Pattern.DOTALL);
     
     public ProjectType detectProjectType(File projectDirectory) {
         if (projectDirectory == null || !projectDirectory.exists() || !projectDirectory.isDirectory()) {
@@ -64,23 +64,26 @@ public class ProjectTypeDetectionService {
                 return ProjectType.Framework.UNKNOWN;
             }
             
+            // Check more specific frameworks first, then more general ones
             if (COMPOSE_PATTERN.matcher(projectContent).find()) {
                 return ProjectType.Framework.COMPOSE_MULTIPLATFORM;
             }
-            if (JAVAFX_PATTERN.matcher(projectContent).find()) {
-                return ProjectType.Framework.JAVAFX;
+            // FXGL must be checked before JavaFX since FXGL uses JavaFX
+            if (FXGL_PATTERN.matcher(projectContent).find()) {
+                return ProjectType.Framework.FXGL;
             }
             if (LIBGDX_PATTERN.matcher(projectContent).find()) {
                 return ProjectType.Framework.LIBGDX;
-            }
-            if (FXGL_PATTERN.matcher(projectContent).find()) {
-                return ProjectType.Framework.FXGL;
             }
             if (SPRING_BOOT_PATTERN.matcher(projectContent).find()) {
                 return ProjectType.Framework.SPRING_BOOT;
             }
             if (ANDROID_PATTERN.matcher(projectContent).find()) {
                 return ProjectType.Framework.ANDROID;
+            }
+            // JavaFX is checked last as it's more of a library used by other frameworks
+            if (JAVAFX_PATTERN.matcher(projectContent).find()) {
+                return ProjectType.Framework.JAVAFX;
             }
             
             return ProjectType.Framework.PLAIN_JAVA;
