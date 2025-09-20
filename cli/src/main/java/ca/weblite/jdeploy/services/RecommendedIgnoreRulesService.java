@@ -162,12 +162,12 @@ public class RecommendedIgnoreRulesService {
         }
         
         // Ignore all other Skiko platforms
-        rules.add("skiko-windows-*.dll");
-        rules.add("libskiko-macos-*.dylib");
-        rules.add("libskiko-linux-*.so");
-        rules.add("skiko-*.dll");
-        rules.add("libskiko-*.dylib");
-        rules.add("libskiko-*.so");
+        rules.add("/skiko-windows-*.dll");
+        rules.add("/libskiko-macos-*.dylib");
+        rules.add("/libskiko-linux-*.so");
+        rules.add("/skiko-*.dll");
+        rules.add("/libskiko-*.dylib");
+        rules.add("/libskiko-*.so");
         rules.add("");
     }
     
@@ -201,7 +201,7 @@ public class RecommendedIgnoreRulesService {
         }
         
         // Ignore all other SQLite platforms
-        rules.add("org/sqlite/native");
+        rules.add("/org/sqlite/native");
         rules.add("");
     }
     
