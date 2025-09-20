@@ -121,6 +121,7 @@ public class ProjectGenerator {
         buildFileSource = buildFileSource.replace("{{ appTitle }}", request.getAppTitle());
         buildFileSource = buildFileSource.replace("{{ groupId }}", request.getGroupId());
         buildFileSource = buildFileSource.replace("{{ artifactId }}", request.getArtifactId());
+        buildFileSource = buildFileSource.replace("{{ artifactId_snake }}", request.getArtifactId().replace('-', '_'));
         buildFileSource = buildFileSource.replace("{{ mainClass }}", request.getMainClassName());
         buildFileSource = buildFileSource.replace("{{ mainClassName }}", request.getMainClassName());
         buildFileSource = buildFileSource.replace("{{ packageName }}", request.getPackageName());
