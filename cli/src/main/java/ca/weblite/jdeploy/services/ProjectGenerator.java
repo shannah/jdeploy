@@ -152,7 +152,9 @@ public class ProjectGenerator {
                         ".yml",
                         ".yaml",
                         ".md",
-                        ".adoc"
+                        ".adoc",
+                        ".kts",
+                        ".kt"
                 };
                 boolean shouldProcessFile = Arrays.asList(processExtensions).stream().filter(ext -> name.endsWith(ext)).count() > 0;
                 if (shouldProcessFile) {
