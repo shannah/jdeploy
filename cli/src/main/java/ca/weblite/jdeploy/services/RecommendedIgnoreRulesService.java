@@ -62,11 +62,74 @@ public class RecommendedIgnoreRulesService {
         
         // Add SQLite native library rules
         addSQLiteRules(rules, platform);
-        
-        // Add general native library patterns
-        addGeneralNativeRules(rules, platform);
+
+        // Add LibGDX specific rules
+        addLibGdxRules(rules, platform);
         
         return rules;
+    }
+
+    private void addLibGdxRules(List<String> rules, Platform platform) {
+        if (platform == Platform.DEFAULT || platform == Platform.WIN_ARM64) {
+            // No special handling for default or Linux ARM64 (no official LWJGL support)
+            return;
+        }
+
+        rules.add("# LWJGL native libraries");
+
+        // Keep current platform's LWJGL libraries
+        switch (platform) {
+            case WIN_X64:
+                rules.add("/linux");
+                rules.add("/macos");
+                rules.add("/windows/arm64");
+                rules.add("/windows/x86");
+                rules.add("/gdx.dll");
+                rules.add("**libgdx*.so");
+                rules.add("**libgdx*.dylib");
+                break;
+            case WIN_ARM64:
+                // No Win Arm64 support in LWJGL as of now
+                break;
+            case MAC_X64:
+                rules.add("/linux");
+                rules.add("/windows");
+                rules.add("/macos/arm64");
+                rules.add("**gdx*.dll");
+                rules.add("**libgdx*.so");
+                rules.add("/libgdxarm64.dylib");
+                break;
+            case MAC_ARM64:
+                rules.add("/linux");
+                rules.add("/windows");
+                rules.add("/macos/x64");
+                rules.add("**gdx*.dll");
+                rules.add("**libgdx*.so");
+                rules.add("/libgdx64.dylib");
+                break;
+            case LINUX_X64:
+                rules.add("/macos");
+                rules.add("/windows");
+                rules.add("/linux");
+                rules.add("!/linux/x64");
+                rules.add("**gdx*.dll");
+                rules.add("**libgdx*.so");
+                rules.add("/libgdx*.dylib");
+                rules.add("!/libgdx64.so");
+                break;
+            case LINUX_ARM64:
+                rules.add("/macos");
+                rules.add("/windows");
+                rules.add("/linux");
+                rules.add("!/linux/arm64");
+                rules.add("**gdx*.dll");
+                rules.add("**libgdx*.so");
+                rules.add("/libgdx*.dylib");
+                rules.add("!/libgdxarm64.so");
+                break;
+        }
+
+        rules.add("");
     }
     
     /**
@@ -139,48 +202,6 @@ public class RecommendedIgnoreRulesService {
         
         // Ignore all other SQLite platforms
         rules.add("org/sqlite/native");
-        rules.add("");
-    }
-    
-    /**
-     * Adds general native library rules for the platform.
-     * These cover common naming patterns for native libraries.
-     */
-    private void addGeneralNativeRules(List<String> rules, Platform platform) {
-        rules.add("# General native library patterns");
-        
-        String platformId = platform.getIdentifier();
-        String osName = getOSName(platform);
-        String archName = getArchName(platform);
-        
-        // Keep patterns for current platform
-        rules.add("!*" + platformId + "*");
-        rules.add("!*" + osName.toLowerCase() + "*" + archName + "*");
-        rules.add("!*" + osName.toLowerCase() + "*" + archName.replace("_", "") + "*");
-        
-        // Ignore other common platform patterns
-        for (Platform p : Platform.values()) {
-            String otherPlatformId = p.getIdentifier();
-            if (!platformId.equals(otherPlatformId)) {
-                rules.add("*" + otherPlatformId + "*");
-            }
-        }
-        
-        // Common alternative naming patterns
-        if (!osName.equals("windows")) {
-            rules.add("*windows*");
-            rules.add("*.dll");
-        }
-        if (!osName.equals("macos")) {
-            rules.add("*macos*");
-            rules.add("*darwin*");
-            rules.add("*.dylib");
-        }
-        if (!osName.equals("linux")) {
-            rules.add("*linux*");
-            rules.add("*.so");
-        }
-        
         rules.add("");
     }
     
