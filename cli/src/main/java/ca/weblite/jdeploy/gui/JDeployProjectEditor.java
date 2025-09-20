@@ -1056,7 +1056,7 @@ public class JDeployProjectEditor {
         if (jdeploy.has("javaVersion")) {
             mainFields.javaVersion.setSelectedItem(String.valueOf(jdeploy.get("javaVersion")));
         } else {
-            mainFields.javaVersion.setSelectedItem("17");
+            mainFields.javaVersion.setSelectedItem("21");
         }
         mainFields.javaVersion.addItemListener(evt -> {
             jdeploy.put("javaVersion", mainFields.javaVersion.getSelectedItem());
