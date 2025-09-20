@@ -195,6 +195,8 @@ public class DetailsPanel {
         panel4.add(label9, cc.xy(1, 5));
         javaVersion = new JComboBox();
         final DefaultComboBoxModel defaultComboBoxModel1 = new DefaultComboBoxModel();
+        defaultComboBoxModel1.addElement("25");
+        defaultComboBoxModel1.addElement("24");
         defaultComboBoxModel1.addElement("21");
         defaultComboBoxModel1.addElement("20");
         defaultComboBoxModel1.addElement("17");

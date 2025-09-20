@@ -248,6 +248,8 @@
             </constraints>
             <properties>
               <model>
+                <item value="25"/>
+                <item value="24"/>
                 <item value="21"/>
                 <item value="20"/>
                 <item value="17"/>
