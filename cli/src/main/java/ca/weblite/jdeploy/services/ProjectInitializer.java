@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.services;
 
 import ca.weblite.jdeploy.claude.SetupClaudeService;
+import ca.weblite.jdeploy.models.Platform;
 import com.codename1.io.JSONParser;
 import com.codename1.processing.Result;
 import org.apache.commons.io.FileUtils;
@@ -20,14 +21,22 @@ public class ProjectInitializer {
 
     private final ProjectJarFinder projectJarFinder;
     private final SetupClaudeService setupClaudeService;
+    private final ProjectTypeDetectionService projectTypeDetectionService;
+    private final RecommendedIgnoreRulesService recommendedIgnoreRulesService;
 
     @Inject
     public ProjectInitializer(
             ProjectJarFinder projectJarFinder,
-            SetupClaudeService setupClaudeService
+            SetupClaudeService setupClaudeService,
+            ProjectTypeDetectionService projectTypeDetectionService,
+            RecommendedIgnoreRulesService recommendedIgnoreRulesService
     ) {
         this.projectJarFinder = projectJarFinder;
         this.setupClaudeService = setupClaudeService;
+        this.projectTypeDetectionService = projectTypeDetectionService;
+        this.recommendedIgnoreRulesService = recommendedIgnoreRulesService != null 
+            ? recommendedIgnoreRulesService 
+            : new RecommendedIgnoreRulesService();
     }
     public static class Request {
         public final String projectDirectory;
@@ -156,6 +165,8 @@ public class ProjectInitializer {
             String jarFilePath
     ) throws IOException {
         final int javaVersionInt = new JavaVersionExtractor().extractJavaVersionFromSystemProperties(11);
+        
+        ProjectType projectType = projectTypeDetectionService.detectProjectType(directory);
 
         String commandName = directory.getAbsoluteFile().getName().toLowerCase();
         if (".".equals(commandName)) {
@@ -223,7 +234,7 @@ public class ProjectInitializer {
         }
 
         jdeploy.put("javaVersion", String.valueOf(javaVersionInt));
-        jdeploy.put("javafx", false);
+        jdeploy.put("javafx", projectType.getFramework() == ProjectType.Framework.JAVAFX);
         jdeploy.put("jdk", false);
 
         // Necessary to avoid duplicate x64 bundles on Windows and Linux without the architecture suffix.
@@ -234,6 +245,8 @@ public class ProjectInitializer {
         String title = toTitleCase(commandName);
 
         jdeploy.put("title", title);
+        
+        addFrameworkSpecificConfiguration(jdeploy, projectType);
 
         m.put("jdeploy", jdeploy);
 
@@ -263,6 +276,14 @@ public class ProjectInitializer {
             }
 
             this.setupClaudeService.setup(directory);
+            
+            // Generate .jdpignore files for Compose Multiplatform projects
+            if (
+                    projectType.getFramework() == ProjectType.Framework.COMPOSE_MULTIPLATFORM
+                            || projectType.getFramework() == ProjectType.Framework.LIBGDX
+            ) {
+                generateJdpIgnoreFiles(directory);
+            }
 
         }
 
@@ -362,6 +383,58 @@ public class ProjectInitializer {
     private String getRelativePath(File directory, File f) {
 
         return directory.toURI().relativize(f.toURI()).getPath();
+    }
+
+    private void addFrameworkSpecificConfiguration(Map jdeploy, ProjectType projectType) {
+        switch (projectType.getFramework()) {
+            case COMPOSE_MULTIPLATFORM:
+            case LIBGDX:
+                // Enable platform-specific bundles for Compose projects
+                jdeploy.put("platformBundlesEnabled", true);
+                break;
+        }
+    }
+
+    private void generateJdpIgnoreFiles(File directory) throws IOException {
+        // Generate .jdpignore files for all platforms except Windows ARM64
+        Platform[] platforms = {
+            Platform.MAC_X64,
+            Platform.MAC_ARM64,
+            Platform.WIN_X64,
+            // Platform.WIN_ARM64 - Skip Windows ARM64 as requested
+            Platform.LINUX_X64,
+            Platform.LINUX_ARM64
+        };
+        
+        for (Platform platform : platforms) {
+            String fileName = platform == Platform.DEFAULT 
+                ? ".jdpignore" 
+                : ".jdpignore." + platform.getIdentifier();
+            
+            File ignoreFile = new File(directory, fileName);
+            
+            // Generate platform-specific rules using the RecommendedIgnoreRulesService
+            String rulesText = recommendedIgnoreRulesService.generateRecommendedRulesText(platform);
+            
+            // Add header comment
+            String header = "# Auto-generated .jdpignore file for " + platform.getIdentifier() + "\n" +
+                           "# Generated for Compose Multiplatform project\n" +
+                           "# These rules optimize bundle size by excluding platform-specific native libraries\n\n";
+            
+            String content = header + rulesText;
+            
+            // Write the file
+            FileUtils.writeStringToFile(ignoreFile, content, "UTF-8");
+        }
+        
+        // Also generate the global .jdpignore file with global rules
+        File globalIgnoreFile = new File(directory, ".jdpignore");
+        List<String> globalRules = recommendedIgnoreRulesService.generateGlobalIgnoreRules();
+        String globalHeader = "# Auto-generated global .jdpignore file\n" +
+                             "# Generated for Compose Multiplatform project\n" +
+                             "# These rules apply to all platforms\n\n";
+        String globalContent = globalHeader + recommendedIgnoreRulesService.formatRulesAsText(globalRules);
+        FileUtils.writeStringToFile(globalIgnoreFile, globalContent, "UTF-8");
     }
 
     private static String toTitleCase(String str) {

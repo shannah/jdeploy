@@ -25,11 +25,26 @@ class ProjectInitializerTest {
     @Mock
     SetupClaudeService mockSetupClaudeService;
 
+    @Mock
+    ProjectTypeDetectionService projectTypeDetectionService;
+    
+    @Mock
+    RecommendedIgnoreRulesService recommendedIgnoreRulesService;
+
     private ProjectInitializer initializer;
 
     @BeforeEach
     void setUp() {
-        initializer = new ProjectInitializer(mockProjectJarFinder, mockSetupClaudeService);
+        initializer = new ProjectInitializer(mockProjectJarFinder, mockSetupClaudeService, 
+                                            projectTypeDetectionService, recommendedIgnoreRulesService);
+        
+        // Configure default behavior for ProjectTypeDetectionService mock with lenient stubbing
+        ProjectType defaultProjectType = new ProjectType(
+            ProjectType.BuildTool.UNKNOWN, 
+            ProjectType.Framework.PLAIN_JAVA, 
+            false
+        );
+        lenient().when(projectTypeDetectionService.detectProjectType(any(File.class))).thenReturn(defaultProjectType);
     }
 
     /**
