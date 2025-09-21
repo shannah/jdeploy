@@ -187,14 +187,14 @@ public class JDeploy implements BundleConstants {
             boolean prompt,
             boolean generateGithubWorkflow
     ) throws IOException {
-        final File directory = packageJSON.getParentFile();
+        final File directory = packageJSON.getAbsoluteFile().getParentFile();
         ProjectInitializer projectInitializer = DIContext.getInstance().getInstance(ProjectInitializer.class);
         boolean dryRun = prompt; // If prompting, then we should do dry run first
         ProjectInitializer.Response plan = null;
         try {
             plan = projectInitializer.decorate(
                     new ProjectInitializer.Request(
-                        packageJSON.getParentFile().getAbsolutePath(),
+                        packageJSON.getAbsoluteFile().getParentFile().getAbsolutePath(),
                             null,
                             dryRun,
                             generateGithubWorkflow,
