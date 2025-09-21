@@ -48,7 +48,7 @@
         <dependency>
             <groupId>com.theokanning.openai-gpt3-java</groupId>
             <artifactId>service</artifactId>
-            <version>LATEST</version>
+            <version>0.18.2</version>
         </dependency>
 
         <dependency>
@@ -174,12 +174,6 @@
             <artifactId>junit-jupiter-params</artifactId>
             <version>${junit.version}</version>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.json</groupId>
-            <artifactId>json</artifactId>
-            <version>20231013</version>
-            <scope>compile</scope>
         </dependency>
 
     </dependencies>
