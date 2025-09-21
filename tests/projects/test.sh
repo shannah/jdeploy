@@ -22,3 +22,5 @@ cd ../TextEditorBundleJRECodesignDMG
 bash test.sh
 cd ../LauncherTest1
 bash test.sh
+cd ../InitNPETest
+bash test.sh
