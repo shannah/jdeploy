@@ -14,7 +14,9 @@ rm -rf dist jdeploy-bundle
 
 # Create a minimal Java project structure that jdeploy can recognize
 mkdir -p dist
-echo "dummy jar content" > dist/app.jar
+
+# Copy an existing JAR file from another test project to avoid ZipException
+cp ../TextEditor2/TextEditor-1.0-SNAPSHOT.jar dist/app.jar
 
 # Create a minimal pom.xml to help jdeploy detect the project
 cat > pom.xml << 'EOF'
