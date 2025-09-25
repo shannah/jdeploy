@@ -18,8 +18,6 @@ public class NPMPackage {
         return packageInfo.getString("name");
     }
 
-
-
     private static boolean isPrerelease(String version) {
         if (!version.contains("-")) return false;
         String lcVersion = version.toLowerCase();
@@ -135,7 +133,4 @@ public class NPMPackage {
         }
         return new NPMPackageVersion(this, versionNumber, packageInfo.getJSONObject("versions").getJSONObject(versionNumber));
     }
-
-
-
 }

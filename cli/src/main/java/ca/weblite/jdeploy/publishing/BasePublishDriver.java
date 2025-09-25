@@ -15,6 +15,9 @@ import javax.inject.Singleton;
 import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.util.jar.Attributes;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 
 @Singleton
 public class BasePublishDriver implements PublishDriverInterface {
@@ -92,6 +95,28 @@ public class BasePublishDriver implements PublishDriverInterface {
         File installSplash = new File(context.packagingContext.directory, "installsplash.png");
         if (installSplash.exists()) {
             checksums.put("installsplash.png", MD5.getMD5Checksum(installSplash));
+        }
+
+        // Extract main class from JAR manifest and add to jdeploy object
+        // This will be used for the Linux StartupWMClass desktop entry
+        if (!jdeployObj.has("mainClass") && jdeployObj.has("jar")) {
+            try {
+                File mainJarFile = new File(publishJdeployBundleDir, new File(jdeployObj.getString("jar")).getName());
+                if (mainJarFile.exists()) {
+                    try (JarFile jarFile = new JarFile(mainJarFile)) {
+                        Manifest manifest = jarFile.getManifest();
+                        if (manifest != null) {
+                            String mainClass = manifest.getMainAttributes().getValue(Attributes.Name.MAIN_CLASS);
+                            if (mainClass != null && !mainClass.isEmpty()) {
+                                jdeployObj.put("mainClass", mainClass);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                // Log but don't fail - main class is optional for Linux desktop entry
+                System.err.println("Warning: Could not extract main class from JAR manifest: " + e.getMessage());
+            }
         }
 
         FileUtils.writeStringToFile(new File(context.getPublishDir(),"package.json"), packageJSON.toString(), "UTF-8");
