@@ -804,6 +804,15 @@ public class Main implements Runnable, Constants {
     }
 
     private void writeLinuxDesktopFile(File dest, String appTitle, File appIcon, File launcher) throws IOException {
+        // Derive StartupWMClass from the npm package name
+        String wmClass = npmPackageVersion().getMainClass();
+        if (wmClass != null) {
+            wmClass = wmClass.replaceAll("\\.", "-");
+        }
+        if (npmPackageVersion().getWmClassName() != null) {
+            wmClass = npmPackageVersion().getWmClassName();
+        }
+
         String contents = "[Desktop Entry]\n" +
                 "Version=1.0\n" +
                 "Type=Application\n" +
@@ -812,6 +821,11 @@ public class Main implements Runnable, Constants {
                 "Exec=\"{{LAUNCHER_PATH}}\" %U\n" +
                 "Comment=Launch {{APP_TITLE}}\n" +
                 "Terminal=false\n";
+
+        // Add StartupWMClass if we have a valid value
+        if (wmClass != null && !wmClass.isEmpty()) {
+            contents += "StartupWMClass=" + wmClass + "\n";
+        }
 
         if (appInfo().hasDocumentTypes() || appInfo().hasUrlSchemes()) {
             StringBuilder mimetypes = new StringBuilder();

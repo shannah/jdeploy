@@ -100,4 +100,18 @@ public class NPMPackageVersion {
     public Map<PermissionRequest, String> getPermissionRequests() {
         return new PermissionRequestService().getPermissionRequests(packageJson);
     }
+
+    public String getMainClass() {
+        if (jdeploy().has("mainClass")) {
+            return jdeploy().getString("mainClass");
+        }
+        return null;
+    }
+
+    public String getWmClassName() {
+        if (jdeploy().has("linux") && jdeploy().getJSONObject("linux").has("wmClassName")) {
+            return jdeploy().getJSONObject("linux").getString("wmClassName");
+        }
+        return null;
+    }
 }
