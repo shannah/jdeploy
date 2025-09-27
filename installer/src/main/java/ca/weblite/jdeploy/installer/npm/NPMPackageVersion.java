@@ -114,4 +114,18 @@ public class NPMPackageVersion {
         }
         return null;
     }
+
+    public RunAsAdministratorSettings getRunAsAdministratorSettings() {
+        if (jdeploy().has("runAsAdministrator")) {
+            String str = jdeploy().getString("runAsAdministrator");
+            if ("required".equalsIgnoreCase(str)) {
+                return RunAsAdministratorSettings.Required;
+            } else if ("allowed".equalsIgnoreCase(str)) {
+                return RunAsAdministratorSettings.Allowed;
+            } else {
+                return RunAsAdministratorSettings.Disabled;
+            }
+        }
+        return RunAsAdministratorSettings.Disabled;
+    }
 }

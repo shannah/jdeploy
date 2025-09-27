@@ -8,11 +8,13 @@ import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.installer.events.InstallationFormEvent;
 import ca.weblite.jdeploy.installer.events.InstallationFormEventDispatcher;
 import ca.weblite.jdeploy.installer.linux.MimeTypeHelper;
+import ca.weblite.jdeploy.installer.mac.AdminLauncherGenerator;
 import ca.weblite.jdeploy.installer.models.AutoUpdateSettings;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.npm.NPMPackage;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.installer.npm.NPMRegistry;
+import ca.weblite.jdeploy.installer.npm.RunAsAdministratorSettings;
 import ca.weblite.jdeploy.installer.util.JarClassLoader;
 import ca.weblite.jdeploy.installer.util.ResourceUtil;
 import ca.weblite.jdeploy.installer.views.DefaultUIFactory;
@@ -179,6 +181,16 @@ public class Main implements Runnable, Constants {
                             createUserReadableSemVerForVersion(npmPackageVersion().getVersion(), AutoUpdateSettings.PatchesOnly) +
                             "]"
                     );
+
+            RunAsAdministratorSettings runAsAdministratorSettings = npmPackageVersion().getRunAsAdministratorSettings();
+            switch (runAsAdministratorSettings) {
+                case Required:
+                    appInfo().setRequireRunAsAdmin(true);
+                    break;
+                case Allowed:
+                    appInfo().setAllowRunAsAdmin(true);
+                    break;
+            }
         }
     }
 
@@ -667,13 +679,28 @@ public class Main implements Runnable, Constants {
                 throw new RuntimeException("Failed to copy app to "+jdeployAppsDir);
             }
             installedApp = installAppPath;
+            File adminWrapper = null;
+
+            if (appInfo().isRequireRunAsAdmin() || appInfo().isAllowRunAsAdmin()) {
+                AdminLauncherGenerator adminLauncherGenerator = new AdminLauncherGenerator();
+                adminWrapper  = adminLauncherGenerator.getAdminLauncherFile(installedApp);
+                if (adminWrapper.exists()) {
+                    // delete the old recursively
+                    FileUtils.deleteDirectory(adminWrapper);
+                }
+                adminWrapper = new AdminLauncherGenerator().generateAdminLauncher(installedApp);
+            }
 
             if (installationSettings.isAddToDesktop()) {
                 File desktopAlias = new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + appName + ".app");
                 if (desktopAlias.exists()) {
                     desktopAlias.delete();
                 }
-                int result = Runtime.getRuntime().exec(new String[]{"ln", "-s", installAppPath.getAbsolutePath(), desktopAlias.getAbsolutePath()}).waitFor();
+                String targetPath = installAppPath.getAbsolutePath();
+                if (adminWrapper != null && appInfo().isRequireRunAsAdmin()) {
+                    targetPath = adminWrapper.getAbsolutePath();
+                }
+                int result = Runtime.getRuntime().exec(new String[]{"ln", "-s", targetPath, desktopAlias.getAbsolutePath()}).waitFor();
                 if (result != 0) {
                     throw new RuntimeException("Failed to make desktop alias.");
                 }
@@ -687,7 +714,11 @@ public class Main implements Runnable, Constants {
                     osascript -e 'tell application "Dock" to quit'
                     osascript -e 'tell application "Dock" to activate'
                  */
-                String myapp = installAppPath.getAbsolutePath().replace('/', '#').replace("#", "//");
+                String targetPath = installAppPath.getAbsolutePath();
+                if (adminWrapper != null && appInfo().isRequireRunAsAdmin()) {
+                    targetPath = adminWrapper.getAbsolutePath();
+                }
+                String myapp = targetPath.replace('/', '#').replace("#", "//");
                 File shellScript = File.createTempFile("installondock", ".sh");
                 shellScript.deleteOnExit();
 
@@ -803,7 +834,7 @@ public class Main implements Runnable, Constants {
         }
     }
 
-    private void writeLinuxDesktopFile(File dest, String appTitle, File appIcon, File launcher) throws IOException {
+    private void writeLinuxDesktopFile(File dest, String appTitle, File appIcon, File launcher, boolean runAsAdmin) throws IOException {
         // Derive StartupWMClass from the npm package name
         String wmClass = npmPackageVersion().getMainClass();
         if (wmClass != null) {
@@ -813,12 +844,16 @@ public class Main implements Runnable, Constants {
             wmClass = npmPackageVersion().getWmClassName();
         }
 
+        String pexec = runAsAdmin
+                ? "pkexec "
+                : "";
+
         String contents = "[Desktop Entry]\n" +
                 "Version=1.0\n" +
                 "Type=Application\n" +
                 "Name={{APP_TITLE}}\n" +
                 "Icon={{APP_ICON}}\n" +
-                "Exec=\"{{LAUNCHER_PATH}}\" %U\n" +
+                "Exec=" + pexec + "\"{{LAUNCHER_PATH}}\" %U\n" +
                 "Comment=Launch {{APP_TITLE}}\n" +
                 "Terminal=false\n";
 
@@ -878,13 +913,16 @@ public class Main implements Runnable, Constants {
                 String newName = baseName + " " + index;
                 desktopFile = new File(desktopFile.getParentFile(), newName);
             }
-            writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile);
+            if (appInfo().isRequireRunAsAdmin()) {
+                writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile, true);
+            } else if (appInfo().isAllowRunAsAdmin()) {
+                writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile, false);
+                writeLinuxDesktopFile(desktopFile, title + " (Run as Admin)", pngIcon, launcherFile, true);
+            } else {
+                writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile, false);
+            }
             desktopFile.setExecutable(true);
-
         }
-
-
-
     }
 
     public void installLinuxLinks(File launcherFile, String title) throws Exception {

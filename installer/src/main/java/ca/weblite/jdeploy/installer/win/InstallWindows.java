@@ -22,7 +22,7 @@ import java.util.Objects;
 import static ca.weblite.tools.io.IOUtil.copyResourceToFile;
 
 public class InstallWindows {
-
+    public static final String RUN_AS_ADMIN_SUFFIX = " (Run as admin)";
     public File install(
             InstallationContext context,
             InstallationSettings installationSettings,
@@ -154,7 +154,8 @@ public class InstallWindows {
             int type,
             File exePath,
             File iconPath,
-            String appTitle
+            String appTitle,
+            boolean runAsAdmin
     ) throws Exception {
         ShellLink link = new ShellLink(type, appTitle);
         link.setUserType(ShellLink.CURRENT_USER);
@@ -167,6 +168,9 @@ public class InstallWindows {
         link.setIconLocation(iconPathString, 0);
         String exePathString = exePath.getCanonicalFile().getAbsolutePath();
         link.setTargetPath(exePathString);
+        if (runAsAdmin) {
+            link.setRunAsAdministrator(true);
+        }
         link.save();
     }
 
@@ -191,15 +195,30 @@ public class InstallWindows {
 
         if (installationSettings.isAddToDesktop()) {
             try {
-                installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle);
+                if (appInfo.isRequireRunAsAdmin()) {
+                    installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle, true);
+                } else if (appInfo.isAllowRunAsAdmin()) {
+                    installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle, false);
+                    installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle + RUN_AS_ADMIN_SUFFIX, true);
+                } else {
+                    installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle, false);
+                }
+
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to install desktop shortcut", ex);
-
             }
         }
         if (installationSettings.isAddToPrograms()) {
             try {
-                installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle);
+                if (appInfo.isRequireRunAsAdmin()) {
+                    installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle, true);
+                } else if (appInfo.isAllowRunAsAdmin()) {
+                    installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle, false);
+                    installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle + RUN_AS_ADMIN_SUFFIX, true);
+                } else {
+                    installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle, false);
+                }
+
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to install program menu shortcut", ex);
 
@@ -207,10 +226,16 @@ public class InstallWindows {
         }
         if (installationSettings.isAddToStartMenu()) {
             try {
-                installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle);
+                if (appInfo.isRequireRunAsAdmin()) {
+                    installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle, true);
+                } else if (appInfo.isAllowRunAsAdmin()) {
+                    installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle, false);
+                    installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle + RUN_AS_ADMIN_SUFFIX, true);
+                } else {
+                    installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle, false);
+                }
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to install start menu shortcut", ex);
-
             }
         }
     }

@@ -10,6 +10,15 @@ import java.nio.file.*;
 import java.nio.charset.StandardCharsets;
 
 public class AdminLauncherGenerator {
+    public static final String ADMIN_LAUNCHER_SUFFIX = " (Run as admin)";
+
+    public File getAdminLauncherFile(File sourceApp) {
+        if (!sourceApp.getName().endsWith(".app")) {
+            throw new IllegalArgumentException("Source must be a .app bundle: " + sourceApp);
+        }
+        String sourceAppName = sourceApp.getName().substring(0, sourceApp.getName().length() - 4);
+        return new File(sourceApp.getParentFile(), sourceAppName + ADMIN_LAUNCHER_SUFFIX + ".app");
+    }
 
     public File generateAdminLauncher(File sourceApp) throws IOException {
         if (!System.getProperty("os.name").toLowerCase().contains("mac")) {
@@ -25,7 +34,7 @@ public class AdminLauncherGenerator {
         }
 
         String sourceAppName = sourceApp.getName().substring(0, sourceApp.getName().length() - 4);
-        File adminApp = new File(sourceApp.getParentFile(), sourceAppName + " (Admin).app");
+        File adminApp = getAdminLauncherFile(sourceApp);
 
         System.out.println("Creating admin launcher for: " + sourceApp.getAbsolutePath());
 
@@ -138,7 +147,7 @@ public class AdminLauncherGenerator {
                                 "    <key>CFBundleIdentifier</key>\n" +
                                 "    <string>com.jdeploy.admin." + sourceAppName.toLowerCase() + "</string>\n" +
                                 "    <key>CFBundleName</key>\n" +
-                                "    <string>" + sourceAppName + " (Admin)</string>\n" +
+                                "    <string>" + sourceAppName + ADMIN_LAUNCHER_SUFFIX +"</string>\n" +
                                 "    <key>CFBundlePackageType</key>\n" +
                                 "    <string>APPL</string>\n" +
                                 "    <key>CFBundleShortVersionString</key>\n" +

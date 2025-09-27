@@ -78,7 +78,7 @@ public class AdminLauncherGeneratorTest {
         assertNotNull("Admin app should be created", adminApp);
         assertTrue("Admin app should exist", adminApp.exists());
         assertTrue("Admin app should be a directory", adminApp.isDirectory());
-        assertEquals("Admin app should have correct name", "TestApp (Admin).app", adminApp.getName());
+        assertEquals("Admin app should have correct name", "TestApp" + AdminLauncherGenerator.ADMIN_LAUNCHER_SUFFIX + ".app", adminApp.getName());
         assertEquals("Admin app should be in same directory as source",
                     testDir.getAbsolutePath(), adminApp.getParentFile().getAbsolutePath());
 

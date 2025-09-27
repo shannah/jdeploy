@@ -78,22 +78,22 @@ public class UninstallWindows {
                 "Start Menu");
     }
 
-    private File getStartMenuLink() {
-        return new File(getStartMenuPath(), new File(appFileName).getName() + ".lnk");
+    private File getStartMenuLink(String suffix) {
+        return new File(getStartMenuPath(), new File(appFileName + suffix).getName() + ".lnk");
     }
 
     private File getProgramsMenuPath() {
         return new File(getStartMenuPath(), "Programs");
     }
 
-    private File getProgramsMenuLink() {
-        return new File(getProgramsMenuPath(), new File(appFileName).getName() + ".lnk");
+    private File getProgramsMenuLink(String suffix) {
+        return new File(getProgramsMenuPath(), new File(appFileName + suffix).getName() + ".lnk");
     }
 
-    private File getDesktopLink() {
+    private File getDesktopLink(String suffix) {
         return new File(
                 System.getProperty("user.home") + File.separator +
-                        "Desktop" + File.separator + new File(appFileName).getName() + ".lnk"
+                        "Desktop" + File.separator + new File(appFileName + suffix).getName() + ".lnk"
         );
     }
 
@@ -187,23 +187,29 @@ public class UninstallWindows {
 
 
     private void removeDesktopAlias() {
-        if (getDesktopLink().exists()) {
-            System.out.println("Deleting desktop link: "+getDesktopLink().getAbsolutePath());
-            getDesktopLink().delete();
+        for (String suffix : new String[]{"", InstallWindows.RUN_AS_ADMIN_SUFFIX}) {
+            if (getDesktopLink(suffix).exists()) {
+                System.out.println("Deleting desktop link: "+getDesktopLink(suffix).getAbsolutePath());
+                getDesktopLink(suffix).delete();
+            }
         }
     }
 
     private void removeStartMenuLink() {
-        if (getStartMenuLink().exists()) {
-            System.out.println("Deleting start menu link: "+getStartMenuLink().getAbsolutePath());
-            getStartMenuLink().delete();
+        for (String suffix : new String[]{"", InstallWindows.RUN_AS_ADMIN_SUFFIX}) {
+            if (getStartMenuLink(suffix).exists()) {
+                System.out.println("Deleting start menu link: " + getStartMenuLink(suffix).getAbsolutePath());
+                getStartMenuLink(suffix).delete();
+            }
         }
     }
 
     private void removeProgramsMenuLink() {
-        if (getProgramsMenuLink().exists()) {
-            System.out.println("Deleting programs menu link: "+getProgramsMenuLink().getAbsolutePath());
-            getProgramsMenuLink().delete();
+        for (String suffix : new String[]{"", InstallWindows.RUN_AS_ADMIN_SUFFIX}) {
+            if (getProgramsMenuLink(suffix).exists()) {
+                System.out.println("Deleting programs menu link: " + getProgramsMenuLink(suffix).getAbsolutePath());
+                getProgramsMenuLink(suffix).delete();
+            }
         }
     }
 
