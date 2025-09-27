@@ -845,7 +845,7 @@ public class Main implements Runnable, Constants {
         }
 
         String pexec = runAsAdmin
-                ? "pkexec env DISPLAY=\"$DISPLAY\" XAUTHORITY=\"$XAUTHORITY\" XDG_RUNTIME_DIR=\"$XDG_RUNTIME_DIR\" "
+                ? "pkexec env DISPLAY=\"$DISPLAY\" XAUTHORITY=\"$XAUTHORITY\" XDG_RUNTIME_DIR=\"$XDG_RUNTIME_DIR\" PATH=\"$PATH\" HOME=\"$HOME\" USER=\"$USER\" WAYLAND_DISPLAY=\"$WAYLAND_DISPLAY\" "
                 : "";
 
         String contents = "[Desktop Entry]\n" +
