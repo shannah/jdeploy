@@ -7,12 +7,15 @@ import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.installer.events.InstallationFormEvent;
 import ca.weblite.jdeploy.installer.events.InstallationFormEventDispatcher;
+import ca.weblite.jdeploy.installer.linux.LinuxAdminLauncherGenerator;
 import ca.weblite.jdeploy.installer.linux.MimeTypeHelper;
+import ca.weblite.jdeploy.installer.mac.MacAdminLauncherGenerator;
 import ca.weblite.jdeploy.installer.models.AutoUpdateSettings;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.npm.NPMPackage;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.installer.npm.NPMRegistry;
+import ca.weblite.jdeploy.installer.npm.RunAsAdministratorSettings;
 import ca.weblite.jdeploy.installer.util.JarClassLoader;
 import ca.weblite.jdeploy.installer.util.ResourceUtil;
 import ca.weblite.jdeploy.installer.views.DefaultUIFactory;
@@ -179,6 +182,16 @@ public class Main implements Runnable, Constants {
                             createUserReadableSemVerForVersion(npmPackageVersion().getVersion(), AutoUpdateSettings.PatchesOnly) +
                             "]"
                     );
+
+            RunAsAdministratorSettings runAsAdministratorSettings = npmPackageVersion().getRunAsAdministratorSettings();
+            switch (runAsAdministratorSettings) {
+                case Required:
+                    appInfo().setRequireRunAsAdmin(true);
+                    break;
+                case Allowed:
+                    appInfo().setAllowRunAsAdmin(true);
+                    break;
+            }
         }
     }
 
@@ -667,13 +680,28 @@ public class Main implements Runnable, Constants {
                 throw new RuntimeException("Failed to copy app to "+jdeployAppsDir);
             }
             installedApp = installAppPath;
+            File adminWrapper = null;
+
+            if (appInfo().isRequireRunAsAdmin() || appInfo().isAllowRunAsAdmin()) {
+                MacAdminLauncherGenerator macAdminLauncherGenerator = new MacAdminLauncherGenerator();
+                adminWrapper  = macAdminLauncherGenerator.getAdminLauncherFile(installedApp);
+                if (adminWrapper.exists()) {
+                    // delete the old recursively
+                    FileUtils.deleteDirectory(adminWrapper);
+                }
+                adminWrapper = new MacAdminLauncherGenerator().generateAdminLauncher(installedApp);
+            }
 
             if (installationSettings.isAddToDesktop()) {
                 File desktopAlias = new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + appName + ".app");
                 if (desktopAlias.exists()) {
                     desktopAlias.delete();
                 }
-                int result = Runtime.getRuntime().exec(new String[]{"ln", "-s", installAppPath.getAbsolutePath(), desktopAlias.getAbsolutePath()}).waitFor();
+                String targetPath = installAppPath.getAbsolutePath();
+                if (adminWrapper != null && appInfo().isRequireRunAsAdmin()) {
+                    targetPath = adminWrapper.getAbsolutePath();
+                }
+                int result = Runtime.getRuntime().exec(new String[]{"ln", "-s", targetPath, desktopAlias.getAbsolutePath()}).waitFor();
                 if (result != 0) {
                     throw new RuntimeException("Failed to make desktop alias.");
                 }
@@ -687,7 +715,11 @@ public class Main implements Runnable, Constants {
                     osascript -e 'tell application "Dock" to quit'
                     osascript -e 'tell application "Dock" to activate'
                  */
-                String myapp = installAppPath.getAbsolutePath().replace('/', '#').replace("#", "//");
+                String targetPath = installAppPath.getAbsolutePath();
+                if (adminWrapper != null && appInfo().isRequireRunAsAdmin()) {
+                    targetPath = adminWrapper.getAbsolutePath();
+                }
+                String myapp = targetPath.replace('/', '#').replace("#", "//");
                 File shellScript = File.createTempFile("installondock", ".sh");
                 shellScript.deleteOnExit();
 
@@ -862,6 +894,7 @@ public class Main implements Runnable, Constants {
     private void addLinuxDesktopFile(File desktopDir, String filePrefix, String title, File pngIcon, File launcherFile) throws IOException {
         if (desktopDir.exists()) {
             File desktopFile = new File(desktopDir, filePrefix+".desktop");
+            File runAsAdminFile = new File(desktopDir, filePrefix+" (Run as Admin).desktop");
             while (desktopFile.exists()) {
                 int index = 2;
                 String baseName = desktopFile.getName();
@@ -878,13 +911,26 @@ public class Main implements Runnable, Constants {
                 String newName = baseName + " " + index;
                 desktopFile = new File(desktopFile.getParentFile(), newName);
             }
-            writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile);
+            if (appInfo().isRequireRunAsAdmin()) {
+                // For required admin, generate admin launcher and use it in the desktop file
+                LinuxAdminLauncherGenerator generator = new LinuxAdminLauncherGenerator();
+                File adminLauncher = generator.generateAdminLauncher(launcherFile);
+                writeLinuxDesktopFile(desktopFile, title, pngIcon, adminLauncher);
+            } else if (appInfo().isAllowRunAsAdmin()) {
+                // For allowed admin, create both regular and admin launchers
+                writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile);
+
+                // Create admin launcher and desktop file
+                LinuxAdminLauncherGenerator generator = new LinuxAdminLauncherGenerator();
+                File adminLauncher = generator.generateAdminLauncher(launcherFile);
+                writeLinuxDesktopFile(runAsAdminFile, title + " (Run as Admin)", pngIcon, adminLauncher);
+                runAsAdminFile.setExecutable(true);
+            } else {
+                // Regular launcher only
+                writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile);
+            }
             desktopFile.setExecutable(true);
-
         }
-
-
-
     }
 
     public void installLinuxLinks(File launcherFile, String title) throws Exception {

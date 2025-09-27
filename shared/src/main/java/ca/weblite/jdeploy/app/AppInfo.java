@@ -74,6 +74,10 @@ public class AppInfo  {
 
     private boolean enableCertificatePinning = false;
 
+    private boolean allowRunAsAdmin = false;
+
+    private boolean requireRunAsAdmin = false;
+
     /**
      * Indicates that the app should use a dedicated JVM rather than the default shared JVM.
      * This is required for Java 8 on Windows (at least) since Java 8 didn't provide a way to
@@ -1317,6 +1321,22 @@ public class AppInfo  {
     public String getChanges() {
         return changes;
     }
+
+    public boolean isAllowRunAsAdmin() {
+        return allowRunAsAdmin;
+    }
+
+    public void setAllowRunAsAdmin(boolean allowRunAsAdmin) {
+        this.allowRunAsAdmin = allowRunAsAdmin;
+    }
+
+    public boolean isRequireRunAsAdmin() {
+        return requireRunAsAdmin;
+    }
+
+    public void setRequireRunAsAdmin(boolean requireRunAsAdmin) {
+        this.requireRunAsAdmin = requireRunAsAdmin;
+    }
     
     public AppInfo copy() {
         AppInfo out = new AppInfo();
@@ -1330,6 +1350,8 @@ public class AppInfo  {
         out.setLinuxInstallerUrl(getLinuxInstallerUrl());
         out.setUsePrivateJVM(isUsePrivateJVM());
         out.setUseBundledJVM(isUseBundledJVM());
+        out.allowRunAsAdmin = allowRunAsAdmin;
+        out.requireRunAsAdmin = requireRunAsAdmin;
         out.codeSignSettings = codeSignSettings;
         out.macAppBundleId = macAppBundleId;
         if (permissions != null) {
