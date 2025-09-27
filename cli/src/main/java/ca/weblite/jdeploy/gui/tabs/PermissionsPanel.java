@@ -23,6 +23,9 @@ public class PermissionsPanel extends JPanel {
     private final Map<PermissionRequest, JCheckBox> permissionCheckboxes;
     private final Map<PermissionRequest, JTextField> descriptionFields;
     private ActionListener changeListener;
+
+    // Run as Administrator controls
+    private JComboBox<String> runAsAdministratorComboBox;
     
     public PermissionsPanel() {
         this.permissionService = new PermissionRequestService();
@@ -72,8 +75,49 @@ public class PermissionsPanel extends JPanel {
         
         add(scrollPane, BorderLayout.CENTER);
     }
-    
+
+    private void createRunAsAdministratorSection(JPanel parent) {
+        JPanel section = new JPanel();
+        section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
+        section.setBorder(new TitledBorder("Run as Administrator"));
+        section.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel settingPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        settingPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel label = new JLabel("Privilege Escalation:");
+        runAsAdministratorComboBox = new JComboBox<>(new String[]{
+            "disabled", "allowed", "required"
+        });
+        runAsAdministratorComboBox.setSelectedItem("disabled");
+        runAsAdministratorComboBox.addActionListener(e -> fireChangeEvent());
+
+        settingPanel.add(label);
+        settingPanel.add(Box.createHorizontalStrut(5));
+        settingPanel.add(runAsAdministratorComboBox);
+
+        JLabel descriptionLabel = new JLabel(
+            "<html><body style='width: 600px'>" +
+            "<b>disabled</b>: Application runs with normal user privileges (default)<br/>" +
+            "<b>allowed</b>: Creates both normal and \"Run as administrator\" launchers<br/>" +
+            "<b>required</b>: All launchers require administrator privileges" +
+            "</body></html>"
+        );
+        descriptionLabel.setFont(descriptionLabel.getFont().deriveFont(11f));
+        descriptionLabel.setForeground(Color.GRAY);
+        descriptionLabel.setBorder(new EmptyBorder(5, 10, 10, 10));
+
+        section.add(settingPanel);
+        section.add(descriptionLabel);
+
+        parent.add(section);
+        parent.add(Box.createVerticalStrut(15));
+    }
+
     private void createPermissionSections(JPanel parent) {
+        // Add Run as Administrator section at the top
+        createRunAsAdministratorSection(parent);
+
         // Group permissions by category
         createPermissionGroup(parent, "Media Access", new PermissionRequest[]{
             PermissionRequest.CAMERA,
@@ -248,26 +292,34 @@ public class PermissionsPanel extends JPanel {
      */
     public void loadPermissions(JSONObject packageJson) {
         Map<PermissionRequest, String> permissions = permissionService.getPermissionRequests(packageJson);
-        
+
+        // Load run as administrator setting
+        if (packageJson.has("jdeploy") && packageJson.getJSONObject("jdeploy").has("runAsAdministrator")) {
+            String runAsAdmin = packageJson.getJSONObject("jdeploy").getString("runAsAdministrator");
+            runAsAdministratorComboBox.setSelectedItem(runAsAdmin);
+        } else {
+            runAsAdministratorComboBox.setSelectedItem("disabled");
+        }
+
         // Clear all checkboxes and descriptions, hide all description panels
         permissionCheckboxes.values().forEach(cb -> cb.setSelected(false));
         descriptionFields.values().forEach(field -> {
             field.setText("");
             field.getParent().setVisible(false); // Hide description panel
         });
-        
+
         // Set loaded permissions
         for (Map.Entry<PermissionRequest, String> entry : permissions.entrySet()) {
             PermissionRequest permission = entry.getKey();
             String description = entry.getValue();
-            
+
             JCheckBox checkbox = permissionCheckboxes.get(permission);
             JTextField descField = descriptionFields.get(permission);
-            
+
             if (checkbox != null && descField != null) {
                 checkbox.setSelected(true);
                 descField.getParent().setVisible(true); // Show description panel
-                
+
                 // Only set description if it's not the generic one
                 String genericDesc = generateGenericDescription(permission);
                 if (!genericDesc.equals(description)) {
@@ -275,7 +327,7 @@ public class PermissionsPanel extends JPanel {
                 }
             }
         }
-        
+
         // Refresh the UI
         revalidate();
         repaint();
@@ -286,25 +338,41 @@ public class PermissionsPanel extends JPanel {
      */
     public void savePermissions(JSONObject packageJson) {
         Map<PermissionRequest, String> permissions = new HashMap<>();
-        
+
         for (Map.Entry<PermissionRequest, JCheckBox> entry : permissionCheckboxes.entrySet()) {
             PermissionRequest permission = entry.getKey();
             JCheckBox checkbox = entry.getValue();
-            
+
             if (checkbox.isSelected()) {
                 JTextField descField = descriptionFields.get(permission);
                 String description = descField != null ? descField.getText().trim() : "";
-                
+
                 // If description is empty, use generic description
                 if (description.isEmpty()) {
                     description = generateGenericDescription(permission);
                 }
-                
+
                 permissions.put(permission, description);
             }
         }
-        
+
         permissionService.savePermissionRequests(packageJson, permissions);
+
+        // Save run as administrator setting
+        if (!packageJson.has("jdeploy")) {
+            packageJson.put("jdeploy", new JSONObject());
+        }
+        JSONObject jdeployObj = packageJson.getJSONObject("jdeploy");
+        String runAsAdmin = (String) runAsAdministratorComboBox.getSelectedItem();
+
+        // Only save if not default value
+        if ("disabled".equals(runAsAdmin)) {
+            if (jdeployObj.has("runAsAdministrator")) {
+                jdeployObj.remove("runAsAdministrator");
+            }
+        } else {
+            jdeployObj.put("runAsAdministrator", runAsAdmin);
+        }
     }
     
     /**
