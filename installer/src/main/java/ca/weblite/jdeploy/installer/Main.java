@@ -897,6 +897,7 @@ public class Main implements Runnable, Constants {
     private void addLinuxDesktopFile(File desktopDir, String filePrefix, String title, File pngIcon, File launcherFile) throws IOException {
         if (desktopDir.exists()) {
             File desktopFile = new File(desktopDir, filePrefix+".desktop");
+            File runAsAdminFile = new File(desktopDir, filePrefix+" (Run as Admin).desktop");
             while (desktopFile.exists()) {
                 int index = 2;
                 String baseName = desktopFile.getName();
@@ -917,7 +918,8 @@ public class Main implements Runnable, Constants {
                 writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile, true);
             } else if (appInfo().isAllowRunAsAdmin()) {
                 writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile, false);
-                writeLinuxDesktopFile(desktopFile, title + " (Run as Admin)", pngIcon, launcherFile, true);
+                writeLinuxDesktopFile(runAsAdminFile, title + " (Run as Admin)", pngIcon, launcherFile, true);
+                runAsAdminFile.setExecutable(true);
             } else {
                 writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile, false);
             }
