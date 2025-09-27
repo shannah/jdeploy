@@ -8,7 +8,7 @@ import java.nio.file.*;
 import static org.junit.Assert.*;
 import org.junit.Assume;
 
-public class AdminLauncherGeneratorTest {
+public class MacLinuxAdminLauncherGeneratorTest {
 
     private File testDir;
     private File mockApp;
@@ -72,13 +72,13 @@ public class AdminLauncherGeneratorTest {
         Assume.assumeTrue("Test only runs on macOS",
             System.getProperty("os.name").toLowerCase().contains("mac"));
 
-        AdminLauncherGenerator generator = new AdminLauncherGenerator();
+        MacAdminLauncherGenerator generator = new MacAdminLauncherGenerator();
         File adminApp = generator.generateAdminLauncher(mockApp);
 
         assertNotNull("Admin app should be created", adminApp);
         assertTrue("Admin app should exist", adminApp.exists());
         assertTrue("Admin app should be a directory", adminApp.isDirectory());
-        assertEquals("Admin app should have correct name", "TestApp" + AdminLauncherGenerator.ADMIN_LAUNCHER_SUFFIX + ".app", adminApp.getName());
+        assertEquals("Admin app should have correct name", "TestApp" + MacAdminLauncherGenerator.ADMIN_LAUNCHER_SUFFIX + ".app", adminApp.getName());
         assertEquals("Admin app should be in same directory as source",
                     testDir.getAbsolutePath(), adminApp.getParentFile().getAbsolutePath());
 
@@ -100,7 +100,7 @@ public class AdminLauncherGeneratorTest {
         Assume.assumeTrue("Test only runs on macOS",
             System.getProperty("os.name").toLowerCase().contains("mac"));
 
-        AdminLauncherGenerator generator = new AdminLauncherGenerator();
+        MacAdminLauncherGenerator generator = new MacAdminLauncherGenerator();
         generator.generateAdminLauncher(new File("/nonexistent.app"));
     }
 
@@ -112,7 +112,7 @@ public class AdminLauncherGeneratorTest {
         File notAnApp = new File(testDir, "notanapp");
         notAnApp.mkdir();
 
-        AdminLauncherGenerator generator = new AdminLauncherGenerator();
+        MacAdminLauncherGenerator generator = new MacAdminLauncherGenerator();
         generator.generateAdminLauncher(notAnApp);
     }
 }

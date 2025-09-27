@@ -7,8 +7,9 @@ import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.installer.events.InstallationFormEvent;
 import ca.weblite.jdeploy.installer.events.InstallationFormEventDispatcher;
+import ca.weblite.jdeploy.installer.linux.LinuxAdminLauncherGenerator;
 import ca.weblite.jdeploy.installer.linux.MimeTypeHelper;
-import ca.weblite.jdeploy.installer.mac.AdminLauncherGenerator;
+import ca.weblite.jdeploy.installer.mac.MacAdminLauncherGenerator;
 import ca.weblite.jdeploy.installer.models.AutoUpdateSettings;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.npm.NPMPackage;
@@ -682,13 +683,13 @@ public class Main implements Runnable, Constants {
             File adminWrapper = null;
 
             if (appInfo().isRequireRunAsAdmin() || appInfo().isAllowRunAsAdmin()) {
-                AdminLauncherGenerator adminLauncherGenerator = new AdminLauncherGenerator();
-                adminWrapper  = adminLauncherGenerator.getAdminLauncherFile(installedApp);
+                MacAdminLauncherGenerator macAdminLauncherGenerator = new MacAdminLauncherGenerator();
+                adminWrapper  = macAdminLauncherGenerator.getAdminLauncherFile(installedApp);
                 if (adminWrapper.exists()) {
                     // delete the old recursively
                     FileUtils.deleteDirectory(adminWrapper);
                 }
-                adminWrapper = new AdminLauncherGenerator().generateAdminLauncher(installedApp);
+                adminWrapper = new MacAdminLauncherGenerator().generateAdminLauncher(installedApp);
             }
 
             if (installationSettings.isAddToDesktop()) {
@@ -834,7 +835,7 @@ public class Main implements Runnable, Constants {
         }
     }
 
-    private void writeLinuxDesktopFile(File dest, String appTitle, File appIcon, File launcher, boolean runAsAdmin) throws IOException {
+    private void writeLinuxDesktopFile(File dest, String appTitle, File appIcon, File launcher) throws IOException {
         // Derive StartupWMClass from the npm package name
         String wmClass = npmPackageVersion().getMainClass();
         if (wmClass != null) {
@@ -844,16 +845,12 @@ public class Main implements Runnable, Constants {
             wmClass = npmPackageVersion().getWmClassName();
         }
 
-        String pexec = runAsAdmin
-                ? "pkexec env DISPLAY=\"$DISPLAY\" XAUTHORITY=\"$XAUTHORITY\" XDG_RUNTIME_DIR=\"$XDG_RUNTIME_DIR\" "
-                : "";
-
         String contents = "[Desktop Entry]\n" +
                 "Version=1.0\n" +
                 "Type=Application\n" +
                 "Name={{APP_TITLE}}\n" +
                 "Icon={{APP_ICON}}\n" +
-                "Exec=" + pexec + "\"{{LAUNCHER_PATH}}\" %U\n" +
+                "Exec=\"{{LAUNCHER_PATH}}\" %U\n" +
                 "Comment=Launch {{APP_TITLE}}\n" +
                 "Terminal=false\n";
 
@@ -915,13 +912,22 @@ public class Main implements Runnable, Constants {
                 desktopFile = new File(desktopFile.getParentFile(), newName);
             }
             if (appInfo().isRequireRunAsAdmin()) {
-                writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile, true);
+                // For required admin, generate admin launcher and use it in the desktop file
+                LinuxAdminLauncherGenerator generator = new LinuxAdminLauncherGenerator();
+                File adminLauncher = generator.generateAdminLauncher(launcherFile);
+                writeLinuxDesktopFile(desktopFile, title, pngIcon, adminLauncher);
             } else if (appInfo().isAllowRunAsAdmin()) {
-                writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile, false);
-                writeLinuxDesktopFile(runAsAdminFile, title + " (Run as Admin)", pngIcon, launcherFile, true);
+                // For allowed admin, create both regular and admin launchers
+                writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile);
+
+                // Create admin launcher and desktop file
+                LinuxAdminLauncherGenerator generator = new LinuxAdminLauncherGenerator();
+                File adminLauncher = generator.generateAdminLauncher(launcherFile);
+                writeLinuxDesktopFile(runAsAdminFile, title + " (Run as Admin)", pngIcon, adminLauncher);
                 runAsAdminFile.setExecutable(true);
             } else {
-                writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile, false);
+                // Regular launcher only
+                writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile);
             }
             desktopFile.setExecutable(true);
         }

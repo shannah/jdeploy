@@ -1,15 +1,10 @@
 package ca.weblite.jdeploy.installer.mac;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 import java.io.*;
 import java.nio.file.*;
 import java.nio.charset.StandardCharsets;
 
-public class AdminLauncherGenerator {
+public class MacAdminLauncherGenerator {
     public static final String ADMIN_LAUNCHER_SUFFIX = " (Run as admin)";
 
     public File getAdminLauncherFile(File sourceApp) {
@@ -296,7 +291,7 @@ public class AdminLauncherGenerator {
 
         try {
             File sourceApp = new File(args[0]);
-            AdminLauncherGenerator generator = new AdminLauncherGenerator();
+            MacAdminLauncherGenerator generator = new MacAdminLauncherGenerator();
             File adminApp = generator.generateAdminLauncher(sourceApp);
             System.out.println("Admin launcher created: " + adminApp.getAbsolutePath());
         } catch (Exception e) {
