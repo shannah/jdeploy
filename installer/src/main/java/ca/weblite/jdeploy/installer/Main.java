@@ -201,6 +201,48 @@ public class Main implements Runnable, Constants {
         }
     }
 
+    /**
+     * Checks if the specified app path is already in the macOS dock.
+     * @param appPath The absolute path to the .app file
+     * @return true if the app is already in the dock, false otherwise
+     */
+    public static boolean isAppInDock(String appPath) {
+        if (!Platform.getSystemPlatform().isMac()) {
+            return false;
+        }
+
+        try {
+            // Use defaults read to get the persistent-apps array from dock plist
+            Process process = Runtime.getRuntime().exec(new String[]{
+                "/usr/bin/defaults", "read", "com.apple.dock", "persistent-apps"
+            });
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            StringBuilder output = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+            process.waitFor();
+
+            // The dock stores paths as file:// URLs with trailing slash and URL encoding
+            // e.g., "file:///Users/shannah/Applications/Hello%20Java%20FX.app/"
+            // Spaces are encoded as %20
+            String encodedPath = appPath.replace(" ", "%20");
+            String fileUrl = "file://" + encodedPath;
+            if (!fileUrl.endsWith("/")) {
+                fileUrl += "/";
+            }
+
+            // Check if the file URL appears in the dock configuration
+            return output.toString().contains(fileUrl);
+        } catch (Exception e) {
+            // If we can't read the dock settings, assume it's not in the dock
+            System.err.println("Warning: Could not check dock status: " + e.getMessage());
+            return false;
+        }
+    }
+
     private void loadAppInfo() throws IOException {
         File appXml = findAppXmlFile();
         if (appXml == null) {
@@ -472,6 +514,23 @@ public class Main implements Runnable, Constants {
 
     private void buildUI() {
         installationContext.applyContext(installationSettings);
+
+        // Check if app is already in the dock (macOS only)
+        if (Platform.getSystemPlatform().isMac() && appInfo() != null) {
+            String nameSuffix = "";
+            if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
+                nameSuffix = " " + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
+            }
+            String appName = appInfo().getTitle() + nameSuffix;
+            String appPath = System.getProperty("user.home") + "/Applications/" + appName + ".app";
+
+            // Only check if the app exists on disk - if it doesn't exist, it can't be in the dock
+            File appFile = new File(appPath);
+            if (appFile.exists()) {
+                installationSettings.setAlreadyAddedToDock(isAppInDock(appPath));
+            }
+        }
+
         InstallationForm view = uiFactory.createInstallationForm(installationSettings);
         view.setEventDispatcher(new InstallationFormEventDispatcher(view));
         this.installationForm = view;

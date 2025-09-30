@@ -92,10 +92,18 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         });
 
         JCheckBox addToDockCheckBox = new JCheckBox("Add to dock");
-        addToDockCheckBox.setSelected(installationSettings.isAddToDock());
-        addToDockCheckBox.addActionListener(evt->{
-            installationSettings.setAddToDock(addToDockCheckBox.isSelected());
-        });
+
+        if (installationSettings.isAlreadyAddedToDock()) {
+            addToDockCheckBox.setSelected(false);
+            addToDockCheckBox.setEnabled(false);
+            addToDockCheckBox.setToolTipText("This app is already in the dock");
+            installationSettings.setAddToDock(false);
+        } else {
+            addToDockCheckBox.setSelected(installationSettings.isAddToDock());
+            addToDockCheckBox.addActionListener(evt->{
+                installationSettings.setAddToDock(addToDockCheckBox.isSelected());
+            });
+        }
 
         JCheckBox addToStartMenuCheckBox = new JCheckBox("Add to Start menu");
         addToStartMenuCheckBox.setSelected(installationSettings.isAddToStartMenu());
