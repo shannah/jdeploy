@@ -11,6 +11,7 @@ public class InstallationSettings {
     private boolean addToPrograms=true;
     private boolean addToStartMenu=true;
     private boolean addToDock=true;
+    private boolean alreadyAddedToDock=false;
     private boolean prerelease=false;
     private boolean overwriteApp=true;
     private AppInfo appInfo;
@@ -51,6 +52,14 @@ public class InstallationSettings {
 
     public void setAddToDock(boolean addToDock) {
         this.addToDock = addToDock;
+    }
+
+    public boolean isAlreadyAddedToDock() {
+        return alreadyAddedToDock;
+    }
+
+    public void setAlreadyAddedToDock(boolean alreadyAddedToDock) {
+        this.alreadyAddedToDock = alreadyAddedToDock;
     }
 
     public boolean isPrerelease() {
