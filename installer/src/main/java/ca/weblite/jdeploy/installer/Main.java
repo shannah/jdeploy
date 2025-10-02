@@ -1111,31 +1111,109 @@ public class Main implements Runnable, Constants {
             System.out.println("No desktop environment detected. Skipping desktop shortcuts and mimetype registration.");
         }
 
-        // Install command-line symlink in ~/.local/bin if it exists
+        // Install command-line symlink in ~/.local/bin, creating it if needed
         File localBinDir = new File(System.getProperty("user.home"), ".local"+File.separator+"bin");
-        if (localBinDir.exists() && localBinDir.isDirectory()) {
-            String commandName = deriveCommandName();
-            File symlinkPath = new File(localBinDir, commandName);
 
-            // Remove existing symlink if it exists
-            if (symlinkPath.exists()) {
-                symlinkPath.delete();
+        // Create ~/.local/bin if it doesn't exist
+        if (!localBinDir.exists()) {
+            if (!localBinDir.mkdirs()) {
+                System.err.println("Warning: Failed to create ~/.local/bin directory");
+                return;
             }
+            System.out.println("Created ~/.local/bin directory");
+        }
 
-            try {
-                // Create symlink using ln -s
-                Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", launcherFile.getAbsolutePath(), symlinkPath.getAbsolutePath()});
-                int result = p.waitFor();
-                if (result == 0) {
-                    System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
-                } else {
-                    System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
+        String commandName = deriveCommandName();
+        File symlinkPath = new File(localBinDir, commandName);
+
+        // Remove existing symlink if it exists
+        if (symlinkPath.exists()) {
+            symlinkPath.delete();
+        }
+
+        try {
+            // Create symlink using ln -s
+            Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", launcherFile.getAbsolutePath(), symlinkPath.getAbsolutePath()});
+            int result = p.waitFor();
+            if (result == 0) {
+                System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+
+                // Check if ~/.local/bin is in PATH
+                String path = System.getenv("PATH");
+                String localBinPath = localBinDir.getAbsolutePath();
+                if (path == null || !path.contains(localBinPath)) {
+                    // Add ~/.local/bin to PATH by updating shell config
+                    addToPath(localBinDir);
                 }
-            } catch (Exception e) {
-                System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+            } else {
+                System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
             }
-        } else {
-            System.out.println("~/.local/bin does not exist. Skipping command-line symlink creation.");
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Adds ~/.local/bin to the user's PATH by updating their shell configuration file.
+     * This method detects the user's shell and appends the PATH export to the appropriate config file.
+     *
+     * @param localBinDir The ~/.local/bin directory to add to PATH
+     */
+    private void addToPath(File localBinDir) {
+        try {
+            // Detect the user's shell
+            String shell = System.getenv("SHELL");
+            if (shell == null || shell.isEmpty()) {
+                shell = "/bin/bash"; // Default to bash
+            }
+
+            File configFile = null;
+            String shellName = new File(shell).getName();
+
+            // Determine which config file to update based on the shell
+            File homeDir = new File(System.getProperty("user.home"));
+            switch (shellName) {
+                case "bash":
+                    // For bash, prefer .bashrc, but use .bash_profile if .bashrc doesn't exist
+                    File bashrc = new File(homeDir, ".bashrc");
+                    File bashProfile = new File(homeDir, ".bash_profile");
+                    configFile = bashrc.exists() ? bashrc : bashProfile;
+                    break;
+                case "zsh":
+                    configFile = new File(homeDir, ".zshrc");
+                    break;
+                case "fish":
+                    // Fish uses a different syntax, skip for now
+                    System.out.println("Note: Fish shell detected. Please manually add ~/.local/bin to your PATH:");
+                    System.out.println("  set -U fish_user_paths ~/.local/bin $fish_user_paths");
+                    return;
+                default:
+                    // For unknown shells, try .profile as a fallback
+                    configFile = new File(homeDir, ".profile");
+                    break;
+            }
+
+            // Check if the PATH export already exists in the config file
+            if (configFile.exists()) {
+                String content = IOUtil.readToString(new FileInputStream(configFile));
+                if (content.contains("$HOME/.local/bin") || content.contains(localBinDir.getAbsolutePath())) {
+                    System.out.println("~/.local/bin is already in PATH configuration");
+                    return;
+                }
+            }
+
+            // Append PATH export to the config file
+            String pathExport = "\n# Added by jDeploy installer\nexport PATH=\"$HOME/.local/bin:$PATH\"\n";
+            try (FileOutputStream fos = new FileOutputStream(configFile, true)) {
+                fos.write(pathExport.getBytes());
+            }
+
+            System.out.println("Added ~/.local/bin to PATH in " + configFile.getName());
+            System.out.println("Please restart your terminal or run: source " + configFile.getAbsolutePath());
+
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to add ~/.local/bin to PATH: " + e.getMessage());
+            System.out.println("You may need to manually add ~/.local/bin to your PATH");
         }
     }
 
