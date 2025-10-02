@@ -531,6 +531,19 @@ public class Main implements Runnable, Constants {
             }
         }
 
+        // Check for desktop environment on Linux
+        if (Platform.getSystemPlatform().isLinux()) {
+            installationSettings.setHasDesktopEnvironment(isDesktopEnvironmentAvailable());
+
+            // Set command line path if ~/.local/bin exists
+            File localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+            if (localBinDir.exists() && localBinDir.isDirectory()) {
+                String commandName = deriveCommandName();
+                File symlinkPath = new File(localBinDir, commandName);
+                installationSettings.setCommandLinePath(symlinkPath.getAbsolutePath());
+            }
+        }
+
         InstallationForm view = uiFactory.createInstallationForm(installationSettings);
         view.setEventDispatcher(new InstallationFormEventDispatcher(view));
         this.installationForm = view;
@@ -845,6 +858,70 @@ public class Main implements Runnable, Constants {
         return title.toLowerCase().replace(" ", "-").replaceAll("[^a-z0-9\\-]", "");
     }
 
+    /**
+     * Detects if a desktop environment is available on Linux.
+     * This checks for an actual desktop environment (GNOME, KDE, XFCE, etc.),
+     * not just a graphical environment.
+     * @return true if a desktop environment is detected, false otherwise
+     */
+    private boolean isDesktopEnvironmentAvailable() {
+        if (!Platform.getSystemPlatform().isLinux()) {
+            return true; // Non-Linux platforms always have desktop support in this context
+        }
+
+        // Check for desktop environment specific variables
+        // XDG_CURRENT_DESKTOP indicates which desktop environment is running
+        String currentDesktop = System.getenv("XDG_CURRENT_DESKTOP");
+        if (currentDesktop != null && !currentDesktop.isEmpty()) {
+            return true;
+        }
+
+        // DESKTOP_SESSION also indicates a desktop environment
+        String desktopSession = System.getenv("DESKTOP_SESSION");
+        if (desktopSession != null && !desktopSession.isEmpty()) {
+            return true;
+        }
+
+        // Check if desktop directory exists (usually created by desktop environments)
+        File desktopDir = new File(System.getProperty("user.home"), "Desktop");
+        if (desktopDir.exists() && desktopDir.isDirectory()) {
+            // Also verify update-desktop-database exists, which is part of desktop file utilities
+            try {
+                Process p = Runtime.getRuntime().exec(new String[]{"which", "update-desktop-database"});
+                int result = p.waitFor();
+                if (result == 0) {
+                    return true;
+                }
+            } catch (Exception e) {
+                // Command not found
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Derives the command name for the CLI from package.json.
+     * Priority:
+     * 1. jdeploy.command property
+     * 2. bin object key that maps to "jdeploy-bundle/jdeploy.js"
+     * 3. name property
+     *
+     * @return the command name to use
+     */
+    private String deriveCommandName() {
+        NPMPackageVersion pkgVersion = npmPackageVersion();
+        if (pkgVersion != null) {
+            String commandName = pkgVersion.getCommandName();
+            if (commandName != null) {
+                return commandName;
+            }
+        }
+
+        // Fallback to title
+        return appInfo().getTitle().toLowerCase().replace(" ", "-").replaceAll("[^a-z0-9\\-]", "");
+    }
+
     private void installLinuxMimetypes() throws IOException {
         if (appInfo().hasDocumentTypes()) {
             MimeTypeHelper helper = new MimeTypeHelper();
@@ -1002,26 +1079,63 @@ public class Main implements Runnable, Constants {
         File pngIcon = new File(launcherFile.getParentFile(), "icon.png");
         if (!pngIcon.exists()) {
             IOUtil.copyResourceToFile(Main.class, "icon.png", pngIcon);
-
         }
 
-        if (installationSettings.isAddToDesktop()) {
-            File desktopDir = new File(System.getProperty("user.home"), "Desktop");
-            addLinuxDesktopFile(desktopDir, title, title, pngIcon, launcherFile);
-        }
-        if (installationSettings.isAddToPrograms()) {
-            File homeDir = new File(System.getProperty("user.home"));
-            File applicationsDir = new File(homeDir, ".local"+File.separator+"share"+File.separator+"applications");
-            applicationsDir.mkdirs();
-            addLinuxDesktopFile(applicationsDir, title, title, pngIcon, launcherFile);
+        boolean hasDesktop = isDesktopEnvironmentAvailable();
 
-            // We need to run update desktop database before file type associations and url schemes will be
-            // recognized.
-            Process p = Runtime.getRuntime().exec(new String[]{"update-desktop-database", applicationsDir.getAbsolutePath()});
-            int result = p.waitFor();
-            if (result != 0) {
-                throw new IOException("Failed to update desktop database.  Exit code "+result);
+        // Install desktop shortcuts only if desktop environment is available
+        if (hasDesktop) {
+            if (installationSettings.isAddToDesktop()) {
+                File desktopDir = new File(System.getProperty("user.home"), "Desktop");
+                addLinuxDesktopFile(desktopDir, title, title, pngIcon, launcherFile);
             }
+            if (installationSettings.isAddToPrograms()) {
+                File homeDir = new File(System.getProperty("user.home"));
+                File applicationsDir = new File(homeDir, ".local"+File.separator+"share"+File.separator+"applications");
+                applicationsDir.mkdirs();
+                addLinuxDesktopFile(applicationsDir, title, title, pngIcon, launcherFile);
+
+                // We need to run update desktop database before file type associations and url schemes will be
+                // recognized. Only do this if desktop environment is available.
+                try {
+                    Process p = Runtime.getRuntime().exec(new String[]{"update-desktop-database", applicationsDir.getAbsolutePath()});
+                    int result = p.waitFor();
+                    if (result != 0) {
+                        System.err.println("Warning: Failed to update desktop database. Exit code "+result);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to run update-desktop-database: " + e.getMessage());
+                }
+            }
+        } else {
+            System.out.println("No desktop environment detected. Skipping desktop shortcuts and mimetype registration.");
+        }
+
+        // Install command-line symlink in ~/.local/bin if it exists
+        File localBinDir = new File(System.getProperty("user.home"), ".local"+File.separator+"bin");
+        if (localBinDir.exists() && localBinDir.isDirectory()) {
+            String commandName = deriveCommandName();
+            File symlinkPath = new File(localBinDir, commandName);
+
+            // Remove existing symlink if it exists
+            if (symlinkPath.exists()) {
+                symlinkPath.delete();
+            }
+
+            try {
+                // Create symlink using ln -s
+                Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", launcherFile.getAbsolutePath(), symlinkPath.getAbsolutePath()});
+                int result = p.waitFor();
+                if (result == 0) {
+                    System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+                } else {
+                    System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
+                }
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+            }
+        } else {
+            System.out.println("~/.local/bin does not exist. Skipping command-line symlink creation.");
         }
     }
 

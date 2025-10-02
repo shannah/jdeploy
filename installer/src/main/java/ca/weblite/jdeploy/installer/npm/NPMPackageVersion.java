@@ -128,4 +128,38 @@ public class NPMPackageVersion {
         }
         return RunAsAdministratorSettings.Disabled;
     }
+
+    /**
+     * Gets the command name from package.json.
+     * Priority:
+     * 1. jdeploy.command property
+     * 2. bin object key that maps to "jdeploy-bundle/jdeploy.js"
+     * 3. name property
+     *
+     * @return the command name, or null if not found
+     */
+    public String getCommandName() {
+        // 1. Check jdeploy.command
+        if (jdeploy().has("command")) {
+            return jdeploy().getString("command");
+        }
+
+        // 2. Check bin object for key that maps to "jdeploy-bundle/jdeploy.js"
+        if (packageJson.has("bin")) {
+            JSONObject bin = packageJson.getJSONObject("bin");
+            for (String key : bin.keySet()) {
+                String value = bin.getString(key);
+                if ("jdeploy-bundle/jdeploy.js".equals(value)) {
+                    return key;
+                }
+            }
+        }
+
+        // 3. Use name property
+        if (packageJson.has("name")) {
+            return packageJson.getString("name");
+        }
+
+        return null;
+    }
 }

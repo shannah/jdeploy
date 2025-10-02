@@ -91,6 +91,14 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
             installationSettings.setAddToDesktop(desktopCheckbox.isSelected());
         });
 
+        // On Linux, disable desktop checkbox if no desktop environment is detected
+        if (Platform.getSystemPlatform().isLinux() && !installationSettings.hasDesktopEnvironment()) {
+            desktopCheckbox.setSelected(false);
+            desktopCheckbox.setEnabled(false);
+            desktopCheckbox.setToolTipText("No desktop environment detected");
+            installationSettings.setAddToDesktop(false);
+        }
+
         JCheckBox addToDockCheckBox = new JCheckBox("Add to dock");
 
         if (installationSettings.isAlreadyAddedToDock()) {
@@ -138,6 +146,16 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
 
 
         southPanel.add(checkboxesPanel);
+
+        // Add command-line path label for Linux
+        if (Platform.getSystemPlatform().isLinux() && installationSettings.getCommandLinePath() != null) {
+            JPanel commandLinePanel = new JPanel();
+            commandLinePanel.setLayout(new FlowLayout(FlowLayout.LEFT));
+            JLabel commandLineLabel = new JLabel("Command: " + installationSettings.getCommandLinePath());
+            commandLineLabel.setFont(commandLineLabel.getFont().deriveFont(Font.PLAIN, 10f));
+            commandLinePanel.add(commandLineLabel);
+            southPanel.add(commandLinePanel);
+        }
 
         JPanel updatesPanel = new JPanel();
         updatesPanel.add(new JLabel("Auto update settings:"));

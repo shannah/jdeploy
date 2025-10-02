@@ -14,6 +14,8 @@ public class InstallationSettings {
     private boolean alreadyAddedToDock=false;
     private boolean prerelease=false;
     private boolean overwriteApp=true;
+    private boolean hasDesktopEnvironment=true;
+    private String commandLinePath=null;
     private AppInfo appInfo;
     private NPMPackageVersion npmPackageVersion;
     private File installFilesDir;
@@ -128,5 +130,21 @@ public class InstallationSettings {
 
     public void setWebsiteVerified(boolean websiteVerified) {
         this.websiteVerified = websiteVerified;
+    }
+
+    public boolean hasDesktopEnvironment() {
+        return hasDesktopEnvironment;
+    }
+
+    public void setHasDesktopEnvironment(boolean hasDesktopEnvironment) {
+        this.hasDesktopEnvironment = hasDesktopEnvironment;
+    }
+
+    public String getCommandLinePath() {
+        return commandLinePath;
+    }
+
+    public void setCommandLinePath(String commandLinePath) {
+        this.commandLinePath = commandLinePath;
     }
 }
