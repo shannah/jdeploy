@@ -1109,50 +1109,54 @@ public class Main implements Runnable, Constants {
             System.out.println("No desktop environment detected. Skipping desktop shortcuts and mimetype registration.");
         }
 
-        // Install command-line symlink in ~/.local/bin, creating it if needed
-        File localBinDir = new File(System.getProperty("user.home"), ".local"+File.separator+"bin");
+        // Install command-line symlink in ~/.local/bin if user requested it
+        if (installationSettings.isInstallCliCommand()) {
+            File localBinDir = new File(System.getProperty("user.home"), ".local"+File.separator+"bin");
 
-        // Create ~/.local/bin if it doesn't exist
-        if (!localBinDir.exists()) {
-            if (!localBinDir.mkdirs()) {
-                System.err.println("Warning: Failed to create ~/.local/bin directory");
-                return;
-            }
-            System.out.println("Created ~/.local/bin directory");
-        }
-
-        String commandName = deriveCommandName();
-        File symlinkPath = new File(localBinDir, commandName);
-
-        // Remove existing symlink if it exists
-        if (symlinkPath.exists()) {
-            symlinkPath.delete();
-        }
-
-        try {
-            // Create symlink using ln -s
-            Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", launcherFile.getAbsolutePath(), symlinkPath.getAbsolutePath()});
-            int result = p.waitFor();
-            if (result == 0) {
-                System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
-                installationSettings.setCommandLineSymlinkCreated(true);
-
-                // Check if ~/.local/bin is in PATH
-                String path = System.getenv("PATH");
-                String localBinPath = localBinDir.getAbsolutePath();
-                if (path == null || !path.contains(localBinPath)) {
-                    // Add ~/.local/bin to PATH by updating shell config
-                    boolean pathUpdated = addToPath(localBinDir);
-                    installationSettings.setAddedToPath(pathUpdated);
-                } else {
-                    // Already in PATH
-                    installationSettings.setAddedToPath(true);
+            // Create ~/.local/bin if it doesn't exist
+            if (!localBinDir.exists()) {
+                if (!localBinDir.mkdirs()) {
+                    System.err.println("Warning: Failed to create ~/.local/bin directory");
+                    return;
                 }
-            } else {
-                System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
+                System.out.println("Created ~/.local/bin directory");
             }
-        } catch (Exception e) {
-            System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+
+            String commandName = deriveCommandName();
+            File symlinkPath = new File(localBinDir, commandName);
+
+            // Remove existing symlink if it exists
+            if (symlinkPath.exists()) {
+                symlinkPath.delete();
+            }
+
+            try {
+                // Create symlink using ln -s
+                Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", launcherFile.getAbsolutePath(), symlinkPath.getAbsolutePath()});
+                int result = p.waitFor();
+                if (result == 0) {
+                    System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+                    installationSettings.setCommandLineSymlinkCreated(true);
+
+                    // Check if ~/.local/bin is in PATH
+                    String path = System.getenv("PATH");
+                    String localBinPath = localBinDir.getAbsolutePath();
+                    if (path == null || !path.contains(localBinPath)) {
+                        // Add ~/.local/bin to PATH by updating shell config
+                        boolean pathUpdated = addToPath(localBinDir);
+                        installationSettings.setAddedToPath(pathUpdated);
+                    } else {
+                        // Already in PATH
+                        installationSettings.setAddedToPath(true);
+                    }
+                } else {
+                    System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
+                }
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+            }
+        } else {
+            System.out.println("Skipping CLI command installation (user opted out)");
         }
     }
 

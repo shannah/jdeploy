@@ -38,22 +38,67 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         };
 
         // Build message with command-line info for Linux
-        String message = "Installation was completed successfully";
+        Object message = "Installation was completed successfully";
         if (Platform.getSystemPlatform().isLinux() && installationSettings.isCommandLineSymlinkCreated()) {
             String commandPath = installationSettings.getCommandLinePath();
             if (commandPath != null) {
                 String commandName = new java.io.File(commandPath).getName();
-                message = "<html>Installation was completed successfully<br><br>";
-                message += "<b>Command-line installation:</b> " + commandPath + "<br><br>";
+
+                // Create a custom panel with better layout
+                JPanel panel = new JPanel();
+                panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+                panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+                JLabel successLabel = new JLabel("Installation was completed successfully");
+                successLabel.setFont(successLabel.getFont().deriveFont(Font.BOLD, 14f));
+                successLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                panel.add(successLabel);
+
+                panel.add(Box.createVerticalStrut(15));
+
+                JLabel cliHeaderLabel = new JLabel("Command-Line Installation:");
+                cliHeaderLabel.setFont(cliHeaderLabel.getFont().deriveFont(Font.BOLD));
+                cliHeaderLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                panel.add(cliHeaderLabel);
+
+                panel.add(Box.createVerticalStrut(5));
+
+                JLabel pathLabel = new JLabel(commandPath);
+                pathLabel.setFont(new Font("Monospaced", Font.PLAIN, 12));
+                pathLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                panel.add(pathLabel);
+
+                panel.add(Box.createVerticalStrut(10));
 
                 if (installationSettings.isAddedToPath()) {
-                    message += "You can launch the application from the command line by running:<br>";
-                    message += "<code>" + commandName + "</code><br><br>";
-                    message += "<i>Note: You may need to restart your terminal for PATH changes to take effect</i>";
+                    JLabel launchLabel = new JLabel("Launch from command line:");
+                    launchLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    panel.add(launchLabel);
+
+                    panel.add(Box.createVerticalStrut(5));
+
+                    JLabel commandLabel = new JLabel(commandName);
+                    commandLabel.setFont(new Font("Monospaced", Font.BOLD, 13));
+                    commandLabel.setForeground(new Color(0, 100, 0));
+                    commandLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    panel.add(commandLabel);
+
+                    panel.add(Box.createVerticalStrut(10));
+
+                    JLabel noteLabel = new JLabel("<html><i>Note: You may need to restart your terminal for PATH changes to take effect</i></html>");
+                    noteLabel.setFont(noteLabel.getFont().deriveFont(Font.PLAIN, 11f));
+                    noteLabel.setForeground(Color.GRAY);
+                    noteLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    panel.add(noteLabel);
                 } else {
-                    message += "<i>Note: ~/.local/bin is not in your PATH. Add it to your shell configuration to run the command from anywhere.</i>";
+                    JLabel noteLabel = new JLabel("<html><i>Note: ~/.local/bin is not in your PATH.<br>Add it to your shell configuration to run the command from anywhere.</i></html>");
+                    noteLabel.setFont(noteLabel.getFont().deriveFont(Font.PLAIN, 11f));
+                    noteLabel.setForeground(Color.GRAY);
+                    noteLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    panel.add(noteLabel);
                 }
-                message += "</html>";
+
+                message = panel;
             }
         }
 
@@ -139,6 +184,15 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
             installationSettings.setAddToStartMenu(addToStartMenuCheckBox.isSelected());
         });
 
+        JCheckBox installCliCheckBox = new JCheckBox("Install CLI Command");
+        if (Platform.getSystemPlatform().isLinux() && installationSettings.getCommandLinePath() != null) {
+            installCliCheckBox.setSelected(installationSettings.isInstallCliCommand());
+            installCliCheckBox.setToolTipText(installationSettings.getCommandLinePath());
+            installCliCheckBox.addActionListener(evt->{
+                installationSettings.setInstallCliCommand(installCliCheckBox.isSelected());
+            });
+        }
+
         JPanel checkboxesPanel = new JPanel();
         if (Platform.getSystemPlatform().isWindows()) {
             checkboxesPanel.add(addToStartMenuCheckBox);
@@ -146,6 +200,12 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
             checkboxesPanel.add(addToDockCheckBox);
         }
         checkboxesPanel.add(desktopCheckbox);
+
+        // Add CLI checkbox for Linux
+        if (Platform.getSystemPlatform().isLinux() && installationSettings.getCommandLinePath() != null) {
+            checkboxesPanel.add(installCliCheckBox);
+        }
+
         JPanel southPanel = new JPanel();
         southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
 
@@ -166,16 +226,6 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
 
 
         southPanel.add(checkboxesPanel);
-
-        // Add command-line path label for Linux
-        if (Platform.getSystemPlatform().isLinux() && installationSettings.getCommandLinePath() != null) {
-            JPanel commandLinePanel = new JPanel();
-            commandLinePanel.setLayout(new FlowLayout(FlowLayout.LEFT));
-            JLabel commandLineLabel = new JLabel("Command: " + installationSettings.getCommandLinePath());
-            commandLineLabel.setFont(commandLineLabel.getFont().deriveFont(Font.PLAIN, 10f));
-            commandLinePanel.add(commandLineLabel);
-            southPanel.add(commandLinePanel);
-        }
 
         JPanel updatesPanel = new JPanel();
         updatesPanel.add(new JLabel("Auto update settings:"));

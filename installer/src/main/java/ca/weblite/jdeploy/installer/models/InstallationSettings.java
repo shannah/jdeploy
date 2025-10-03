@@ -11,6 +11,7 @@ public class InstallationSettings {
     private boolean addToPrograms=true;
     private boolean addToStartMenu=true;
     private boolean addToDock=true;
+    private boolean installCliCommand=true;
     private boolean alreadyAddedToDock=false;
     private boolean prerelease=false;
     private boolean overwriteApp=true;
@@ -164,5 +165,13 @@ public class InstallationSettings {
 
     public void setAddedToPath(boolean addedToPath) {
         this.addedToPath = addedToPath;
+    }
+
+    public boolean isInstallCliCommand() {
+        return installCliCommand;
+    }
+
+    public void setInstallCliCommand(boolean installCliCommand) {
+        this.installCliCommand = installCliCommand;
     }
 }
