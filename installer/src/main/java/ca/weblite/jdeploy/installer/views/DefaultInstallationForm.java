@@ -37,8 +37,28 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
                 "Close"
         };
 
+        // Build message with command-line info for Linux
+        String message = "Installation was completed successfully";
+        if (Platform.getSystemPlatform().isLinux() && installationSettings.isCommandLineSymlinkCreated()) {
+            String commandPath = installationSettings.getCommandLinePath();
+            if (commandPath != null) {
+                String commandName = new java.io.File(commandPath).getName();
+                message = "<html>Installation was completed successfully<br><br>";
+                message += "<b>Command-line installation:</b> " + commandPath + "<br><br>";
+
+                if (installationSettings.isAddedToPath()) {
+                    message += "You can launch the application from the command line by running:<br>";
+                    message += "<code>" + commandName + "</code><br><br>";
+                    message += "<i>Note: You may need to restart your terminal for PATH changes to take effect</i>";
+                } else {
+                    message += "<i>Note: ~/.local/bin is not in your PATH. Add it to your shell configuration to run the command from anywhere.</i>";
+                }
+                message += "</html>";
+            }
+        }
+
         int choice = JOptionPane.showOptionDialog(this,
-                "Installation was completed successfully",
+                message,
                 "Installation Complete",
                 JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE,
                 null, options, options[0]);

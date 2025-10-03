@@ -537,11 +537,9 @@ public class Main implements Runnable, Constants {
 
             // Set command line path if ~/.local/bin exists
             File localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
-            if (localBinDir.exists() && localBinDir.isDirectory()) {
-                String commandName = deriveCommandName();
-                File symlinkPath = new File(localBinDir, commandName);
-                installationSettings.setCommandLinePath(symlinkPath.getAbsolutePath());
-            }
+            String commandName = deriveCommandName();
+            File symlinkPath = new File(localBinDir, commandName);
+            installationSettings.setCommandLinePath(symlinkPath.getAbsolutePath());
         }
 
         InstallationForm view = uiFactory.createInstallationForm(installationSettings);
@@ -1137,13 +1135,18 @@ public class Main implements Runnable, Constants {
             int result = p.waitFor();
             if (result == 0) {
                 System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+                installationSettings.setCommandLineSymlinkCreated(true);
 
                 // Check if ~/.local/bin is in PATH
                 String path = System.getenv("PATH");
                 String localBinPath = localBinDir.getAbsolutePath();
                 if (path == null || !path.contains(localBinPath)) {
                     // Add ~/.local/bin to PATH by updating shell config
-                    addToPath(localBinDir);
+                    boolean pathUpdated = addToPath(localBinDir);
+                    installationSettings.setAddedToPath(pathUpdated);
+                } else {
+                    // Already in PATH
+                    installationSettings.setAddedToPath(true);
                 }
             } else {
                 System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
@@ -1158,8 +1161,9 @@ public class Main implements Runnable, Constants {
      * This method detects the user's shell and appends the PATH export to the appropriate config file.
      *
      * @param localBinDir The ~/.local/bin directory to add to PATH
+     * @return true if PATH was successfully updated or already contains the directory, false otherwise
      */
-    private void addToPath(File localBinDir) {
+    private boolean addToPath(File localBinDir) {
         try {
             // Detect the user's shell
             String shell = System.getenv("SHELL");
@@ -1186,7 +1190,7 @@ public class Main implements Runnable, Constants {
                     // Fish uses a different syntax, skip for now
                     System.out.println("Note: Fish shell detected. Please manually add ~/.local/bin to your PATH:");
                     System.out.println("  set -U fish_user_paths ~/.local/bin $fish_user_paths");
-                    return;
+                    return false;
                 default:
                     // For unknown shells, try .profile as a fallback
                     configFile = new File(homeDir, ".profile");
@@ -1198,7 +1202,7 @@ public class Main implements Runnable, Constants {
                 String content = IOUtil.readToString(new FileInputStream(configFile));
                 if (content.contains("$HOME/.local/bin") || content.contains(localBinDir.getAbsolutePath())) {
                     System.out.println("~/.local/bin is already in PATH configuration");
-                    return;
+                    return true;
                 }
             }
 
@@ -1210,10 +1214,12 @@ public class Main implements Runnable, Constants {
 
             System.out.println("Added ~/.local/bin to PATH in " + configFile.getName());
             System.out.println("Please restart your terminal or run: source " + configFile.getAbsolutePath());
+            return true;
 
         } catch (Exception e) {
             System.err.println("Warning: Failed to add ~/.local/bin to PATH: " + e.getMessage());
             System.out.println("You may need to manually add ~/.local/bin to your PATH");
+            return false;
         }
     }
 

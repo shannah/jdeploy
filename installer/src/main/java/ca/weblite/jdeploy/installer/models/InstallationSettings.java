@@ -16,6 +16,8 @@ public class InstallationSettings {
     private boolean overwriteApp=true;
     private boolean hasDesktopEnvironment=true;
     private String commandLinePath=null;
+    private boolean commandLineSymlinkCreated=false;
+    private boolean addedToPath=false;
     private AppInfo appInfo;
     private NPMPackageVersion npmPackageVersion;
     private File installFilesDir;
@@ -146,5 +148,21 @@ public class InstallationSettings {
 
     public void setCommandLinePath(String commandLinePath) {
         this.commandLinePath = commandLinePath;
+    }
+
+    public boolean isCommandLineSymlinkCreated() {
+        return commandLineSymlinkCreated;
+    }
+
+    public void setCommandLineSymlinkCreated(boolean commandLineSymlinkCreated) {
+        this.commandLineSymlinkCreated = commandLineSymlinkCreated;
+    }
+
+    public boolean isAddedToPath() {
+        return addedToPath;
+    }
+
+    public void setAddedToPath(boolean addedToPath) {
+        this.addedToPath = addedToPath;
     }
 }
