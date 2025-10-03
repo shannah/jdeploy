@@ -460,6 +460,30 @@ public class Main implements Runnable, Constants {
                 ex.printStackTrace(System.err);
                 invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Failed to open app: "+ex.getMessage(), "Error"));
             }
+        } else if (Platform.getSystemPlatform().isLinux()) {
+            try {
+                // On Linux, use nohup and redirect output to properly detach the process
+                // This prevents the child from being terminated when the installer exits
+                ProcessBuilder pb = new ProcessBuilder(
+                    "nohup",
+                    installedApp.getAbsolutePath()
+                );
+                pb.redirectOutput(ProcessBuilder.Redirect.to(new File("/dev/null")));
+                pb.redirectError(ProcessBuilder.Redirect.to(new File("/dev/null")));
+                pb.start();
+
+                java.util.Timer timer = new java.util.Timer();
+                TimerTask tt = new TimerTask() {
+                    @Override
+                    public void run() {
+                        System.exit(0);
+                    }
+                };
+                timer.schedule(tt, 2000);
+            } catch (Exception ex) {
+                ex.printStackTrace(System.err);
+                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Failed to open app: "+ex.getMessage(), "Error"));
+            }
         } else {
             try {
                 Runtime.getRuntime().exec(new String[]{installedApp.getAbsolutePath()});
@@ -529,6 +553,17 @@ public class Main implements Runnable, Constants {
             if (appFile.exists()) {
                 installationSettings.setAlreadyAddedToDock(isAppInDock(appPath));
             }
+        }
+
+        // Check for desktop environment on Linux
+        if (Platform.getSystemPlatform().isLinux()) {
+            installationSettings.setHasDesktopEnvironment(isDesktopEnvironmentAvailable());
+
+            // Set command line path if ~/.local/bin exists
+            File localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+            String commandName = deriveCommandName();
+            File symlinkPath = new File(localBinDir, commandName);
+            installationSettings.setCommandLinePath(symlinkPath.getAbsolutePath());
         }
 
         InstallationForm view = uiFactory.createInstallationForm(installationSettings);
@@ -845,6 +880,70 @@ public class Main implements Runnable, Constants {
         return title.toLowerCase().replace(" ", "-").replaceAll("[^a-z0-9\\-]", "");
     }
 
+    /**
+     * Detects if a desktop environment is available on Linux.
+     * This checks for an actual desktop environment (GNOME, KDE, XFCE, etc.),
+     * not just a graphical environment.
+     * @return true if a desktop environment is detected, false otherwise
+     */
+    private boolean isDesktopEnvironmentAvailable() {
+        if (!Platform.getSystemPlatform().isLinux()) {
+            return true; // Non-Linux platforms always have desktop support in this context
+        }
+
+        // Check for desktop environment specific variables
+        // XDG_CURRENT_DESKTOP indicates which desktop environment is running
+        String currentDesktop = System.getenv("XDG_CURRENT_DESKTOP");
+        if (currentDesktop != null && !currentDesktop.isEmpty()) {
+            return true;
+        }
+
+        // DESKTOP_SESSION also indicates a desktop environment
+        String desktopSession = System.getenv("DESKTOP_SESSION");
+        if (desktopSession != null && !desktopSession.isEmpty()) {
+            return true;
+        }
+
+        // Check if desktop directory exists (usually created by desktop environments)
+        File desktopDir = new File(System.getProperty("user.home"), "Desktop");
+        if (desktopDir.exists() && desktopDir.isDirectory()) {
+            // Also verify update-desktop-database exists, which is part of desktop file utilities
+            try {
+                Process p = Runtime.getRuntime().exec(new String[]{"which", "update-desktop-database"});
+                int result = p.waitFor();
+                if (result == 0) {
+                    return true;
+                }
+            } catch (Exception e) {
+                // Command not found
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Derives the command name for the CLI from package.json.
+     * Priority:
+     * 1. jdeploy.command property
+     * 2. bin object key that maps to "jdeploy-bundle/jdeploy.js"
+     * 3. name property
+     *
+     * @return the command name to use
+     */
+    private String deriveCommandName() {
+        NPMPackageVersion pkgVersion = npmPackageVersion();
+        if (pkgVersion != null) {
+            String commandName = pkgVersion.getCommandName();
+            if (commandName != null) {
+                return commandName;
+            }
+        }
+
+        // Fallback to title
+        return appInfo().getTitle().toLowerCase().replace(" ", "-").replaceAll("[^a-z0-9\\-]", "");
+    }
+
     private void installLinuxMimetypes() throws IOException {
         if (appInfo().hasDocumentTypes()) {
             MimeTypeHelper helper = new MimeTypeHelper();
@@ -1002,26 +1101,153 @@ public class Main implements Runnable, Constants {
         File pngIcon = new File(launcherFile.getParentFile(), "icon.png");
         if (!pngIcon.exists()) {
             IOUtil.copyResourceToFile(Main.class, "icon.png", pngIcon);
-
         }
 
-        if (installationSettings.isAddToDesktop()) {
-            File desktopDir = new File(System.getProperty("user.home"), "Desktop");
-            addLinuxDesktopFile(desktopDir, title, title, pngIcon, launcherFile);
-        }
-        if (installationSettings.isAddToPrograms()) {
-            File homeDir = new File(System.getProperty("user.home"));
-            File applicationsDir = new File(homeDir, ".local"+File.separator+"share"+File.separator+"applications");
-            applicationsDir.mkdirs();
-            addLinuxDesktopFile(applicationsDir, title, title, pngIcon, launcherFile);
+        boolean hasDesktop = isDesktopEnvironmentAvailable();
 
-            // We need to run update desktop database before file type associations and url schemes will be
-            // recognized.
-            Process p = Runtime.getRuntime().exec(new String[]{"update-desktop-database", applicationsDir.getAbsolutePath()});
-            int result = p.waitFor();
-            if (result != 0) {
-                throw new IOException("Failed to update desktop database.  Exit code "+result);
+        // Install desktop shortcuts only if desktop environment is available
+        if (hasDesktop) {
+            if (installationSettings.isAddToDesktop()) {
+                File desktopDir = new File(System.getProperty("user.home"), "Desktop");
+                addLinuxDesktopFile(desktopDir, title, title, pngIcon, launcherFile);
             }
+            if (installationSettings.isAddToPrograms()) {
+                File homeDir = new File(System.getProperty("user.home"));
+                File applicationsDir = new File(homeDir, ".local"+File.separator+"share"+File.separator+"applications");
+                applicationsDir.mkdirs();
+                addLinuxDesktopFile(applicationsDir, title, title, pngIcon, launcherFile);
+
+                // We need to run update desktop database before file type associations and url schemes will be
+                // recognized. Only do this if desktop environment is available.
+                try {
+                    Process p = Runtime.getRuntime().exec(new String[]{"update-desktop-database", applicationsDir.getAbsolutePath()});
+                    int result = p.waitFor();
+                    if (result != 0) {
+                        System.err.println("Warning: Failed to update desktop database. Exit code "+result);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to run update-desktop-database: " + e.getMessage());
+                }
+            }
+        } else {
+            System.out.println("No desktop environment detected. Skipping desktop shortcuts and mimetype registration.");
+        }
+
+        // Install command-line symlink in ~/.local/bin if user requested it
+        if (installationSettings.isInstallCliCommand()) {
+            File localBinDir = new File(System.getProperty("user.home"), ".local"+File.separator+"bin");
+
+            // Create ~/.local/bin if it doesn't exist
+            if (!localBinDir.exists()) {
+                if (!localBinDir.mkdirs()) {
+                    System.err.println("Warning: Failed to create ~/.local/bin directory");
+                    return;
+                }
+                System.out.println("Created ~/.local/bin directory");
+            }
+
+            String commandName = deriveCommandName();
+            File symlinkPath = new File(localBinDir, commandName);
+
+            // Remove existing symlink if it exists
+            if (symlinkPath.exists()) {
+                symlinkPath.delete();
+            }
+
+            try {
+                // Create symlink using ln -s
+                Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", launcherFile.getAbsolutePath(), symlinkPath.getAbsolutePath()});
+                int result = p.waitFor();
+                if (result == 0) {
+                    System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+                    installationSettings.setCommandLineSymlinkCreated(true);
+
+                    // Check if ~/.local/bin is in PATH
+                    String path = System.getenv("PATH");
+                    String localBinPath = localBinDir.getAbsolutePath();
+                    if (path == null || !path.contains(localBinPath)) {
+                        // Add ~/.local/bin to PATH by updating shell config
+                        boolean pathUpdated = addToPath(localBinDir);
+                        installationSettings.setAddedToPath(pathUpdated);
+                    } else {
+                        // Already in PATH
+                        installationSettings.setAddedToPath(true);
+                    }
+                } else {
+                    System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
+                }
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+            }
+        } else {
+            System.out.println("Skipping CLI command installation (user opted out)");
+        }
+    }
+
+    /**
+     * Adds ~/.local/bin to the user's PATH by updating their shell configuration file.
+     * This method detects the user's shell and appends the PATH export to the appropriate config file.
+     *
+     * @param localBinDir The ~/.local/bin directory to add to PATH
+     * @return true if PATH was successfully updated or already contains the directory, false otherwise
+     */
+    private boolean addToPath(File localBinDir) {
+        try {
+            // Detect the user's shell
+            String shell = System.getenv("SHELL");
+            if (shell == null || shell.isEmpty()) {
+                shell = "/bin/bash"; // Default to bash
+            }
+
+            File configFile = null;
+            String shellName = new File(shell).getName();
+
+            // Determine which config file to update based on the shell
+            File homeDir = new File(System.getProperty("user.home"));
+            switch (shellName) {
+                case "bash":
+                    // For bash, prefer .bashrc, but use .bash_profile if .bashrc doesn't exist
+                    File bashrc = new File(homeDir, ".bashrc");
+                    File bashProfile = new File(homeDir, ".bash_profile");
+                    configFile = bashrc.exists() ? bashrc : bashProfile;
+                    break;
+                case "zsh":
+                    configFile = new File(homeDir, ".zshrc");
+                    break;
+                case "fish":
+                    // Fish uses a different syntax, skip for now
+                    System.out.println("Note: Fish shell detected. Please manually add ~/.local/bin to your PATH:");
+                    System.out.println("  set -U fish_user_paths ~/.local/bin $fish_user_paths");
+                    return false;
+                default:
+                    // For unknown shells, try .profile as a fallback
+                    configFile = new File(homeDir, ".profile");
+                    break;
+            }
+
+            // Check if the PATH export already exists in the config file
+            if (configFile.exists()) {
+                String content = IOUtil.readToString(new FileInputStream(configFile));
+                if (content.contains("$HOME/.local/bin") || content.contains(localBinDir.getAbsolutePath())) {
+                    System.out.println("~/.local/bin is already in PATH configuration");
+                    return true;
+                }
+            }
+
+            // Append PATH export to the config file
+            String pathExport = "\n# Added by jDeploy installer\nexport PATH=\"$HOME/.local/bin:$PATH\"\n";
+            try (FileOutputStream fos = new FileOutputStream(configFile, true)) {
+                fos.write(pathExport.getBytes());
+            }
+
+            System.out.println("Added ~/.local/bin to PATH in " + configFile.getName());
+            System.out.println("Please restart your terminal or run: source " + configFile.getAbsolutePath());
+            return true;
+
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to add ~/.local/bin to PATH: " + e.getMessage());
+            System.out.println("You may need to manually add ~/.local/bin to your PATH");
+            return false;
         }
     }
 
