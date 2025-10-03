@@ -460,6 +460,30 @@ public class Main implements Runnable, Constants {
                 ex.printStackTrace(System.err);
                 invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Failed to open app: "+ex.getMessage(), "Error"));
             }
+        } else if (Platform.getSystemPlatform().isLinux()) {
+            try {
+                // On Linux, use nohup and redirect output to properly detach the process
+                // This prevents the child from being terminated when the installer exits
+                ProcessBuilder pb = new ProcessBuilder(
+                    "nohup",
+                    installedApp.getAbsolutePath()
+                );
+                pb.redirectOutput(ProcessBuilder.Redirect.to(new File("/dev/null")));
+                pb.redirectError(ProcessBuilder.Redirect.to(new File("/dev/null")));
+                pb.start();
+
+                java.util.Timer timer = new java.util.Timer();
+                TimerTask tt = new TimerTask() {
+                    @Override
+                    public void run() {
+                        System.exit(0);
+                    }
+                };
+                timer.schedule(tt, 2000);
+            } catch (Exception ex) {
+                ex.printStackTrace(System.err);
+                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Failed to open app: "+ex.getMessage(), "Error"));
+            }
         } else {
             try {
                 Runtime.getRuntime().exec(new String[]{installedApp.getAbsolutePath()});
