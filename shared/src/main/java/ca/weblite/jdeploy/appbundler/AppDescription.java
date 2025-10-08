@@ -15,6 +15,7 @@ import java.util.*;
  */
 public class AppDescription {
     private String iconDataURI;
+    private String splashDataURI;
     private String npmPackage;
     private String npmVersion;
 
@@ -334,6 +335,14 @@ public class AppDescription {
 
     public void setIconDataURI(String iconDataURI) {
         this.iconDataURI = iconDataURI;
+    }
+
+    public String getSplashDataURI() {
+        return splashDataURI;
+    }
+
+    public void setSplashDataURI(String splashDataURI) {
+        this.splashDataURI = splashDataURI;
     }
 
     public boolean isNpmPrerelease() {
