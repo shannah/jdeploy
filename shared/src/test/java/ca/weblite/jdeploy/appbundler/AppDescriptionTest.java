@@ -11,7 +11,7 @@ public class AppDescriptionTest {
     @Test
     public void testSplashDataURIGetterSetter() {
         AppDescription app = new AppDescription();
-        String testDataURI = "text/html;base64,PGh0bWw+PGJvZHk+VGVzdDwvYm9keT48L2h0bWw+";
+        String testDataURI = "data:text/html;base64,PGh0bWw+PGJvZHk+VGVzdDwvYm9keT48L2h0bWw+";
 
         app.setSplashDataURI(testDataURI);
         assertEquals(testDataURI, app.getSplashDataURI());
@@ -26,7 +26,7 @@ public class AppDescriptionTest {
     @Test
     public void testSplashDataURICanBeSetToNull() {
         AppDescription app = new AppDescription();
-        app.setSplashDataURI("text/html;base64,test");
+        app.setSplashDataURI("data:text/html;base64,test");
         app.setSplashDataURI(null);
         assertNull(app.getSplashDataURI());
     }
@@ -35,7 +35,7 @@ public class AppDescriptionTest {
     public void testSplashDataURIIndependentOfIconDataURI() {
         AppDescription app = new AppDescription();
         String iconURI = "data:image/png;base64,icondata";
-        String splashURI = "text/html;base64,splashdata";
+        String splashURI = "data:text/html;base64,splashdata";
 
         app.setIconDataURI(iconURI);
         app.setSplashDataURI(splashURI);

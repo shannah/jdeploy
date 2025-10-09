@@ -82,7 +82,7 @@ public class Bundler {
     }
 
     private static String toHtmlDataURI(URL url) throws IOException {
-        return "text/html;base64," + Base64.getEncoder().encodeToString(IOUtils.toByteArray(url));
+        return "data:text/html;base64," + Base64.getEncoder().encodeToString(IOUtils.toByteArray(url));
     }
 
     private static AppDescription createAppDescription(AppInfo appInfo, String url) throws IOException{

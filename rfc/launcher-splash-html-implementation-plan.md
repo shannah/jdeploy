@@ -18,7 +18,7 @@ This document describes the implementation plan for adding HTML splash screen su
 
 ### Client4JLauncher Integration
 - Client4JLauncher (separate project) displays progress during app/JVM downloads
-- It reads the `splash` attribute from `app.xml` containing a data URI in format: `text/html;base64,<base64-encoded-html>`
+- It reads the `splash` attribute from `app.xml` containing a data URI in format: `data:text/html;base64,<base64-encoded-html>`
 - The launcher renders this HTML in a WebView while downloads are in progress
 
 ### jDeploy's Role
@@ -106,7 +106,7 @@ private static void processAppXml(AppDescription app, File dest) throws Exceptio
 
 ```java
 private static String toHtmlDataURI(URL url) throws IOException {
-    return "text/html;base64," + Base64.getEncoder().encodeToString(IOUtils.toByteArray(url));
+    return "data:text/html;base64," + Base64.getEncoder().encodeToString(IOUtils.toByteArray(url));
 }
 ```
 
@@ -385,7 +385,7 @@ The `launcher-splash.html` file must be completely self-contained:
 @Test
 public void testSplashDataURIGetterSetter() {
     AppDescription app = new AppDescription();
-    String testDataURI = "text/html;base64,PGh0bWw+PGJvZHk+VGVzdDwvYm9keT48L2h0bWw+";
+    String testDataURI = "data:text/html;base64,PGh0bWw+PGJvZHk+VGVzdDwvYm9keT48L2h0bWw+";
 
     app.setSplashDataURI(testDataURI);
     assertEquals(testDataURI, app.getSplashDataURI());
@@ -411,9 +411,9 @@ public void testToHtmlDataURIEncodesCorrectly() throws IOException {
 
     String result = Bundler.toHtmlDataURI(mockURL);
 
-    assertTrue(result.startsWith("text/html;base64,"));
+    assertTrue(result.startsWith("data:text/html;base64,"));
     String decoded = new String(Base64.getDecoder().decode(
-        result.substring("text/html;base64,".length())
+        result.substring("data:text/html;base64,".length())
     ));
     assertEquals(htmlContent, decoded);
 }
@@ -426,7 +426,7 @@ public void testCreateAppDescriptionWithLauncherSplash() throws IOException {
     AppDescription result = Bundler.createAppDescription(mockAppInfo, "file:///test");
 
     assertNotNull(result.getSplashDataURI());
-    assertTrue(result.getSplashDataURI().startsWith("text/html;base64,"));
+    assertTrue(result.getSplashDataURI().startsWith("data:text/html;base64,"));
 }
 
 @Test
@@ -447,7 +447,7 @@ public void testToHtmlDataURIHandlesSpecialCharacters() throws IOException {
 
     String result = Bundler.toHtmlDataURI(mockURL);
     String decoded = new String(Base64.getDecoder().decode(
-        result.substring("text/html;base64,".length())
+        result.substring("data:text/html;base64,".length())
     ), StandardCharsets.UTF_8);
     assertEquals(htmlContent, decoded);
 }
@@ -477,13 +477,13 @@ public void testProcessAppXmlIncludesSplashForNpmApp() throws Exception {
     app.setNpmPackage("test-package");
     app.setNpmVersion("1.0.0");
     app.setIconDataURI("data:image/png;base64,test");
-    app.setSplashDataURI("text/html;base64,PHRlc3Q+");
+    app.setSplashDataURI("data:text/html;base64,PHRlc3Q+");
 
     File tempXml = File.createTempFile("app", ".xml");
     LauncherWriterHelper.processAppXml(app, tempXml);
 
     String xmlContent = FileUtils.readFileToString(tempXml, "UTF-8");
-    assertTrue(xmlContent.contains("splash=\"text/html;base64,PHRlc3Q+\""));
+    assertTrue(xmlContent.contains("splash=\"data:text/html;base64,PHRlc3Q+\""));
 
     tempXml.delete();
 }
@@ -494,13 +494,13 @@ public void testProcessAppXmlIncludesSplashForUrlApp() throws Exception {
     app.setName("TestApp");
     app.setUrl("http://example.com/app.xml");
     app.setIconDataURI("data:image/png;base64,test");
-    app.setSplashDataURI("text/html;base64,PHRlc3Q+");
+    app.setSplashDataURI("data:text/html;base64,PHRlc3Q+");
 
     File tempXml = File.createTempFile("app", ".xml");
     LauncherWriterHelper.processAppXml(app, tempXml);
 
     String xmlContent = FileUtils.readFileToString(tempXml, "UTF-8");
-    assertTrue(xmlContent.contains("splash=\"text/html;base64,PHRlc3Q+\""));
+    assertTrue(xmlContent.contains("splash=\"data:text/html;base64,PHRlc3Q+\""));
 
     tempXml.delete();
 }
@@ -870,7 +870,7 @@ public void testUploadResourcesHandlesLargeHtml() throws Exception {
 
 ### Developer Documentation
 - [ ] Document app.xml schema change (splash attribute)
-- [ ] Document data URI format: `text/html;base64,...`
+- [ ] Document data URI format: `data:text/html;base64,...`
 - [ ] Update bundling documentation
 - [ ] Update publishing workflow docs
 

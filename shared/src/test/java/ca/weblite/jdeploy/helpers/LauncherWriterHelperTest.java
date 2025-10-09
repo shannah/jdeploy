@@ -22,7 +22,7 @@ public class LauncherWriterHelperTest {
         app.setNpmPackage("test-package");
         app.setNpmVersion("1.0.0");
         app.setIconDataURI("data:image/png;base64,test");
-        app.setSplashDataURI("text/html;base64,PHRlc3Q+");
+        app.setSplashDataURI("data:text/html;base64,PHRlc3Q+");
 
         File tempXml = tempDir.resolve("app.xml").toFile();
 
@@ -34,7 +34,7 @@ public class LauncherWriterHelperTest {
         method.invoke(null, app, tempXml);
 
         String xmlContent = FileUtils.readFileToString(tempXml, "UTF-8");
-        assertTrue(xmlContent.contains("splash='text/html;base64,PHRlc3Q+'"),
+        assertTrue(xmlContent.contains("splash='data:text/html;base64,PHRlc3Q+'"),
             "XML should contain splash attribute");
         assertTrue(xmlContent.contains("package='test-package'"),
             "XML should contain package attribute");
@@ -46,7 +46,7 @@ public class LauncherWriterHelperTest {
         app.setName("TestApp");
         app.setUrl("http://example.com/app.xml");
         app.setIconDataURI("data:image/png;base64,test");
-        app.setSplashDataURI("text/html;base64,PHRlc3Q+");
+        app.setSplashDataURI("data:text/html;base64,PHRlc3Q+");
 
         File tempXml = tempDir.resolve("app.xml").toFile();
 
@@ -57,7 +57,7 @@ public class LauncherWriterHelperTest {
         method.invoke(null, app, tempXml);
 
         String xmlContent = FileUtils.readFileToString(tempXml, "UTF-8");
-        assertTrue(xmlContent.contains("splash='text/html;base64,PHRlc3Q+'"),
+        assertTrue(xmlContent.contains("splash='data:text/html;base64,PHRlc3Q+'"),
             "XML should contain splash attribute");
         assertTrue(xmlContent.contains("url='http://example.com/app.xml'"),
             "XML should contain url attribute");
@@ -94,7 +94,7 @@ public class LauncherWriterHelperTest {
         app.setNpmPackage("test-package");
         app.setNpmVersion("1.0.0");
         app.setIconDataURI("data:image/png;base64,icondata");
-        app.setSplashDataURI("text/html;base64,splashdata");
+        app.setSplashDataURI("data:text/html;base64,splashdata");
 
         File tempXml = tempDir.resolve("app.xml").toFile();
 
@@ -107,7 +107,7 @@ public class LauncherWriterHelperTest {
         String xmlContent = FileUtils.readFileToString(tempXml, "UTF-8");
         assertTrue(xmlContent.contains("icon='data:image/png;base64,icondata'"),
             "XML should contain icon attribute");
-        assertTrue(xmlContent.contains("splash='text/html;base64,splashdata'"),
+        assertTrue(xmlContent.contains("splash='data:text/html;base64,splashdata'"),
             "XML should contain splash attribute");
     }
 
@@ -118,7 +118,7 @@ public class LauncherWriterHelperTest {
         app.setNpmPackage("test-package");
         app.setNpmVersion("1.0.0");
         app.setIconDataURI("data:image/png;base64,test");
-        app.setSplashDataURI("text/html;base64,test");
+        app.setSplashDataURI("data:text/html;base64,test");
 
         File tempXml = tempDir.resolve("app.xml").toFile();
 
