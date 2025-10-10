@@ -81,6 +81,10 @@ public class Bundler {
         return "data:image/png;base64," + Base64.getEncoder().encodeToString(IOUtils.toByteArray(url));
     }
 
+    private static String toHtmlDataURI(URL url) throws IOException {
+        return "data:text/html;base64," + Base64.getEncoder().encodeToString(IOUtils.toByteArray(url));
+    }
+
     private static AppDescription createAppDescription(AppInfo appInfo, String url) throws IOException{
         AppDescription app = new AppDescription();
         if (appInfo.isCertificatePinningEnabled()) {
@@ -94,6 +98,16 @@ public class Bundler {
         app.setFork(appInfo.isFork());
         URL iconURL = URLUtil.url(appInfo.getAppURL(), "icon.png");
         app.setIconDataURI(toDataURI(iconURL));
+
+        // Add splash HTML if available
+        try {
+            URL splashURL = URLUtil.url(appInfo.getAppURL(), "launcher-splash.html");
+            app.setSplashDataURI(toHtmlDataURI(splashURL));
+        } catch (Exception e) {
+            // Splash is optional, ignore if not found
+            app.setSplashDataURI(null);
+        }
+
         app.setjDeployHome(appInfo.getJdeployHome());
         app.setjDeployHomeLinux(appInfo.getLinuxJdeployHome());
         app.setjDeployHomeMac(appInfo.getMacJdeployHome());

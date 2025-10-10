@@ -31,10 +31,11 @@ public class ResourceUploader {
     public void uploadResources(PublishingContext context) throws IOException {
         File icon = new File(context.directory(), "icon.png");
         File installSplash = new File(context.directory(),"installsplash.png");
+        File launcherSplash = new File(context.directory(),"launcher-splash.html");
         File publishDir = new File(context.directory(), "jdeploy" + File.separator + "publish");
         JSONObject packageJSON = new JSONObject(FileUtils.readFileToString(new File(publishDir, "package.json"), "UTF-8"));
 
-        if (icon.exists() || installSplash.exists()) {
+        if (icon.exists() || installSplash.exists() || launcherSplash.exists()) {
             // If there is a custom icon or install splash we need to upload
             // them to jdeploy.com so that they are available when generating
             // the installer.  Without this, jdeploy.com would need to download the
@@ -45,6 +46,10 @@ public class ResourceUploader {
             if (installSplash.exists()) {
                 byte[] splashBytes = FileUtils.readFileToByteArray(installSplash);
                 jdeployFiles.put("installsplash.png", Base64.getEncoder().encodeToString(splashBytes));
+            }
+            if (launcherSplash.exists()) {
+                byte[] launcherSplashBytes = FileUtils.readFileToByteArray(launcherSplash);
+                jdeployFiles.put("launcher-splash.html", Base64.getEncoder().encodeToString(launcherSplashBytes));
             }
             jdeployFiles.put("packageName", packageJSON.get("name"));
             jdeployFiles.put("version", VersionCleaner.cleanVersion(""+packageJSON.get("version")));

@@ -293,6 +293,7 @@ public class PackageService implements BundleConstants {
         File bundledAppXmlFile = null;
         File bundledSplashFile = null;
         File bundledIconFile = null;
+        File bundledLauncherSplashFile = null;
         if (embedJdeployFiles) {
             byte[] appXmlBytes;
 
@@ -348,6 +349,17 @@ public class PackageService implements BundleConstants {
                 }
                 installSplashBytes = FileUtils.readFileToByteArray(bundledSplashFile);
             }
+            {
+                File jarFile = new File(context.directory, toNativePath(context.getString("jar", null)));
+                File absoluteParent = jarFile.getAbsoluteFile().getParentFile();
+                File launcherSplashFile = new File(absoluteParent, "launcher-splash.html");
+
+                if (launcherSplashFile.exists()) {
+                    File bin = context.getJdeployBundleDir();
+                    bundledLauncherSplashFile = new File(bin, "launcher-splash.html");
+                    FileUtils.copyFile(launcherSplashFile, bundledLauncherSplashFile);
+                }
+            }
         }
 
         ArchiveUtil.NameFilter filter = new ArchiveUtil.NameFilter() {
@@ -382,6 +394,9 @@ public class PackageService implements BundleConstants {
             filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledAppXmlFile, newName + "/.jdeploy-files/app.xml"));
             filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledSplashFile, newName + "/.jdeploy-files/installsplash.png"));
             filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledIconFile, newName + "/.jdeploy-files/icon.png"));
+            if (bundledLauncherSplashFile != null && bundledLauncherSplashFile.exists()) {
+                filesToAdd.add(new ArchiveUtil.ArchiveFile(bundledLauncherSplashFile, newName + "/.jdeploy-files/launcher-splash.html"));
+            }
         }
         if (target.startsWith("mac") || target.startsWith("linux")) {
             // Mac and linux use tar file

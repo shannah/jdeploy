@@ -97,6 +97,11 @@ public class BasePublishDriver implements PublishDriverInterface {
             checksums.put("installsplash.png", MD5.getMD5Checksum(installSplash));
         }
 
+        File launcherSplash = new File(context.packagingContext.directory, "launcher-splash.html");
+        if (launcherSplash.exists()) {
+            checksums.put("launcher-splash.html", MD5.getMD5Checksum(launcherSplash));
+        }
+
         // Extract main class from JAR manifest and add to jdeploy object
         // This will be used for the Linux StartupWMClass desktop entry
         if (!jdeployObj.has("mainClass") && jdeployObj.has("jar")) {

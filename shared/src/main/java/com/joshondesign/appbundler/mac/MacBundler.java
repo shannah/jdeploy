@@ -261,6 +261,11 @@ public class MacBundler {
                 "fork", ""+app.isFork()
         }));
 
+        if (app.getSplashDataURI() != null && !app.getSplashDataURI().isEmpty()) {
+            atts.add("splash");
+            atts.add(app.getSplashDataURI());
+        }
+
         if (app.getjDeployHome() != null || app.getjDeployHomeMac() != null) {
             atts.add("jdeploy-home");
             atts.add(app.getjDeployHomeMac() == null ? app.getjDeployHome() : app.getjDeployHomeMac());

@@ -270,6 +270,7 @@ public class GitHubPublishDriver implements PublishDriverInterface {
     private void saveGithubReleaseFiles(PublishingContext context, PublishTargetInterface target) throws IOException {
         File icon = new File(context.directory(), "icon.png");
         File installSplash = new File(context.directory(),"installsplash.png");
+        File launcherSplash = new File(context.directory(),"launcher-splash.html");
         File releaseFilesDir = context.getGithubReleaseFilesDir();
         releaseFilesDir.mkdirs();
         if (icon.exists()) {
@@ -278,6 +279,9 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         }
         if (installSplash.exists()) {
             FileUtils.copyFile(installSplash, new File(releaseFilesDir, installSplash.getName()));
+        }
+        if (launcherSplash.exists()) {
+            FileUtils.copyFile(launcherSplash, new File(releaseFilesDir, launcherSplash.getName()));
         }
 
         File installerFiles = context.packagingContext.getInstallersDir();
