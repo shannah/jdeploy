@@ -124,6 +124,7 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         this.installationSettings = installationSettings;
         final AppInfo appInfo = installationSettings.getAppInfo();
         setTitle("Install "+appInfo.getTitle()+" "+npmPackageVersion().getVersion());
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         installButton = new JButton("Install");
         installButton.addActionListener(evt->{
