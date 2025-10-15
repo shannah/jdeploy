@@ -6,6 +6,7 @@
 package ca.weblite.jdeploy.app;
 
 import ca.weblite.jdeploy.app.permissions.PermissionRequest;
+import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 
 import ca.weblite.tools.platform.Platform;
 
@@ -62,6 +63,9 @@ public class AppInfo  {
     private Set<String> documentTypeEditor;
 
     private Set<String> urlSchemes;
+
+    // Directory association support
+    private DocumentTypeAssociation directoryAssociation;
 
     private Map<PermissionRequest, String> permissionRequests;
 
@@ -187,6 +191,69 @@ public class AppInfo  {
             return documentTypeIcons.get(extension);
         }
         return null;
+    }
+
+    /**
+     * Sets directory association for this application.
+     * @param association The directory document type association
+     */
+    public void setDirectoryAssociation(DocumentTypeAssociation association) {
+        if (association != null && !association.isDirectory()) {
+            throw new IllegalArgumentException("Association must be a directory type");
+        }
+        this.directoryAssociation = association;
+    }
+
+    /**
+     * Sets directory association for this application.
+     * @param role "Editor" or "Viewer"
+     * @param description Human-readable description for context menus
+     * @param iconPath Optional path to custom icon
+     */
+    public void setDirectoryAssociation(String role, String description, String iconPath) {
+        this.directoryAssociation = new DocumentTypeAssociation(role, description, iconPath);
+    }
+
+    /**
+     * @return true if this application has a directory association configured
+     */
+    public boolean hasDirectoryAssociation() {
+        return directoryAssociation != null;
+    }
+
+    /**
+     * @return the directory association, or null if none configured
+     */
+    public DocumentTypeAssociation getDirectoryAssociation() {
+        return directoryAssociation;
+    }
+
+    /**
+     * @return the role for directory associations ("Editor" or "Viewer")
+     */
+    public String getDirectoryRole() {
+        return directoryAssociation != null ? directoryAssociation.getRole() : "Viewer";
+    }
+
+    /**
+     * @return the description for directory associations
+     */
+    public String getDirectoryDescription() {
+        return directoryAssociation != null ? directoryAssociation.getDescription() : null;
+    }
+
+    /**
+     * @return the icon path for directory associations
+     */
+    public String getDirectoryIconPath() {
+        return directoryAssociation != null ? directoryAssociation.getIconPath() : null;
+    }
+
+    /**
+     * Clears directory association from this application.
+     */
+    public void clearDirectoryAssociation() {
+        this.directoryAssociation = null;
     }
 
     /**
@@ -1400,6 +1467,9 @@ public class AppInfo  {
             }
         }
 
+        // Copy directory association
+        out.directoryAssociation = directoryAssociation;
+
         return out;
     }
 
@@ -1503,7 +1573,8 @@ public class AppInfo  {
                 windowsJdeployHome, o.windowsJdeployHome,
                 linuxJdeployHome, o.linuxJdeployHome,
                 permissionRequests, o.permissionRequests,
-            
+                directoryAssociation, o.directoryAssociation
+
         });
     }
     

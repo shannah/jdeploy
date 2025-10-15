@@ -536,6 +536,34 @@ public class MacBundler {
             out.end().end();
         }
 
+        // Directory associations
+        if (app.hasDirectoryAssociation()) {
+            String role = app.getDirectoryRole();
+
+            out.start("key").text("CFBundleDocumentTypes").end();
+            out.start("array").start("dict");
+                // Use LSItemContentTypes for folder handling
+                out.start("key").text("LSItemContentTypes").end();
+                out.start("array");
+                    out.start("string").text("public.folder").end();
+                out.end();
+
+                out.start("key").text("CFBundleTypeName").end();
+                out.start("string").text("Folder").end();
+
+                out.start("key").text("CFBundleTypeRole").end();
+                out.start("string").text(role).end();
+
+                // Optional: Custom icon for folders
+                String dirIcon = app.getDirectoryIcon();
+                if (dirIcon != null) {
+                    out.start("key").text("CFBundleTypeIconFile").end();
+                    File ifile = new File(dirIcon);
+                    out.start("string").text(ifile.getName()).end();
+                }
+            out.end().end();
+        }
+
         if (app.hasUrlSchemes()) {
             out.start("key").text("CFBundleURLTypes").end();
             out.start("array");

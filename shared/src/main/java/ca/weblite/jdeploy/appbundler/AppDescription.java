@@ -42,6 +42,9 @@ public class AppDescription {
 
     private String macDeveloperTeamID;
 
+    // Directory association support
+    private ca.weblite.jdeploy.models.DocumentTypeAssociation directoryAssociation;
+
     private File bundleJre;
 
     private String jDeployHome;
@@ -95,6 +98,62 @@ public class AppDescription {
     public void addUrlScheme(String scheme) {
         if (urlSchemes == null) urlSchemes = new ArrayList<>();
         urlSchemes.add(scheme);
+    }
+
+    /**
+     * Sets directory association for this application.
+     * @param association The directory document type association
+     */
+    public void setDirectoryAssociation(ca.weblite.jdeploy.models.DocumentTypeAssociation association) {
+        if (association != null && !association.isDirectory()) {
+            throw new IllegalArgumentException("Association must be a directory type");
+        }
+        this.directoryAssociation = association;
+    }
+
+    /**
+     * Sets directory association for this application.
+     * @param role "Editor" or "Viewer"
+     * @param description Human-readable description
+     * @param icon Optional path to custom icon
+     */
+    public void setDirectoryAssociation(String role, String description, String icon) {
+        this.directoryAssociation = new ca.weblite.jdeploy.models.DocumentTypeAssociation(role, description, icon);
+    }
+
+    /**
+     * @return true if this application has a directory association configured
+     */
+    public boolean hasDirectoryAssociation() {
+        return directoryAssociation != null;
+    }
+
+    /**
+     * @return the directory association, or null if none configured
+     */
+    public ca.weblite.jdeploy.models.DocumentTypeAssociation getDirectoryAssociation() {
+        return directoryAssociation;
+    }
+
+    /**
+     * @return the role for directory associations ("Editor" or "Viewer")
+     */
+    public String getDirectoryRole() {
+        return directoryAssociation != null ? directoryAssociation.getRole() : "Viewer";
+    }
+
+    /**
+     * @return the description for directory associations
+     */
+    public String getDirectoryDescription() {
+        return directoryAssociation != null ? directoryAssociation.getDescription() : null;
+    }
+
+    /**
+     * @return the icon path for directory associations
+     */
+    public String getDirectoryIcon() {
+        return directoryAssociation != null ? directoryAssociation.getIconPath() : null;
     }
 
     public void setUrl(String url) {
