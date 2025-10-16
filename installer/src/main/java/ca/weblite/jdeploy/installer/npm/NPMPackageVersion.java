@@ -59,6 +59,24 @@ public class NPMPackageVersion {
             int len = documentTypes.length();
             for (int i=0; i<len; i++) {
                 JSONObject docType = documentTypes.getJSONObject(i);
+
+                // Check if this is a directory association
+                if (docType.has("type") && "directory".equalsIgnoreCase(docType.getString("type"))) {
+                    String role = docType.has("role") ? docType.getString("role") : null;
+                    String description = docType.has("description") ? docType.getString("description") : null;
+                    String icon = docType.has("icon") ? docType.getString("icon") : null;
+                    DocumentTypeAssociation dirAssoc = new DocumentTypeAssociation(
+                            role,
+                            description,
+                            icon
+                    );
+                    if (dirAssoc.isValid()) {
+                        out.add(dirAssoc);
+                    }
+                    continue;
+                }
+
+                // Handle file associations
                 String ext = docType.has("extension") ? docType.getString("extension") : null;
                 if (ext == null) continue;
                 String mimetype = docType.has("mimetype") ? docType.getString("mimetype") : null;
