@@ -186,7 +186,7 @@
         <dependency>
             <groupId>org.eclipse.jgit</groupId>
             <artifactId>org.eclipse.jgit</artifactId>
-            <version>5.13.0.202109080827-r</version>
+            <version>6.10.1.202505221210-r</version>
         </dependency>
         <dependency>
             <groupId>com.jgoodies</groupId>
