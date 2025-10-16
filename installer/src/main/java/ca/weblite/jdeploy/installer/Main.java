@@ -138,17 +138,35 @@ public class Main implements Runnable, Constants {
             }
 
             for (DocumentTypeAssociation documentTypeAssociation : npmPackageVersion().getDocumentTypeAssociations()) {
-                appInfo().addDocumentMimetype(documentTypeAssociation.getExtension(), documentTypeAssociation.getMimetype());
-                if (documentTypeAssociation.getIconPath() != null) {
-                    appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), documentTypeAssociation.getIconPath());
-                } else {
-                    File iconPath = new File(findAppXmlFile().getParentFile(), "icon."+documentTypeAssociation.getExtension()+".png");
-                    if (iconPath.exists()) {
-                        appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), iconPath.getAbsolutePath());
+                if (documentTypeAssociation.isDirectory()) {
+                    // Handle directory association - check for default directory icon if none specified
+                    DocumentTypeAssociation dirAssoc = documentTypeAssociation;
+                    if (documentTypeAssociation.getIconPath() == null) {
+                        File dirIconPath = new File(findAppXmlFile().getParentFile(), "icon.directory.png");
+                        if (dirIconPath.exists()) {
+                            // Create new association with default icon
+                            dirAssoc = new DocumentTypeAssociation(
+                                    documentTypeAssociation.getRole(),
+                                    documentTypeAssociation.getDescription(),
+                                    dirIconPath.getAbsolutePath()
+                            );
+                        }
                     }
-                }
-                if (documentTypeAssociation.isEditor()) {
-                    appInfo().setDocumentTypeEditor(documentTypeAssociation.getExtension());
+                    appInfo().setDirectoryAssociation(dirAssoc);
+                } else {
+                    // Handle file extension association
+                    appInfo().addDocumentMimetype(documentTypeAssociation.getExtension(), documentTypeAssociation.getMimetype());
+                    if (documentTypeAssociation.getIconPath() != null) {
+                        appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), documentTypeAssociation.getIconPath());
+                    } else {
+                        File iconPath = new File(findAppXmlFile().getParentFile(), "icon."+documentTypeAssociation.getExtension()+".png");
+                        if (iconPath.exists()) {
+                            appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), iconPath.getAbsolutePath());
+                        }
+                    }
+                    if (documentTypeAssociation.isEditor()) {
+                        appInfo().setDocumentTypeEditor(documentTypeAssociation.getExtension());
+                    }
                 }
             }
             for (String scheme : npmPackageVersion().getUrlSchemes()) {
@@ -1017,7 +1035,7 @@ public class Main implements Runnable, Constants {
             contents += "StartupWMClass=" + wmClass + "\n";
         }
 
-        if (appInfo().hasDocumentTypes() || appInfo().hasUrlSchemes()) {
+        if (appInfo().hasDocumentTypes() || appInfo().hasUrlSchemes() || appInfo().hasDirectoryAssociation()) {
             StringBuilder mimetypes = new StringBuilder();
             if (appInfo().hasDocumentTypes()) {
                 for (String extension : appInfo().getExtensions()) {
@@ -1035,6 +1053,12 @@ public class Main implements Runnable, Constants {
                     }
                     mimetypes.append("x-scheme-handler/").append(scheme);
                 }
+            }
+            if (appInfo().hasDirectoryAssociation()) {
+                if (mimetypes.length() > 0) {
+                    mimetypes.append(";");
+                }
+                mimetypes.append("inode/directory");
             }
             contents += "MimeType="+mimetypes+"\n";
         }

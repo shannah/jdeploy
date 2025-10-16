@@ -1,0 +1,50 @@
+{
+  "bin": {
+    "directory-test-app": "jdeploy-bundle/jdeploy.js"
+  },
+  "author": "jDeploy Test Suite",
+  "description": "Test application for directory associations",
+  "main": "index.js",
+  "preferGlobal": true,
+  "repository": "",
+  "version": "1.0.0",
+  "jdeploy": {
+    "jdk": false,
+    "javaVersion": "11",
+    "jar": "target/DirectoryTestApp.jar",
+    "title": "Directory Test App",
+    "documentTypes": [
+      {
+        "type": "directory",
+        "role": "Editor",
+        "description": "Open folder in Directory Test App"
+      },
+      {
+        "extension": "txt",
+        "mimetype": "text/plain",
+        "editor": true
+      }
+    ],
+    "installers": [
+      "mac-arm64",
+      "mac-x64",
+      "win-x64",
+      "linux-x64"
+    ]
+  },
+  "dependencies": {
+    "command-exists-promise": "^2.0.2",
+    "node-fetch": "2.6.7",
+    "tar": "^4.4.8",
+    "yauzl": "^2.10.0",
+    "shelljs": "^0.8.4"
+  },
+  "license": "ISC",
+  "name": "jdeploy-test-directory-association",
+  "files": [
+    "jdeploy-bundle"
+  ],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}

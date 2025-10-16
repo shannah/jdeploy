@@ -571,6 +571,110 @@ public class InstallWindowsRegistry {
         }
     }
 
+    /**
+     * Registers directory associations in the Windows registry.
+     * Creates context menu entries for "Open with {AppName}" on directories.
+     */
+    private void registerDirectoryAssociations() throws IOException {
+        if (!appInfo.hasDirectoryAssociation()) {
+            return;
+        }
+
+        String progId = getProgId();
+        String appTitle = appInfo.getTitle();
+        String description = appInfo.getDirectoryDescription();
+
+        // Determine menu text
+        String menuText = description != null ? description : "Open with " + appTitle;
+
+        // Register in HKEY_CURRENT_USER\Software\Classes\Directory\shell
+        String directoryShellKey = "Software\\Classes\\Directory\\shell\\" + progId;
+
+        if (registryKeyExists(HKEY_CURRENT_USER, directoryShellKey)) {
+            // Backup existing key
+            new WinRegistry().exportKey(directoryShellKey, backupLog);
+        } else {
+            backupLogOut.println(";CREATE " + directoryShellKey);
+            backupLogOut.flush();
+        }
+
+        if (!registryKeyExists(HKEY_CURRENT_USER, directoryShellKey)) {
+            registryCreateKey(HKEY_CURRENT_USER, directoryShellKey);
+        }
+
+        // Set the display name for the context menu
+        registrySetStringValue(HKEY_CURRENT_USER, directoryShellKey, null, menuText);
+
+        // Set icon if available
+        if (icon != null && icon.exists()) {
+            registrySetStringValue(HKEY_CURRENT_USER, directoryShellKey, "Icon",
+                icon.getAbsolutePath() + ",0");
+        }
+
+        // Create command key
+        String commandKey = directoryShellKey + "\\command";
+        if (!registryKeyExists(HKEY_CURRENT_USER, commandKey)) {
+            registryCreateKey(HKEY_CURRENT_USER, commandKey);
+        }
+
+        // Set command to launch app with directory path
+        registrySetStringValue(HKEY_CURRENT_USER, commandKey, null,
+            "\"" + exe.getAbsolutePath() + "\" \"%1\"");
+
+        // Also register for Directory\Background\shell for "Open folder with..." in empty space
+        String backgroundShellKey = "Software\\Classes\\Directory\\Background\\shell\\" + progId;
+
+        if (registryKeyExists(HKEY_CURRENT_USER, backgroundShellKey)) {
+            new WinRegistry().exportKey(backgroundShellKey, backupLog);
+        } else {
+            backupLogOut.println(";CREATE " + backgroundShellKey);
+            backupLogOut.flush();
+        }
+
+        if (!registryKeyExists(HKEY_CURRENT_USER, backgroundShellKey)) {
+            registryCreateKey(HKEY_CURRENT_USER, backgroundShellKey);
+        }
+
+        registrySetStringValue(HKEY_CURRENT_USER, backgroundShellKey, null, menuText);
+
+        if (icon != null && icon.exists()) {
+            registrySetStringValue(HKEY_CURRENT_USER, backgroundShellKey, "Icon",
+                icon.getAbsolutePath() + ",0");
+        }
+
+        String backgroundCommandKey = backgroundShellKey + "\\command";
+        if (!registryKeyExists(HKEY_CURRENT_USER, backgroundCommandKey)) {
+            registryCreateKey(HKEY_CURRENT_USER, backgroundCommandKey);
+        }
+
+        // Use %V for background shell - represents the current directory
+        registrySetStringValue(HKEY_CURRENT_USER, backgroundCommandKey, null,
+            "\"" + exe.getAbsolutePath() + "\" \"%V\"");
+    }
+
+    /**
+     * Unregisters directory associations from Windows registry.
+     */
+    private void unregisterDirectoryAssociations() {
+        if (!appInfo.hasDirectoryAssociation()) {
+            return;
+        }
+
+        String progId = getProgId();
+
+        String directoryShellKey = "Software\\Classes\\Directory\\shell\\" + progId;
+        if (registryKeyExists(HKEY_CURRENT_USER, directoryShellKey)) {
+            System.out.println("Deleting directory association key: " + directoryShellKey);
+            deleteKeyRecursive(directoryShellKey);
+        }
+
+        String backgroundShellKey = "Software\\Classes\\Directory\\Background\\shell\\" + progId;
+        if (registryKeyExists(HKEY_CURRENT_USER, backgroundShellKey)) {
+            System.out.println("Deleting directory background association key: " + backgroundShellKey);
+            deleteKeyRecursive(backgroundShellKey);
+        }
+    }
+
     public void unregister(File backupLogFile) throws IOException {
 
         if (appInfo.hasDocumentTypes()) {
@@ -579,6 +683,10 @@ public class InstallWindowsRegistry {
 
         if (appInfo.hasUrlSchemes()) {
             unregisterUrlSchemes();
+        }
+
+        if (appInfo.hasDirectoryAssociation()) {
+            unregisterDirectoryAssociations();
         }
 
         deleteUninstallEntry();
@@ -671,6 +779,10 @@ public class InstallWindowsRegistry {
 
         if (appInfo.hasUrlSchemes()) {
             registerUrlSchemes();
+        }
+
+        if (appInfo.hasDirectoryAssociation()) {
+            registerDirectoryAssociations();
         }
 
         // Register the application

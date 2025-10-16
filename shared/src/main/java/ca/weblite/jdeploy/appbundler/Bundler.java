@@ -215,6 +215,10 @@ public class Bundler {
                 }
             }
         }
+
+        if (appInfo.hasDirectoryAssociation()) {
+            app.setDirectoryAssociation(appInfo.getDirectoryAssociation());
+        }
     }
 
     private static void setupUrlSchemes(AppInfo appInfo, AppDescription app) {

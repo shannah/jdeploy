@@ -83,6 +83,7 @@ public class JDeployProjectEditor {
     private MainFields mainFields;
     private ArrayList<DoctypeFields> doctypeFields;
     private ArrayList<LinkFields> linkFields;
+    private DirectoryAssociationFields directoryAssociationFields;
     private JFrame frame;
     private WatchService watchService;
     private boolean pollWatchService = true;
@@ -278,6 +279,12 @@ public class JDeployProjectEditor {
 
     private class LinkFields {
         private JTextField url, label;
+    }
+
+    private class DirectoryAssociationFields {
+        private JCheckBox enableCheckbox;        // Enable directory associations
+        private JComboBox<String> roleComboBox;  // Editor/Viewer dropdown
+        private JTextField descriptionField;     // Description for context menu
     }
 
     private static void addChangeListenerTo(JTextComponent textField, Runnable r) {
@@ -594,6 +601,83 @@ public class JDeployProjectEditor {
 
         cnt.add(pmPane);
     }
+
+    private JPanel createDirectoryAssociationPanel() {
+        directoryAssociationFields = new DirectoryAssociationFields();
+
+        // Enable checkbox
+        directoryAssociationFields.enableCheckbox = new JCheckBox("Allow opening directories/folders");
+        directoryAssociationFields.enableCheckbox.setOpaque(false);
+        directoryAssociationFields.enableCheckbox.setToolTipText(
+            "<html>When enabled, users can:<br>" +
+            "• Right-click folders to open them with your app<br>" +
+            "• Drag folders onto your app icon<br>" +
+            "• Use 'Open With' menu for folders</html>"
+        );
+        directoryAssociationFields.enableCheckbox.addActionListener(evt -> {
+            boolean enabled = directoryAssociationFields.enableCheckbox.isSelected();
+            directoryAssociationFields.roleComboBox.setEnabled(enabled);
+            directoryAssociationFields.descriptionField.setEnabled(enabled);
+            setModified();
+        });
+
+        // Role dropdown
+        directoryAssociationFields.roleComboBox = new JComboBox<>(new String[]{"Editor", "Viewer"});
+        directoryAssociationFields.roleComboBox.setEnabled(false);
+        directoryAssociationFields.roleComboBox.setToolTipText(
+            "Editor: allows modifying folder contents. Viewer: read-only access"
+        );
+        directoryAssociationFields.roleComboBox.addActionListener(evt -> setModified());
+
+        // Description field
+        directoryAssociationFields.descriptionField = new JTextField();
+        directoryAssociationFields.descriptionField.setEnabled(false);
+        directoryAssociationFields.descriptionField.setToolTipText(
+            "Text shown in context menu (e.g., 'Open folder as project')"
+        );
+        addChangeListenerTo(directoryAssociationFields.descriptionField, this::setModified);
+
+        // Don't use PanelMatic - use plain GridBagLayout like standard Swing forms
+        JPanel rowPanel = new JPanel(new GridBagLayout());
+        rowPanel.setBorder(new EmptyBorder(10, 10, 10, 10));  // Same padding as file type rows
+        rowPanel.setOpaque(false);
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.gridwidth = 2;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.insets = new Insets(5, 0, 5, 0);
+        rowPanel.add(directoryAssociationFields.enableCheckbox, gbc);
+
+        // Role
+        gbc.gridy++;
+        gbc.gridwidth = 1;
+        gbc.insets = new Insets(5, 0, 5, 5);
+        rowPanel.add(new JLabel("Role:"), gbc);
+
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
+        gbc.insets = new Insets(5, 0, 5, 0);
+        rowPanel.add(directoryAssociationFields.roleComboBox, gbc);
+
+        // Description
+        gbc.gridx = 0;
+        gbc.gridy++;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.insets = new Insets(5, 0, 5, 5);
+        rowPanel.add(new JLabel("Description:"), gbc);
+
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        gbc.insets = new Insets(5, 0, 5, 0);
+        rowPanel.add(directoryAssociationFields.descriptionField, gbc);
+
+        return rowPanel;
+    }
+
 
     private void setOpaqueRecursive(JComponent cnt, boolean opaque) {
         cnt.setOpaque(opaque);
@@ -1092,27 +1176,31 @@ public class JDeployProjectEditor {
             setModified();
         });
 
+        // Create SEPARATE section for directory associations (not using PanelMatic)
+        JPanel dirAssocSection = new JPanel(new BorderLayout());
+        dirAssocSection.setOpaque(false);
+
+        // Header with title and help button
+        JPanel dirAssocHeader = new JPanel();
+        dirAssocHeader.setOpaque(false);
+        dirAssocHeader.setLayout(new BorderLayout());
+        dirAssocHeader.add(new JLabel("<html><b>Directory Association</b></html>"), BorderLayout.WEST);
+        dirAssocHeader.add(
+                createHelpButton(
+                        JDEPLOY_WEBSITE_URL + "docs/help/#directory-associations",
+                        "",
+                        "Learn more about directory associations in jDeploy."
+                ),
+                BorderLayout.EAST
+        );
+
+        JPanel dirAssocContent = createDirectoryAssociationPanel();
+
+        // Create separate Box for file associations (using PanelMatic)
         Box doctypesPanel = Box.createVerticalBox();
-
         doctypesPanel.setOpaque(false);
-        //doctypesPanel.setLayout(new BoxLayout(doctypesPanel, BoxLayout.Y_AXIS));
-        JScrollPane doctypesPanelScroller = new JScrollPane(doctypesPanel);
-        doctypesPanelScroller.setOpaque(false);
-        doctypesPanelScroller.getViewport().setOpaque(false);
 
-        doctypesPanelScroller.setBorder(new EmptyBorder(0, 0, 0, 0));
-
-
-        if (jdeploy.has("documentTypes")) {
-            JSONArray docTypes = jdeploy.getJSONArray("documentTypes");
-            int len = docTypes.length();
-            for (int i=0; i<len; i++) {
-                createDocTypeRow(docTypes, i, doctypesPanel);
-            }
-        }
-        //doctypesPanel.setAlignmentY(Component.TOP_ALIGNMENT);
-
-
+        // Add toolbar with "+" button for file associations
         JButton addDocType = new JButton(FontIcon.of(Material.ADD));
         addDocType.setToolTipText("Add document type association");
         addDocType.addActionListener(evt->{
@@ -1126,19 +1214,16 @@ public class JDeployProjectEditor {
             doctypesPanel.revalidate();
         });
 
-        JPanel doctypesPanelWrapper = new JPanel();
-        doctypesPanelWrapper.setOpaque(false);
-        doctypesPanelWrapper.setLayout(new BorderLayout());
-        doctypesPanelWrapper.add(doctypesPanelScroller, BorderLayout.CENTER);
         JToolBar tb = new JToolBar();
         tb.setFloatable(false);
         tb.setOpaque(false);
         tb.add(addDocType);
-        JPanel doctypesTop = new JPanel();
-        doctypesTop.setOpaque(false);
-        doctypesTop.setLayout(new BorderLayout());
-        doctypesTop.add(tb, BorderLayout.CENTER);
-        doctypesTop.add(
+
+        JPanel fileAssocHeader = new JPanel();
+        fileAssocHeader.setOpaque(false);
+        fileAssocHeader.setLayout(new BorderLayout());
+        fileAssocHeader.add(tb, BorderLayout.WEST);
+        fileAssocHeader.add(
                 createHelpButton(
                         JDEPLOY_WEBSITE_URL + "docs/help/#filetypes",
                         "",
@@ -1146,8 +1231,74 @@ public class JDeployProjectEditor {
                 ),
                 BorderLayout.EAST
         );
-        doctypesTop.setMaximumSize(new Dimension(doctypesTop.getPreferredSize()));
-        doctypesPanelWrapper.add(doctypesTop, BorderLayout.NORTH);
+
+        Box dirAssocBox = Box.createVerticalBox();
+        dirAssocBox.setOpaque(false);
+        dirAssocBox.add(dirAssocHeader);
+        dirAssocBox.add(Box.createVerticalStrut(5));
+        dirAssocBox.add(dirAssocContent);
+        dirAssocBox.add(Box.createVerticalStrut(15));
+        dirAssocBox.add(fileAssocHeader);
+        dirAssocBox.add(Box.createVerticalStrut(5));
+
+        dirAssocSection.add(dirAssocBox, BorderLayout.NORTH);
+
+        // Load directory association if it exists
+        if (jdeploy.has("documentTypes")) {
+            JSONArray docTypes = jdeploy.getJSONArray("documentTypes");
+            for (int i = 0; i < docTypes.length(); i++) {
+                JSONObject docType = docTypes.getJSONObject(i);
+                if (docType.has("type") && "directory".equalsIgnoreCase(docType.getString("type"))) {
+                    // Found directory association
+                    directoryAssociationFields.enableCheckbox.setSelected(true);
+
+                    String role = docType.optString("role", "Viewer");
+                    directoryAssociationFields.roleComboBox.setSelectedItem(role);
+                    directoryAssociationFields.roleComboBox.setEnabled(true);
+
+                    String description = docType.optString("description", "");
+                    directoryAssociationFields.descriptionField.setText(description);
+                    directoryAssociationFields.descriptionField.setEnabled(true);
+
+                    break; // Only one directory association supported
+                }
+            }
+        }
+
+        // Add file associations below the toolbar
+        if (jdeploy.has("documentTypes")) {
+            JSONArray docTypes = jdeploy.getJSONArray("documentTypes");
+            int len = docTypes.length();
+            for (int i=0; i<len; i++) {
+                JSONObject docType = docTypes.getJSONObject(i);
+                // Skip directory associations in the file list (they're shown in the panel above)
+                if (docType.has("type") && "directory".equalsIgnoreCase(docType.getString("type"))) {
+                    continue;
+                }
+                createDocTypeRow(docTypes, i, doctypesPanel);
+            }
+        }
+
+        // Wrap file associations in container
+        JPanel fileAssocContainer = new JPanel(new BorderLayout());
+        fileAssocContainer.setOpaque(false);
+        fileAssocContainer.add(doctypesPanel, BorderLayout.NORTH);
+
+        // Combine directory and file associations sections
+        JPanel combinedPanel = new JPanel(new BorderLayout());
+        combinedPanel.setOpaque(false);
+        combinedPanel.add(dirAssocSection, BorderLayout.NORTH);
+        combinedPanel.add(fileAssocContainer, BorderLayout.CENTER);
+
+        JScrollPane doctypesPanelScroller = new JScrollPane(combinedPanel);
+        doctypesPanelScroller.setOpaque(false);
+        doctypesPanelScroller.getViewport().setOpaque(false);
+        doctypesPanelScroller.setBorder(new EmptyBorder(0, 0, 0, 0));
+
+        JPanel doctypesPanelWrapper = new JPanel();
+        doctypesPanelWrapper.setOpaque(false);
+        doctypesPanelWrapper.setLayout(new BorderLayout());
+        doctypesPanelWrapper.add(doctypesPanelScroller, BorderLayout.CENTER);
         JPanel cheerpjSettingsRoot = null;
         if (context.shouldDisplayCheerpJPanel()) {
             CheerpJSettings cheerpJSettings = new CheerpJSettings();
@@ -2064,6 +2215,22 @@ public class JDeployProjectEditor {
         }
     }
 
+    private String validateDirectoryAssociation() {
+        if (directoryAssociationFields == null ||
+            !directoryAssociationFields.enableCheckbox.isSelected()) {
+            return null; // Not enabled, no validation needed
+        }
+
+        // Validate description is not empty (good UX practice)
+        String description = directoryAssociationFields.descriptionField.getText().trim();
+        if (description.isEmpty()) {
+            return "Directory association description should not be empty. " +
+                   "This text appears in the context menu.";
+        }
+
+        return null; // Valid
+    }
+
     private void handleSave() {
         try {
             if (downloadPageSettingsPanel != null) {
@@ -2073,6 +2240,55 @@ public class JDeployProjectEditor {
                 bundleFiltersPanel.saveConfiguration(packageJSON.getJSONObject("jdeploy"));
                                 bundleFiltersPanel.saveAllFiles();
             }
+
+            // Validate directory association
+            String validationError = validateDirectoryAssociation();
+            if (validationError != null) {
+                int result = JOptionPane.showConfirmDialog(
+                    frame,
+                    validationError + "\n\nContinue saving anyway?",
+                    "Validation Warning",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE
+                );
+                if (result != JOptionPane.YES_OPTION) {
+                    return; // Don't save
+                }
+            }
+
+            // Save directory association
+            if (directoryAssociationFields != null) {
+                JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
+
+                // Get or create documentTypes array
+                if (!jdeploy.has("documentTypes")) {
+                    jdeploy.put("documentTypes", new JSONArray());
+                }
+                JSONArray docTypes = jdeploy.getJSONArray("documentTypes");
+
+                // Remove existing directory associations
+                for (int i = docTypes.length() - 1; i >= 0; i--) {
+                    JSONObject docType = docTypes.getJSONObject(i);
+                    if (docType.has("type") && "directory".equalsIgnoreCase(docType.getString("type"))) {
+                        docTypes.remove(i);
+                    }
+                }
+
+                // Add new directory association if enabled
+                if (directoryAssociationFields.enableCheckbox.isSelected()) {
+                    JSONObject dirAssoc = new JSONObject();
+                    dirAssoc.put("type", "directory");
+                    dirAssoc.put("role", directoryAssociationFields.roleComboBox.getSelectedItem());
+
+                    String description = directoryAssociationFields.descriptionField.getText().trim();
+                    if (!description.isEmpty()) {
+                        dirAssoc.put("description", description);
+                    }
+
+                    docTypes.put(dirAssoc);
+                }
+            }
+
             FileUtil.writeStringToFile(packageJSON.toString(4), packageJSONFile);
             packageJSONMD5 = MD5.getMD5Checksum(packageJSONFile);
             updateJdpignoreFileMD5s(); // Update .jdpignore file MD5s after saving
