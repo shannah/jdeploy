@@ -4,6 +4,7 @@ import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.installer.InstallationContext;
 import ca.weblite.jdeploy.installer.Main;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
 import ca.weblite.tools.io.FileUtil;
 import com.izforge.izpack.util.os.ShellLink;
 import net.coobird.thumbnailator.Thumbnails;
@@ -275,10 +276,7 @@ public class InstallWindows {
     }
 
     private String getBundlesDirExtension() {
-        if ("arm64".equals(System.getProperty("os.arch")) || "aarch64".equals(System.getProperty("os.arch"))) {
-            return "-arm64";
-        } else {
-            return "-x64";
-        }
+        // Use centralized architecture detection utility
+        return ArchitectureUtil.getArchitectureSuffix();
     }
 }
