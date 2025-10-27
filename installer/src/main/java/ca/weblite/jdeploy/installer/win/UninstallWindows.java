@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.win;
 
+import ca.weblite.jdeploy.installer.util.PackagePathResolver;
 import ca.weblite.tools.io.MD5;
 import org.apache.commons.io.FileUtils;
 
@@ -45,28 +46,9 @@ public class UninstallWindows {
     }
 
     private File getPackagePath() {
-        if (source == null || source.isEmpty()) {
-            if (version == null) {
-                return new File(getJDeployHome(), "packages" + File.separator + new File(packageName).getName());
-            } else {
-                return new File(
-                        getJDeployHome(),
-                        "packages" + File.separator +
-                                new File(packageName).getName() + File.separator +
-                                new File(version).getName()
-                );
-            }
-        }
-
-        if (version == null) {
-            return new File(getJDeployHome(), "gh-packages" + MD5.getMd5(source) + "." + packageName);
-        } else {
-            return new File(
-                    getJDeployHome(),
-                    "gh-packages" + MD5.getMd5(source) + "." + packageName + File.separator +
-                            new File(version).getName()
-            );
-        }
+        // Use the new PackagePathResolver which checks architecture-specific paths first,
+        // then falls back to legacy paths for backward compatibility
+        return PackagePathResolver.resolvePackagePath(packageName, version, source);
     }
 
     private File getStartMenuPath() {
@@ -136,32 +118,61 @@ public class UninstallWindows {
     }
 
     private void deletePackage() throws IOException {
-        for (File versionDir : getVersionDirectories()) {
-            if (versionDir.exists()) {
-                System.out.println("Deleting version dir: "+versionDir.getAbsolutePath());
-                FileUtils.deleteDirectory(versionDir);
+        // Delete from all possible locations (architecture-specific and legacy)
+        File[] allPossiblePaths = PackagePathResolver.getAllPossiblePackagePaths(packageName, version, source);
+
+        for (File possiblePath : allPossiblePaths) {
+            if (version == null && possiblePath.exists()) {
+                // Delete all version subdirectories
+                for (File child : possiblePath.listFiles()) {
+                    if (child.isDirectory() &&
+                            !child.getName().isEmpty() &&
+                            Character.isDigit(child.getName().charAt(0)) &&
+                            !child.getName().startsWith("0.0.0-")) {
+                        System.out.println("Deleting version dir: " + child.getAbsolutePath());
+                        FileUtils.deleteDirectory(child);
+                    }
+                }
+            } else if (possiblePath.exists()) {
+                // Delete specific version directory
+                System.out.println("Deleting version dir: " + possiblePath.getAbsolutePath());
+                FileUtils.deleteDirectory(possiblePath);
             }
         }
     }
 
     private void cleanupPackageDir() throws IOException {
-        File packageDir = getPackagePath();
-        if (version != null) {
-            packageDir = packageDir.getParentFile();
-        }
-        if (packageDir.getName().equals("packages")) {
-            return;
-        }
-        if (packageDir.exists()) {
-            int numVersionDirectoriesRemaining = 0;
-            for (File child : packageDir.listFiles()) {
-                if (child.isDirectory()) {
-                    numVersionDirectoriesRemaining++;
-                }
+        // Clean up both architecture-specific and legacy package directories if empty
+        File[] allPossiblePaths = PackagePathResolver.getAllPossiblePackagePaths(packageName, version, source);
+
+        for (File packageDir : allPossiblePaths) {
+            if (version != null && packageDir.getParentFile() != null) {
+                packageDir = packageDir.getParentFile();
             }
-            if (numVersionDirectoriesRemaining == 0) {
-                System.out.println("Deleting package dir: "+packageDir.getAbsolutePath());
-                FileUtils.deleteDirectory(packageDir);
+
+            // Don't delete the root packages/gh-packages directories
+            if (packageDir.getName().equals("packages") ||
+                    packageDir.getName().startsWith("packages-") ||
+                    packageDir.getName().equals("gh-packages") ||
+                    packageDir.getName().startsWith("gh-packages-")) {
+                continue;
+            }
+
+            if (packageDir.exists()) {
+                int numVersionDirectoriesRemaining = 0;
+                File[] children = packageDir.listFiles();
+                if (children != null) {
+                    for (File child : children) {
+                        if (child.isDirectory()) {
+                            numVersionDirectoriesRemaining++;
+                        }
+                    }
+                }
+
+                if (numVersionDirectoriesRemaining == 0) {
+                    System.out.println("Deleting package dir: " + packageDir.getAbsolutePath());
+                    FileUtils.deleteDirectory(packageDir);
+                }
             }
         }
     }

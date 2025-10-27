@@ -21,6 +21,7 @@ import ca.weblite.jdeploy.installer.util.ResourceUtil;
 import ca.weblite.jdeploy.installer.views.DefaultUIFactory;
 import ca.weblite.jdeploy.installer.views.InstallationForm;
 import ca.weblite.jdeploy.installer.views.UIFactory;
+import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
 import ca.weblite.jdeploy.installer.win.InstallWindows;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.UninstallWindows;
@@ -715,26 +716,11 @@ public class Main implements Runnable, Constants {
         tmpReleases.mkdir();
         String target;
         if (Platform.getSystemPlatform().isMac()) {
-            target = "mac";
-            if (System.getProperty("os.arch").equals("aarch64")) {
-                target += "-arm64";
-            } else {
-                target += "-x64";
-            }
+            target = "mac" + ArchitectureUtil.getArchitectureSuffix();
         } else if (Platform.getSystemPlatform().isWindows()) {
-            target = "win";
-            if (System.getProperty("os.arch").equals("aarch64") || System.getProperty("os.arch").equals("arm64")) {
-                target += "-arm64";
-            } else {
-                target += "-x64";
-            }
+            target = "win" + ArchitectureUtil.getArchitectureSuffix();
         } else if (Platform.getSystemPlatform().isLinux()) {
-            target = "linux";
-            if (System.getProperty("os.arch").equals("aarch64") || System.getProperty("os.arch").equals("arm64")) {
-                target += "-arm64";
-            } else {
-                target += "-x64";
-            }
+            target = "linux" + ArchitectureUtil.getArchitectureSuffix();
         } else {
             throw new RuntimeException("Installation failed.  Your platform is not currently supported.");
         }
