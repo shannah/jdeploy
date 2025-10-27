@@ -20,7 +20,8 @@ public class FXInstallationForm implements InstallationForm {
     // The installation settings.  You should be able to get all of the information
     // you need about the app being installed, and the install environment from this
     // object.
-    private InstallationSettings installationSettings;
+    // Package-private to allow FXApplication to access it for window icon
+    InstallationSettings installationSettings;
 
     // Reference to the FXApplication app.
     FXApplication app;

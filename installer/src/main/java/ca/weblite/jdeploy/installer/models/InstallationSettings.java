@@ -119,6 +119,10 @@ public class InstallationSettings {
         return new File(installFilesDir, "installsplash.png");
     }
 
+    public File getApplicationIcon() {
+        return new File(installFilesDir, "icon.png");
+    }
+
     public URL getWebsiteURL() {
         return websiteURL;
     }
