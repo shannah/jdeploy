@@ -126,6 +126,18 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         setTitle("Install "+appInfo.getTitle()+" "+npmPackageVersion().getVersion());
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
+        // Set window icon
+        File iconFile = installationSettings.getApplicationIcon();
+        if (iconFile != null && iconFile.exists()) {
+            try {
+                ImageIcon icon = new ImageIcon(iconFile.toURI().toURL());
+                setIconImage(icon.getImage());
+            } catch (Exception ex) {
+                // Log but don't fail - fall back to default icon
+                System.err.println("Warning: Could not load application icon for installer window: " + ex.getMessage());
+            }
+        }
+
         installButton = new JButton("Install");
         installButton.addActionListener(evt->{
             fireEvent(new InstallationFormEvent(InstallationFormEvent.Type.InstallClicked));
