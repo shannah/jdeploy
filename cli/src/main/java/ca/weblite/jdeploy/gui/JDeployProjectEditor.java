@@ -1226,52 +1226,31 @@ public class JDeployProjectEditor {
 
         // JBR Variant field
         mainFields.jbrVariant = detailsPanel.getJbrVariant();
-        mainFields.jbrVariant.setToolTipText("JBR variant to use. JCEF includes Chromium Embedded Framework for embedded browsers. SDK variants include development tools.");
+        mainFields.jbrVariant.setToolTipText("JBR variant to use. Default uses standard or standard+SDK based on whether JDK is required. JCEF includes Chromium Embedded Framework for embedded browsers.");
 
         // Load existing value from package.json
         if (jdeploy.has("jbrVariant")) {
             String variant = jdeploy.getString("jbrVariant");
-            switch(variant) {
-                case "jcef":
-                    mainFields.jbrVariant.setSelectedItem("JCEF (Recommended)");
-                    break;
-                case "standard":
-                    mainFields.jbrVariant.setSelectedItem("Standard");
-                    break;
-                case "sdk":
-                    mainFields.jbrVariant.setSelectedItem("SDK");
-                    break;
-                case "sdk_jcef":
-                    mainFields.jbrVariant.setSelectedItem("SDK + JCEF");
-                    break;
-                default:
-                    mainFields.jbrVariant.setSelectedItem("JCEF (Recommended)");
+            if ("jcef".equals(variant)) {
+                mainFields.jbrVariant.setSelectedItem("JCEF");
+            } else {
+                // For any other variant (standard, sdk, sdk_jcef), show as Default
+                // and remove from package.json to use automatic selection
+                mainFields.jbrVariant.setSelectedItem("Default");
+                jdeploy.remove("jbrVariant");
             }
         } else {
-            mainFields.jbrVariant.setSelectedItem("JCEF (Recommended)");
+            mainFields.jbrVariant.setSelectedItem("Default");
         }
 
         mainFields.jbrVariant.addItemListener(evt -> {
             String selected = (String) mainFields.jbrVariant.getSelectedItem();
-            String variantValue = null;
 
-            switch(selected) {
-                case "JCEF (Recommended)":
-                    variantValue = "jcef";
-                    break;
-                case "Standard":
-                    variantValue = "standard";
-                    break;
-                case "SDK":
-                    variantValue = "sdk";
-                    break;
-                case "SDK + JCEF":
-                    variantValue = "sdk_jcef";
-                    break;
-            }
-
-            if (variantValue != null) {
-                jdeploy.put("jbrVariant", variantValue);
+            if ("Default".equals(selected)) {
+                // Remove jbrVariant to use automatic selection based on jdk requirement
+                jdeploy.remove("jbrVariant");
+            } else if ("JCEF".equals(selected)) {
+                jdeploy.put("jbrVariant", "jcef");
             }
             setModified();
         });

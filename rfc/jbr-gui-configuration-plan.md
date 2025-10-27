@@ -72,19 +72,15 @@ This simplification is intentional because:
 - **Label**: "JBR Variant"
 - **Type**: JComboBox
 - **Options**:
-  - "JCEF (Recommended)"
-  - "Standard"
-  - "SDK"
-  - "SDK + JCEF"
-- **Default**: "JCEF (Recommended)"
-- **Tooltip**: "JBR variant to use. JCEF includes Chromium Embedded Framework for embedded browsers. SDK variants include development tools."
+  - "Default"
+  - "JCEF"
+- **Default**: "Default"
+- **Tooltip**: "JBR variant to use. Default uses standard or standard+SDK based on whether JDK is required. JCEF includes Chromium Embedded Framework for embedded browsers."
 - **Visibility**: Only visible when JDK Provider is set to "JetBrains Runtime (JBR)"
 
 **Behavior**:
-- When "JCEF (Recommended)" is selected, writes "jcef" to `jdeploy.jbrVariant`
-- When "Standard" is selected, writes "standard" to `jdeploy.jbrVariant`
-- When "SDK" is selected, writes "sdk" to `jdeploy.jbrVariant`
-- When "SDK + JCEF" is selected, writes "sdk_jcef" to `jdeploy.jbrVariant`
+- When "Default" is selected, the `jbrVariant` field is not written to package.json (or removed if present). The launcher will automatically choose between standard and standard+SDK based on whether "jdk" is selected.
+- When "JCEF" is selected, writes "jcef" to `jdeploy.jbrVariant`
 - If JDK Provider is not JBR, this field is hidden and the `jbrVariant` property is removed from package.json
 
 ### Layout
@@ -498,6 +494,14 @@ private void updateJbrVariantVisibility() {
 
 ## Implementation Summary
 
+### UPDATE (2025-10-26): Simplified JBR Variant Options
+
+The JBR variant dropdown has been simplified from four options to two:
+- **"Default"**: No `jbrVariant` field in package.json. The launcher will automatically choose between standard and standard+SDK based on whether "jdk" is required.
+- **"JCEF"**: Explicitly sets `"jbrVariant": "jcef"` for applications requiring the Chromium Embedded Framework.
+
+This simplification reflects the most common use cases and makes the UI less complex while maintaining flexibility for advanced users who can still manually edit package.json.
+
 ### What Was Implemented
 
 The implementation successfully added JBR configuration GUI fields to the JDeployProjectEditor with the following components:
@@ -539,10 +543,8 @@ The implementation successfully added JBR configuration GUI fields to the JDeplo
 **Value Mapping:**
 - GUI "Auto (Recommended)" ↔ package.json: field not present or removed
 - GUI "JetBrains Runtime (JBR)" ↔ package.json: `"jdkProvider": "jbr"`
-- GUI "JCEF (Recommended)" ↔ package.json: `"jbrVariant": "jcef"`
-- GUI "Standard" ↔ package.json: `"jbrVariant": "standard"`
-- GUI "SDK" ↔ package.json: `"jbrVariant": "sdk"`
-- GUI "SDK + JCEF" ↔ package.json: `"jbrVariant": "sdk_jcef"`
+- GUI "Default" ↔ package.json: `jbrVariant` field not present or removed (launcher will use standard or standard+SDK based on "jdk" selection)
+- GUI "JCEF" ↔ package.json: `"jbrVariant": "jcef"`
 
 **Conditional Visibility:**
 The JBR Variant field and its label are dynamically shown/hidden based on JDK Provider selection. This is implemented by:

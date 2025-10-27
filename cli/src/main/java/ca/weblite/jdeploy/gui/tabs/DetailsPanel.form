@@ -317,10 +317,8 @@
             </constraints>
             <properties>
               <model>
-                <item value="JCEF (Recommended)"/>
-                <item value="Standard"/>
-                <item value="SDK"/>
-                <item value="SDK + JCEF"/>
+                <item value="Default"/>
+                <item value="JCEF"/>
               </model>
             </properties>
           </component>

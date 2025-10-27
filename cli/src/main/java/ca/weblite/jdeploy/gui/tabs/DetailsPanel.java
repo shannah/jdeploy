@@ -234,10 +234,8 @@ public class DetailsPanel {
         panel4.add(label11, cc.xy(1, 13));
         jbrVariant = new JComboBox();
         final DefaultComboBoxModel defaultComboBoxModel3 = new DefaultComboBoxModel();
-        defaultComboBoxModel3.addElement("JCEF (Recommended)");
-        defaultComboBoxModel3.addElement("Standard");
-        defaultComboBoxModel3.addElement("SDK");
-        defaultComboBoxModel3.addElement("SDK + JCEF");
+        defaultComboBoxModel3.addElement("Default");
+        defaultComboBoxModel3.addElement("JCEF");
         jbrVariant.setModel(defaultComboBoxModel3);
         panel4.add(jbrVariant, cc.xy(3, 13));
         final JLabel label12 = new JLabel();
