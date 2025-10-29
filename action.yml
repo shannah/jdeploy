@@ -27,6 +27,13 @@ inputs:
     description: Optional target repository where to publish releases.
     required: false
     default: ${{ github.repository }}
+  require_existing_jdeploy_tag:
+    description: |
+      Fail if jdeploy tag doesn't exist (strict mode for established projects).
+      Set to 'true' for projects that should always have a jdeploy tag.
+      This prevents accidental data loss by ensuring package-info.json exists before updating.
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -202,6 +209,7 @@ runs:
         GITHUB_REPOSITORY=${{ inputs.target_repository }} $jdeploy_exec github-prepare-release
       env:
         GH_TOKEN: ${{ github.actor }}:${{ inputs.github_token }}
+        JDEPLOY_REQUIRE_EXISTING_TAG: ${{ inputs.require_existing_jdeploy_tag }}
 
     - name: Prepare Installer Bundles for Tag
       if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'tag' }}
@@ -218,6 +226,7 @@ runs:
         GITHUB_REPOSITORY=${{ inputs.target_repository }} $jdeploy_exec github-prepare-release
       env:
         GH_TOKEN: ${{ github.actor }}:${{ inputs.github_token }}
+        JDEPLOY_REQUIRE_EXISTING_TAG: ${{ inputs.require_existing_jdeploy_tag }}
 
     - name: Publish package-info.json to GitHub
       uses: softprops/action-gh-release@v2

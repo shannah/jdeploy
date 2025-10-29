@@ -80,9 +80,12 @@ class GitHubPublishDriverTest {
     
     @Mock
     private ca.weblite.jdeploy.services.DefaultBundleService defaultBundleService;
-    
+
     @Mock
     private ca.weblite.jdeploy.factories.JDeployProjectFactory projectFactory;
+
+    @Mock
+    private ca.weblite.jdeploy.environment.Environment environment;
 
     @TempDir
     File tempDir;
@@ -107,7 +110,8 @@ class GitHubPublishDriverTest {
                 downloadPageSettingsService,
                 platformBundleGenerator,
                 defaultBundleService,
-                projectFactory
+                projectFactory,
+                environment
         );
 
         packageJsonFile = new File(tempDir, "package.json");
