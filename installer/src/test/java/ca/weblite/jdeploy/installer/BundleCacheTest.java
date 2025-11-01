@@ -62,7 +62,7 @@ public class BundleCacheTest {
 
         // First install - should query registry and download bundle
         File result = DefaultInstallationContext.downloadJDeployBundleForCode(
-            bundleCode, "1.0.0", mockAppBundle, testHome, mockRegistry, mockDownloader
+            bundleCode, "1.0.0", mockAppBundle, testHome, mockRegistry, mockDownloader, null
         );
 
         // Verify registry was queried and bundle was downloaded
@@ -107,7 +107,7 @@ public class BundleCacheTest {
         };
 
         DefaultInstallationContext.downloadJDeployBundleForCode(
-            bundleCode, "1.0.0", mockAppBundle, testHome, mockRegistry, mockDownloader
+            bundleCode, "1.0.0", mockAppBundle, testHome, mockRegistry, mockDownloader, null
         );
 
         assertTrue("Registry should be queried on first install", registryQueryCalled);
@@ -124,7 +124,7 @@ public class BundleCacheTest {
         };
 
         File result = DefaultInstallationContext.downloadJDeployBundleForCode(
-            bundleCode, "1.0.0", mockAppBundle, testHome, failingRegistry, mockDownloader
+            bundleCode, "1.0.0", mockAppBundle, testHome, failingRegistry, mockDownloader, null
         );
 
         // Verify cache was used
@@ -152,7 +152,7 @@ public class BundleCacheTest {
         };
 
         File result = DefaultInstallationContext.downloadJDeployBundleForCode(
-            bundleCode, "1.0.0", mockAppBundle, testHome, mock404Registry, mockDownloader
+            bundleCode, "1.0.0", mockAppBundle, testHome, mock404Registry, mockDownloader, null
         );
 
         // Verify registry was queried
@@ -190,7 +190,7 @@ public class BundleCacheTest {
         };
 
         File result = DefaultInstallationContext.downloadJDeployBundleForCode(
-            bundleCode, "1.0.0", mockAppBundle, testHome, failingRegistry, mockDownloader
+            bundleCode, "1.0.0", mockAppBundle, testHome, failingRegistry, mockDownloader, null
         );
 
         // Verify registry was queried
@@ -222,7 +222,7 @@ public class BundleCacheTest {
 
         try {
             DefaultInstallationContext.downloadJDeployBundleForCode(
-                bundleCode, "1.0.0", mockAppBundle, testHome, mockRegistry, failingDownloader
+                bundleCode, "1.0.0", mockAppBundle, testHome, mockRegistry, failingDownloader, null
             );
             fail("Should throw IOException when bundle download fails");
         } catch (IOException e) {
@@ -269,12 +269,12 @@ public class BundleCacheTest {
 
         // Install first bundle
         DefaultInstallationContext.downloadJDeployBundleForCode(
-            bundleCode1, "1.0.0", mockAppBundle, testHome, mockRegistry, mockDownloader
+            bundleCode1, "1.0.0", mockAppBundle, testHome, mockRegistry, mockDownloader, null
         );
 
         // Install second bundle
         DefaultInstallationContext.downloadJDeployBundleForCode(
-            bundleCode2, "1.0.0", mockAppBundle, testHome, mockRegistry, mockDownloader
+            bundleCode2, "1.0.0", mockAppBundle, testHome, mockRegistry, mockDownloader, null
         );
 
         // Verify both are cached
@@ -308,7 +308,7 @@ public class BundleCacheTest {
         BundleDownloader mockDownloader = (code, version, appBundle) -> createMockZipBundle();
 
         File result = DefaultInstallationContext.downloadJDeployBundleForCode(
-            bundleCode, "1.0.0", mockAppBundle, testHome, mockRegistry, mockDownloader
+            bundleCode, "1.0.0", mockAppBundle, testHome, mockRegistry, mockDownloader, null
         );
 
         assertNotNull("Result should not be null", result);
@@ -320,6 +320,119 @@ public class BundleCacheTest {
         assertEquals("my-npm-package", cachedInfo.getProjectSource());
         assertEquals("my-npm-package", cachedInfo.getPackageName());
         assertFalse("Package name should not contain slash", cachedInfo.getPackageName().contains("/"));
+    }
+
+    /**
+     * Test GitHub direct download with mocked GitHub downloader.
+     */
+    @Test
+    public void testGitHubDirectDownload() throws IOException {
+        String bundleCode = "GITHUB01";
+
+        // Mock registry lookup returning GitHub project
+        RegistryLookup mockRegistry = (code) -> {
+            registryQueryCalled = true;
+            return new BundleInfo("https://github.com/user/test-app", "test-app", System.currentTimeMillis());
+        };
+
+        // Track which GitHub tag was used
+        final String[] usedTag = new String[1];
+
+        // Mock GitHub downloader
+        GitHubDownloader mockGitHubDownloader = (owner, repo, tag, filename) -> {
+            assertEquals("user", owner);
+            assertEquals("test-app", repo);
+            assertEquals("jdeploy-files.zip", filename);
+            usedTag[0] = tag;
+            return createMockZipBundle();
+        };
+
+        // Mock bundle downloader (should NOT be called if GitHub download succeeds)
+        BundleDownloader failingBundleDownloader = (code, version, appBundle) -> {
+            bundleDownloadCalled = true;
+            fail("Bundle downloader should NOT be called when GitHub download succeeds");
+            return null;
+        };
+
+        File result = DefaultInstallationContext.downloadJDeployBundleForCode(
+            bundleCode, "1.0.0", mockAppBundle, testHome, mockRegistry, failingBundleDownloader, mockGitHubDownloader
+        );
+
+        // Verify GitHub download was used
+        assertNotNull("GitHub download tag should be set", usedTag[0]);
+        assertTrue("Should try version tag first", usedTag[0].equals("v1.0.0") || usedTag[0].equals("jdeploy"));
+        assertFalse("Bundle downloader should NOT be called", bundleDownloadCalled);
+        assertNotNull("Result should not be null", result);
+        assertTrue("Result should exist", result.exists());
+    }
+
+    /**
+     * Test GitHub download fallback to registry when GitHub fails.
+     */
+    @Test
+    public void testGitHubDownloadFallbackToRegistry() throws IOException {
+        String bundleCode = "GITHUB02";
+
+        // Mock registry lookup returning GitHub project
+        RegistryLookup mockRegistry = (code) -> {
+            registryQueryCalled = true;
+            return new BundleInfo("https://github.com/user/failing-app", "failing-app", System.currentTimeMillis());
+        };
+
+        // Mock GitHub downloader that always fails
+        GitHubDownloader failingGitHubDownloader = (owner, repo, tag, filename) -> {
+            throw new IOException("GitHub release not found: HTTP 404");
+        };
+
+        // Mock bundle downloader (should be called as fallback)
+        BundleDownloader mockBundleDownloader = (code, version, appBundle) -> {
+            bundleDownloadCalled = true;
+            return createMockZipBundle();
+        };
+
+        File result = DefaultInstallationContext.downloadJDeployBundleForCode(
+            bundleCode, "1.0.0", mockAppBundle, testHome, mockRegistry, mockBundleDownloader, failingGitHubDownloader
+        );
+
+        // Verify fallback to registry
+        assertTrue("Registry should be queried", registryQueryCalled);
+        assertTrue("Bundle downloader should be called as fallback", bundleDownloadCalled);
+        assertNotNull("Result should not be null", result);
+    }
+
+    /**
+     * Test NPM package does NOT attempt GitHub download.
+     */
+    @Test
+    public void testNpmPackageSkipsGitHubDownload() throws IOException {
+        String bundleCode = "NPM002";
+
+        // Mock registry lookup returning NPM package (not GitHub)
+        RegistryLookup mockRegistry = (code) -> {
+            registryQueryCalled = true;
+            return new BundleInfo("my-npm-package", "my-npm-package", System.currentTimeMillis());
+        };
+
+        // Mock GitHub downloader (should NOT be called for NPM packages)
+        GitHubDownloader failingGitHubDownloader = (owner, repo, tag, filename) -> {
+            fail("GitHub downloader should NOT be called for NPM packages");
+            return null;
+        };
+
+        // Mock bundle downloader (should be called directly)
+        BundleDownloader mockBundleDownloader = (code, version, appBundle) -> {
+            bundleDownloadCalled = true;
+            return createMockZipBundle();
+        };
+
+        File result = DefaultInstallationContext.downloadJDeployBundleForCode(
+            bundleCode, "1.0.0", mockAppBundle, testHome, mockRegistry, mockBundleDownloader, failingGitHubDownloader
+        );
+
+        // Verify NPM package workflow
+        assertTrue("Registry should be queried", registryQueryCalled);
+        assertTrue("Bundle downloader should be called", bundleDownloadCalled);
+        assertNotNull("Result should not be null", result);
     }
 
     /**

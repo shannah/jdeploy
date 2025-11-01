@@ -250,7 +250,7 @@ public class DefaultInstallationContext implements InstallationContext {
      * @throws IOException If download or extraction fails
      */
     public static File downloadJDeployBundleForCode(String code, String version, File appBundle) throws IOException {
-        return downloadJDeployBundleForCode(code, version, appBundle, null, null, null);
+        return downloadJDeployBundleForCode(code, version, appBundle, null, null, null, null);
     }
 
     /**
@@ -265,7 +265,7 @@ public class DefaultInstallationContext implements InstallationContext {
      * @throws IOException If download or extraction fails
      */
     static File downloadJDeployBundleForCode(String code, String version, File appBundle, File jdeployHome) throws IOException {
-        return downloadJDeployBundleForCode(code, version, appBundle, jdeployHome, null, null, isPrerelease(appBundle));
+        return downloadJDeployBundleForCode(code, version, appBundle, jdeployHome, null, null, null, isPrerelease(appBundle));
     }
 
     /**
@@ -281,7 +281,7 @@ public class DefaultInstallationContext implements InstallationContext {
      * @throws IOException If download or extraction fails
      */
     static File downloadJDeployBundleForCode(String code, String version, File appBundle, File jdeployHome, boolean prerelease) throws IOException {
-        return downloadJDeployBundleForCode(code, version, appBundle, jdeployHome, null, null, prerelease);
+        return downloadJDeployBundleForCode(code, version, appBundle, jdeployHome, null, null, null, prerelease);
     }
 
     /**
@@ -294,6 +294,7 @@ public class DefaultInstallationContext implements InstallationContext {
      * @param jdeployHome The jDeploy home directory (null to use default)
      * @param registryLookup Custom registry lookup implementation (null to use default)
      * @param bundleDownloader Custom bundle downloader implementation (null to use default)
+     * @param githubDownloader Custom GitHub downloader implementation (null to use default)
      * @return The extracted .jdeploy-files directory
      * @throws IOException If download or extraction fails
      */
@@ -303,8 +304,9 @@ public class DefaultInstallationContext implements InstallationContext {
             File appBundle,
             File jdeployHome,
             RegistryLookup registryLookup,
-            BundleDownloader bundleDownloader) throws IOException {
-        return downloadJDeployBundleForCode(code, version, appBundle, jdeployHome, registryLookup, bundleDownloader, isPrerelease(appBundle));
+            BundleDownloader bundleDownloader,
+            GitHubDownloader githubDownloader) throws IOException {
+        return downloadJDeployBundleForCode(code, version, appBundle, jdeployHome, registryLookup, bundleDownloader, githubDownloader, isPrerelease(appBundle));
     }
 
     /**
@@ -317,6 +319,7 @@ public class DefaultInstallationContext implements InstallationContext {
      * @param jdeployHome The jDeploy home directory (null to use default)
      * @param registryLookup Custom registry lookup implementation (null to use default)
      * @param bundleDownloader Custom bundle downloader implementation (null to use default)
+     * @param githubDownloader Custom GitHub downloader implementation (null to use default)
      * @param prerelease Whether to request prerelease versions
      * @return The extracted .jdeploy-files directory
      * @throws IOException If download or extraction fails
@@ -328,6 +331,7 @@ public class DefaultInstallationContext implements InstallationContext {
             File jdeployHome,
             RegistryLookup registryLookup,
             BundleDownloader bundleDownloader,
+            GitHubDownloader githubDownloader,
             boolean prerelease) throws IOException {
 
         // Use default implementations if not provided
@@ -357,6 +361,27 @@ public class DefaultInstallationContext implements InstallationContext {
         if (bundleDownloader == null) {
             final boolean prereleaseFlag = prerelease;
             bundleDownloader = (c, v, a) -> URLUtil.openStream(getJDeployBundleURLForCode(c, v, a, JDEPLOY_REGISTRY, prereleaseFlag));
+        }
+        if (githubDownloader == null) {
+            // Default implementation: direct HTTP download from GitHub releases
+            githubDownloader = (owner, repo, tag, filename) -> {
+                String downloadUrl = buildGitHubReleaseUrl(owner, repo, tag, filename);
+                URL url = new URL(downloadUrl);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+
+                int responseCode = conn.getResponseCode();
+
+                if (responseCode == 404) {
+                    throw new IOException("GitHub release not found: HTTP 404");
+                }
+
+                if (responseCode != 200) {
+                    throw new IOException("GitHub download failed with HTTP " + responseCode);
+                }
+
+                return conn.getInputStream();
+            };
         }
 
         // Build list of registries to try (primary + fallbacks)
@@ -391,7 +416,9 @@ public class DefaultInstallationContext implements InstallationContext {
             }
         }
 
-        // Step 4: Download the bundle files (with fallback support)
+        // Step 3.5: Try GitHub direct download for GitHub-hosted projects
+        // This happens AFTER we have bundleInfo (from cache or registry lookup)
+        // and BEFORE we try the registry download
         File destDirectory = File.createTempFile("jdeploy-files-download", ".tmp");
         destDirectory.delete();
         Runtime.getRuntime().addShutdownHook(new Thread(()->{
@@ -399,6 +426,22 @@ public class DefaultInstallationContext implements InstallationContext {
                 FileUtils.deleteDirectory(destDirectory);
             } catch (Exception ex){}
         }));
+
+        if (bundleInfo != null && isGitHubProject(bundleInfo.getProjectSource())) {
+            System.out.println("Detected GitHub project, attempting direct download from GitHub releases");
+            try {
+                File result = downloadFromGitHubRelease(bundleInfo.getProjectSource(), version, destDirectory, prerelease, githubDownloader);
+                System.out.println("Successfully downloaded bundle from GitHub releases");
+                return result;
+            } catch (IOException e) {
+                System.err.println("GitHub direct download failed: " + e.getMessage());
+                System.err.println("Falling back to registry download...");
+                // Continue to registry download below
+            }
+        }
+
+        // Step 4: Download the bundle files from registry (with fallback support)
+        // This is now the final fallback for both GitHub and non-GitHub projects
         File destFile = new File(destDirectory, "jdeploy-files.zip");
 
         List<String> attemptedDownloadUrls = new ArrayList<>();
@@ -614,5 +657,144 @@ public class DefaultInstallationContext implements InstallationContext {
         } catch (ParserConfigurationException ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    /**
+     * Check if a project source URL is a GitHub project.
+     *
+     * @param projectSource The project source URL (e.g., from BundleInfo)
+     * @return true if the project is hosted on GitHub
+     */
+    private static boolean isGitHubProject(String projectSource) {
+        return projectSource != null && projectSource.startsWith(GITHUB_URL);
+    }
+
+    /**
+     * Extract the owner/repo path from a GitHub project URL.
+     *
+     * @param projectSource GitHub URL like "https://github.com/owner/repo" or "https://github.com/owner/repo.git"
+     * @return "owner/repo" or null if not a valid GitHub URL
+     */
+    private static String extractGitHubRepoPath(String projectSource) {
+        if (projectSource == null || !projectSource.startsWith(GITHUB_URL)) {
+            return null;
+        }
+
+        String path = projectSource.substring(GITHUB_URL.length());
+
+        // Remove trailing slash
+        if (path.endsWith("/")) {
+            path = path.substring(0, path.length() - 1);
+        }
+
+        // Remove .git suffix
+        if (path.endsWith(".git")) {
+            path = path.substring(0, path.length() - 4);
+        }
+
+        return path;
+    }
+
+    /**
+     * Normalize a version string to include the 'v' prefix for GitHub release tags.
+     *
+     * @param version Version string like "1.2.3" or "v1.2.3"
+     * @return Version with 'v' prefix like "v1.2.3"
+     */
+    private static String normalizeVersionTag(String version) {
+        if (version == null || version.isEmpty()) {
+            return version;
+        }
+
+        if (version.startsWith("v")) {
+            return version;
+        }
+
+        return "v" + version;
+    }
+
+    /**
+     * Build a GitHub release download URL.
+     *
+     * @param owner Repository owner
+     * @param repo Repository name
+     * @param tag Release tag
+     * @param filename File to download
+     * @return Complete GitHub release download URL
+     */
+    private static String buildGitHubReleaseUrl(String owner, String repo, String tag, String filename) {
+        return GITHUB_URL + owner + "/" + repo + "/releases/download/" + tag + "/" + filename;
+    }
+
+    /**
+     * Download jDeploy bundle files directly from GitHub releases.
+     * Tries version-specific release first, then falls back to 'jdeploy' tag.
+     *
+     * @param projectSource GitHub project URL
+     * @param version Version to download
+     * @param destDirectory Destination directory for extraction
+     * @param prerelease Whether this is a prerelease build
+     * @param githubDownloader The GitHub downloader to use (for testing/mocking)
+     * @return Extracted .jdeploy-files directory
+     * @throws IOException if download fails from all GitHub sources
+     */
+    private static File downloadFromGitHubRelease(String projectSource, String version, File destDirectory, boolean prerelease, GitHubDownloader githubDownloader) throws IOException {
+        String repoPath = extractGitHubRepoPath(projectSource);
+        if (repoPath == null || !repoPath.contains("/")) {
+            throw new IOException("Invalid GitHub repository path: " + projectSource);
+        }
+
+        String[] parts = repoPath.split("/", 2);
+        String owner = parts[0];
+        String repo = parts[1];
+
+        List<String> tagsToTry = new ArrayList<>();
+
+        // Try version-specific tag first
+        if (version != null && !version.isEmpty()) {
+            tagsToTry.add(normalizeVersionTag(version));
+        }
+
+        // Fallback to generic 'jdeploy' tag
+        tagsToTry.add("jdeploy");
+
+        File destFile = new File(destDirectory, "jdeploy-files.zip");
+        IOException lastException = null;
+
+        for (String tag : tagsToTry) {
+            try {
+                System.out.println("Attempting to download from GitHub release tag: " + tag);
+
+                // Use the injected downloader
+                try (InputStream inputStream = githubDownloader.downloadFromRelease(owner, repo, tag, "jdeploy-files.zip")) {
+                    FileUtils.copyInputStreamToFile(inputStream, destFile);
+                }
+
+                System.out.println("Successfully downloaded bundle from GitHub release: " + tag);
+
+                // Extract and return
+                ArchiveUtil.extract(destFile, destDirectory, "");
+                return findDirectoryByNameRecursive(destDirectory, ".jdeploy-files");
+
+            } catch (IOException e) {
+                lastException = e;
+
+                // Check if it's a 404 (not found) - continue to next tag
+                if (e.getMessage() != null && e.getMessage().contains("404")) {
+                    System.err.println("GitHub release not found at tag '" + tag + "', trying next tag...");
+                    continue;
+                }
+
+                // Other errors - log and continue
+                System.err.println("Failed to download from GitHub tag '" + tag + "': " + e.getMessage());
+            }
+        }
+
+        // All GitHub attempts failed
+        if (lastException != null) {
+            throw new IOException("Failed to download from GitHub releases after trying all tags", lastException);
+        }
+
+        throw new IOException("Failed to download from GitHub releases: no tags to try");
     }
 }
