@@ -140,11 +140,12 @@ public class GitHubPublishDriverIntegrationTest {
         ca.weblite.jdeploy.services.PlatformBundleGenerator platformBundleGenerator = mock(ca.weblite.jdeploy.services.PlatformBundleGenerator.class);
         ca.weblite.jdeploy.services.DefaultBundleService defaultBundleService = mock(ca.weblite.jdeploy.services.DefaultBundleService.class);
         ca.weblite.jdeploy.factories.JDeployProjectFactory projectFactory = mock(ca.weblite.jdeploy.factories.JDeployProjectFactory.class);
-        
+        ca.weblite.jdeploy.environment.Environment githubDriverEnvironment = mock(ca.weblite.jdeploy.environment.Environment.class);
+
         when(cheerpjServiceFactory.create(any())).thenReturn(cheerpjService);
         when(cheerpjService.isEnabled()).thenReturn(false);
         when(packageNameService.getFullPackageName(any(), any())).thenReturn("test-app");
-        
+
         githubDriver = new GitHubPublishDriver(
             baseDriver,
             bundleCodeService,
@@ -154,7 +155,8 @@ public class GitHubPublishDriverIntegrationTest {
             downloadPageSettingsService,
             platformBundleGenerator,
             defaultBundleService,
-            projectFactory
+            projectFactory,
+            githubDriverEnvironment
         );
         
         // Setup test target

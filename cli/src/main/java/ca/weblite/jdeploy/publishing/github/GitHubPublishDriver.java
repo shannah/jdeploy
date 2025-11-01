@@ -3,6 +3,7 @@ package ca.weblite.jdeploy.publishing.github;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
+import ca.weblite.jdeploy.environment.Environment;
 import ca.weblite.jdeploy.factories.CheerpjServiceFactory;
 import ca.weblite.jdeploy.helpers.GithubReleaseNotesMutator;
 import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
@@ -26,6 +27,8 @@ import ca.weblite.tools.io.IOUtil;
 import ca.weblite.tools.io.URLUtil;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
+
+import java.nio.charset.StandardCharsets;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -58,10 +61,12 @@ public class GitHubPublishDriver implements PublishDriverInterface {
     private final DownloadPageSettingsService downloadPageSettingsService;
 
     private final PlatformBundleGenerator platformBundleGenerator;
-    
+
     private final DefaultBundleService defaultBundleService;
-    
+
     private final JDeployProjectFactory projectFactory;
+
+    private final Environment environment;
 
     @Inject
     public GitHubPublishDriver(
@@ -73,7 +78,8 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             DownloadPageSettingsService downloadPageSettingsService,
             PlatformBundleGenerator platformBundleGenerator,
             DefaultBundleService defaultBundleService,
-            JDeployProjectFactory projectFactory
+            JDeployProjectFactory projectFactory,
+            Environment environment
     ) {
         this.baseDriver = baseDriver;
         this.bundleCodeService = bundleCodeService;
@@ -84,6 +90,7 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         this.platformBundleGenerator = platformBundleGenerator;
         this.defaultBundleService = defaultBundleService;
         this.projectFactory = projectFactory;
+        this.environment = environment;
     }
 
     @Override
@@ -165,10 +172,22 @@ public class GitHubPublishDriver implements PublishDriverInterface {
 
         saveGithubReleaseFiles(context, target);
         PackageInfoBuilder builder = new PackageInfoBuilder();
-        InputStream oldPackageInfo = loadPackageInfo(context, target);
+        InputStream oldPackageInfo = loadPackageInfo(context, target); // May throw IOException now
         if (oldPackageInfo != null) {
-            builder.load(oldPackageInfo);
+            try {
+                builder.load(oldPackageInfo);
+                context.out().println("Loaded existing package-info.json with version history");
+            } catch (Exception ex) {
+                throw new IOException(
+                    "CRITICAL: Failed to parse existing package-info.json. " +
+                    "The file exists but is corrupted or invalid. " +
+                    "Cannot proceed as this would cause data loss.",
+                    ex
+                );
+            }
         } else {
+            // Only reached if jdeploy tag doesn't exist and strict mode is off
+            context.out().println("Creating new package-info.json for first release");
             builder.setCreatedTime();
         }
         builder.setModifiedTime();
@@ -178,10 +197,12 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         if (!PrereleaseHelper.isPrereleaseVersion(version)) {
             builder.setLatestVersion(version);
         }
-        builder.save(
-                Files.newOutputStream(new File(context.getGithubReleaseFilesDir(),
-                        "package-info.json").toPath())
-        );
+
+        File packageInfoFile = new File(context.getGithubReleaseFilesDir(), "package-info.json");
+        builder.save(Files.newOutputStream(packageInfoFile.toPath()));
+
+        // Verify the saved file
+        verifyPackageInfoIntegrity(context, packageInfoFile, version, oldPackageInfo != null);
         // Trigger register of package name
 
         bundleCodeService.fetchJdeployBundleCode(
@@ -298,16 +319,144 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         context.out().println("Assets copied to " + releaseFilesDir);
     }
 
-    private InputStream loadPackageInfo(PublishingContext context, PublishTargetInterface target) {
+    private InputStream loadPackageInfo(PublishingContext context, PublishTargetInterface target) throws IOException {
         String packageInfoUrl = target.getUrl() + "/releases/download/jdeploy/package-info.json";
-        try {
-            return URLUtil.openStream(new URL(packageInfoUrl));
-        } catch (IOException ex) {
-            context.out().println(
-                    "Failed to open stream for existing package-info.json at " + packageInfoUrl +
-                            ". Perhaps it doesn't exist yet"
+
+        // First check if jdeploy tag exists
+        boolean jdeployTagExists = checkJdeployTagExists(context, target);
+
+        int maxRetries = 3;
+        int retryDelayMs = 2000;
+        IOException lastException = null;
+
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                InputStream stream = URLUtil.openStream(new URL(packageInfoUrl));
+                // Validate that we can parse it as JSON
+                validatePackageInfoJson(stream);
+                // Re-open stream since validation consumed it
+                return URLUtil.openStream(new URL(packageInfoUrl));
+            } catch (IOException ex) {
+                lastException = ex;
+                if (attempt < maxRetries) {
+                    context.out().println(
+                        "Attempt " + attempt + "/" + maxRetries +
+                        " failed to load package-info.json from " + packageInfoUrl +
+                        ", retrying in " + retryDelayMs + "ms... Error: " + ex.getMessage()
+                    );
+                    try {
+                        Thread.sleep(retryDelayMs);
+                        retryDelayMs *= 2; // Exponential backoff
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("Interrupted while retrying package-info.json load", ie);
+                    }
+                }
+            }
+        }
+
+        // All retries exhausted
+        if (jdeployTagExists) {
+            // jdeploy tag exists but we can't load package-info.json - CRITICAL ERROR
+            throw new IOException(
+                "CRITICAL: The 'jdeploy' tag exists in the repository but package-info.json " +
+                "could not be retrieved or parsed after " + maxRetries + " attempts at " +
+                packageInfoUrl + ". This indicates a serious issue. " +
+                "Cannot proceed as this would cause data loss. " +
+                "Please investigate the jdeploy release and its assets. " +
+                "Last error: " + (lastException != null ? lastException.getMessage() : "unknown"),
+                lastException
             );
-            return null;
+        }
+
+        // Check if strict mode is enabled (require jdeploy tag to exist)
+        boolean requireExistingTag = "true".equals(environment.get("JDEPLOY_REQUIRE_EXISTING_TAG"));
+        if (requireExistingTag) {
+            throw new IOException(
+                "CRITICAL: jdeploy tag does not exist but JDEPLOY_REQUIRE_EXISTING_TAG is set to true. " +
+                "This project requires an existing jdeploy tag. " +
+                "If this is the first release, set require_existing_jdeploy_tag: 'false' in your workflow.",
+                lastException
+            );
+        }
+
+        // jdeploy tag doesn't exist - this is likely the first release
+        context.out().println(
+            "jdeploy tag not found at " + packageInfoUrl +
+            ". This appears to be the first release, creating new package-info.json"
+        );
+        return null;
+    }
+
+    private boolean checkJdeployTagExists(PublishingContext context, PublishTargetInterface target) {
+        try {
+            String tagsUrl = target.getUrl() + "/releases/tags/jdeploy";
+            HttpURLConnection conn = (HttpURLConnection) new URL(tagsUrl).openConnection();
+            conn.setRequestMethod("GET");
+            conn.setInstanceFollowRedirects(true);
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+
+            int responseCode = conn.getResponseCode();
+            conn.disconnect();
+
+            return responseCode == 200;
+        } catch (Exception ex) {
+            context.out().println(
+                "Could not check if jdeploy tag exists (assuming it doesn't): " + ex.getMessage()
+            );
+            return false;
+        }
+    }
+
+    private void validatePackageInfoJson(InputStream stream) throws IOException {
+        try {
+            String content = IOUtil.readToString(stream);
+            JSONObject json = new JSONObject(content);
+
+            // Validate required fields
+            if (!json.has("name")) {
+                throw new IOException("package-info.json is missing required 'name' field");
+            }
+            if (!json.has("versions")) {
+                throw new IOException("package-info.json is missing required 'versions' field");
+            }
+
+            // Basic structure validation
+            json.getJSONObject("versions"); // Will throw if not an object
+
+        } catch (org.json.JSONException ex) {
+            throw new IOException("package-info.json is not valid JSON: " + ex.getMessage(), ex);
+        }
+    }
+
+    private void verifyPackageInfoIntegrity(
+        PublishingContext context,
+        File packageInfoFile,
+        String currentVersion,
+        boolean hadPreviousVersions
+    ) throws IOException {
+        try {
+            String content = FileUtils.readFileToString(packageInfoFile, StandardCharsets.UTF_8);
+            JSONObject json = new JSONObject(content);
+
+            // Verify current version was added
+            if (!json.getJSONObject("versions").has(currentVersion)) {
+                throw new IOException(
+                    "Verification failed: package-info.json is missing the current version " + currentVersion
+                );
+            }
+
+            context.out().println(
+                "Verification passed: package-info.json contains " +
+                json.getJSONObject("versions").length() + " version(s)"
+            );
+
+        } catch (org.json.JSONException ex) {
+            throw new IOException(
+                "Verification failed: Generated package-info.json is invalid JSON",
+                ex
+            );
         }
     }
 
