@@ -226,7 +226,14 @@ public class BundleCacheTest {
             );
             fail("Should throw IOException when bundle download fails");
         } catch (IOException e) {
-            assertEquals("Bundle download failed", e.getMessage());
+            // The error message should mention registry URLs and should have the original cause
+            assertTrue("Error message should mention failed registries",
+                e.getMessage().contains("Failed to download bundle from all registries"));
+            assertTrue("Error should have cause set",
+                e.getCause() != null);
+            assertEquals("Cause should be the original download exception",
+                "Bundle download failed",
+                e.getCause().getMessage());
         }
 
         // Verify registry was queried and cached even though download failed

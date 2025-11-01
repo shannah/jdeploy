@@ -21,6 +21,8 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -30,6 +32,45 @@ public class DefaultInstallationContext implements InstallationContext {
             "https://www.jdeploy.com/"
     );
     private static final String GITHUB_URL = "https://github.com/";
+
+    /**
+     * Parse the fallback registries from the jdeploy.registries.fallback system property.
+     * Returns a list of registry URLs in order of preference.
+     */
+    private static List<String> parseFallbackRegistries() {
+        List<String> registries = new ArrayList<>();
+        String fallbackProp = System.getProperty("jdeploy.registries.fallback");
+        if (fallbackProp != null && !fallbackProp.trim().isEmpty()) {
+            String[] urls = fallbackProp.split(",");
+            for (String url : urls) {
+                url = url.trim();
+                if (!url.isEmpty()) {
+                    // Ensure URL ends with /
+                    if (!url.endsWith("/")) {
+                        url = url + "/";
+                    }
+                    registries.add(url);
+                }
+            }
+        }
+        return registries;
+    }
+
+    /**
+     * Check if an IOException represents a non-retryable error.
+     * Non-retryable errors include 404 (not found) and 403 (forbidden/rate limited).
+     */
+    private static boolean isNonRetryableError(IOException ex) {
+        String message = ex.getMessage();
+        if (message == null) {
+            return false;
+        }
+        // Check for HTTP error codes that shouldn't be retried
+        return message.contains("HTTP response code: 404") ||
+               message.contains("HTTP response code: 403") ||
+               message.contains("Server returned HTTP response code: 404") ||
+               message.contains("Server returned HTTP response code: 403");
+    }
 
     private Document appXMLDocument;
     private File cachedInstallFilesDir;
@@ -96,13 +137,21 @@ public class DefaultInstallationContext implements InstallationContext {
     }
 
     private static URL getJDeployBundleURLForCode(String code, String version, File appBundle) {
+        return getJDeployBundleURLForCode(code, version, appBundle, JDEPLOY_REGISTRY);
+    }
+
+    private static URL getJDeployBundleURLForCode(String code, String version, File appBundle, String registryUrl) {
+        return getJDeployBundleURLForCode(code, version, appBundle, registryUrl, isPrerelease(appBundle));
+    }
+
+    private static URL getJDeployBundleURLForCode(String code, String version, File appBundle, String registryUrl, boolean prerelease) {
         try {
-            String prerelease = isPrerelease(appBundle) ? "&prerelease=true" : "";
-            return new URL(JDEPLOY_REGISTRY + "download.php?code=" +
+            String prereleaseParam = prerelease ? "&prerelease=true" : "";
+            return new URL(registryUrl + "download.php?code=" +
                     URLEncoder.encode(code, "UTF-8") +
                     "&version="+URLEncoder.encode(version, "UTF-8") +
                     "&jdeploy_files=true&platform=*" +
-                    prerelease
+                    prereleaseParam
             );
         } catch (UnsupportedEncodingException ex) {
             throw new RuntimeException("UTF-8 Encoding doesn't seem to be supported on this platform.", ex);
@@ -116,19 +165,27 @@ public class DefaultInstallationContext implements InstallationContext {
      * Returns BundleInfo if found, null if not found (404) or on error.
      */
     private static BundleInfo queryRegistryForBundleInfo(String code) {
+        return queryRegistryForBundleInfo(code, JDEPLOY_REGISTRY);
+    }
+
+    /**
+     * Query a specific jDeploy registry to get package metadata for a bundle code.
+     * Returns BundleInfo if found, null if not found (404) or on error.
+     */
+    private static BundleInfo queryRegistryForBundleInfo(String code, String registryBaseUrl) {
         try {
-            URL registryUrl = new URL(JDEPLOY_REGISTRY + "registry/" + URLEncoder.encode(code, "UTF-8"));
+            URL registryUrl = new URL(registryBaseUrl + "registry/" + URLEncoder.encode(code, "UTF-8"));
             HttpURLConnection conn = (HttpURLConnection) registryUrl.openConnection();
             conn.setRequestMethod("GET");
 
             int responseCode = conn.getResponseCode();
             if (responseCode == 404) {
-                System.err.println("Bundle code " + code + " not found in registry");
+                System.err.println("Bundle code " + code + " not found in registry " + registryBaseUrl);
                 return null;
             }
 
             if (responseCode != 200) {
-                System.err.println("Registry lookup failed with HTTP " + responseCode);
+                System.err.println("Registry lookup failed with HTTP " + responseCode + " from " + registryBaseUrl);
                 return null;
             }
 
@@ -166,7 +223,7 @@ public class DefaultInstallationContext implements InstallationContext {
                 return new BundleInfo(projectSource, packageName, System.currentTimeMillis());
             }
         } catch (Exception e) {
-            System.err.println("Failed to query registry for bundle " + code + ": " + e.getMessage());
+            System.err.println("Failed to query registry " + registryBaseUrl + " for bundle " + code + ": " + e.getMessage());
             return null;
         }
     }
@@ -208,7 +265,23 @@ public class DefaultInstallationContext implements InstallationContext {
      * @throws IOException If download or extraction fails
      */
     static File downloadJDeployBundleForCode(String code, String version, File appBundle, File jdeployHome) throws IOException {
-        return downloadJDeployBundleForCode(code, version, appBundle, jdeployHome, null, null);
+        return downloadJDeployBundleForCode(code, version, appBundle, jdeployHome, null, null, isPrerelease(appBundle));
+    }
+
+    /**
+     * Download jDeploy bundle for the given code and version with explicit prerelease flag.
+     * Package-private for testing purposes - allows testing prerelease without modifying global state.
+     *
+     * @param code The bundle code extracted from installer filename
+     * @param version The version string
+     * @param appBundle The app bundle file
+     * @param jdeployHome The jDeploy home directory (null to use default)
+     * @param prerelease Whether to request prerelease versions
+     * @return The extracted .jdeploy-files directory
+     * @throws IOException If download or extraction fails
+     */
+    static File downloadJDeployBundleForCode(String code, String version, File appBundle, File jdeployHome, boolean prerelease) throws IOException {
+        return downloadJDeployBundleForCode(code, version, appBundle, jdeployHome, null, null, prerelease);
     }
 
     /**
@@ -231,16 +304,67 @@ public class DefaultInstallationContext implements InstallationContext {
             File jdeployHome,
             RegistryLookup registryLookup,
             BundleDownloader bundleDownloader) throws IOException {
+        return downloadJDeployBundleForCode(code, version, appBundle, jdeployHome, registryLookup, bundleDownloader, isPrerelease(appBundle));
+    }
+
+    /**
+     * Download jDeploy bundle for the given code and version with full control for testing.
+     * Package-private for testing purposes - allows mocking HTTP operations and prerelease flag.
+     *
+     * @param code The bundle code extracted from installer filename
+     * @param version The version string
+     * @param appBundle The app bundle file
+     * @param jdeployHome The jDeploy home directory (null to use default)
+     * @param registryLookup Custom registry lookup implementation (null to use default)
+     * @param bundleDownloader Custom bundle downloader implementation (null to use default)
+     * @param prerelease Whether to request prerelease versions
+     * @return The extracted .jdeploy-files directory
+     * @throws IOException If download or extraction fails
+     */
+    static File downloadJDeployBundleForCode(
+            String code,
+            String version,
+            File appBundle,
+            File jdeployHome,
+            RegistryLookup registryLookup,
+            BundleDownloader bundleDownloader,
+            boolean prerelease) throws IOException {
 
         // Use default implementations if not provided
         if (registryLookup == null) {
-            registryLookup = DefaultInstallationContext::queryRegistryForBundleInfo;
+            // Create a registry lookup with fallback support
+            registryLookup = (bundleCode) -> {
+                // Try primary registry first
+                BundleInfo result = queryRegistryForBundleInfo(bundleCode, JDEPLOY_REGISTRY);
+                if (result != null) {
+                    return result;
+                }
+
+                // Try fallback registries
+                List<String> fallbacks = parseFallbackRegistries();
+                for (String fallbackUrl : fallbacks) {
+                    System.out.println("Trying fallback registry: " + fallbackUrl);
+                    result = queryRegistryForBundleInfo(bundleCode, fallbackUrl);
+                    if (result != null) {
+                        System.out.println("Successfully retrieved bundle info from fallback registry: " + fallbackUrl);
+                        return result;
+                    }
+                }
+
+                return null;
+            };
         }
         if (bundleDownloader == null) {
-            bundleDownloader = (c, v, a) -> URLUtil.openStream(getJDeployBundleURLForCode(c, v, a));
+            final boolean prereleaseFlag = prerelease;
+            bundleDownloader = (c, v, a) -> URLUtil.openStream(getJDeployBundleURLForCode(c, v, a, JDEPLOY_REGISTRY, prereleaseFlag));
         }
 
-        // Initialize cache for this registry
+        // Build list of registries to try (primary + fallbacks)
+        List<String> registriesToTry = new ArrayList<>();
+        registriesToTry.add(JDEPLOY_REGISTRY);
+        registriesToTry.addAll(parseFallbackRegistries());
+
+        // Initialize cache for primary registry
         BundleRegistryCache cache = jdeployHome != null
                 ? new BundleRegistryCache(JDEPLOY_REGISTRY, jdeployHome)
                 : new BundleRegistryCache(JDEPLOY_REGISTRY);
@@ -253,6 +377,8 @@ public class DefaultInstallationContext implements InstallationContext {
             System.out.println("  Package: " + bundleInfo.getPackageName());
         } else {
             // Step 2: Query registry for package metadata
+            // If using the default (non-mocked) registryLookup, try fallback registries
+            // If using a mocked registryLookup (for testing), only use that
             System.out.println("Querying registry for bundle " + code);
             bundleInfo = registryLookup.queryBundle(code);
 
@@ -265,7 +391,7 @@ public class DefaultInstallationContext implements InstallationContext {
             }
         }
 
-        // Step 4: Download the bundle files
+        // Step 4: Download the bundle files (with fallback support)
         File destDirectory = File.createTempFile("jdeploy-files-download", ".tmp");
         destDirectory.delete();
         Runtime.getRuntime().addShutdownHook(new Thread(()->{
@@ -275,23 +401,56 @@ public class DefaultInstallationContext implements InstallationContext {
         }));
         File destFile = new File(destDirectory, "jdeploy-files.zip");
 
-        try {
-            try (InputStream inputStream = bundleDownloader.openBundleStream(code, version, appBundle)) {
-                FileUtils.copyInputStreamToFile(inputStream, destFile);
-            }
+        List<String> attemptedDownloadUrls = new ArrayList<>();
+        IOException lastException = null;
 
-            ArchiveUtil.extract(destFile, destDirectory, "");
-            return findDirectoryByNameRecursive(destDirectory, ".jdeploy-files");
-        } catch (IOException e) {
-            // If download fails but we have cached info, log it for user visibility
-            if (bundleInfo != null) {
-                System.err.println("Bundle file download failed, but registry info is cached:");
-                System.err.println("  Project: " + bundleInfo.getProjectSource());
-                System.err.println("  Package: " + bundleInfo.getPackageName());
-                System.err.println("This will enable faster recovery on next attempt.");
+        for (String registryUrl : registriesToTry) {
+            try {
+                URL downloadUrl = getJDeployBundleURLForCode(code, version, appBundle, registryUrl, prerelease);
+                attemptedDownloadUrls.add(downloadUrl.toString());
+                System.out.println("Attempting to download bundle from " + registryUrl);
+
+                try (InputStream inputStream = bundleDownloader.openBundleStream(code, version, appBundle)) {
+                    FileUtils.copyInputStreamToFile(inputStream, destFile);
+                }
+
+                System.out.println("Successfully downloaded bundle from " + registryUrl);
+                ArchiveUtil.extract(destFile, destDirectory, "");
+                return findDirectoryByNameRecursive(destDirectory, ".jdeploy-files");
+            } catch (IOException e) {
+                lastException = e;
+                System.err.println("Failed to download from " + registryUrl + ": " + e.getMessage());
+
+                // Check if this is a non-retryable error (404, 403)
+                if (isNonRetryableError(e)) {
+                    System.err.println("Non-retryable error encountered, skipping fallback registries");
+                    break;
+                }
+
+                // If this wasn't the last registry, continue to next one
+                if (!registryUrl.equals(registriesToTry.get(registriesToTry.size() - 1))) {
+                    System.out.println("Trying next registry...");
+                }
             }
-            throw e;
         }
+
+        // If we get here, all registries failed
+        if (bundleInfo != null) {
+            System.err.println("Bundle file download failed, but registry info is cached:");
+            System.err.println("  Project: " + bundleInfo.getProjectSource());
+            System.err.println("  Package: " + bundleInfo.getPackageName());
+            System.err.println("This will enable faster recovery on next attempt.");
+        }
+
+        // Throw exception with all attempted URLs
+        IOException finalException = new IOException(
+            "Failed to download bundle from all registries. Attempted URLs:\n" +
+            String.join("\n", attemptedDownloadUrls)
+        );
+        if (lastException != null) {
+            finalException.initCause(lastException);
+        }
+        throw finalException;
     }
 
     private File findAppBundle() {
