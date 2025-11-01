@@ -4,10 +4,12 @@ import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.services.WebsiteVerifier;
 import ca.weblite.tools.io.ArchiveUtil;
+import ca.weblite.tools.io.IOUtil;
 import ca.weblite.tools.io.URLUtil;
 import ca.weblite.tools.io.XMLUtil;
 import ca.weblite.tools.platform.Platform;
 import org.apache.commons.io.FileUtils;
+import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
 
@@ -15,6 +17,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
+import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -108,6 +111,66 @@ public class DefaultInstallationContext implements InstallationContext {
         }
     }
 
+    /**
+     * Query the jDeploy registry to get package metadata for a bundle code.
+     * Returns BundleInfo if found, null if not found (404) or on error.
+     */
+    private static BundleInfo queryRegistryForBundleInfo(String code) {
+        try {
+            URL registryUrl = new URL(JDEPLOY_REGISTRY + "registry/" + URLEncoder.encode(code, "UTF-8"));
+            HttpURLConnection conn = (HttpURLConnection) registryUrl.openConnection();
+            conn.setRequestMethod("GET");
+
+            int responseCode = conn.getResponseCode();
+            if (responseCode == 404) {
+                System.err.println("Bundle code " + code + " not found in registry");
+                return null;
+            }
+
+            if (responseCode != 200) {
+                System.err.println("Registry lookup failed with HTTP " + responseCode);
+                return null;
+            }
+
+            try (InputStream inputStream = conn.getInputStream()) {
+                String jsonStr = IOUtil.readToString(inputStream);
+                JSONObject json = new JSONObject(jsonStr);
+
+                // NOTE: The registry API has confusing field names:
+                // - "packageName" field actually contains the project source (GitHub URL or NPM package)
+                // - "source" field actually contains the package name (simple name without slashes)
+                String projectSource = json.optString("packageName", null);
+                String packageName = json.optString("source", null);
+
+                if (projectSource == null || projectSource.isEmpty()) {
+                    System.err.println("Registry response missing packageName field");
+                    return null;
+                }
+
+                // If packageName (source field) is empty, derive it from projectSource
+                if (packageName == null || packageName.isEmpty()) {
+                    // For GitHub URLs like "https://github.com/user/repo", extract "repo"
+                    // For NPM packages, projectSource is already the package name
+                    if (projectSource.startsWith("https://github.com/")) {
+                        String path = projectSource.substring("https://github.com/".length());
+                        if (path.contains("/")) {
+                            packageName = path.substring(path.lastIndexOf('/') + 1);
+                        } else {
+                            packageName = path;
+                        }
+                    } else {
+                        packageName = projectSource;
+                    }
+                }
+
+                return new BundleInfo(projectSource, packageName, System.currentTimeMillis());
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to query registry for bundle " + code + ": " + e.getMessage());
+            return null;
+        }
+    }
+
     private static File findDirectoryByNameRecursive(File startDirectory, String name) {
         if (startDirectory.isDirectory()) {
             if (startDirectory.getName().equals(name)) return startDirectory;
@@ -119,7 +182,90 @@ public class DefaultInstallationContext implements InstallationContext {
         return null;
     }
 
+    /**
+     * Download jDeploy bundle for the given code and version.
+     * Uses the default jDeploy home directory for caching.
+     *
+     * @param code The bundle code extracted from installer filename
+     * @param version The version string
+     * @param appBundle The app bundle file
+     * @return The extracted .jdeploy-files directory
+     * @throws IOException If download or extraction fails
+     */
     public static File downloadJDeployBundleForCode(String code, String version, File appBundle) throws IOException {
+        return downloadJDeployBundleForCode(code, version, appBundle, null, null, null);
+    }
+
+    /**
+     * Download jDeploy bundle for the given code and version with a custom jDeploy home.
+     * Package-private for testing purposes.
+     *
+     * @param code The bundle code extracted from installer filename
+     * @param version The version string
+     * @param appBundle The app bundle file
+     * @param jdeployHome The jDeploy home directory (null to use default)
+     * @return The extracted .jdeploy-files directory
+     * @throws IOException If download or extraction fails
+     */
+    static File downloadJDeployBundleForCode(String code, String version, File appBundle, File jdeployHome) throws IOException {
+        return downloadJDeployBundleForCode(code, version, appBundle, jdeployHome, null, null);
+    }
+
+    /**
+     * Download jDeploy bundle for the given code and version with full control for testing.
+     * Package-private for testing purposes - allows mocking HTTP operations.
+     *
+     * @param code The bundle code extracted from installer filename
+     * @param version The version string
+     * @param appBundle The app bundle file
+     * @param jdeployHome The jDeploy home directory (null to use default)
+     * @param registryLookup Custom registry lookup implementation (null to use default)
+     * @param bundleDownloader Custom bundle downloader implementation (null to use default)
+     * @return The extracted .jdeploy-files directory
+     * @throws IOException If download or extraction fails
+     */
+    static File downloadJDeployBundleForCode(
+            String code,
+            String version,
+            File appBundle,
+            File jdeployHome,
+            RegistryLookup registryLookup,
+            BundleDownloader bundleDownloader) throws IOException {
+
+        // Use default implementations if not provided
+        if (registryLookup == null) {
+            registryLookup = DefaultInstallationContext::queryRegistryForBundleInfo;
+        }
+        if (bundleDownloader == null) {
+            bundleDownloader = (c, v, a) -> URLUtil.openStream(getJDeployBundleURLForCode(c, v, a));
+        }
+
+        // Initialize cache for this registry
+        BundleRegistryCache cache = jdeployHome != null
+                ? new BundleRegistryCache(JDEPLOY_REGISTRY, jdeployHome)
+                : new BundleRegistryCache(JDEPLOY_REGISTRY);
+
+        // Step 1: Check cache first
+        BundleInfo bundleInfo = cache.lookup(code);
+        if (bundleInfo != null) {
+            System.out.println("Found bundle " + code + " in local cache");
+            System.out.println("  Project: " + bundleInfo.getProjectSource());
+            System.out.println("  Package: " + bundleInfo.getPackageName());
+        } else {
+            // Step 2: Query registry for package metadata
+            System.out.println("Querying registry for bundle " + code);
+            bundleInfo = registryLookup.queryBundle(code);
+
+            if (bundleInfo != null) {
+                // Step 3: Cache immediately after successful registry lookup
+                System.out.println("Caching bundle info for " + code);
+                System.out.println("  Project: " + bundleInfo.getProjectSource());
+                System.out.println("  Package: " + bundleInfo.getPackageName());
+                cache.save(code, bundleInfo.getProjectSource(), bundleInfo.getPackageName());
+            }
+        }
+
+        // Step 4: Download the bundle files
         File destDirectory = File.createTempFile("jdeploy-files-download", ".tmp");
         destDirectory.delete();
         Runtime.getRuntime().addShutdownHook(new Thread(()->{
@@ -128,12 +274,24 @@ public class DefaultInstallationContext implements InstallationContext {
             } catch (Exception ex){}
         }));
         File destFile = new File(destDirectory, "jdeploy-files.zip");
-        try (InputStream inputStream = URLUtil.openStream(getJDeployBundleURLForCode(code, version, appBundle))) {
-            FileUtils.copyInputStreamToFile(inputStream, destFile);
-        }
 
-        ArchiveUtil.extract(destFile, destDirectory, "");
-        return findDirectoryByNameRecursive(destDirectory, ".jdeploy-files");
+        try {
+            try (InputStream inputStream = bundleDownloader.openBundleStream(code, version, appBundle)) {
+                FileUtils.copyInputStreamToFile(inputStream, destFile);
+            }
+
+            ArchiveUtil.extract(destFile, destDirectory, "");
+            return findDirectoryByNameRecursive(destDirectory, ".jdeploy-files");
+        } catch (IOException e) {
+            // If download fails but we have cached info, log it for user visibility
+            if (bundleInfo != null) {
+                System.err.println("Bundle file download failed, but registry info is cached:");
+                System.err.println("  Project: " + bundleInfo.getProjectSource());
+                System.err.println("  Package: " + bundleInfo.getPackageName());
+                System.err.println("This will enable faster recovery on next attempt.");
+            }
+            throw e;
+        }
     }
 
     private File findAppBundle() {
