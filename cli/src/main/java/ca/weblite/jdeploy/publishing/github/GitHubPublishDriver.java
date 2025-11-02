@@ -68,6 +68,8 @@ public class GitHubPublishDriver implements PublishDriverInterface {
 
     private final Environment environment;
 
+    private final ca.weblite.jdeploy.services.JDeployFilesZipGenerator jdeployFilesZipGenerator;
+
     @Inject
     public GitHubPublishDriver(
             BasePublishDriver baseDriver,
@@ -79,7 +81,8 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             PlatformBundleGenerator platformBundleGenerator,
             DefaultBundleService defaultBundleService,
             JDeployProjectFactory projectFactory,
-            Environment environment
+            Environment environment,
+            ca.weblite.jdeploy.services.JDeployFilesZipGenerator jdeployFilesZipGenerator
     ) {
         this.baseDriver = baseDriver;
         this.bundleCodeService = bundleCodeService;
@@ -91,6 +94,7 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         this.defaultBundleService = defaultBundleService;
         this.projectFactory = projectFactory;
         this.environment = environment;
+        this.jdeployFilesZipGenerator = jdeployFilesZipGenerator;
     }
 
     @Override
@@ -109,7 +113,46 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         // jdeploy-release-notes.md
         File releaseNotes = new File(releaseFiles, "jdeploy-release-notes.md");
         File packageInfo = new File(releaseFiles, "package-info.json");
+        File packageInfo2 = new File(releaseFiles, "package-info-2.json");
 
+        // Step 1: Download current package-info.json from jdeploy tag (optimistic lock baseline)
+        GitHubReleaseCreator.AssetWithETag baseline = null;
+        boolean isFirstPublish = false;
+
+        try {
+            baseline = gitHubReleaseCreator.downloadAssetWithETag(
+                    repositoryUrl,
+                    githubToken,
+                    "jdeploy",
+                    "package-info.json"
+            );
+            context.out().println("Downloaded baseline package-info.json from jdeploy tag (ETag: " + baseline.getETag() + ")");
+        } catch (GitHubReleaseNotFoundException e) {
+            // Case A: jdeploy tag/release doesn't exist - first publish
+            isFirstPublish = true;
+            context.out().println("No existing jdeploy tag found - this is the first publish");
+        } catch (GitHubAssetNotFoundException e) {
+            // Case B: jdeploy release exists, but package-info.json is missing - FAIL FAST
+            throw new IOException(
+                    "The jdeploy release exists but package-info.json is missing. " +
+                            "This indicates a corrupted or incomplete publish state. " +
+                            "To fix this, delete the jdeploy release from GitHub and retry:\n" +
+                            "  1. Go to: " + repositoryUrl + "/releases\n" +
+                            "  2. Delete the 'jdeploy' release (NOT the tag)\n" +
+                            "  3. Run: jdeploy publish",
+                    e
+            );
+        } catch (IOException e) {
+            // Case D: Network error, 403, 500, etc. - FAIL FAST
+            throw new IOException(
+                    "Failed to check for existing package-info.json in jdeploy tag. " +
+                            "Cannot proceed safely. Please check network and GitHub access. " +
+                            "Error: " + e.getMessage(),
+                    e
+            );
+        }
+
+        // Step 2: Create version-specific GitHub release with all files
         gitHubReleaseCreator.createRelease(
                 repositoryUrl,
                 githubToken,
@@ -117,33 +160,73 @@ public class GitHubPublishDriver implements PublishDriverInterface {
                 releaseNotes,
                 releaseFiles.listFiles()
         );
+        context.out().println("✓ Created version-specific release: " + releaseTag);
 
-        GitHubReleaseCreator.ReleaseResponse releaseDetails = null;
+        // Step 3: Copy package-info.json to package-info-2.json for backup
+        FileUtils.copyFile(packageInfo, packageInfo2);
+
+        // Step 4: Update 'jdeploy' tag with optimistic lock + Sequential A/B strategy
         try {
-            releaseDetails = gitHubReleaseCreator
-                    .fetchReleaseDetails(
-                            repositoryUrl,
-                            githubToken,
-                            "jdeploy"
-                    );
-            gitHubReleaseCreator.uploadArtifacts(
-                    releaseDetails,
-                    githubToken,
-                    new File[]{packageInfo},
-                    true
-            );
-        } catch (IOException ioe) {
-            if (releaseDetails == null) {
-                // Create a new release
-                gitHubReleaseCreator.createRelease(
+            if (isFirstPublish) {
+                // Case A: Atomic create - fails if release already exists (concurrent publish)
+                context.out().println("Creating jdeploy tag with package-info.json and package-info-2.json...");
+                gitHubReleaseCreator.createReleaseAtomic(
                         repositoryUrl,
                         githubToken,
                         "jdeploy",
                         "Release metadata for jDeploy releases",
-                        new File[]{packageInfo}
+                        new File[]{packageInfo, packageInfo2}
                 );
+                context.out().println("✓ Created jdeploy tag with metadata files");
+            } else {
+                // Case C: Update with optimistic lock (fails if ETag doesn't match)
+                context.out().println("Updating jdeploy tag with new package-info.json...");
+                GitHubReleaseCreator.ReleaseResponse jdeployRelease = gitHubReleaseCreator.fetchReleaseDetails(
+                        repositoryUrl,
+                        githubToken,
+                        "jdeploy"
+                );
+
+                // Upload package-info.json FIRST with optimistic lock
+                gitHubReleaseCreator.uploadArtifactConditional(
+                        jdeployRelease,
+                        githubToken,
+                        packageInfo,
+                        baseline.getETag()
+                );
+                context.out().println("✓ Updated package-info.json in jdeploy tag");
+
+                // Upload package-info-2.json SECOND (backup file, no lock check)
+                gitHubReleaseCreator.uploadArtifacts(
+                        jdeployRelease,
+                        githubToken,
+                        new File[]{packageInfo2},
+                        true
+                );
+                context.out().println("✓ Updated package-info-2.json in jdeploy tag (backup)");
             }
+        } catch (GitHubReleaseAlreadyExistsException e) {
+            // Case A: Another process created the jdeploy release concurrently
+            throw new IOException(
+                    "Concurrent publish detected during first publish. " +
+                            "Another publish process created the jdeploy release while this publish was running. " +
+                            "The version-specific release (v" + releaseTag + ") was created successfully. " +
+                            "Please retry 'jdeploy publish' to update the jdeploy tag.",
+                    e
+            );
+        } catch (ConcurrentPublishException e) {
+            // Case C: Another publish modified jdeploy tag since we started
+            throw new IOException(
+                    "Concurrent publish detected. The jdeploy tag was modified during publish. " +
+                            "The version-specific release (v" + releaseTag + ") was created successfully. " +
+                            "Please retry 'jdeploy publish' to update the jdeploy tag.",
+                    e
+            );
         }
+
+        context.out().println("\n✓ GitHub publish completed successfully!");
+        context.out().println("  Release: " + repositoryUrl + "/releases/tag/" + releaseTag);
+        context.out().println("  Users can now install directly from GitHub releases!");
     }
 
     @Override
@@ -171,6 +254,10 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         );
 
         saveGithubReleaseFiles(context, target);
+
+        // Generate jdeploy-files.zip for GitHub releases
+        jdeployFilesZipGenerator.generate(context, target);
+
         PackageInfoBuilder builder = new PackageInfoBuilder();
         InputStream oldPackageInfo = loadPackageInfo(context, target); // May throw IOException now
         if (oldPackageInfo != null) {

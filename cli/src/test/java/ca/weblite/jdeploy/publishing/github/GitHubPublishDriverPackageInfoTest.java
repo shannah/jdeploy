@@ -138,7 +138,8 @@ class GitHubPublishDriverPackageInfoTest {
                 platformBundleGenerator,
                 defaultBundleService,
                 projectFactory,
-                environment
+                environment,
+                mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class)
         );
     }
 
