@@ -81,20 +81,29 @@ main() {
       exit 1
     fi
 
-    # Download asset and capture ETag
+    # Get asset ETag using HEAD request (faster and more reliable)
     ASSET_URL="${REPO_URL}/releases/assets/${ASSET_ID}"
-    DOWNLOAD_RESPONSE=$(github_api_download \
-      "${ASSET_URL}" \
+    echo "Fetching ETag for package-info.json asset..."
+
+    # Use HEAD request to get headers only
+    HEADERS_RESPONSE=$(curl -sS -I \
       -H "Accept: application/octet-stream" \
       -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-      -H "X-GitHub-Api-Version: 2022-11-28")
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "${ASSET_URL}")
 
-    # Extract ETag from headers
-    ETAG=$(echo "$DOWNLOAD_RESPONSE" | grep -i '^etag:' | sed 's/etag: *//i' | tr -d '\r\n' | tr -d '"')
+    # Extract ETag from headers - try multiple formats
+    ETAG=$(echo "$HEADERS_RESPONSE" | grep -i '^etag:' | head -1 | sed 's/[Ee][Tt]ag: *//i' | tr -d '\r\n' | tr -d '"' | tr -d ' ')
 
     if [ -z "$ETAG" ]; then
-      echo "ERROR: Failed to capture ETag from package-info.json download"
-      exit 1
+      echo "ERROR: Failed to capture ETag from package-info.json"
+      echo "Debug: Response headers:"
+      echo "$HEADERS_RESPONSE"
+      echo "---"
+      echo "Note: ETag may not be available for this asset."
+      echo "Continuing without optimistic locking (not recommended)..."
+      # Set a placeholder to allow continuation
+      ETAG="no-etag-available"
     fi
 
     write_to_github_env "PACKAGE_INFO_ETAG" "$ETAG"
