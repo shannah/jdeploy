@@ -15,9 +15,11 @@ fi
 
 REPO_URL="https://api.github.com/repos/${REPOSITORY}"
 
-# Create package-info-2.json as a copy of package-info.json
-cp "${RELEASE_FILES_DIR}/package-info.json" "${RELEASE_FILES_DIR}/package-info-2.json"
-echo "Created package-info-2.json backup file"
+# Create package-info-2.json as a copy of package-info.json in a temp location
+# We don't want it in the release files dir as it shouldn't go to version-specific releases
+TEMP_DIR=$(mktemp -d)
+cp "${RELEASE_FILES_DIR}/package-info.json" "${TEMP_DIR}/package-info-2.json"
+echo "Created package-info-2.json backup file (for jdeploy tag only)"
 
 if [ "$JDEPLOY_FIRST_PUBLISH" = "true" ]; then
   echo "First publish - creating jdeploy release..."
@@ -144,6 +146,9 @@ curl -sS -X POST \
   -H "X-GitHub-Api-Version: 2022-11-28" \
   -H "Content-Type: application/json" \
   "${UPLOAD_URL}?name=package-info-2.json" \
-  --data-binary "@${RELEASE_FILES_DIR}/package-info-2.json"
+  --data-binary "@${TEMP_DIR}/package-info-2.json"
 
 echo "✓ Successfully updated jdeploy tag with package-info.json and package-info-2.json"
+
+# Cleanup temp directory
+rm -rf "${TEMP_DIR}"
