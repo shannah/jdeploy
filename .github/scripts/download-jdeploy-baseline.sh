@@ -85,25 +85,25 @@ main() {
     ASSET_URL="${REPO_URL}/releases/assets/${ASSET_ID}"
     echo "Fetching ETag for package-info.json asset..."
 
-    # Use HEAD request to get headers only
-    HEADERS_RESPONSE=$(curl -sS -I \
+    # Use HEAD request with redirect following to get headers from final location
+    # GitHub returns a 302 redirect to the actual asset location
+    HEADERS_RESPONSE=$(curl -sS -L -I \
       -H "Accept: application/octet-stream" \
       -H "Authorization: Bearer ${GITHUB_TOKEN}" \
       -H "X-GitHub-Api-Version: 2022-11-28" \
       "${ASSET_URL}")
 
-    # Extract ETag from headers - try multiple formats
-    ETAG=$(echo "$HEADERS_RESPONSE" | grep -i '^etag:' | head -1 | sed 's/[Ee][Tt]ag: *//i' | tr -d '\r\n' | tr -d '"' | tr -d ' ')
+    # Extract ETag from headers - get the last occurrence (after redirects)
+    ETAG=$(echo "$HEADERS_RESPONSE" | grep -i '^etag:' | tail -1 | sed 's/[Ee][Tt]ag: *//i' | tr -d '\r\n' | tr -d '"' | tr -d ' ')
 
     if [ -z "$ETAG" ]; then
-      echo "ERROR: Failed to capture ETag from package-info.json"
-      echo "Debug: Response headers:"
-      echo "$HEADERS_RESPONSE"
-      echo "---"
-      echo "Note: ETag may not be available for this asset."
-      echo "Continuing without optimistic locking (not recommended)..."
-      # Set a placeholder to allow continuation
-      ETAG="no-etag-available"
+      echo "WARNING: Could not capture ETag from package-info.json"
+      echo "Optimistic locking will not be available for this publish."
+      echo "This means concurrent publishes may overwrite each other."
+      # Set a placeholder to allow continuation but signal no locking
+      ETAG=""
+    else
+      echo "Captured ETag: $ETAG"
     fi
 
     write_to_github_env "PACKAGE_INFO_ETAG" "$ETAG"

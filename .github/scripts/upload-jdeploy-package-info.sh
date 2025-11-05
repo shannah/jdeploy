@@ -73,23 +73,31 @@ else
   OLD_ASSET_ID=$(echo "$ASSETS" | jq -r '.[] | select(.name == "package-info.json") | .id')
 
   if [ -n "$OLD_ASSET_ID" ] && [ "$OLD_ASSET_ID" != "null" ]; then
-    # Verify ETag hasn't changed
-    CURRENT_ETAG=$(curl -sS -I \
-      -H "Accept: application/octet-stream" \
-      -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-      -H "X-GitHub-Api-Version: 2022-11-28" \
-      "${REPO_URL}/releases/assets/${OLD_ASSET_ID}" | \
-      grep -i '^etag:' | sed 's/etag: *//i' | tr -d '\r\n' | tr -d '"')
+    # Only check ETag if we have one (optimistic locking available)
+    if [ -n "$PACKAGE_INFO_ETAG" ]; then
+      echo "Verifying ETag hasn't changed (optimistic lock)..."
+      # Follow redirects to get ETag from final location
+      CURRENT_ETAG=$(curl -sS -L -I \
+        -H "Accept: application/octet-stream" \
+        -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        "${REPO_URL}/releases/assets/${OLD_ASSET_ID}" | \
+        grep -i '^etag:' | tail -1 | sed 's/[Ee][Tt]ag: *//i' | tr -d '\r\n' | tr -d '"' | tr -d ' ')
 
-    if [ "$CURRENT_ETAG" != "$PACKAGE_INFO_ETAG" ]; then
-      echo "ERROR: Concurrent publish detected"
-      echo "The jdeploy tag was modified during this workflow execution."
-      echo "Expected ETag: $PACKAGE_INFO_ETAG"
-      echo "Current ETag:  $CURRENT_ETAG"
-      echo ""
-      echo "The version-specific release was created successfully."
-      echo "Please re-run this workflow to complete the jdeploy tag update."
-      exit 1
+      if [ "$CURRENT_ETAG" != "$PACKAGE_INFO_ETAG" ]; then
+        echo "ERROR: Concurrent publish detected"
+        echo "The jdeploy tag was modified during this workflow execution."
+        echo "Expected ETag: $PACKAGE_INFO_ETAG"
+        echo "Current ETag:  $CURRENT_ETAG"
+        echo ""
+        echo "The version-specific release was created successfully."
+        echo "Please re-run this workflow to complete the jdeploy tag update."
+        exit 1
+      fi
+      echo "ETag verified - no concurrent modifications detected"
+    else
+      echo "WARNING: Optimistic locking not available (no ETag)"
+      echo "Proceeding without concurrent modification check"
     fi
 
     # Delete old asset
