@@ -193,11 +193,8 @@ public class DefaultInstallationContext implements InstallationContext {
                 String jsonStr = IOUtil.readToString(inputStream);
                 JSONObject json = new JSONObject(jsonStr);
 
-                // NOTE: The registry API has confusing field names:
-                // - "packageName" field actually contains the project source (GitHub URL or NPM package)
-                // - "source" field actually contains the package name (simple name without slashes)
-                String projectSource = json.optString("packageName", null);
-                String packageName = json.optString("source", null);
+                String projectSource = json.optString("source", null);
+                String packageName = json.optString("packageName", null);
 
                 if (projectSource == null || projectSource.isEmpty()) {
                     System.err.println("Registry response missing packageName field");
@@ -697,19 +694,33 @@ public class DefaultInstallationContext implements InstallationContext {
 
     /**
      * Normalize a version string to include the 'v' prefix for GitHub release tags.
+     * Special case: versions starting with "v0.0.0-" are branch-based releases,
+     * and the actual GitHub release tag is just the branch name after the dash.
      *
-     * @param version Version string like "1.2.3" or "v1.2.3"
-     * @return Version with 'v' prefix like "v1.2.3"
+     * @param version Version string like "1.2.3", "v1.2.3", or "v0.0.0-branch-name"
+     * @return Normalized version tag for GitHub releases
      */
     private static String normalizeVersionTag(String version) {
         if (version == null || version.isEmpty()) {
             return version;
         }
 
+        // Handle branch-based releases (v0.0.0-branch-name -> branch-name)
+        if (version.startsWith("v0.0.0-")) {
+            return version.substring("v0.0.0-".length());
+        }
+
+        // Handle 0.0.0-branch-name -> branch-name
+        if (version.startsWith("0.0.0-")) {
+            return version.substring("0.0.0-".length());
+        }
+
+        // Already has 'v' prefix
         if (version.startsWith("v")) {
             return version;
         }
 
+        // Add 'v' prefix for regular versions
         return "v" + version;
     }
 
@@ -752,7 +763,14 @@ public class DefaultInstallationContext implements InstallationContext {
 
         // Try version-specific tag first
         if (version != null && !version.isEmpty()) {
-            tagsToTry.add(normalizeVersionTag(version));
+            String normalizedTag = normalizeVersionTag(version);
+            tagsToTry.add(normalizedTag);
+
+            // Also try original version if normalization added a 'v' prefix
+            // This handles cases where release was created as '1.2.3' instead of 'v1.2.3'
+            if (!normalizedTag.equals(version) && normalizedTag.equals("v" + version)) {
+                tagsToTry.add(version);
+            }
         }
 
         // Fallback to generic 'jdeploy' tag
