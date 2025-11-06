@@ -749,7 +749,13 @@ public class DefaultInstallationContext implements InstallationContext {
      * @return Extracted .jdeploy-files directory
      * @throws IOException if download fails from all GitHub sources
      */
-    private static File downloadFromGitHubRelease(String projectSource, String version, File destDirectory, boolean prerelease, GitHubDownloader githubDownloader) throws IOException {
+    private static File downloadFromGitHubRelease(
+            String projectSource,
+            String version,
+            File destDirectory,
+            boolean prerelease,
+            GitHubDownloader githubDownloader
+    ) throws IOException {
         String repoPath = extractGitHubRepoPath(projectSource);
         if (repoPath == null || !repoPath.contains("/")) {
             throw new IOException("Invalid GitHub repository path: " + projectSource);
@@ -772,9 +778,6 @@ public class DefaultInstallationContext implements InstallationContext {
                 tagsToTry.add(version);
             }
         }
-
-        // Fallback to generic 'jdeploy' tag
-        tagsToTry.add("jdeploy");
 
         File destFile = new File(destDirectory, "jdeploy-files.zip");
         IOException lastException = null;
