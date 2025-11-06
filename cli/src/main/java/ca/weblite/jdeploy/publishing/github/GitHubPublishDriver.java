@@ -392,6 +392,15 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             FileUtils.copyFile(launcherSplash, new File(releaseFilesDir, launcherSplash.getName()));
         }
 
+        // Copy package.json for version-specific metadata (lighter than package-info.json)
+        File packageJson = context.getPublishPackageJsonFile();
+        if (packageJson.exists()) {
+            FileUtils.copyFile(packageJson, new File(releaseFilesDir, "package.json"));
+            context.out().println("Added package.json to release files");
+        } else {
+            context.out().println("Warning: package.json not found at " + packageJson);
+        }
+
         File installerFiles = context.packagingContext.getInstallersDir();
         if (installerFiles.isDirectory()) {
             for (File installerFile : Objects.requireNonNull(installerFiles.listFiles())) {

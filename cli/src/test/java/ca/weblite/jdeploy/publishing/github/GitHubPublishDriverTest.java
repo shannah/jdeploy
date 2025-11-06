@@ -382,6 +382,46 @@ class GitHubPublishDriverTest {
     }
 
     @Test
+    @DisplayName("Should copy package.json to release files during prepare")
+    void shouldCopyPackageJsonToReleaseFiles() throws IOException {
+        when(target.getUrl()).thenReturn("https://github.com/user/repo");
+
+        File publishDir = new File(tempDir, "publish");
+        publishDir.mkdirs();
+
+        // Create the proper directory structure
+        File jdeployDir = new File(tempDir, "jdeploy");
+        File githubReleaseDir = new File(jdeployDir, "github-release-files");
+        githubReleaseDir.mkdirs();
+
+        // Create the publish package.json file
+        File publishPackageJsonFile = new File(publishDir, "package.json");
+        String packageJsonContent = "{\"name\":\"test-app\",\"version\":\"1.0.0\",\"jdeploy\":{}}";
+        FileUtils.writeStringToFile(publishPackageJsonFile, packageJsonContent, StandardCharsets.UTF_8);
+
+        // Create a context with GitHub repository information
+        PublishingContext contextWithRepo = new PublishingContext(
+                packagingContext, false, npm, null, "https://github.com/user/repo", null, null, null);
+
+        PublishingContext spiedContext = spy(contextWithRepo);
+        when(spiedContext.getPublishDir()).thenReturn(publishDir);
+        when(spiedContext.getPublishPackageJsonFile()).thenReturn(publishPackageJsonFile);
+        when(spiedContext.getGithubReleaseFilesDir()).thenReturn(githubReleaseDir);
+
+        when(cheerpjServiceFactory.create(any(PackagingContext.class))).thenReturn(cheerpjService);
+        when(cheerpjService.isEnabled()).thenReturn(false);
+        when(packageNameService.getFullPackageName(target, "test-app")).thenReturn("full-package-name");
+
+        driver.prepare(spiedContext, target, bundlerSettings);
+
+        // Verify package.json was copied to release files
+        File releasePackageJson = new File(githubReleaseDir, "package.json");
+        assertTrue(releasePackageJson.exists(), "package.json should be copied to release files");
+        String actualContent = FileUtils.readFileToString(releasePackageJson, StandardCharsets.UTF_8);
+        assertEquals(packageJsonContent, actualContent, "Content should match");
+    }
+
+    @Test
     @DisplayName("Should check if version is published")
     void shouldCheckIfVersionIsPublished() throws IOException {
         JSONObject packageInfo = new JSONObject();
