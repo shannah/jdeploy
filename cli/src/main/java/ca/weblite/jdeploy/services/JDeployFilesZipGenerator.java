@@ -150,27 +150,6 @@ public class JDeployFilesZipGenerator {
      * Priority: jdeploy.source > repository.url > target URL
      */
     private String getSource(JSONObject packageJson, PublishTargetInterface target) {
-        // Try jdeploy.source first
-        if (packageJson.has("jdeploy")) {
-            JSONObject jdeploy = packageJson.getJSONObject("jdeploy");
-            if (jdeploy.has("source")) {
-                return jdeploy.getString("source");
-            }
-        }
-
-        // Fall back to repository.url
-        if (packageJson.has("repository")) {
-            Object repo = packageJson.get("repository");
-            if (repo instanceof JSONObject) {
-                JSONObject repoObj = (JSONObject) repo;
-                if (repoObj.has("url")) {
-                    return repoObj.getString("url");
-                }
-            } else if (repo instanceof String) {
-                return (String) repo;
-            }
-        }
-
         // Fall back to target URL
         return target.getUrl();
     }
