@@ -110,14 +110,23 @@ public class Main implements Runnable, Constants {
             if (appInfo() == null) {
                 throw new IllegalStateException("App Info must be loaded before loading the package info");
             }
-            NPMPackage pkg = new NPMRegistry().loadPackage(appInfo().getNpmPackage(), appInfo().getNpmSource());
+            System.out.println("Looking up package info for: " + appInfo().getNpmPackage() + " version: " + appInfo().getNpmVersion());
+
+            // Get the successful GitHub tag from the bundle download (if available)
+            String successfulTag = DefaultInstallationContext.getSuccessfulGitHubTag();
+
+            NPMPackage pkg = new NPMRegistry().loadPackage(appInfo().getNpmPackage(), appInfo().getNpmSource(), successfulTag);
             if (pkg == null) {
                 throw new IOException("Cannot find NPMPackage named "+appInfo().getNpmPackage());
             }
             installationSettings.setNpmPackageVersion(pkg.getLatestVersion(installationSettings.isPrerelease(), appInfo().getNpmVersion()));
             if (installationSettings.getNpmPackageVersion() == null) {
-                throw new IOException("Cannot find version "+appInfo().getNpmVersion()+" for package "+appInfo().getNpmPackage());
+                throw new IOException(
+                    "Cannot find version " + appInfo().getNpmVersion() + " for package " + appInfo().getNpmPackage() + ". " +
+                    "For GitHub projects, ensure the 'jdeploy' release tag contains package-info.json with this version."
+                );
             }
+            System.out.println("Found version: " + installationSettings.getNpmPackageVersion().getVersion());
 
             String installerTheme = System.getProperty("jdeploy.installerTheme", installationSettings.getNpmPackageVersion().getInstallerTheme());
             System.out.println("Installer theme is "+installerTheme);

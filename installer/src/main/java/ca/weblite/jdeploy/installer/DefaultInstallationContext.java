@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer;
 
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.installer.util.DebugLogger;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.services.WebsiteVerifier;
 import ca.weblite.tools.io.ArchiveUtil;
@@ -32,6 +33,48 @@ public class DefaultInstallationContext implements InstallationContext {
             "https://www.jdeploy.com/"
     );
     private static final String GITHUB_URL = "https://github.com/";
+
+    /**
+     * ThreadLocal to store the successful GitHub release tag from bundle download.
+     * This allows us to reuse the same tag when loading package-info.json.
+     */
+    private static final ThreadLocal<String> successfulGitHubTag = new ThreadLocal<>();
+
+    /**
+     * Get the successful GitHub tag from the most recent bundle download.
+     * @return The tag name, or null if not available
+     */
+    public static String getSuccessfulGitHubTag() {
+        return successfulGitHubTag.get();
+    }
+
+    /**
+     * Clear the successful GitHub tag.
+     */
+    public static void clearSuccessfulGitHubTag() {
+        successfulGitHubTag.remove();
+    }
+
+    /**
+     * Result of downloading from a GitHub release, including the successful tag.
+     */
+    static class GitHubDownloadResult {
+        private final File jdeployFilesDir;
+        private final String successfulTag;
+
+        GitHubDownloadResult(File jdeployFilesDir, String successfulTag) {
+            this.jdeployFilesDir = jdeployFilesDir;
+            this.successfulTag = successfulTag;
+        }
+
+        public File getJdeployFilesDir() {
+            return jdeployFilesDir;
+        }
+
+        public String getSuccessfulTag() {
+            return successfulTag;
+        }
+    }
 
     /**
      * Parse the fallback registries from the jdeploy.registries.fallback system property.
@@ -175,10 +218,15 @@ public class DefaultInstallationContext implements InstallationContext {
     private static BundleInfo queryRegistryForBundleInfo(String code, String registryBaseUrl) {
         try {
             URL registryUrl = new URL(registryBaseUrl + "registry/" + URLEncoder.encode(code, "UTF-8"));
+            DebugLogger.logNetworkRequest("GET", registryUrl.toString());
+
             HttpURLConnection conn = (HttpURLConnection) registryUrl.openConnection();
             conn.setRequestMethod("GET");
 
             int responseCode = conn.getResponseCode();
+            DebugLogger.logNetworkResponse(registryUrl.toString(), responseCode,
+                responseCode == 200 ? "Success" : "Failed");
+
             if (responseCode == 404) {
                 System.err.println("Bundle code " + code + " not found in registry " + registryBaseUrl);
                 return null;
@@ -357,17 +405,32 @@ public class DefaultInstallationContext implements InstallationContext {
         }
         if (bundleDownloader == null) {
             final boolean prereleaseFlag = prerelease;
-            bundleDownloader = (c, v, a) -> URLUtil.openStream(getJDeployBundleURLForCode(c, v, a, JDEPLOY_REGISTRY, prereleaseFlag));
+            bundleDownloader = (c, v, a) -> {
+                URL bundleUrl = getJDeployBundleURLForCode(c, v, a, JDEPLOY_REGISTRY, prereleaseFlag);
+                DebugLogger.logNetworkRequest("GET", bundleUrl.toString());
+                try {
+                    InputStream stream = URLUtil.openStream(bundleUrl);
+                    DebugLogger.logNetworkResponse(bundleUrl.toString(), 200, "Success");
+                    return stream;
+                } catch (IOException e) {
+                    DebugLogger.logNetworkResponse(bundleUrl.toString(), -1, "Failed: " + e.getMessage());
+                    throw e;
+                }
+            };
         }
         if (githubDownloader == null) {
             // Default implementation: direct HTTP download from GitHub releases
             githubDownloader = (owner, repo, tag, filename) -> {
                 String downloadUrl = buildGitHubReleaseUrl(owner, repo, tag, filename);
+                DebugLogger.logNetworkRequest("GET", downloadUrl);
+
                 URL url = new URL(downloadUrl);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
 
                 int responseCode = conn.getResponseCode();
+                DebugLogger.logNetworkResponse(downloadUrl, responseCode,
+                    responseCode == 200 ? "Success" : "Failed");
 
                 if (responseCode == 404) {
                     throw new IOException("GitHub release not found: HTTP 404");
@@ -427,9 +490,11 @@ public class DefaultInstallationContext implements InstallationContext {
         if (bundleInfo != null && isGitHubProject(bundleInfo.getProjectSource())) {
             System.out.println("Detected GitHub project, attempting direct download from GitHub releases");
             try {
-                File result = downloadFromGitHubRelease(bundleInfo.getProjectSource(), version, destDirectory, prerelease, githubDownloader);
+                GitHubDownloadResult result = downloadFromGitHubRelease(bundleInfo.getProjectSource(), version, destDirectory, prerelease, githubDownloader);
+                // Store the successful tag for later use in package-info.json lookup
+                successfulGitHubTag.set(result.getSuccessfulTag());
                 System.out.println("Successfully downloaded bundle from GitHub releases");
-                return result;
+                return result.getJdeployFilesDir();
             } catch (IOException e) {
                 System.err.println("GitHub direct download failed: " + e.getMessage());
                 System.err.println("Falling back to registry download...");
@@ -746,10 +811,10 @@ public class DefaultInstallationContext implements InstallationContext {
      * @param destDirectory Destination directory for extraction
      * @param prerelease Whether this is a prerelease build
      * @param githubDownloader The GitHub downloader to use (for testing/mocking)
-     * @return Extracted .jdeploy-files directory
+     * @return GitHubDownloadResult containing extracted directory and successful tag
      * @throws IOException if download fails from all GitHub sources
      */
-    private static File downloadFromGitHubRelease(
+    private static GitHubDownloadResult downloadFromGitHubRelease(
             String projectSource,
             String version,
             File destDirectory,
@@ -793,9 +858,10 @@ public class DefaultInstallationContext implements InstallationContext {
 
                 System.out.println("Successfully downloaded bundle from GitHub release: " + tag);
 
-                // Extract and return
+                // Extract and return with the successful tag
                 ArchiveUtil.extract(destFile, destDirectory, "");
-                return findDirectoryByNameRecursive(destDirectory, ".jdeploy-files");
+                File jdeployFilesDir = findDirectoryByNameRecursive(destDirectory, ".jdeploy-files");
+                return new GitHubDownloadResult(jdeployFilesDir, tag);
 
             } catch (IOException e) {
                 lastException = e;
