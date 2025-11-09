@@ -190,7 +190,7 @@ public class DefaultInstallationContext implements InstallationContext {
     private static URL getJDeployBundleURLForCode(String code, String version, File appBundle, String registryUrl, boolean prerelease) {
         try {
             String prereleaseParam = prerelease ? "&prerelease=true" : "";
-            return new URL(registryUrl + "download.php?code=" +
+            return new URL(registryUrl + "download?code=" +
                     URLEncoder.encode(code, "UTF-8") +
                     "&version="+URLEncoder.encode(version, "UTF-8") +
                     "&jdeploy_files=true&platform=*" +
