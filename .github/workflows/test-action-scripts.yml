@@ -1,0 +1,54 @@
+name: Test Action Scripts
+
+on:
+  push:
+    branches: [ master, develop, 'feature/**' ]
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/test-action-scripts.yml'
+      - 'action.yml'
+  pull_request:
+    branches: [ master, develop ]
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/test-action-scripts.yml'
+      - 'action.yml'
+  workflow_dispatch:
+
+jobs:
+  test-scripts:
+    name: Test Action Scripts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install bats-core
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats
+
+      - name: Install jq (required by scripts)
+        run: |
+          sudo apt-get install -y jq
+
+      - name: Run static analysis tests
+        run: |
+          chmod +x .github/scripts/test-scripts.sh
+          .github/scripts/test-scripts.sh
+
+      - name: Run bats integration tests
+        run: |
+          bats .github/scripts/test-download-baseline.bats
+
+      - name: Test results summary
+        if: always()
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ $? -eq 0 ]; then
+            echo "✅ All tests passed!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Some tests failed. Check the logs above." >> $GITHUB_STEP_SUMMARY
+          fi

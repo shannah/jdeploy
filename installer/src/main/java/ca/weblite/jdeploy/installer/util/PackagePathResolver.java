@@ -24,7 +24,7 @@ public class PackagePathResolver {
      *
      * @return The .jdeploy directory
      */
-    private static File getJDeployHome() {
+    public static File getJDeployHome() {
         return new File(System.getProperty("user.home") + File.separator + ".jdeploy");
     }
 

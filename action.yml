@@ -228,23 +228,24 @@ runs:
         GH_TOKEN: ${{ github.actor }}:${{ inputs.github_token }}
         JDEPLOY_REQUIRE_EXISTING_TAG: ${{ inputs.require_existing_jdeploy_tag }}
 
-    - name: Publish package-info.json to GitHub
-      uses: softprops/action-gh-release@v2
-      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && inputs.target_repository == github.repository }}
-      with:
-        token: ${{ inputs.github_token }}
-        tag_name: "jdeploy"
-        prerelease: true
-        files: ./jdeploy/github-release-files/package-info.json
-
-    - name: Publish package-info.json to Github
-      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && inputs.target_repository != github.repository }}
+    - name: Download Baseline package-info.json from jdeploy Tag
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' }}
       shell: bash
       run: |
-        gh release delete -R '${{ inputs.target_repository }}' jdeploy || true
-        gh release create -R '${{ inputs.target_repository }}' jdeploy ./jdeploy/github-release-files/package-info.json
-      env:
-        GH_TOKEN: ${{ inputs.github_token }}
+        chmod +x ${{ github.action_path }}/.github/scripts/download-jdeploy-baseline.sh
+        ${{ github.action_path }}/.github/scripts/download-jdeploy-baseline.sh \
+          "${{ inputs.target_repository }}" \
+          "${{ inputs.github_token }}"
+
+    - name: Publish package-info.json to jdeploy Tag
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' }}
+      shell: bash
+      run: |
+        chmod +x ${{ github.action_path }}/.github/scripts/upload-jdeploy-package-info.sh
+        ${{ github.action_path }}/.github/scripts/upload-jdeploy-package-info.sh \
+          "${{ inputs.target_repository }}" \
+          "${{ inputs.github_token }}" \
+          "./jdeploy/github-release-files"
 
     - name: Upload files to GitHub Snapshot Release for Branch
       uses: softprops/action-gh-release@v2

@@ -111,7 +111,8 @@ class GitHubPublishDriverTest {
                 platformBundleGenerator,
                 defaultBundleService,
                 projectFactory,
-                environment
+                environment,
+                mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class)
         );
 
         packageJsonFile = new File(tempDir, "package.json");
@@ -274,7 +275,7 @@ class GitHubPublishDriverTest {
     @DisplayName("Should publish with valid GitHub token")
     void shouldPublishWithValidGitHubToken() throws IOException {
         when(target.getUrl()).thenReturn("https://github.com/user/repo");
-        
+
         PublishingContext contextWithToken = new PublishingContext(
                 packagingContext, false, npm, "valid-token", null, null, null, null);
 
@@ -288,6 +289,23 @@ class GitHubPublishDriverTest {
         PublishingContext spiedContext = spy(contextWithToken);
         when(spiedContext.getGithubReleaseFilesDir()).thenReturn(releaseFilesDir);
 
+        // Mock downloadAssetWithETag to throw GitHubReleaseNotFoundException (first publish scenario)
+        when(gitHubReleaseCreator.downloadAssetWithETag(
+                eq("https://github.com/user/repo"),
+                eq("valid-token"),
+                eq("jdeploy"),
+                eq("package-info.json")
+        )).thenThrow(new GitHubReleaseNotFoundException("Release not found for tag: jdeploy"));
+
+        // Mock createReleaseAtomic for first publish
+        doNothing().when(gitHubReleaseCreator).createReleaseAtomic(
+                eq("https://github.com/user/repo"),
+                eq("valid-token"),
+                eq("jdeploy"),
+                eq("Release metadata for jDeploy releases"),
+                any(File[].class)
+        );
+
         driver.publish(spiedContext, target, otpProvider);
 
         verify(gitHubReleaseCreator).createRelease(
@@ -295,6 +313,15 @@ class GitHubPublishDriverTest {
                 eq("valid-token"),
                 eq("1.0.0"),
                 eq(releaseNotes),
+                any(File[].class)
+        );
+
+        // Verify createReleaseAtomic was called for jdeploy tag
+        verify(gitHubReleaseCreator).createReleaseAtomic(
+                eq("https://github.com/user/repo"),
+                eq("valid-token"),
+                eq("jdeploy"),
+                eq("Release metadata for jDeploy releases"),
                 any(File[].class)
         );
     }
@@ -352,6 +379,46 @@ class GitHubPublishDriverTest {
         verify(baseDriver).prepare(spiedContext, target, bundlerSettings);
         verify(npm).pack(publishDir, githubReleaseDir, true);
         verify(bundleCodeService).fetchJdeployBundleCode("full-package-name");
+    }
+
+    @Test
+    @DisplayName("Should copy package.json to release files during prepare")
+    void shouldCopyPackageJsonToReleaseFiles() throws IOException {
+        when(target.getUrl()).thenReturn("https://github.com/user/repo");
+
+        File publishDir = new File(tempDir, "publish");
+        publishDir.mkdirs();
+
+        // Create the proper directory structure
+        File jdeployDir = new File(tempDir, "jdeploy");
+        File githubReleaseDir = new File(jdeployDir, "github-release-files");
+        githubReleaseDir.mkdirs();
+
+        // Create the publish package.json file
+        File publishPackageJsonFile = new File(publishDir, "package.json");
+        String packageJsonContent = "{\"name\":\"test-app\",\"version\":\"1.0.0\",\"jdeploy\":{}}";
+        FileUtils.writeStringToFile(publishPackageJsonFile, packageJsonContent, StandardCharsets.UTF_8);
+
+        // Create a context with GitHub repository information
+        PublishingContext contextWithRepo = new PublishingContext(
+                packagingContext, false, npm, null, "https://github.com/user/repo", null, null, null);
+
+        PublishingContext spiedContext = spy(contextWithRepo);
+        when(spiedContext.getPublishDir()).thenReturn(publishDir);
+        when(spiedContext.getPublishPackageJsonFile()).thenReturn(publishPackageJsonFile);
+        when(spiedContext.getGithubReleaseFilesDir()).thenReturn(githubReleaseDir);
+
+        when(cheerpjServiceFactory.create(any(PackagingContext.class))).thenReturn(cheerpjService);
+        when(cheerpjService.isEnabled()).thenReturn(false);
+        when(packageNameService.getFullPackageName(target, "test-app")).thenReturn("full-package-name");
+
+        driver.prepare(spiedContext, target, bundlerSettings);
+
+        // Verify package.json was copied to release files
+        File releasePackageJson = new File(githubReleaseDir, "package.json");
+        assertTrue(releasePackageJson.exists(), "package.json should be copied to release files");
+        String actualContent = FileUtils.readFileToString(releasePackageJson, StandardCharsets.UTF_8);
+        assertEquals(packageJsonContent, actualContent, "Content should match");
     }
 
     @Test

@@ -107,7 +107,8 @@ class GitHubPublishDriverPlatformBundlesTest {
                 platformBundleGenerator,
                 defaultBundleService,
                 projectFactory,
-                environment
+                environment,
+                mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class)
         );
 
         packageJsonFile = new File(tempDir, "package.json");
