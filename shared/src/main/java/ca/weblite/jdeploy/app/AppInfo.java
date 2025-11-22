@@ -62,6 +62,12 @@ public class AppInfo  {
      */
     private String launcherVersion;
 
+    /**
+     * The version of the app that was initially installed.
+     * This is parsed from the installer filename and only set when running as the installer.
+     */
+    private String initialAppVersion;
+
     private Map<String, String> documentMimetypes;
 
     private Map<String, String> documentTypeIcons;
@@ -1629,5 +1635,13 @@ public class AppInfo  {
 
     public void setLauncherVersion(String launcherVersion) {
         this.launcherVersion = launcherVersion;
+    }
+
+    public String getInitialAppVersion() {
+        return initialAppVersion;
+    }
+
+    public void setInitialAppVersion(String initialAppVersion) {
+        this.initialAppVersion = initialAppVersion;
     }
 }

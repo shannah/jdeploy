@@ -307,6 +307,11 @@ public class MacBundler {
             atts.add(app.getLauncherVersion());
         }
 
+        if (app.getInitialAppVersion() != null && !app.getInitialAppVersion().isEmpty()) {
+            atts.add("initial-app-version");
+            atts.add(app.getInitialAppVersion());
+        }
+
         return atts.toArray(new String[0]);
     }
 

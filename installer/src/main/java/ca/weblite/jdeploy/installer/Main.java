@@ -755,6 +755,12 @@ public class Main implements Runnable, Constants {
             appInfo().setLauncherVersion(launcherVersion);
         }
 
+        // Set initial app version from system property if available (parsed from installer filename)
+        String initialAppVersion = System.getProperty("jdeploy.initial.app.version");
+        if (initialAppVersion != null && !initialAppVersion.isEmpty()) {
+            appInfo().setInitialAppVersion(initialAppVersion);
+        }
+
         Bundler.runit(bundlerSettings, appInfo(), findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
 
         if (Platform.getSystemPlatform().isWindows()) {

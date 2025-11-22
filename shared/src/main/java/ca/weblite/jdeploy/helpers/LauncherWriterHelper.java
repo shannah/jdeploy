@@ -73,6 +73,11 @@ public class LauncherWriterHelper {
                 atts.add(app.getLauncherVersion());
             }
 
+            if (app.getInitialAppVersion() != null && !app.getInitialAppVersion().isEmpty()) {
+                atts.add("initial-app-version");
+                atts.add(app.getInitialAppVersion());
+            }
+
             out.start("app", atts.toArray(new String[0])).end();
         } else {
             List<String> atts = new ArrayList<>();
@@ -84,6 +89,11 @@ public class LauncherWriterHelper {
             if (app.getLauncherVersion() != null && !app.getLauncherVersion().isEmpty()) {
                 atts.add("launcher-version");
                 atts.add(app.getLauncherVersion());
+            }
+
+            if (app.getInitialAppVersion() != null && !app.getInitialAppVersion().isEmpty()) {
+                atts.add("initial-app-version");
+                atts.add(app.getInitialAppVersion());
             }
 
             out.start("app", atts.toArray(new String[0])).end();
