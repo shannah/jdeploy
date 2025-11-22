@@ -756,7 +756,7 @@ public class Main implements Runnable, Constants {
         }
 
         // Set initial app version from system property if available (parsed from installer filename)
-        String initialAppVersion = System.getProperty("jdeploy.initial.app.version");
+        String initialAppVersion = npmPackageVersion().getVersion();
         if (initialAppVersion != null && !initialAppVersion.isEmpty()) {
             appInfo().setInitialAppVersion(initialAppVersion);
         }
