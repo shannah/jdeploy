@@ -749,6 +749,12 @@ public class Main implements Runnable, Constants {
             fullyQualifiedPackageName = sourceHash + "." + fullyQualifiedPackageName;
         }
 
+        // Set launcher version from system property if available (installer context only)
+        String launcherVersion = System.getProperty("jdeploy.app.version");
+        if (launcherVersion != null && !launcherVersion.isEmpty()) {
+            appInfo().setLauncherVersion(launcherVersion);
+        }
+
         Bundler.runit(bundlerSettings, appInfo(), findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
 
         if (Platform.getSystemPlatform().isWindows()) {

@@ -134,4 +134,91 @@ public class LauncherWriterHelperTest {
         assertTrue(xmlContent.startsWith("<?xml"), "Should start with XML declaration");
         assertTrue(xmlContent.contains("<app"), "Should contain app element");
     }
+
+    @Test
+    public void testProcessAppXmlIncludesLauncherVersionForNpmApp(@TempDir Path tempDir) throws Exception {
+        AppDescription app = new AppDescription();
+        app.setName("TestApp");
+        app.setNpmPackage("test-package");
+        app.setNpmVersion("1.0.0");
+        app.setIconDataURI("data:image/png;base64,test");
+        app.setLauncherVersion("5.4.3");
+
+        File tempXml = tempDir.resolve("app.xml").toFile();
+
+        java.lang.reflect.Method method = LauncherWriterHelper.class.getDeclaredMethod(
+            "processAppXml", AppDescription.class, File.class
+        );
+        method.setAccessible(true);
+        method.invoke(null, app, tempXml);
+
+        String xmlContent = FileUtils.readFileToString(tempXml, "UTF-8");
+        assertTrue(xmlContent.contains("launcher-version='5.4.3'"),
+            "XML should contain launcher-version attribute");
+    }
+
+    @Test
+    public void testProcessAppXmlIncludesLauncherVersionForUrlApp(@TempDir Path tempDir) throws Exception {
+        AppDescription app = new AppDescription();
+        app.setName("TestApp");
+        app.setUrl("http://example.com/app.xml");
+        app.setIconDataURI("data:image/png;base64,test");
+        app.setLauncherVersion("5.4.3");
+
+        File tempXml = tempDir.resolve("app.xml").toFile();
+
+        java.lang.reflect.Method method = LauncherWriterHelper.class.getDeclaredMethod(
+            "processAppXml", AppDescription.class, File.class
+        );
+        method.setAccessible(true);
+        method.invoke(null, app, tempXml);
+
+        String xmlContent = FileUtils.readFileToString(tempXml, "UTF-8");
+        assertTrue(xmlContent.contains("launcher-version='5.4.3'"),
+            "XML should contain launcher-version attribute");
+    }
+
+    @Test
+    public void testProcessAppXmlOmitsLauncherVersionWhenNull(@TempDir Path tempDir) throws Exception {
+        AppDescription app = new AppDescription();
+        app.setName("TestApp");
+        app.setNpmPackage("test-package");
+        app.setNpmVersion("1.0.0");
+        app.setIconDataURI("data:image/png;base64,test");
+        app.setLauncherVersion(null);
+
+        File tempXml = tempDir.resolve("app.xml").toFile();
+
+        java.lang.reflect.Method method = LauncherWriterHelper.class.getDeclaredMethod(
+            "processAppXml", AppDescription.class, File.class
+        );
+        method.setAccessible(true);
+        method.invoke(null, app, tempXml);
+
+        String xmlContent = FileUtils.readFileToString(tempXml, "UTF-8");
+        assertFalse(xmlContent.contains("launcher-version"),
+            "XML should not contain launcher-version attribute when null");
+    }
+
+    @Test
+    public void testProcessAppXmlOmitsLauncherVersionWhenEmpty(@TempDir Path tempDir) throws Exception {
+        AppDescription app = new AppDescription();
+        app.setName("TestApp");
+        app.setNpmPackage("test-package");
+        app.setNpmVersion("1.0.0");
+        app.setIconDataURI("data:image/png;base64,test");
+        app.setLauncherVersion("");
+
+        File tempXml = tempDir.resolve("app.xml").toFile();
+
+        java.lang.reflect.Method method = LauncherWriterHelper.class.getDeclaredMethod(
+            "processAppXml", AppDescription.class, File.class
+        );
+        method.setAccessible(true);
+        method.invoke(null, app, tempXml);
+
+        String xmlContent = FileUtils.readFileToString(tempXml, "UTF-8");
+        assertFalse(xmlContent.contains("launcher-version"),
+            "XML should not contain launcher-version attribute when empty");
+    }
 }

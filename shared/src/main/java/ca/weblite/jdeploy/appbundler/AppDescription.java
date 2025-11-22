@@ -54,6 +54,12 @@ public class AppDescription {
     private String jDeployHomeLinux;
     private String jDeployRegistryUrl;
 
+    /**
+     * The version of the launcher/installer that created this bundle.
+     * This is only set when running as the installer, not during CLI packaging.
+     */
+    private String launcherVersion;
+
     private Map<String,String> macUsageDescriptions = new HashMap<>();
 
     /**
@@ -474,5 +480,13 @@ public class AppDescription {
 
     public void setMacUsageDescription(String key, String value) {
         macUsageDescriptions.put(key, value);
+    }
+
+    public String getLauncherVersion() {
+        return launcherVersion;
+    }
+
+    public void setLauncherVersion(String launcherVersion) {
+        this.launcherVersion = launcherVersion;
     }
 }

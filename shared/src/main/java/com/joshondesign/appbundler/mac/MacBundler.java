@@ -302,10 +302,14 @@ public class MacBundler {
             }
         }
 
+        if (app.getLauncherVersion() != null && !app.getLauncherVersion().isEmpty()) {
+            atts.add("launcher-version");
+            atts.add(app.getLauncherVersion());
+        }
 
         return atts.toArray(new String[0]);
     }
-    
+
     private static void createThumbnail(File f, File contentsDir, int size) throws IOException {
         Thumbnails.of(f)
                 .size(size, size)
