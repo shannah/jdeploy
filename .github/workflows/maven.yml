@@ -33,11 +33,6 @@ jobs:
         registry-url: 'https://registry.npmjs.org'
       env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-    - name: Setup Maven Action
-      uses: s4u/setup-maven-action@v1.6.0
-      with:
-        java-version: 11
-        maven-version: '3.6.3'
     - name: Install PHP
       run: |
         brew update
