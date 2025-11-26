@@ -232,8 +232,8 @@ runs:
       if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' }}
       shell: bash
       run: |
-        chmod +x ${{ github.action_path }}/.github/scripts/download-jdeploy-baseline.sh
-        ${{ github.action_path }}/.github/scripts/download-jdeploy-baseline.sh \
+        chmod +x "${{ github.action_path }}/.github/scripts/download-jdeploy-baseline.sh"
+        "${{ github.action_path }}/.github/scripts/download-jdeploy-baseline.sh" \
           "${{ inputs.target_repository }}" \
           "${{ inputs.github_token }}"
 
@@ -241,8 +241,8 @@ runs:
       if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' }}
       shell: bash
       run: |
-        chmod +x ${{ github.action_path }}/.github/scripts/upload-jdeploy-package-info.sh
-        ${{ github.action_path }}/.github/scripts/upload-jdeploy-package-info.sh \
+        chmod +x "${{ github.action_path }}/.github/scripts/upload-jdeploy-package-info.sh"
+        "${{ github.action_path }}/.github/scripts/upload-jdeploy-package-info.sh" \
           "${{ inputs.target_repository }}" \
           "${{ inputs.github_token }}" \
           "./jdeploy/github-release-files"
