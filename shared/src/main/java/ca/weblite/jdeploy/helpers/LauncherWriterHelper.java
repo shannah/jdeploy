@@ -7,6 +7,8 @@ import com.joshondesign.appbundler.win.WindowsBundler2;
 import com.joshondesign.xml.XMLWriter;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class LauncherWriterHelper {
     public void writeLauncher(AppDescription app, File destFile, InputStream launcherInput) throws Exception {
@@ -55,20 +57,46 @@ public class LauncherWriterHelper {
         out.header();
 
         if (app.getNpmPackage() != null && app.getNpmVersion() != null) {
+            List<String> atts = new ArrayList<>();
+            atts.add("name"); atts.add(app.getName());
+            atts.add("package"); atts.add(app.getNpmPackage());
+            atts.add("source"); atts.add(app.getNpmSource());
+            atts.add("version"); atts.add(app.getNpmVersion());
+            atts.add("icon"); atts.add(app.getIconDataURI());
+            atts.add("splash"); atts.add(app.getSplashDataURI());
+            atts.add("prerelease"); atts.add(app.isNpmPrerelease()+"");
+            atts.add("registry-url"); atts.add(app.getJDeployRegistryUrl());
+            atts.add("fork"); atts.add(""+app.isFork());
 
-            out.start("app",
-                    "name", app.getName(),
-                    "package", app.getNpmPackage(),
-                    "source", app.getNpmSource(),
-                    "version", app.getNpmVersion(),
-                    "icon", app.getIconDataURI(),
-                    "splash", app.getSplashDataURI(),
-                    "prerelease", app.isNpmPrerelease()+"",
-                    "registry-url", app.getJDeployRegistryUrl(),
-                    "fork", ""+app.isFork()
-            ).end();
+            if (app.getLauncherVersion() != null && !app.getLauncherVersion().isEmpty()) {
+                atts.add("launcher-version");
+                atts.add(app.getLauncherVersion());
+            }
+
+            if (app.getInitialAppVersion() != null && !app.getInitialAppVersion().isEmpty()) {
+                atts.add("initial-app-version");
+                atts.add(app.getInitialAppVersion());
+            }
+
+            out.start("app", atts.toArray(new String[0])).end();
         } else {
-            out.start("app", "name", app.getName(), "url", app.getUrl(), "icon", app.getIconDataURI(), "splash", app.getSplashDataURI()).end();
+            List<String> atts = new ArrayList<>();
+            atts.add("name"); atts.add(app.getName());
+            atts.add("url"); atts.add(app.getUrl());
+            atts.add("icon"); atts.add(app.getIconDataURI());
+            atts.add("splash"); atts.add(app.getSplashDataURI());
+
+            if (app.getLauncherVersion() != null && !app.getLauncherVersion().isEmpty()) {
+                atts.add("launcher-version");
+                atts.add(app.getLauncherVersion());
+            }
+
+            if (app.getInitialAppVersion() != null && !app.getInitialAppVersion().isEmpty()) {
+                atts.add("initial-app-version");
+                atts.add(app.getInitialAppVersion());
+            }
+
+            out.start("app", atts.toArray(new String[0])).end();
         }
         out.close();
     }
