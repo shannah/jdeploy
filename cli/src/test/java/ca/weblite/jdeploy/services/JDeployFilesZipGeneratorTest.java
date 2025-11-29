@@ -139,7 +139,7 @@ class JDeployFilesZipGeneratorTest {
     }
 
     @Test
-    @DisplayName("Should work with minimal files (no optional assets)")
+    @DisplayName("Should work with minimal files (no custom assets, using defaults)")
     void shouldWorkWithMinimalFiles() throws IOException {
         // Create package.json
         String packageJson = "{"
@@ -161,31 +161,36 @@ class JDeployFilesZipGeneratorTest {
         File zipFile = new File(releaseFilesDir, "jdeploy-files.zip");
         assertTrue(zipFile.exists(), "jdeploy-files.zip should be created");
 
-        // Verify zip contains only required files
+        // Verify zip contains required files with defaults
         try (ZipFile zip = new ZipFile(zipFile)) {
             assertNotNull(zip.getEntry("test-app-1.0.0/.jdeploy-files/app.xml"), "app.xml should exist");
             assertNotNull(zip.getEntry("test-app-1.0.0/.jdeploy-files/icon.png"), "icon.png should exist");
-            assertNull(zip.getEntry("test-app-1.0.0/.jdeploy-files/installsplash.png"), "installsplash.png should not exist");
+            assertNotNull(zip.getEntry("test-app-1.0.0/.jdeploy-files/installsplash.png"), "installsplash.png should exist (using default)");
             assertNull(zip.getEntry("test-app-1.0.0/.jdeploy-files/launcher-splash.html"), "launcher-splash.html should not exist");
         }
     }
 
     @Test
-    @DisplayName("Should fail if icon.png is missing")
-    void shouldFailIfIconMissing() throws IOException {
-        // Create package.json without icon
+    @DisplayName("Should use default icon when icon.png is missing")
+    void shouldUseDefaultIconWhenMissing() throws IOException {
+        // Create package.json without custom icon
         String packageJson = "{"
                 + "\"name\":\"test-app\","
                 + "\"version\":\"1.0.0\""
                 + "}";
         FileUtils.writeStringToFile(packageJsonFile, packageJson, StandardCharsets.UTF_8);
 
-        // Attempt to generate zip without icon
-        IOException exception = assertThrows(IOException.class, () -> {
-            generator.generate(publishingContext, target);
-        });
+        // Generate zip without custom icon - should use default
+        generator.generate(publishingContext, target);
 
-        assertTrue(exception.getMessage().contains("icon.png"), "Error message should mention icon.png");
+        // Verify zip was created with default icon
+        File zipFile = new File(releaseFilesDir, "jdeploy-files.zip");
+        assertTrue(zipFile.exists(), "jdeploy-files.zip should be created");
+
+        try (ZipFile zip = new ZipFile(zipFile)) {
+            assertNotNull(zip.getEntry("test-app-1.0.0/.jdeploy-files/icon.png"), "icon.png should exist (using default)");
+            assertNotNull(zip.getEntry("test-app-1.0.0/.jdeploy-files/installsplash.png"), "installsplash.png should exist (using default)");
+        }
     }
 
     @Test

@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.services;
 
+import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishing.PublishingContext;
 import org.apache.commons.io.FileUtils;
@@ -21,8 +22,8 @@ import java.util.zip.ZipOutputStream;
  *
  * This zip file contains the essential assets needed by jDeploy installers:
  * - app.xml: Application metadata in minimal format
- * - icon.png: Application icon
- * - installsplash.png: Installer splash screen (optional)
+ * - icon.png: Application icon (uses default from resources if not provided)
+ * - installsplash.png: Installer splash screen (uses default from resources if not provided)
  * - launcher-splash.html: Launcher splash HTML (optional)
  *
  * The zip structure matches the server-side format:
@@ -55,13 +56,24 @@ public class JDeployFilesZipGenerator {
         String source = getSource(packageJson, target);
         boolean prerelease = isPrerelease(version);
 
-        // 2. Read and encode icon
+        // 2. Read and encode icon (use default if not provided)
         File iconFile = new File(context.directory(), "icon.png");
-        if (!iconFile.exists()) {
-            throw new IOException("Required file not found: icon.png\n" +
-                    "Please add an icon.png file to your project root directory.");
+        File iconFileToUse;
+
+        if (iconFile.exists()) {
+            iconFileToUse = iconFile;
+        } else {
+            // Use default icon from resources
+            File tempIconFile = File.createTempFile("jdeploy-", "-icon.png");
+            tempIconFile.deleteOnExit();
+            FileUtils.copyInputStreamToFile(
+                JDeploy.class.getResourceAsStream("icon.png"),
+                tempIconFile
+            );
+            iconFileToUse = tempIconFile;
         }
-        byte[] iconBytes = Files.readAllBytes(iconFile.toPath());
+
+        byte[] iconBytes = Files.readAllBytes(iconFileToUse.toPath());
         String iconDataUri = "data:image/png;base64," + Base64.getEncoder().encodeToString(iconBytes);
 
         // 3. Generate app.xml
@@ -82,13 +94,25 @@ public class JDeployFilesZipGenerator {
             addStringToZip(zos, baseDir + "app.xml", appXml);
 
             // Add icon.png
-            addFileToZip(zos, baseDir + "icon.png", iconFile);
+            addFileToZip(zos, baseDir + "icon.png", iconFileToUse);
 
-            // Add installsplash.png (optional)
+            // Add installsplash.png (use default if not provided)
             File splashFile = new File(context.directory(), "installsplash.png");
+            File splashFileToUse;
+
             if (splashFile.exists()) {
-                addFileToZip(zos, baseDir + "installsplash.png", splashFile);
+                splashFileToUse = splashFile;
+            } else {
+                // Use default installsplash from resources
+                File tempSplashFile = File.createTempFile("jdeploy-", "-installsplash.png");
+                tempSplashFile.deleteOnExit();
+                FileUtils.copyInputStreamToFile(
+                    JDeploy.class.getResourceAsStream("installsplash.png"),
+                    tempSplashFile
+                );
+                splashFileToUse = tempSplashFile;
             }
+            addFileToZip(zos, baseDir + "installsplash.png", splashFileToUse);
 
             // Add launcher-splash.html (optional)
             File launcherSplashFile = new File(context.directory(), "launcher-splash.html");
