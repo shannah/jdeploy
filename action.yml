@@ -249,7 +249,7 @@ runs:
 
     - name: Upload files to GitHub Snapshot Release for Branch
       uses: softprops/action-gh-release@v2
-      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'branch' }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'branch' && inputs.target_repository == github.repository }}
       with:
         tag_name: "${{ github.ref_name }}"
         token: "${{ inputs.github_token }}"
