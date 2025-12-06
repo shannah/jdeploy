@@ -1,26 +1,56 @@
 {
-  "name": "jdeploy-js-smoke",
-  "author": "Smoke Test",
-  "description": "Smoke test project for the jdeploy.js Node launcher",
-  "homepage": "https://example.com/test-app",
-  "main": "index.js",
-  "preferGlobal": true,
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/example.git"
-  },
-  "version": "0.0.1",
-  "bin": {
-    "jdeploy-smoke": "jdeploy-bundle/jdeploy.js"
-  },
-  "jdeploy": {
-    "jar": "jdeploy-bundle/myapp.jar",
-    "javaVersion": "17"
-  },
-  "dependencies": {},
-  "license": "MIT",
-  "files": [
-    "jdeploy-bundle"
-  ],
-  "keywords": []
+    "bin": {
+        "texteditor": "jdeploy-bundle/jdeploy.js"
+    },
+    "author": "Steve Hannah",
+    "description": "A text editor",
+    "main": "index.js",
+    "preferGlobal": true,
+    "repository": "https://github.com/shannah/jdeploy-demo-texteditor",
+    "version": "0.0.0-JDEPLOY-SNAPSHOT",
+    "jdeploy": {
+        "jdk": false,
+        "javaVersion": "11",
+        "documentTypes": [
+            {
+                "editor": true,
+                "extension": "txt",
+                "mimetype": "text/plain"
+            },
+            {
+                "extension": "html",
+                "mimetype": "text/html"
+            },
+            {
+                "extension": "jdtext",
+                "mimetype": "application/x-jdeploy-demo-texteditor-jdtext"
+            }
+        ],
+        "urlSchemes": [
+            "jdtext"
+        ],
+        "jar": "target/TextEditor-1.0-SNAPSHOT.jar",
+        "javafx": true,
+        "title": "Text Editor",
+        "installers": [
+            "mac-arm64",
+            "win",
+            "linux"
+        ]
+    },
+    "dependencies": {
+        "command-exists-promise": "^2.0.2",
+        "node-fetch": "2.6.7",
+        "tar": "^4.4.8",
+        "yauzl": "^2.10.0",
+        "shelljs": "^0.8.4"
+    },
+    "license": "ISC",
+    "name": "jdeploy-demo-texteditor",
+    "files": [
+        "jdeploy-bundle"
+    ],
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    }
 }
