@@ -235,7 +235,7 @@ class JDeployIntegrationTest {
         // Step 13: Capture and verify output
         System.out.println("DEBUG: Step 13 - Capturing script output");
         StringBuilder stdoutOutput = new StringBuilder();
-        StringBuilder stderrOutput = new StringBuilder();
+        StringBuffer stderrOutput = new StringBuffer(); // Thread-safe for concurrent access
         
         // Read stderr in a separate thread
         Thread stderrThread = new Thread(() -> {
