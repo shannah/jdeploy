@@ -34,8 +34,6 @@ jobs:
       with:
         node-version: '16.x'
         registry-url: 'https://registry.npmjs.org'
-      env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     - name: Install PHP
       run: |
         brew update
@@ -52,7 +50,6 @@ jobs:
         APPLE_ID: ${{ secrets.APPLE_ID }}
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         APPLE_2FA_PASSWORD: ${{ secrets.APPLE_2FA_PASSWORD }}
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
         MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         JDEPLOY_MAC_DEVELOPER_CERTIFICATE_NAME: ${{ secrets.DEVELOPER_ID_CERTIFICATE_NAME }}
