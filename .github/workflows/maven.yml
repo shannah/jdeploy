@@ -13,6 +13,9 @@ on:
   push:
     tags: "*"
 
+permissions:
+  id-token: write
+
 jobs:
   build:
 
