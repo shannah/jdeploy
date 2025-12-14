@@ -458,7 +458,14 @@ public class Main implements Runnable, Constants {
             ex.printStackTrace(System.err);
             System.err.flush();
             invokeLater(()->{
-                uiFactory.showModalErrorDialog(null, ex.getMessage(), "Installation failed.");
+                String message = ex.getMessage();
+                if (ex instanceof UserLangRuntimeException) {
+                    UserLangRuntimeException userEx = (UserLangRuntimeException) ex;
+                    if (userEx.hasUserFriendlyMessage()) {
+                        message = userEx.getUserFriendlyMessage();
+                    }
+                }
+                uiFactory.showModalErrorDialog(null, message, "Installation failed.");
                 System.exit(1);
             });
         }
@@ -639,7 +646,15 @@ public class Main implements Runnable, Constants {
             } catch (Exception ex) {
                 invokeLater(()->evt.getInstallationForm().setInProgress(false, ""));
                 ex.printStackTrace(System.err);
-                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Installation failed. "+ex.getMessage(), "Failed"));
+                String message = ex.getMessage();
+                if (ex instanceof UserLangRuntimeException) {
+                    UserLangRuntimeException userEx = (UserLangRuntimeException) ex;
+                    if (userEx.hasUserFriendlyMessage()) {
+                        message = userEx.getUserFriendlyMessage();
+                    }
+                }
+                String finalMessage = message;
+                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Installation failed. "+finalMessage, "Failed"));
             }
         }).start();
     }
@@ -790,13 +805,39 @@ public class Main implements Runnable, Constants {
                 if (candidateApp.getName().endsWith(".app")) {
                     int result = Runtime.getRuntime().exec(new String[]{"mv", candidateApp.getAbsolutePath(), installAppPath.getAbsolutePath()}).waitFor();
                     if (result != 0) {
-                        throw new RuntimeException("Failed to copy app to "+jdeployAppsDir);
+                        String logPath = System.getProperty("user.home") + "/.jdeploy/log/jdeploy-installer.log";
+                        String technicalMessage = "Failed to move application bundle to " + installAppPath.getAbsolutePath() + ". mv command returned exit code " + result;
+                        String userMessage = "<html><body style='width: 400px;'>" +
+                            "<h3>Installation Failed</h3>" +
+                            "<p>Could not install the application to:<br/><b>" + jdeployAppsDir.getAbsolutePath() + "</b></p>" +
+                            "<p><b>Possible causes:</b></p>" +
+                            "<ul>" +
+                            "<li>You don't have write permission to the Applications directory</li>" +
+                            "<li>The application is currently running (please close it and try again)</li>" +
+                            "</ul>" +
+                            "<p style='margin-top: 12px;'><small>For technical details, check the log file:<br/>" +
+                            logPath + "</small></p>" +
+                            "</body></html>";
+                        throw new UserLangRuntimeException(technicalMessage, userMessage);
                     }
                     break;
                 }
             }
             if (!installAppPath.exists()) {
-                throw new RuntimeException("Failed to copy app to "+jdeployAppsDir);
+                String logPath = System.getProperty("user.home") + "/.jdeploy/log/jdeploy-installer.log";
+                String technicalMessage = "Application bundle does not exist at " + installAppPath.getAbsolutePath() + " after installation attempt";
+                String userMessage = "<html><body style='width: 400px;'>" +
+                    "<h3>Installation Failed</h3>" +
+                    "<p>Could not install the application to:<br/><b>" + jdeployAppsDir.getAbsolutePath() + "</b></p>" +
+                    "<p><b>Possible causes:</b></p>" +
+                    "<ul>" +
+                    "<li>You don't have write permission to the Applications directory</li>" +
+                    "<li>The application is currently running (please close it and try again)</li>" +
+                    "</ul>" +
+                    "<p style='margin-top: 12px;'><small>For technical details, check the log file:<br/>" +
+                    logPath + "</small></p>" +
+                    "</body></html>";
+                throw new UserLangRuntimeException(technicalMessage, userMessage);
             }
             installedApp = installAppPath;
             File adminWrapper = null;
@@ -882,7 +923,24 @@ public class Main implements Runnable, Constants {
 
             String exeName = deriveLinuxBinaryNameFromTitle(appInfo().getTitle()) + nameSuffix;
             File exePath = new File(appDir, exeName);
-            FileUtil.copy(tmpExePath, exePath);
+            try {
+                FileUtil.copy(tmpExePath, exePath);
+            } catch (IOException e) {
+                String logPath = System.getProperty("user.home") + "/.jdeploy/log/jdeploy-installer.log";
+                String technicalMessage = "Failed to copy application launcher to " + exePath.getAbsolutePath() + ": " + e.getMessage();
+                String userMessage = "<html><body style='width: 400px;'>" +
+                    "<h3>Installation Failed</h3>" +
+                    "<p>Could not install the application to:<br/><b>" + appDir.getAbsolutePath() + "</b></p>" +
+                    "<p><b>Possible causes:</b></p>" +
+                    "<ul>" +
+                    "<li>You don't have write permission to the directory</li>" +
+                    "<li>The application is currently running (please close it and try again)</li>" +
+                    "</ul>" +
+                    "<p style='margin-top: 12px;'><small>For technical details, check the log file:<br/>" +
+                    logPath + "</small></p>" +
+                    "</body></html>";
+                throw new UserLangRuntimeException(technicalMessage, userMessage, e);
+            }
 
             // Copy the icon.png if it is present
             File bundleIcon = new File(findAppXmlFile().getParentFile(), "icon.png");
