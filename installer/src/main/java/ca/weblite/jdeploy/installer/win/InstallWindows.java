@@ -54,8 +54,26 @@ public class InstallWindows {
             exePath = new File(appBinDir, exeName);
         }
 
-        FileUtil.copy(tmpExePath, exePath);
-        exePath.setExecutable(true, false);
+        try {
+            FileUtil.copy(tmpExePath, exePath);
+            exePath.setExecutable(true, false);
+        } catch (IOException e) {
+            String logPath = System.getProperty("user.home") + "\\.jdeploy\\log\\jdeploy-installer.log";
+            String technicalMessage = "Failed to copy application executable to " + exePath.getAbsolutePath() + ": " + e.getMessage();
+            String userMessage = "<html><body style='width: 400px;'>" +
+                "<h3>Installation Failed</h3>" +
+                "<p>Could not install the application to:<br/><b>" + appDir.getAbsolutePath() + "</b></p>" +
+                "<p><b>Possible causes:</b></p>" +
+                "<ul>" +
+                "<li>You don't have write permission to the directory</li>" +
+                "<li>The application is currently running (please close it completely and try again)</li>" +
+                "<li>Antivirus software may be blocking the installation</li>" +
+                "</ul>" +
+                "<p style='margin-top: 12px;'><small>For technical details, check the log file:<br/>" +
+                logPath + "</small></p>" +
+                "</body></html>";
+            throw new ca.weblite.jdeploy.installer.UserLangRuntimeException(technicalMessage, userMessage, e);
+        }
 
         // Copy the icon.png if it is present
         File bundleIcon = new File(appXmlFile.getParentFile(), "icon.png");
