@@ -840,6 +840,100 @@ public class InstallWindowsRegistry {
         registryDeleteKey(HKEY_CURRENT_USER, key);
     }
 
+    /**
+     * Compute a new PATH string that contains binPath. If binPath is already present,
+     * the original value is returned unchanged.
+     *
+     * This is pure utility (no registry access) to make logic testable.
+     */
+    public static String computePathWithAdded(String currentPath, String binPath) {
+        if (binPath == null || binPath.isEmpty()) return currentPath;
+        if (currentPath == null || currentPath.isEmpty()) return binPath;
+        String[] parts = currentPath.split(";");
+        for (String p : parts) {
+            if (p.equalsIgnoreCase(binPath)) {
+                return currentPath;
+            }
+        }
+        // Append to end to avoid interfering with other entries
+        return currentPath + ";" + binPath;
+    }
 
+    /**
+     * Compute a new PATH string with all occurrences of binPath removed.
+     * Returns empty string if no entries remain. Returns the original string
+     * if binPath is not present.
+     *
+     * Pure utility for testing.
+     */
+    public static String computePathWithRemoved(String currentPath, String binPath) {
+        if (currentPath == null || currentPath.isEmpty()) return currentPath;
+        if (binPath == null || binPath.isEmpty()) return currentPath;
+        String[] parts = currentPath.split(";");
+        StringBuilder sb = new StringBuilder();
+        for (String p : parts) {
+            if (p.isEmpty()) continue;
+            if (p.equalsIgnoreCase(binPath)) continue;
+            if (sb.length() > 0) sb.append(";");
+            sb.append(p);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Adds the provided binDir to the user's HKCU\Environment\Path if not already present.
+     * Returns true if the registry value was changed, false if the directory was already present.
+     */
+    public boolean addToUserPath(File binDir) {
+        if (binDir == null) return false;
+        String binPath = binDir.getAbsolutePath();
+        String key = "Environment";
+        String curr = null;
+        boolean hadRegistryValue = false;
+        if (registryKeyExists(HKEY_CURRENT_USER, key) && registryValueExists(HKEY_CURRENT_USER, key, "Path")) {
+            curr = registryGetStringValue(HKEY_CURRENT_USER, key, "Path");
+            hadRegistryValue = true;
+        } else {
+            curr = System.getenv("PATH");
+        }
+        String newPath = computePathWithAdded(curr, binPath);
+        if (newPath == null) newPath = binPath;
+        if (curr != null && curr.equals(newPath)) {
+            return false;
+        }
+        if (!registryKeyExists(HKEY_CURRENT_USER, key)) {
+            registryCreateKey(HKEY_CURRENT_USER, key);
+        }
+        registrySetStringValue(HKEY_CURRENT_USER, key, "Path", newPath);
+        return true;
+    }
+
+    /**
+     * Removes the provided binDir from the user's HKCU\Environment\Path.
+     * Returns true if the registry value was changed (or set) and false if no change was needed.
+     */
+    public boolean removeFromUserPath(File binDir) {
+        if (binDir == null) return false;
+        String binPath = binDir.getAbsolutePath();
+        String key = "Environment";
+        String curr = null;
+        boolean hadRegistryValue = false;
+        if (registryKeyExists(HKEY_CURRENT_USER, key) && registryValueExists(HKEY_CURRENT_USER, key, "Path")) {
+            curr = registryGetStringValue(HKEY_CURRENT_USER, key, "Path");
+            hadRegistryValue = true;
+        } else {
+            curr = System.getenv("PATH");
+        }
+        String newPath = computePathWithRemoved(curr, binPath);
+        if (newPath == null) newPath = "";
+        if (curr != null && curr.equals(newPath)) {
+            return false;
+        }
+        if (!registryKeyExists(HKEY_CURRENT_USER, key)) {
+            registryCreateKey(HKEY_CURRENT_USER, key);
+        }
+        registrySetStringValue(HKEY_CURRENT_USER, key, "Path", newPath);
+        return true;
+    }
 
 }

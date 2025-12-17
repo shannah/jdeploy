@@ -784,7 +784,8 @@ public class Main implements Runnable, Constants {
                     installationContext,
                     installationSettings,
                     fullyQualifiedPackageName,
-                    tmpBundles
+                    tmpBundles,
+                    npmPackageVersion()
             );
         } else if (Platform.getSystemPlatform().isMac()) {
             File jdeployAppsDir = new File(System.getProperty("user.home") + File.separator + "Applications");

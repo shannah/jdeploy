@@ -30,6 +30,19 @@ public class InstallWindows {
             String fullyQualifiedPackageName,
             File tmpBundles
     ) throws Exception {
+        return install(context, installationSettings, fullyQualifiedPackageName, tmpBundles, null);
+    }
+
+    /**
+     * Overload that accepts the NPMPackageVersion so we can enumerate CLI commands for wrapper generation.
+     */
+    public File install(
+            InstallationContext context,
+            InstallationSettings installationSettings,
+            String fullyQualifiedPackageName,
+            File tmpBundles,
+            ca.weblite.jdeploy.installer.npm.NPMPackageVersion npmPackageVersion
+    ) throws Exception {
         AppInfo appInfo = installationSettings.getAppInfo();
         File tmpExePath = findTmpExeFile(tmpBundles);
         File appXmlFile = context.findAppXml();
@@ -112,6 +125,35 @@ public class InstallWindows {
         try (FileOutputStream fos = new FileOutputStream(registryBackupLog)) {
             InstallWindowsRegistry registryInstaller = new InstallWindowsRegistry(appInfo, exePath, icoPath, fos);
             registryInstaller.register();
+
+            // Create per-command .cmd wrappers (Windows) if user requested
+            boolean anyWrappersCreated = false;
+            boolean pathUpdated = false;
+            File userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
+            List<ca.weblite.jdeploy.models.CommandSpec> commands = npmPackageVersion != null ? npmPackageVersion.getCommands() : null;
+            if (installationSettings.isInstallCliCommand() && commands != null && !commands.isEmpty()) {
+                List<File> created = writeCommandWrappers(userBinDir, exePath, commands);
+                anyWrappersCreated = created != null && !created.isEmpty();
+                try {
+                    pathUpdated = registryInstaller.addToUserPath(userBinDir);
+                } catch (Exception ex) {
+                    System.err.println("Warning: Failed to update user PATH in registry: " + ex.getMessage());
+                }
+
+                // Persist metadata so uninstall can clean up
+                try {
+                    org.json.JSONObject meta = new org.json.JSONObject();
+                    org.json.JSONArray arr = new org.json.JSONArray();
+                    for (ca.weblite.jdeploy.models.CommandSpec cs : commands) {
+                        arr.put(cs.getName() + ".cmd");
+                    }
+                    meta.put("createdWrappers", arr);
+                    meta.put("pathUpdated", pathUpdated);
+                    org.apache.commons.io.FileUtils.writeStringToFile(new File(appDir, ".jdeploy-cli.json"), meta.toString(), "UTF-8");
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to write CLI metadata file: " + e.getMessage());
+                }
+            }
 
             //Try to copy the uninstaller
             File uninstallerPath = registryInstaller.getUninstallerPath();
@@ -297,4 +339,46 @@ public class InstallWindows {
         // Use centralized architecture detection utility
         return ArchitectureUtil.getArchitectureSuffix();
     }
+
+    /**
+     * Write .cmd wrappers for each command spec into the specified bin directory.
+     *
+     * Returns list of created files.
+     */
+    static List<File> writeCommandWrappers(File binDir, File exePath, List<ca.weblite.jdeploy.models.CommandSpec> commands) throws IOException {
+        List<File> created = new ArrayList<>();
+        if (commands == null || commands.isEmpty()) return created;
+        if (!binDir.exists()) {
+            if (!binDir.mkdirs()) {
+                throw new IOException("Failed to create bin directory: " + binDir.getAbsolutePath());
+            }
+        }
+        for (ca.weblite.jdeploy.models.CommandSpec cs : commands) {
+            String name = cs.getName();
+            File wrapper = new File(binDir, name + ".cmd");
+            // Windows batch wrapper: invoke the launcher with --jdeploy:command=<name> and forward all args
+            String content = "@echo off\r\n\"" + exePath.getAbsolutePath() + "\" --jdeploy:command=" + name + " %*\r\n";
+            org.apache.commons.io.FileUtils.writeStringToFile(wrapper, content, "UTF-8");
+            // Ensure writable - Windows doesn't need Unix exec bit
+            wrapper.setExecutable(true, false);
+            created.add(wrapper);
+        }
+        return created;
+    }
+
+    private String getStartMenuPath() {
+        return new File(System.getProperty("user.home") + File.separator +
+                "AppData" + File.separator +
+                "Roaming" + File.separator +
+                "Microsoft" + File.separator +
+                "Windows" + File.separator +
+                "Start Menu").getAbsolutePath();
+    }
+
+    private String getStartMenuLink(String suffix) {
+        return new File(getStartMenuPath(), new File(appFileName + suffix).getName() + ".lnk").getAbsolutePath();
+    }
+
+    // (rest of private helpers and methods remain unchanged)
+    // Note: other methods in this class are unchanged from the original file.
 }

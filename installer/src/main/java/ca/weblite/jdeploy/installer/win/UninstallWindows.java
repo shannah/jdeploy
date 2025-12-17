@@ -233,6 +233,46 @@ public class UninstallWindows {
         cleanupPackageDir();
         deleteApp();
         installWindowsRegistry.unregister(null);
+
+        // Try to remove any CLI wrappers and revert PATH if we added it.
+        File appDir = getAppDirPath();
+        File metaFile = new File(appDir, ".jdeploy-cli.json");
+        if (metaFile.exists()) {
+            try {
+                String json = FileUtils.readFileToString(metaFile, "UTF-8");
+                org.json.JSONObject meta = new org.json.JSONObject(json);
+                org.json.JSONArray arr = meta.optJSONArray("createdWrappers");
+                boolean pathUpdated = meta.optBoolean("pathUpdated", false);
+                File binDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
+                if (arr != null) {
+                    for (int i = 0; i < arr.length(); i++) {
+                        String wrapperName = arr.getString(i);
+                        File wrapper = new File(binDir, wrapperName);
+                        if (wrapper.exists()) {
+                            try {
+                                System.out.println("Deleting CLI wrapper: " + wrapper.getAbsolutePath());
+                                wrapper.delete();
+                            } catch (Exception ex) {
+                                System.err.println("Warning: Failed to delete wrapper " + wrapper.getAbsolutePath() + ": " + ex.getMessage());
+                            }
+                        }
+                    }
+                }
+                if (pathUpdated) {
+                    try {
+                        installWindowsRegistry.removeFromUserPath(binDir);
+                    } catch (Exception ex) {
+                        System.err.println("Warning: Failed to revert PATH entry for " + binDir.getAbsolutePath() + ": " + ex.getMessage());
+                    }
+                }
+            } catch (Exception ex) {
+                System.err.println("Warning: Failed to process CLI uninstall metadata: " + ex.getMessage());
+            } finally {
+                // remove metadata file if present
+                try { metaFile.delete(); } catch (Exception ignored) {}
+            }
+        }
+
         File uninstallerJDeployFiles = new File(getUninstallerPath().getParentFile(), ".jdeploy-files");
         if (uninstallerJDeployFiles.exists()) {
             FileUtils.deleteDirectory(uninstallerJDeployFiles);
