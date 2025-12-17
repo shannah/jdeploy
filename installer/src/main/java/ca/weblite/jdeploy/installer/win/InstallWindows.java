@@ -366,19 +366,6 @@ public class InstallWindows {
         return created;
     }
 
-    private String getStartMenuPath() {
-        return new File(System.getProperty("user.home") + File.separator +
-                "AppData" + File.separator +
-                "Roaming" + File.separator +
-                "Microsoft" + File.separator +
-                "Windows" + File.separator +
-                "Start Menu").getAbsolutePath();
-    }
-
-    private String getStartMenuLink(String suffix) {
-        return new File(getStartMenuPath(), new File(appFileName + suffix).getName() + ".lnk").getAbsolutePath();
-    }
-
     // (rest of private helpers and methods remain unchanged)
     // Note: other methods in this class are unchanged from the original file.
 }

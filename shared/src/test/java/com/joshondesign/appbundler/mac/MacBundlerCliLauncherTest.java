@@ -1,17 +1,15 @@
 package com.joshondesign.appbundler.mac;
 
-import ca.weblite.jdeploy.appbundler.AppDescription;
-import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import org.apache.commons.io.FileUtils;
-import org.junit.After;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Focused tests for the macOS CLI launcher copy behavior.
@@ -22,7 +20,7 @@ public class MacBundlerCliLauncherTest {
 
     private File tmpDir;
 
-    @After
+    @AfterEach
     public void cleanup() throws IOException {
         if (tmpDir != null && tmpDir.exists()) {
             FileUtils.deleteDirectory(tmpDir);
@@ -51,12 +49,12 @@ public class MacBundlerCliLauncherTest {
         MacBundler.maybeCreateCliLauncher(contentsDir, guiLauncher);
 
         File cliLauncher = new File(macosDir, "Client4JLauncher-cli");
-        assertTrue("CLI launcher should have been created", cliLauncher.exists());
-        assertTrue("CLI launcher should be executable", cliLauncher.canExecute());
+        assertTrue(cliLauncher.exists(), "CLI launcher should have been created");
+        assertTrue(cliLauncher.canExecute(), "CLI launcher should be executable");
 
         // Byte-identical check
         String cliContent = FileUtils.readFileToString(cliLauncher, StandardCharsets.UTF_8);
-        assertEquals("CLI launcher content must match GUI launcher", launcherContent, cliContent);
+        assertEquals(launcherContent, cliContent, "CLI launcher content must match GUI launcher");
     }
 
     @Test
@@ -79,6 +77,6 @@ public class MacBundlerCliLauncherTest {
         MacBundler.maybeCreateCliLauncher(contentsDir, guiLauncher);
 
         File cliLauncher = new File(macosDir, "Client4JLauncher-cli");
-        assertFalse("CLI launcher should NOT have been created", cliLauncher.exists());
+        assertFalse(cliLauncher.exists(), "CLI launcher should NOT have been created");
     }
 }

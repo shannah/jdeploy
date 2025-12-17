@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.npm;
 
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
+import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.app.permissions.PermissionRequest;
