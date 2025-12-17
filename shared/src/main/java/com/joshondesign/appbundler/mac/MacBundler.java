@@ -94,16 +94,7 @@ public class MacBundler {
         // emit a second, byte-identical launcher named "Client4JLauncher-cli" next to the GUI
         // launcher. The packaging flow / test can communicate this via either a system property
         // or an environment variable.
-        boolean createCliLauncher = false;
-        String sp = System.getProperty("jdeploy.commands.exists");
-        if ("true".equalsIgnoreCase(sp) || "true".equalsIgnoreCase(System.getenv("JDEPLOY_COMMANDS_EXISTS"))) {
-            createCliLauncher = true;
-        }
-        if (createCliLauncher) {
-            File cliDest = new File(contentsDir, "MacOS/Client4JLauncher-cli");
-            FileUtils.copyFile(stub_dest, cliDest);
-            cliDest.setExecutable(true, false);
-        }
+        maybeCreateCliLauncher(contentsDir, stub_dest);
 
         SigningRequest signingRequest = new SigningRequest(
                 app.getMacDeveloperID(),
@@ -245,6 +236,33 @@ public class MacBundler {
                 return MacBundler.class.getResourceAsStream("arm64/Client4JLauncher");
             default:
                 throw new IllegalArgumentException("Target architecture " + targetArchitecture + " not supported");
+        }
+    }
+    
+    /**
+     * If the packaging flow indicates CLI commands should be installed (controlled by the
+     * system property "jdeploy.commands.exists" or the environment variable
+     * "JDEPLOY_COMMANDS_EXISTS"), emit a second executable named "Client4JLauncher-cli"
+     * next to the GUI launcher. The copied file is byte-identical to the GUI launcher and
+     * is marked executable.
+     *
+     * This helper is public to allow focused unit tests to exercise only the launcher-copy
+     * behavior without running the full bundling pipeline.
+     *
+     * @param contentsDir the Contents directory of the .app bundle
+     * @param guiLauncher the file of the GUI launcher that was written to Contents/MacOS/Client4JLauncher
+     * @throws IOException if copying fails
+     */
+    public static void maybeCreateCliLauncher(File contentsDir, File guiLauncher) throws IOException {
+        boolean createCliLauncher = false;
+        String sp = System.getProperty("jdeploy.commands.exists");
+        if ("true".equalsIgnoreCase(sp) || "true".equalsIgnoreCase(System.getenv("JDEPLOY_COMMANDS_EXISTS"))) {
+            createCliLauncher = true;
+        }
+        if (createCliLauncher) {
+            File cliDest = new File(contentsDir, "MacOS/Client4JLauncher-cli");
+            FileUtils.copyFile(guiLauncher, cliDest);
+            cliDest.setExecutable(true, false);
         }
     }
     
