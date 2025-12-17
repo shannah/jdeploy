@@ -1,5 +1,89 @@
-#!/bin/bash
-set -e
-SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
-export JDEPLOY="$SCRIPTPATH/../cli/target/jdeploy-cli-1.0-SNAPSHOT.jar"
-java -jar "$JDEPLOY" "$@"
+package ca.weblite.jdeploy.installer.npm;
+
+import ca.weblite.jdeploy.models.CommandSpec;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.junit.Assert;
+import org.junit.Test;
+
+import java.util.List;
+
+public class NPMPackageVersionCommandsTest {
+
+    @Test
+    public void testParseCommandsValid() {
+        JSONObject pkg = new JSONObject();
+        JSONObject jdeploy = new JSONObject();
+        JSONObject commands = new JSONObject();
+
+        JSONObject cmdA = new JSONObject();
+        cmdA.put("args", new JSONArray().put("a").put("b"));
+
+        JSONObject cmdB = new JSONObject();
+        // no args
+
+        commands.put("alpha", cmdA);
+        commands.put("beta", cmdB);
+
+        jdeploy.put("commands", commands);
+        pkg.put("jdeploy", jdeploy);
+
+        NPMPackageVersion v = new NPMPackageVersion(null, "1.0.0", pkg);
+        List<CommandSpec> list = (List<CommandSpec>) v.getCommands();
+        Assert.assertEquals(2, list.size());
+        // sorted alphabetically by name
+        Assert.assertEquals("alpha", list.get(0).getName());
+        Assert.assertEquals(2, list.get(0).getArgs().size());
+        Assert.assertEquals("a", list.get(0).getArgs().get(0));
+        Assert.assertEquals("b", list.get(0).getArgs().get(1));
+        Assert.assertEquals("beta", list.get(1).getName());
+        Assert.assertEquals(0, list.get(1).getArgs().size());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testInvalidCommandNameThrows() {
+        JSONObject pkg = new JSONObject();
+        JSONObject jdeploy = new JSONObject();
+        JSONObject commands = new JSONObject();
+
+        JSONObject bad = new JSONObject();
+        commands.put("#bad", bad);
+        jdeploy.put("commands", commands);
+        pkg.put("jdeploy", jdeploy);
+
+        NPMPackageVersion v = new NPMPackageVersion(null, "1.0.0", pkg);
+        v.getCommands();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testArgsNotArrayThrows() {
+        JSONObject pkg = new JSONObject();
+        JSONObject jdeploy = new JSONObject();
+        JSONObject commands = new JSONObject();
+
+        JSONObject cmd = new JSONObject();
+        cmd.put("args", "not-an-array");
+        commands.put("run", cmd);
+        jdeploy.put("commands", commands);
+        pkg.put("jdeploy", jdeploy);
+
+        NPMPackageVersion v = new NPMPackageVersion(null, "1.0.0", pkg);
+        v.getCommands();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testArgsElementNotStringThrows() {
+        JSONObject pkg = new JSONObject();
+        JSONObject jdeploy = new JSONObject();
+        JSONObject commands = new JSONObject();
+
+        JSONObject cmd = new JSONObject();
+        cmd.put("args", new JSONArray().put(1).put(2));
+        commands.put("run", cmd);
+        jdeploy.put("commands", commands);
+        pkg.put("jdeploy", jdeploy);
+
+        NPMPackageVersion v = new NPMPackageVersion(null, "1.0.0", pkg);
+        v.getCommands();
+    }
+}
