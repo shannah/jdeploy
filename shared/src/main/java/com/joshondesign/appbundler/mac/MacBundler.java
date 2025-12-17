@@ -90,6 +90,21 @@ public class MacBundler {
 
         stub_dest.setExecutable(true, false);
 
+        // If the packaging flow indicates that CLI commands should be installed for this app,
+        // emit a second, byte-identical launcher named "Client4JLauncher-cli" next to the GUI
+        // launcher. The packaging flow / test can communicate this via either a system property
+        // or an environment variable.
+        boolean createCliLauncher = false;
+        String sp = System.getProperty("jdeploy.commands.exists");
+        if ("true".equalsIgnoreCase(sp) || "true".equalsIgnoreCase(System.getenv("JDEPLOY_COMMANDS_EXISTS"))) {
+            createCliLauncher = true;
+        }
+        if (createCliLauncher) {
+            File cliDest = new File(contentsDir, "MacOS/Client4JLauncher-cli");
+            FileUtils.copyFile(stub_dest, cliDest);
+            cliDest.setExecutable(true, false);
+        }
+
         SigningRequest signingRequest = new SigningRequest(
                 app.getMacDeveloperID(),
                 app.getMacCertificateName(),
