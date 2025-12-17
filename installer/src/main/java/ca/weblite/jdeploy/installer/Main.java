@@ -27,6 +27,7 @@ import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.UninstallWindows;
 
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
+import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
 import org.apache.commons.io.FileUtils;
@@ -1222,7 +1223,7 @@ public class Main implements Runnable, Constants {
             System.out.println("No desktop environment detected. Skipping desktop shortcuts and mimetype registration.");
         }
 
-        // Install command-line symlink in ~/.local/bin if user requested it
+        // Install command-line scripts and/or symlink in ~/.local/bin if user requested it
         if (installationSettings.isInstallCliCommand()) {
             File localBinDir = new File(System.getProperty("user.home"), ".local"+File.separator+"bin");
 
@@ -1235,38 +1236,61 @@ public class Main implements Runnable, Constants {
                 System.out.println("Created ~/.local/bin directory");
             }
 
+            boolean anyCreated = false;
+
+            // Create per-command scripts if commands are declared in package metadata
+            try {
+                List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
+                if (commands != null && !commands.isEmpty()) {
+                    for (CommandSpec cs : commands) {
+                        String cmdName = cs.getName();
+                        File scriptPath = new File(localBinDir, cmdName);
+                        if (scriptPath.exists()) {
+                            scriptPath.delete();
+                        }
+                        try {
+                            ca.weblite.jdeploy.installer.linux.LinuxCliScriptWriter.writeExecutableScript(scriptPath, launcherFile.getAbsolutePath(), cmdName);
+                            System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
+                            anyCreated = true;
+                        } catch (IOException ioe) {
+                            System.err.println("Warning: Failed to create command script for " + cmdName + ": " + ioe.getMessage());
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                System.err.println("Warning: Failed to enumerate commands: " + ex.getMessage());
+            }
+
+            // Maintain compatibility: also create traditional single symlink for primary command
             String commandName = deriveCommandName();
             File symlinkPath = new File(localBinDir, commandName);
-
-            // Remove existing symlink if it exists
             if (symlinkPath.exists()) {
                 symlinkPath.delete();
             }
-
             try {
-                // Create symlink using ln -s
                 Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", launcherFile.getAbsolutePath(), symlinkPath.getAbsolutePath()});
                 int result = p.waitFor();
                 if (result == 0) {
                     System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
                     installationSettings.setCommandLineSymlinkCreated(true);
-
-                    // Check if ~/.local/bin is in PATH
-                    String path = System.getenv("PATH");
-                    String localBinPath = localBinDir.getAbsolutePath();
-                    if (path == null || !path.contains(localBinPath)) {
-                        // Add ~/.local/bin to PATH by updating shell config
-                        boolean pathUpdated = addToPath(localBinDir);
-                        installationSettings.setAddedToPath(pathUpdated);
-                    } else {
-                        // Already in PATH
-                        installationSettings.setAddedToPath(true);
-                    }
+                    anyCreated = true;
                 } else {
                     System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
                 }
             } catch (Exception e) {
                 System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+            }
+
+            if (anyCreated) {
+                // Check if ~/.local/bin is in PATH
+                String path = System.getenv("PATH");
+                String localBinPath = localBinDir.getAbsolutePath();
+                if (path == null || !path.contains(localBinPath)) {
+                    boolean pathUpdated = addToPath(localBinDir);
+                    installationSettings.setAddedToPath(pathUpdated);
+                } else {
+                    installationSettings.setAddedToPath(true);
+                }
             }
         } else {
             System.out.println("Skipping CLI command installation (user opted out)");
