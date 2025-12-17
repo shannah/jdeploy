@@ -900,6 +900,84 @@ public class Main implements Runnable, Constants {
                 shellScript.setExecutable(true, false);
                 Runtime.getRuntime().exec(shellScript.getAbsolutePath());
             }
+
+            // Install per-command CLI scripts on macOS (in ~/.local/bin) if the user requested CLI command installation.
+            if (installationSettings.isInstallCliCommand()) {
+                File localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+
+                if (!localBinDir.exists()) {
+                    if (!localBinDir.mkdirs()) {
+                        System.err.println("Warning: Failed to create ~/.local/bin directory");
+                    } else {
+                        System.out.println("Created ~/.local/bin directory");
+                    }
+                }
+
+                boolean anyCreated = false;
+
+                // Prefer the dedicated CLI launcher copy if present; fall back to the GUI launcher if needed.
+                File cliLauncher = new File(installAppPath, "Contents" + File.separator + "MacOS" + File.separator + "Client4JLauncher-cli");
+                if (!cliLauncher.exists()) {
+                    File fallback = new File(installAppPath, "Contents" + File.separator + "MacOS" + File.separator + "Client4JLauncher");
+                    if (fallback.exists()) {
+                        cliLauncher = fallback;
+                    }
+                }
+
+                try {
+                    List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
+                    if (commands != null && !commands.isEmpty()) {
+                        for (CommandSpec cs : commands) {
+                            String cmdName = cs.getName();
+                            File scriptPath = new File(localBinDir, cmdName);
+                            if (scriptPath.exists()) {
+                                scriptPath.delete();
+                            }
+                            try {
+                                ca.weblite.jdeploy.installer.linux.LinuxCliScriptWriter.writeExecutableScript(scriptPath, cliLauncher.getAbsolutePath(), cmdName);
+                                System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
+                                anyCreated = true;
+                            } catch (IOException ioe) {
+                                System.err.println("Warning: Failed to create command script for " + cmdName + ": " + ioe.getMessage());
+                            }
+                        }
+                    }
+                } catch (Exception ex) {
+                    System.err.println("Warning: Failed to enumerate commands: " + ex.getMessage());
+                }
+
+                // Maintain compatibility: also create traditional single symlink for primary command
+                String commandName = deriveCommandName();
+                File symlinkPath = new File(localBinDir, commandName);
+                if (symlinkPath.exists()) {
+                    symlinkPath.delete();
+                }
+                try {
+                    Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", cliLauncher.getAbsolutePath(), symlinkPath.getAbsolutePath()});
+                    int result = p.waitFor();
+                    if (result == 0) {
+                        System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+                        installationSettings.setCommandLineSymlinkCreated(true);
+                        anyCreated = true;
+                    } else {
+                        System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+                }
+
+                if (anyCreated) {
+                    // Check if ~/.local/bin is in PATH
+                    String path = System.getenv("PATH");
+                    String localBinPath = localBinDir.getAbsolutePath();
+                    if (path == null || !path.contains(localBinPath)) {
+                        boolean pathUpdated = addToPath(localBinDir);
+                        installationSettings.setAddedToPath(pathUpdated);
+                    } else {
+                        installationSettings.setAddedToPath(true);
+                    }
+                }
+            }
         } else if (Platform.getSystemPlatform().isLinux()) {
             File tmpExePath = null;
             for (File exeCandidate : Objects.requireNonNull(new File(tmpBundles, target).listFiles())) {
@@ -1304,42 +1382,75 @@ public class Main implements Runnable, Constants {
      * @param localBinDir The ~/.local/bin directory to add to PATH
      * @return true if PATH was successfully updated or already contains the directory, false otherwise
      */
+    /**
+     * Instance entry that delegates to the testable static overload.
+     */
     private boolean addToPath(File localBinDir) {
+        String shell = System.getenv("SHELL");
+        String pathEnv = System.getenv("PATH");
+        File homeDir = new File(System.getProperty("user.home"));
+        return addToPath(localBinDir, shell, pathEnv, homeDir);
+    }
+
+    /**
+     * Testable overload for addToPath. Package-private so unit tests in the same package can exercise
+     * the decision logic with deterministic inputs.
+     *
+     * @param localBinDir directory to add to PATH
+     * @param shell       shell path from environment (e.g., /bin/bash)
+     * @param pathEnv     PATH environment variable
+     * @param homeDir     user's home directory to update config files under
+     * @return true if PATH was updated or already contained the directory, false otherwise
+     */
+    static boolean addToPath(File localBinDir, String shell, String pathEnv, File homeDir) {
         try {
-            // Detect the user's shell
-            String shell = System.getenv("SHELL");
+            // Detect the user's shell; default to bash when unknown
             if (shell == null || shell.isEmpty()) {
-                shell = "/bin/bash"; // Default to bash
+                shell = "/bin/bash";
             }
 
             File configFile = null;
             String shellName = new File(shell).getName();
 
-            // Determine which config file to update based on the shell
-            File homeDir = new File(System.getProperty("user.home"));
             switch (shellName) {
-                case "bash":
-                    // For bash, prefer .bashrc, but use .bash_profile if .bashrc doesn't exist
+                case "bash": {
                     File bashrc = new File(homeDir, ".bashrc");
                     File bashProfile = new File(homeDir, ".bash_profile");
                     configFile = bashrc.exists() ? bashrc : bashProfile;
                     break;
+                }
                 case "zsh":
                     configFile = new File(homeDir, ".zshrc");
                     break;
                 case "fish":
-                    // Fish uses a different syntax, skip for now
+                    // Fish uses a different syntax; do not attempt to auto-update
                     System.out.println("Note: Fish shell detected. Please manually add ~/.local/bin to your PATH:");
                     System.out.println("  set -U fish_user_paths ~/.local/bin $fish_user_paths");
                     return false;
                 default:
-                    // For unknown shells, try .profile as a fallback
                     configFile = new File(homeDir, ".profile");
                     break;
             }
 
-            // Check if the PATH export already exists in the config file
-            if (configFile.exists()) {
+            // If PATH already contains localBinDir, nothing to do
+            if (pathEnv != null && pathEnv.contains(localBinDir.getAbsolutePath())) {
+                System.out.println("~/.local/bin is already in PATH");
+                return true;
+            }
+
+            // Ensure configFile exists (create if necessary)
+            if (!configFile.exists()) {
+                // create parent directories if necessary
+                File parent = configFile.getParentFile();
+                if (parent != null && !parent.exists()) {
+                    parent.mkdirs();
+                }
+                // create empty file so we can append to it
+                try {
+                    configFile.createNewFile();
+                } catch (Exception ignored) { }
+            } else {
+                // Check file contents to avoid duplicate entries
                 String content = IOUtil.readToString(new FileInputStream(configFile));
                 if (content.contains("$HOME/.local/bin") || content.contains(localBinDir.getAbsolutePath())) {
                     System.out.println("~/.local/bin is already in PATH configuration");
