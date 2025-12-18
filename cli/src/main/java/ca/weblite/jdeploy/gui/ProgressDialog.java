@@ -20,9 +20,14 @@ public class ProgressDialog {
     private JDialog dialog;
 
     private String packageName;
+    private String downloadPageUrl;
 
-    public ProgressDialog(String packageName) {
+    public ProgressDialog(
+            String packageName,
+            String downloadPageUrl
+    ) {
         this.packageName = packageName;
+        this.downloadPageUrl = downloadPageUrl;
     }
 
     public void setMessage1(String message) {
@@ -94,7 +99,7 @@ public class ProgressDialog {
             JButton downloadPage = new JButton("Visit Download Page");
             downloadPage.addActionListener(evt -> {
                 try {
-                    Desktop.getDesktop().browse(new URI("https://www.jdeploy.com/~" + packageName));
+                    Desktop.getDesktop().browse(new URI(downloadPageUrl));
                 } catch (Exception ex) {
                     System.err.println("Failed to browse to download page");
                     ex.printStackTrace(System.err);

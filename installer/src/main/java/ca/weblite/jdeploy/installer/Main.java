@@ -1,56 +1,61 @@
 package ca.weblite.jdeploy.installer;
 
 import ca.weblite.jdeploy.app.AppInfo;
+import ca.weblite.jdeploy.app.permissions.PermissionRequest;
 import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.installer.events.InstallationFormEvent;
 import ca.weblite.jdeploy.installer.events.InstallationFormEventDispatcher;
+import ca.weblite.jdeploy.installer.linux.LinuxAdminLauncherGenerator;
 import ca.weblite.jdeploy.installer.linux.MimeTypeHelper;
+import ca.weblite.jdeploy.installer.mac.MacAdminLauncherGenerator;
 import ca.weblite.jdeploy.installer.models.AutoUpdateSettings;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.npm.NPMPackage;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.installer.npm.NPMRegistry;
+import ca.weblite.jdeploy.installer.npm.RunAsAdministratorSettings;
 import ca.weblite.jdeploy.installer.util.JarClassLoader;
 import ca.weblite.jdeploy.installer.util.ResourceUtil;
 import ca.weblite.jdeploy.installer.views.DefaultUIFactory;
 import ca.weblite.jdeploy.installer.views.InstallationForm;
 import ca.weblite.jdeploy.installer.views.UIFactory;
+import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
+import ca.weblite.jdeploy.installer.win.InstallWindows;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.UninstallWindows;
 
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
-import com.izforge.izpack.util.os.ShellLink;
-import net.coobird.thumbnailator.Thumbnails;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-
-
-
 import java.awt.Desktop;
-import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.URL;
-import java.nio.file.Files;
 import java.util.*;
-import java.util.List;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
-
-import net.sf.image4j.codec.ico.ICOEncoder;
 import static ca.weblite.tools.io.IOUtil.copyResourceToFile;
 
 public class Main implements Runnable, Constants {
-    public static final String JDEPLOY_REGISTRY = DefaultInstallationContext.JDEPLOY_REGISTRY;
+    private static final String JDEPLOY_REGISTRY_URL = System.getProperty(
+            "jdeploy.registry.url",
+            "https://www.jdeploy.com/"
+    );
     private final InstallationContext installationContext = new DefaultInstallationContext();
-    private final InstallationSettings installationSettings = new InstallationSettings();
+    private final InstallationSettings installationSettings;
     private UIFactory uiFactory = new DefaultUIFactory();
     private InstallationForm installationForm;
+
+    private Main() {
+        this(new InstallationSettings());
+    }
+
+    private Main(InstallationSettings settings) {
+        this.installationSettings = settings;
+    }
 
     private Document getAppXMLDocument() throws IOException {
         return installationContext.getAppXMLDocument();
@@ -101,19 +106,27 @@ public class Main implements Runnable, Constants {
 
 
     private void loadNPMPackageInfo() throws IOException {
-        //System.out.println("Loading NPMPackageInfo");
         if (installationSettings.getNpmPackageVersion() == null) {
             if (appInfo() == null) {
                 throw new IllegalStateException("App Info must be loaded before loading the package info");
             }
-            NPMPackage pkg = new NPMRegistry().loadPackage(appInfo().getNpmPackage(), appInfo().getNpmSource());
+            System.out.println("Looking up package info for: " + appInfo().getNpmPackage() + " version: " + appInfo().getNpmVersion());
+
+            // Get the successful GitHub tag from the bundle download (if available)
+            String successfulTag = DefaultInstallationContext.getSuccessfulGitHubTag();
+
+            NPMPackage pkg = new NPMRegistry().loadPackage(appInfo().getNpmPackage(), appInfo().getNpmSource(), successfulTag);
             if (pkg == null) {
                 throw new IOException("Cannot find NPMPackage named "+appInfo().getNpmPackage());
             }
             installationSettings.setNpmPackageVersion(pkg.getLatestVersion(installationSettings.isPrerelease(), appInfo().getNpmVersion()));
             if (installationSettings.getNpmPackageVersion() == null) {
-                throw new IOException("Cannot find version "+appInfo().getNpmVersion()+" for package "+appInfo().getNpmPackage());
+                throw new IOException(
+                    "Cannot find version " + appInfo().getNpmVersion() + " for package " + appInfo().getNpmPackage() + ". " +
+                    "For GitHub projects, ensure the 'jdeploy' release tag contains package-info.json with this version."
+                );
             }
+            System.out.println("Found version: " + installationSettings.getNpmPackageVersion().getVersion());
 
             String installerTheme = System.getProperty("jdeploy.installerTheme", installationSettings.getNpmPackageVersion().getInstallerTheme());
             System.out.println("Installer theme is "+installerTheme);
@@ -135,23 +148,53 @@ public class Main implements Runnable, Constants {
             }
 
             for (DocumentTypeAssociation documentTypeAssociation : npmPackageVersion().getDocumentTypeAssociations()) {
-                appInfo().addDocumentMimetype(documentTypeAssociation.getExtension(), documentTypeAssociation.getMimetype());
-                if (documentTypeAssociation.getIconPath() != null) {
-                    appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), documentTypeAssociation.getIconPath());
+                if (documentTypeAssociation.isDirectory()) {
+                    // Handle directory association - check for default directory icon if none specified
+                    DocumentTypeAssociation dirAssoc = documentTypeAssociation;
+                    if (documentTypeAssociation.getIconPath() == null) {
+                        File dirIconPath = new File(findAppXmlFile().getParentFile(), "icon.directory.png");
+                        if (dirIconPath.exists()) {
+                            // Create new association with default icon
+                            dirAssoc = new DocumentTypeAssociation(
+                                    documentTypeAssociation.getRole(),
+                                    documentTypeAssociation.getDescription(),
+                                    dirIconPath.getAbsolutePath()
+                            );
+                        }
+                    }
+                    appInfo().setDirectoryAssociation(dirAssoc);
                 } else {
-                    File iconPath = new File(findAppXmlFile().getParentFile(), "icon."+documentTypeAssociation.getExtension()+".png");
-                    if (iconPath.exists()) {
-                        appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), iconPath.getAbsolutePath());
+                    // Handle file extension association
+                    appInfo().addDocumentMimetype(documentTypeAssociation.getExtension(), documentTypeAssociation.getMimetype());
+                    if (documentTypeAssociation.getIconPath() != null) {
+                        appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), documentTypeAssociation.getIconPath());
+                    } else {
+                        File iconPath = new File(findAppXmlFile().getParentFile(), "icon."+documentTypeAssociation.getExtension()+".png");
+                        if (iconPath.exists()) {
+                            appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), iconPath.getAbsolutePath());
+                        }
+                    }
+                    if (documentTypeAssociation.isEditor()) {
+                        appInfo().setDocumentTypeEditor(documentTypeAssociation.getExtension());
                     }
                 }
-                if (documentTypeAssociation.isEditor()) {
-                    appInfo().setDocumentTypeEditor(documentTypeAssociation.getExtension());
-                }
             }
-            //System.out.println("Checking npm package for URL schemes: ");
             for (String scheme : npmPackageVersion().getUrlSchemes()) {
-                //System.out.println("Found scheme "+scheme);
                 appInfo().addUrlScheme(scheme);
+            }
+            
+            for (Map.Entry<PermissionRequest, String> entry : npmPackageVersion().getPermissionRequests().entrySet()) {
+                appInfo().addPermissionRequest(entry.getKey(), entry.getValue());
+            }
+
+            if (Platform.getSystemPlatform().isWindows() && "8".equals(npmPackageVersion().getJavaVersion())) {
+                // In Windows with Java 8, we need to use a private JVM because OpenJDK 8 didn't support the use
+                // of shared JVMs very well.  Share JVMs needed to be registered in the registry, which would override
+                // for all applications using a shard JVM - there is no way to allow the app to be a good citizen
+                // with a shared JVM.
+                // However it does allow the use of a private JVM if the app resided in a directory named "bin"
+                // and the JVM is in a directory named "jre" which is a sibling of the "bin" directory.
+                appInfo().setUsePrivateJVM(true);
             }
 
             // Update labels for the combobox with nice examples to show exactly which versions will be auto-updated
@@ -167,12 +210,64 @@ public class Main implements Runnable, Constants {
                             createUserReadableSemVerForVersion(npmPackageVersion().getVersion(), AutoUpdateSettings.PatchesOnly) +
                             "]"
                     );
+
+            RunAsAdministratorSettings runAsAdministratorSettings = npmPackageVersion().getRunAsAdministratorSettings();
+            switch (runAsAdministratorSettings) {
+                case Required:
+                    appInfo().setRequireRunAsAdmin(true);
+                    break;
+                case Allowed:
+                    appInfo().setAllowRunAsAdmin(true);
+                    break;
+            }
         }
     }
 
     private static class InvalidAppXMLFormatException extends IOException {
         InvalidAppXMLFormatException(String message) {
             super("The app.xml file is invalid. "+message);
+        }
+    }
+
+    /**
+     * Checks if the specified app path is already in the macOS dock.
+     * @param appPath The absolute path to the .app file
+     * @return true if the app is already in the dock, false otherwise
+     */
+    public static boolean isAppInDock(String appPath) {
+        if (!Platform.getSystemPlatform().isMac()) {
+            return false;
+        }
+
+        try {
+            // Use defaults read to get the persistent-apps array from dock plist
+            Process process = Runtime.getRuntime().exec(new String[]{
+                "/usr/bin/defaults", "read", "com.apple.dock", "persistent-apps"
+            });
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            StringBuilder output = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+            process.waitFor();
+
+            // The dock stores paths as file:// URLs with trailing slash and URL encoding
+            // e.g., "file:///Users/shannah/Applications/Hello%20Java%20FX.app/"
+            // Spaces are encoded as %20
+            String encodedPath = appPath.replace(" ", "%20");
+            String fileUrl = "file://" + encodedPath;
+            if (!fileUrl.endsWith("/")) {
+                fileUrl += "/";
+            }
+
+            // Check if the file URL appears in the dock configuration
+            return output.toString().contains(fileUrl);
+        } catch (Exception e) {
+            // If we can't read the dock settings, assume it's not in the dock
+            System.err.println("Warning: Could not check dock status: " + e.getMessage());
+            return false;
         }
     }
 
@@ -187,6 +282,7 @@ public class Main implements Runnable, Constants {
         }
         Element root = doc.getDocumentElement();
         appInfo(new AppInfo());
+        appInfo().setJdeployRegistryUrl(JDEPLOY_REGISTRY_URL);
         appInfo().setAppURL(appXml.toURI().toURL());
         appInfo().setTitle(ifEmpty(root.getAttribute("title"), root.getAttribute("package"), null));
         appInfo().setNpmPackage(ifEmpty(root.getAttribute("package"), null));
@@ -318,29 +414,35 @@ public class Main implements Runnable, Constants {
 
     private static boolean uninstall;
 
+    private static boolean headlessInstall;
+
+
     public static void main(String[] args) {
 
         if (args.length == 1 && args[0].equals("uninstall")) {
             uninstall = true;
         }
 
-        File logFile = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "log" + File.separator + "jdeploy-installer.log");
-        logFile.getParentFile().mkdirs();
-        try {
-            PrintStream originalOut = System.out;
-            System.setOut(new PrintStream(new FileOutputStream(logFile)));
-            originalOut.println("Redirecting output to "+logFile);
-            System.setErr(System.out);
-        } catch (IOException ex) {
-            System.err.println("Failed to redirect output to "+logFile);
-            ex.printStackTrace(System.err);
+        if (args.length == 1 && args[0].equals("install")) {
+            headlessInstall = true;
         }
-        Main main = new Main();
-        main.run();
-    }
 
-    private File findInstallFilesDir() {
-        return installationContext.findInstallFilesDir();
+        if (!headlessInstall) {
+            File logFile = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "log" + File.separator + "jdeploy-installer.log");
+            logFile.getParentFile().mkdirs();
+            try {
+                PrintStream originalOut = System.out;
+                System.setOut(new PrintStream(new FileOutputStream(logFile)));
+                originalOut.println("Redirecting output to "+logFile);
+                System.setErr(System.out);
+            } catch (IOException ex) {
+                System.err.println("Failed to redirect output to "+logFile);
+                ex.printStackTrace(System.err);
+            }
+        }
+
+        Main main = headlessInstall ? new Main(new HeadlessInstallationSettings()) :new Main();
+        main.run();
     }
 
     private File findAppXmlFile() {
@@ -356,7 +458,14 @@ public class Main implements Runnable, Constants {
             ex.printStackTrace(System.err);
             System.err.flush();
             invokeLater(()->{
-                uiFactory.showModalErrorDialog(null, ex.getMessage(), "Installation failed.");
+                String message = ex.getMessage();
+                if (ex instanceof UserLangRuntimeException) {
+                    UserLangRuntimeException userEx = (UserLangRuntimeException) ex;
+                    if (userEx.hasUserFriendlyMessage()) {
+                        message = userEx.getUserFriendlyMessage();
+                    }
+                }
+                uiFactory.showModalErrorDialog(null, message, "Installation failed.");
                 System.exit(1);
             });
         }
@@ -374,6 +483,30 @@ public class Main implements Runnable, Constants {
         if (Platform.getSystemPlatform().isMac()) {
             try {
                 Runtime.getRuntime().exec(new String[]{"open", installedApp.getAbsolutePath()});
+                java.util.Timer timer = new java.util.Timer();
+                TimerTask tt = new TimerTask() {
+                    @Override
+                    public void run() {
+                        System.exit(0);
+                    }
+                };
+                timer.schedule(tt, 2000);
+            } catch (Exception ex) {
+                ex.printStackTrace(System.err);
+                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Failed to open app: "+ex.getMessage(), "Error"));
+            }
+        } else if (Platform.getSystemPlatform().isLinux()) {
+            try {
+                // On Linux, use nohup and redirect output to properly detach the process
+                // This prevents the child from being terminated when the installer exits
+                ProcessBuilder pb = new ProcessBuilder(
+                    "nohup",
+                    installedApp.getAbsolutePath()
+                );
+                pb.redirectOutput(ProcessBuilder.Redirect.to(new File("/dev/null")));
+                pb.redirectError(ProcessBuilder.Redirect.to(new File("/dev/null")));
+                pb.start();
+
                 java.util.Timer timer = new java.util.Timer();
                 TimerTask tt = new TimerTask() {
                     @Override
@@ -440,6 +573,34 @@ public class Main implements Runnable, Constants {
 
     private void buildUI() {
         installationContext.applyContext(installationSettings);
+
+        // Check if app is already in the dock (macOS only)
+        if (Platform.getSystemPlatform().isMac() && appInfo() != null) {
+            String nameSuffix = "";
+            if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
+                nameSuffix = " " + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
+            }
+            String appName = appInfo().getTitle() + nameSuffix;
+            String appPath = System.getProperty("user.home") + "/Applications/" + appName + ".app";
+
+            // Only check if the app exists on disk - if it doesn't exist, it can't be in the dock
+            File appFile = new File(appPath);
+            if (appFile.exists()) {
+                installationSettings.setAlreadyAddedToDock(isAppInDock(appPath));
+            }
+        }
+
+        // Check for desktop environment on Linux
+        if (Platform.getSystemPlatform().isLinux()) {
+            installationSettings.setHasDesktopEnvironment(isDesktopEnvironmentAvailable());
+
+            // Set command line path if ~/.local/bin exists
+            File localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+            String commandName = deriveCommandName();
+            File symlinkPath = new File(localBinDir, commandName);
+            installationSettings.setCommandLinePath(symlinkPath.getAbsolutePath());
+        }
+
         InstallationForm view = uiFactory.createInstallationForm(installationSettings);
         view.setEventDispatcher(new InstallationFormEventDispatcher(view));
         this.installationForm = view;
@@ -485,7 +646,15 @@ public class Main implements Runnable, Constants {
             } catch (Exception ex) {
                 invokeLater(()->evt.getInstallationForm().setInProgress(false, ""));
                 ex.printStackTrace(System.err);
-                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Installation failed. "+ex.getMessage(), "Failed"));
+                String message = ex.getMessage();
+                if (ex instanceof UserLangRuntimeException) {
+                    UserLangRuntimeException userEx = (UserLangRuntimeException) ex;
+                    if (userEx.hasUserFriendlyMessage()) {
+                        message = userEx.getUserFriendlyMessage();
+                    }
+                }
+                String finalMessage = message;
+                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Installation failed. "+finalMessage, "Failed"));
             }
         }).start();
     }
@@ -512,9 +681,20 @@ public class Main implements Runnable, Constants {
             if (appInfo().getNpmVersion() != null && appInfo().getNpmVersion().startsWith("0.0.0-")) {
                 version = appInfo().getNpmVersion();
             }
-            UninstallWindows uninstallWindows = new UninstallWindows(appInfo().getNpmPackage(), appInfo().getNpmSource(), version, appInfo().getTitle(), installer);
+            UninstallWindows uninstallWindows = new UninstallWindows(
+                    appInfo().getNpmPackage(),
+                    appInfo().getNpmSource(),
+                    version,
+                    appInfo().getTitle(),
+                    installer
+            );
             uninstallWindows.uninstall();
             System.out.println("Uninstall complete");
+            return;
+        }
+
+        if (headlessInstall) {
+            runHeadlessInstall();
             return;
         }
         invokeLater(()->{
@@ -522,6 +702,20 @@ public class Main implements Runnable, Constants {
             installationForm.showInstallationForm();
         });
 
+    }
+    private void runHeadlessInstall() throws Exception {
+        System.out.println(
+                "jDeploy installer running in headless mode.  Installing " +
+                        appInfo().getTitle() + " " + npmPackageVersion().getVersion()
+        );
+        try {
+            install();
+        } catch (Exception ex) {
+            System.err.println("Installation failed");
+            ex.printStackTrace(System.err);
+            return;
+        }
+        System.out.println("Installation complete");
     }
 
     private File installedApp;
@@ -546,16 +740,11 @@ public class Main implements Runnable, Constants {
         tmpReleases.mkdir();
         String target;
         if (Platform.getSystemPlatform().isMac()) {
-            target = "mac";
-            if (System.getProperty("os.arch").equals("aarch64")) {
-                target += "-arm64";
-            } else {
-                target += "-x64";
-            }
+            target = "mac" + ArchitectureUtil.getArchitectureSuffix();
         } else if (Platform.getSystemPlatform().isWindows()) {
-            target = "win";
+            target = "win" + ArchitectureUtil.getArchitectureSuffix();
         } else if (Platform.getSystemPlatform().isLinux()) {
-            target = "linux";
+            target = "linux" + ArchitectureUtil.getArchitectureSuffix();
         } else {
             throw new RuntimeException("Installation failed.  Your platform is not currently supported.");
         }
@@ -575,114 +764,27 @@ public class Main implements Runnable, Constants {
             fullyQualifiedPackageName = sourceHash + "." + fullyQualifiedPackageName;
         }
 
+        // Set launcher version from system property if available (installer context only)
+        String launcherVersion = System.getProperty("jdeploy.app.version");
+        if (launcherVersion != null && !launcherVersion.isEmpty()) {
+            appInfo().setLauncherVersion(launcherVersion);
+        }
+
+        // Set initial app version from system property if available (parsed from installer filename)
+        String initialAppVersion = npmPackageVersion().getVersion();
+        if (initialAppVersion != null && !initialAppVersion.isEmpty()) {
+            appInfo().setInitialAppVersion(initialAppVersion);
+        }
+
         Bundler.runit(bundlerSettings, appInfo(), findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
 
         if (Platform.getSystemPlatform().isWindows()) {
-            File tmpExePath = null;
-            for (File exeCandidate : new File(tmpBundles, "windows").listFiles()) {
-                if (exeCandidate.getName().endsWith(".exe")) {
-                    tmpExePath = exeCandidate;
-                }
-            }
-            if (tmpExePath == null) {
-                throw new RuntimeException("Failed to find exe file after creation.  Something must have gone wrong in generation process");
-            }
-            File userHome = new File(System.getProperty("user.home"));
-            File jdeployHome = new File(userHome, ".jdeploy");
-            File appsDir = new File(jdeployHome, "apps");
-            File appDir = new File(appsDir, fullyQualifiedPackageName);
-            appDir.mkdirs();
-            String nameSuffix = "";
-
-            if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
-                nameSuffix = " " + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
-            }
-
-            String exeName = appInfo().getTitle() + nameSuffix + ".exe";
-            File exePath = new File(appDir, exeName);
-
-            FileUtil.copy(tmpExePath, exePath);
-            exePath.setExecutable(true, false);
-
-            // Copy the icon.png if it is present
-            File bundleIcon = new File(findAppXmlFile().getParentFile(), "icon.png");
-            File iconPath = new File(exePath.getParentFile(), "icon.png");
-            File icoPath =  new File(exePath.getParentFile(), "icon.ico");
-
-            if (Files.exists(bundleIcon.toPath())) {
-                FileUtil.copy(bundleIcon, iconPath);
-            }
-            installWindowsLinks(exePath, appInfo().getTitle() + nameSuffix);
-
-            File registryBackupLogs = new File(exePath.getParentFile(), "registry-backup-logs");
-
-            if (!registryBackupLogs.exists()) {
-                registryBackupLogs.mkdirs();
-            }
-            int nextLogIndex = 0;
-            for (File child : registryBackupLogs.listFiles()) {
-                if (child.getName().endsWith(".reg")) {
-                    String logIndex = child.getName().substring(0, child.getName().lastIndexOf("."));
-                    try {
-                        int logIndexInt = Integer.parseInt(logIndex);
-                        if (logIndexInt >= nextLogIndex) {
-                            nextLogIndex = logIndexInt+1;
-                        }
-                    } catch (Exception ex) {}
-                }
-            }
-            File registryBackupLog = new File(registryBackupLogs, nextLogIndex+".reg");
-            try (FileOutputStream fos = new FileOutputStream(registryBackupLog)) {
-                InstallWindowsRegistry registryInstaller = new InstallWindowsRegistry(appInfo(), exePath, icoPath, fos);
-                registryInstaller.register();
-
-                //Try to copy the uninstaller
-                File uninstallerPath = registryInstaller.getUninstallerPath();
-                uninstallerPath.getParentFile().mkdirs();
-                File installerExePath = new File(System.getProperty("client4j.launcher.path"));
-                if (uninstallerPath.exists()) {
-                    if (!uninstallerPath.canWrite()) {
-                        uninstallerPath.setWritable(true, false);
-                        try {
-                            // Give windows time to update its cache
-                            Thread.sleep(1000L);
-                        } catch (InterruptedException interruptedException) {
-                            // Ignore
-                        }
-                    }
-                    if (!uninstallerPath.delete()) {
-                        throw new IOException("Failed to delete uninstaller: "+uninstallerPath);
-                    }
-
-                    try {
-                        // Give Windows time to update its cache
-                        Thread.sleep(1000L);
-                    } catch (InterruptedException interruptedException) {
-                        // Ignore
-                    }
-                }
-                FileUtils.copyFile(installerExePath, uninstallerPath);
-                uninstallerPath.setExecutable(true, false);
-                FileUtils.copyDirectory(findInstallFilesDir(), new File(uninstallerPath.getParentFile(), findInstallFilesDir().getName()));
-
-
-            } catch (Exception ex) {
-                // restore
-                try  {
-                    InstallWindowsRegistry.rollback(registryBackupLog);
-                } catch (Exception rollbackException) {
-                    throw new RuntimeException("Failed to roll back registry after failed installation.", rollbackException);
-                }
-                // Since we rolled back the changes, we'll delete the backup log so that it doesn't get rolled back again.
-                registryBackupLog.delete();
-                ex.printStackTrace(System.err);
-                throw new RuntimeException("Failed to update registry.  Rolling back changes.", ex);
-
-            }
-
-
-            installedApp = exePath;
-
+            installedApp = new InstallWindows().install(
+                    installationContext,
+                    installationSettings,
+                    fullyQualifiedPackageName,
+                    tmpBundles
+            );
         } else if (Platform.getSystemPlatform().isMac()) {
             File jdeployAppsDir = new File(System.getProperty("user.home") + File.separator + "Applications");
             if (!jdeployAppsDir.exists()) {
@@ -703,22 +805,63 @@ public class Main implements Runnable, Constants {
                 if (candidateApp.getName().endsWith(".app")) {
                     int result = Runtime.getRuntime().exec(new String[]{"mv", candidateApp.getAbsolutePath(), installAppPath.getAbsolutePath()}).waitFor();
                     if (result != 0) {
-                        throw new RuntimeException("Failed to copy app to "+jdeployAppsDir);
+                        String logPath = System.getProperty("user.home") + "/.jdeploy/log/jdeploy-installer.log";
+                        String technicalMessage = "Failed to move application bundle to " + installAppPath.getAbsolutePath() + ". mv command returned exit code " + result;
+                        String userMessage = "<html><body style='width: 400px;'>" +
+                            "<h3>Installation Failed</h3>" +
+                            "<p>Could not install the application to:<br/><b>" + jdeployAppsDir.getAbsolutePath() + "</b></p>" +
+                            "<p><b>Possible causes:</b></p>" +
+                            "<ul>" +
+                            "<li>You don't have write permission to the Applications directory</li>" +
+                            "<li>The application is currently running (please close it and try again)</li>" +
+                            "</ul>" +
+                            "<p style='margin-top: 12px;'><small>For technical details, check the log file:<br/>" +
+                            logPath + "</small></p>" +
+                            "</body></html>";
+                        throw new UserLangRuntimeException(technicalMessage, userMessage);
                     }
                     break;
                 }
             }
             if (!installAppPath.exists()) {
-                throw new RuntimeException("Failed to copy app to "+jdeployAppsDir);
+                String logPath = System.getProperty("user.home") + "/.jdeploy/log/jdeploy-installer.log";
+                String technicalMessage = "Application bundle does not exist at " + installAppPath.getAbsolutePath() + " after installation attempt";
+                String userMessage = "<html><body style='width: 400px;'>" +
+                    "<h3>Installation Failed</h3>" +
+                    "<p>Could not install the application to:<br/><b>" + jdeployAppsDir.getAbsolutePath() + "</b></p>" +
+                    "<p><b>Possible causes:</b></p>" +
+                    "<ul>" +
+                    "<li>You don't have write permission to the Applications directory</li>" +
+                    "<li>The application is currently running (please close it and try again)</li>" +
+                    "</ul>" +
+                    "<p style='margin-top: 12px;'><small>For technical details, check the log file:<br/>" +
+                    logPath + "</small></p>" +
+                    "</body></html>";
+                throw new UserLangRuntimeException(technicalMessage, userMessage);
             }
             installedApp = installAppPath;
+            File adminWrapper = null;
+
+            if (appInfo().isRequireRunAsAdmin() || appInfo().isAllowRunAsAdmin()) {
+                MacAdminLauncherGenerator macAdminLauncherGenerator = new MacAdminLauncherGenerator();
+                adminWrapper  = macAdminLauncherGenerator.getAdminLauncherFile(installedApp);
+                if (adminWrapper.exists()) {
+                    // delete the old recursively
+                    FileUtils.deleteDirectory(adminWrapper);
+                }
+                adminWrapper = new MacAdminLauncherGenerator().generateAdminLauncher(installedApp);
+            }
 
             if (installationSettings.isAddToDesktop()) {
                 File desktopAlias = new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + appName + ".app");
                 if (desktopAlias.exists()) {
                     desktopAlias.delete();
                 }
-                int result = Runtime.getRuntime().exec(new String[]{"ln", "-s", installAppPath.getAbsolutePath(), desktopAlias.getAbsolutePath()}).waitFor();
+                String targetPath = installAppPath.getAbsolutePath();
+                if (adminWrapper != null && appInfo().isRequireRunAsAdmin()) {
+                    targetPath = adminWrapper.getAbsolutePath();
+                }
+                int result = Runtime.getRuntime().exec(new String[]{"ln", "-s", targetPath, desktopAlias.getAbsolutePath()}).waitFor();
                 if (result != 0) {
                     throw new RuntimeException("Failed to make desktop alias.");
                 }
@@ -732,7 +875,11 @@ public class Main implements Runnable, Constants {
                     osascript -e 'tell application "Dock" to quit'
                     osascript -e 'tell application "Dock" to activate'
                  */
-                String myapp = installAppPath.getAbsolutePath().replace('/', '#').replace("#", "//");
+                String targetPath = installAppPath.getAbsolutePath();
+                if (adminWrapper != null && appInfo().isRequireRunAsAdmin()) {
+                    targetPath = adminWrapper.getAbsolutePath();
+                }
+                String myapp = targetPath.replace('/', '#').replace("#", "//");
                 File shellScript = File.createTempFile("installondock", ".sh");
                 shellScript.deleteOnExit();
 
@@ -754,7 +901,7 @@ public class Main implements Runnable, Constants {
             }
         } else if (Platform.getSystemPlatform().isLinux()) {
             File tmpExePath = null;
-            for (File exeCandidate : new File(tmpBundles, "linux").listFiles()) {
+            for (File exeCandidate : Objects.requireNonNull(new File(tmpBundles, target).listFiles())) {
                 tmpExePath = exeCandidate;
             }
             if (tmpExePath == null) {
@@ -776,7 +923,24 @@ public class Main implements Runnable, Constants {
 
             String exeName = deriveLinuxBinaryNameFromTitle(appInfo().getTitle()) + nameSuffix;
             File exePath = new File(appDir, exeName);
-            FileUtil.copy(tmpExePath, exePath);
+            try {
+                FileUtil.copy(tmpExePath, exePath);
+            } catch (IOException e) {
+                String logPath = System.getProperty("user.home") + "/.jdeploy/log/jdeploy-installer.log";
+                String technicalMessage = "Failed to copy application launcher to " + exePath.getAbsolutePath() + ": " + e.getMessage();
+                String userMessage = "<html><body style='width: 400px;'>" +
+                    "<h3>Installation Failed</h3>" +
+                    "<p>Could not install the application to:<br/><b>" + appDir.getAbsolutePath() + "</b></p>" +
+                    "<p><b>Possible causes:</b></p>" +
+                    "<ul>" +
+                    "<li>You don't have write permission to the directory</li>" +
+                    "<li>The application is currently running (please close it and try again)</li>" +
+                    "</ul>" +
+                    "<p style='margin-top: 12px;'><small>For technical details, check the log file:<br/>" +
+                    logPath + "</small></p>" +
+                    "</body></html>";
+                throw new UserLangRuntimeException(technicalMessage, userMessage, e);
+            }
 
             // Copy the icon.png if it is present
             File bundleIcon = new File(findAppXmlFile().getParentFile(), "icon.png");
@@ -799,101 +963,68 @@ public class Main implements Runnable, Constants {
         return title.toLowerCase().replace(" ", "-").replaceAll("[^a-z0-9\\-]", "");
     }
 
-    private void convertWindowsIcon(File srcPng, File destIco) throws IOException {
-        List<BufferedImage> images = new ArrayList<>();
-        List<Integer> bppList = new ArrayList<>();
-        for (int i : new int[]{16, 24, 32, 48, 64, 128, 256}) {
-            BufferedImage img = Thumbnails.of(srcPng).size(i, i).asBufferedImage();
-            images.add(img);
-            bppList.add(32);
-            if (i <= 48) {
-                images.add(img);
-                bppList.add(8);
-                images.add(img);
-                bppList.add(4);
+    /**
+     * Detects if a desktop environment is available on Linux.
+     * This checks for an actual desktop environment (GNOME, KDE, XFCE, etc.),
+     * not just a graphical environment.
+     * @return true if a desktop environment is detected, false otherwise
+     */
+    private boolean isDesktopEnvironmentAvailable() {
+        if (!Platform.getSystemPlatform().isLinux()) {
+            return true; // Non-Linux platforms always have desktop support in this context
+        }
+
+        // Check for desktop environment specific variables
+        // XDG_CURRENT_DESKTOP indicates which desktop environment is running
+        String currentDesktop = System.getenv("XDG_CURRENT_DESKTOP");
+        if (currentDesktop != null && !currentDesktop.isEmpty()) {
+            return true;
+        }
+
+        // DESKTOP_SESSION also indicates a desktop environment
+        String desktopSession = System.getenv("DESKTOP_SESSION");
+        if (desktopSession != null && !desktopSession.isEmpty()) {
+            return true;
+        }
+
+        // Check if desktop directory exists (usually created by desktop environments)
+        File desktopDir = new File(System.getProperty("user.home"), "Desktop");
+        if (desktopDir.exists() && desktopDir.isDirectory()) {
+            // Also verify update-desktop-database exists, which is part of desktop file utilities
+            try {
+                Process p = Runtime.getRuntime().exec(new String[]{"which", "update-desktop-database"});
+                int result = p.waitFor();
+                if (result == 0) {
+                    return true;
+                }
+            } catch (Exception e) {
+                // Command not found
             }
         }
-        int[] bppArray = bppList.stream().mapToInt(i->i).toArray();
-        try (FileOutputStream fileOutputStream = new FileOutputStream(destIco)) {
-            ICOEncoder.write(images,bppArray, fileOutputStream);
-        }
 
-
+        return false;
     }
 
-
-
-    private void installWindowsLink(int type, File exePath, File iconPath, String appTitle) throws Exception {
-
-
-        System.out.println("Installing windows link type "+type+" for exe "+exePath+" and icon "+iconPath);
-        ShellLink link = new ShellLink(type, appTitle);
-        System.out.println("current user link path: "+link.getcurrentUserLinkPath());
-
-        link.setUserType(ShellLink.CURRENT_USER);
-        if (appInfo().getDescription() == null) {
-            link.setDescription("Windows application");
-        } else {
-            link.setDescription(appInfo().getDescription());
-        }
-        String iconPathString = iconPath.getCanonicalFile().getAbsolutePath();
-        File homeDir = new File(System.getProperty("user.home")).getCanonicalFile();
-
-
-        int homePathPos = iconPathString.indexOf(homeDir.getAbsolutePath());
-
-        System.out.println("Setting icon path in link "+iconPathString);
-        link.setIconLocation(iconPathString, 0);
-
-        String exePathString = exePath.getCanonicalFile().getAbsolutePath();
-
-        System.out.println("Setting exePathString: "+exePathString);
-        link.setTargetPath(exePathString);
-        link.save();
-    }
-
-
-
-    private void installWindowsLinks(File exePath, String appTitle) throws Exception {
-        System.out.println("Installing Windows links for exe "+exePath);
-        File pngIconPath = new File(exePath.getParentFile(), "icon.png");
-        File icoPath = new File(exePath.getParentFile().getCanonicalFile(), "icon.ico");
-
-        if (!Files.exists(pngIconPath.toPath())) {
-            System.out.println("PNG igon "+pngIconPath+" doesn't exist yet.... loading default from resources.");
-            copyResourceToFile(Main.class, "icon.png", pngIconPath);
-        }
-        if (!Files.exists(pngIconPath.toPath())) {
-            System.out.println("After creating "+pngIconPath+" icon file, it still doesn't exist.  What gives.");
-            throw new IOException("Failed to create the .ico file for some reason. "+icoPath);
-        }
-        convertWindowsIcon(pngIconPath.getCanonicalFile(), icoPath);
-
-
-        if (installationSettings.isAddToDesktop()) {
-            try {
-                installWindowsLink(ShellLink.DESKTOP, exePath, icoPath, appTitle);
-            } catch (Exception ex) {
-                throw new RuntimeException("Failed to install desktop shortcut", ex);
-
+    /**
+     * Derives the command name for the CLI from package.json.
+     * Priority:
+     * 1. jdeploy.command property
+     * 2. bin object key that maps to "jdeploy-bundle/jdeploy.js"
+     * 3. name property
+     *
+     * @return the command name to use
+     */
+    private String deriveCommandName() {
+        NPMPackageVersion pkgVersion = npmPackageVersion();
+        if (pkgVersion != null) {
+            String commandName = pkgVersion.getCommandName();
+            if (commandName != null) {
+                return commandName;
             }
         }
-        if (installationSettings.isAddToPrograms()) {
-            try {
-                installWindowsLink(ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle);
-            } catch (Exception ex) {
-                throw new RuntimeException("Failed to install program menu shortcut", ex);
 
-            }
-        }
-        if (installationSettings.isAddToStartMenu()) {
-            try {
-                installWindowsLink(ShellLink.START_MENU, exePath, icoPath, appTitle);
-            } catch (Exception ex) {
-                throw new RuntimeException("Failed to install start menu shortcut", ex);
-
-            }
-        }
+        // Fallback to title
+        return appInfo().getTitle().toLowerCase().replace(" ", "-").replaceAll("[^a-z0-9\\-]", "");
     }
 
     private void installLinuxMimetypes() throws IOException {
@@ -946,6 +1077,15 @@ public class Main implements Runnable, Constants {
     }
 
     private void writeLinuxDesktopFile(File dest, String appTitle, File appIcon, File launcher) throws IOException {
+        // Derive StartupWMClass from the npm package name
+        String wmClass = npmPackageVersion().getMainClass();
+        if (wmClass != null) {
+            wmClass = wmClass.replaceAll("\\.", "-");
+        }
+        if (npmPackageVersion().getWmClassName() != null) {
+            wmClass = npmPackageVersion().getWmClassName();
+        }
+
         String contents = "[Desktop Entry]\n" +
                 "Version=1.0\n" +
                 "Type=Application\n" +
@@ -955,7 +1095,12 @@ public class Main implements Runnable, Constants {
                 "Comment=Launch {{APP_TITLE}}\n" +
                 "Terminal=false\n";
 
-        if (appInfo().hasDocumentTypes() || appInfo().hasUrlSchemes()) {
+        // Add StartupWMClass if we have a valid value
+        if (wmClass != null && !wmClass.isEmpty()) {
+            contents += "StartupWMClass=" + wmClass + "\n";
+        }
+
+        if (appInfo().hasDocumentTypes() || appInfo().hasUrlSchemes() || appInfo().hasDirectoryAssociation()) {
             StringBuilder mimetypes = new StringBuilder();
             if (appInfo().hasDocumentTypes()) {
                 for (String extension : appInfo().getExtensions()) {
@@ -974,6 +1119,12 @@ public class Main implements Runnable, Constants {
                     mimetypes.append("x-scheme-handler/").append(scheme);
                 }
             }
+            if (appInfo().hasDirectoryAssociation()) {
+                if (mimetypes.length() > 0) {
+                    mimetypes.append(";");
+                }
+                mimetypes.append("inode/directory");
+            }
             contents += "MimeType="+mimetypes+"\n";
         }
 
@@ -990,6 +1141,7 @@ public class Main implements Runnable, Constants {
     private void addLinuxDesktopFile(File desktopDir, String filePrefix, String title, File pngIcon, File launcherFile) throws IOException {
         if (desktopDir.exists()) {
             File desktopFile = new File(desktopDir, filePrefix+".desktop");
+            File runAsAdminFile = new File(desktopDir, filePrefix+" (Run as Admin).desktop");
             while (desktopFile.exists()) {
                 int index = 2;
                 String baseName = desktopFile.getName();
@@ -1006,13 +1158,26 @@ public class Main implements Runnable, Constants {
                 String newName = baseName + " " + index;
                 desktopFile = new File(desktopFile.getParentFile(), newName);
             }
-            writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile);
+            if (appInfo().isRequireRunAsAdmin()) {
+                // For required admin, generate admin launcher and use it in the desktop file
+                LinuxAdminLauncherGenerator generator = new LinuxAdminLauncherGenerator();
+                File adminLauncher = generator.generateAdminLauncher(launcherFile);
+                writeLinuxDesktopFile(desktopFile, title, pngIcon, adminLauncher);
+            } else if (appInfo().isAllowRunAsAdmin()) {
+                // For allowed admin, create both regular and admin launchers
+                writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile);
+
+                // Create admin launcher and desktop file
+                LinuxAdminLauncherGenerator generator = new LinuxAdminLauncherGenerator();
+                File adminLauncher = generator.generateAdminLauncher(launcherFile);
+                writeLinuxDesktopFile(runAsAdminFile, title + " (Run as Admin)", pngIcon, adminLauncher);
+                runAsAdminFile.setExecutable(true);
+            } else {
+                // Regular launcher only
+                writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile);
+            }
             desktopFile.setExecutable(true);
-
         }
-
-
-
     }
 
     public void installLinuxLinks(File launcherFile, String title) throws Exception {
@@ -1025,29 +1190,154 @@ public class Main implements Runnable, Constants {
         File pngIcon = new File(launcherFile.getParentFile(), "icon.png");
         if (!pngIcon.exists()) {
             IOUtil.copyResourceToFile(Main.class, "icon.png", pngIcon);
-
         }
 
-        if (installationSettings.isAddToDesktop()) {
-            File desktopDir = new File(System.getProperty("user.home"), "Desktop");
-            addLinuxDesktopFile(desktopDir, title, title, pngIcon, launcherFile);
-        }
-        if (installationSettings.isAddToPrograms()) {
-            File homeDir = new File(System.getProperty("user.home"));
-            File applicationsDir = new File(homeDir, ".local"+File.separator+"share"+File.separator+"applications");
-            applicationsDir.mkdirs();
-            addLinuxDesktopFile(applicationsDir, title, title, pngIcon, launcherFile);
+        boolean hasDesktop = isDesktopEnvironmentAvailable();
 
-            // We need to run update desktop database before file type associations and url schemes will be
-            // recognized.
-            Process p = Runtime.getRuntime().exec(new String[]{"update-desktop-database", applicationsDir.getAbsolutePath()});
-            int result = p.waitFor();
-            if (result != 0) {
-                throw new IOException("Failed to update desktop database.  Exit code "+result);
+        // Install desktop shortcuts only if desktop environment is available
+        if (hasDesktop) {
+            if (installationSettings.isAddToDesktop()) {
+                File desktopDir = new File(System.getProperty("user.home"), "Desktop");
+                addLinuxDesktopFile(desktopDir, title, title, pngIcon, launcherFile);
             }
+            if (installationSettings.isAddToPrograms()) {
+                File homeDir = new File(System.getProperty("user.home"));
+                File applicationsDir = new File(homeDir, ".local"+File.separator+"share"+File.separator+"applications");
+                applicationsDir.mkdirs();
+                addLinuxDesktopFile(applicationsDir, title, title, pngIcon, launcherFile);
+
+                // We need to run update desktop database before file type associations and url schemes will be
+                // recognized. Only do this if desktop environment is available.
+                try {
+                    Process p = Runtime.getRuntime().exec(new String[]{"update-desktop-database", applicationsDir.getAbsolutePath()});
+                    int result = p.waitFor();
+                    if (result != 0) {
+                        System.err.println("Warning: Failed to update desktop database. Exit code "+result);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to run update-desktop-database: " + e.getMessage());
+                }
+            }
+        } else {
+            System.out.println("No desktop environment detected. Skipping desktop shortcuts and mimetype registration.");
         }
 
+        // Install command-line symlink in ~/.local/bin if user requested it
+        if (installationSettings.isInstallCliCommand()) {
+            File localBinDir = new File(System.getProperty("user.home"), ".local"+File.separator+"bin");
 
+            // Create ~/.local/bin if it doesn't exist
+            if (!localBinDir.exists()) {
+                if (!localBinDir.mkdirs()) {
+                    System.err.println("Warning: Failed to create ~/.local/bin directory");
+                    return;
+                }
+                System.out.println("Created ~/.local/bin directory");
+            }
+
+            String commandName = deriveCommandName();
+            File symlinkPath = new File(localBinDir, commandName);
+
+            // Remove existing symlink if it exists
+            if (symlinkPath.exists()) {
+                symlinkPath.delete();
+            }
+
+            try {
+                // Create symlink using ln -s
+                Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", launcherFile.getAbsolutePath(), symlinkPath.getAbsolutePath()});
+                int result = p.waitFor();
+                if (result == 0) {
+                    System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+                    installationSettings.setCommandLineSymlinkCreated(true);
+
+                    // Check if ~/.local/bin is in PATH
+                    String path = System.getenv("PATH");
+                    String localBinPath = localBinDir.getAbsolutePath();
+                    if (path == null || !path.contains(localBinPath)) {
+                        // Add ~/.local/bin to PATH by updating shell config
+                        boolean pathUpdated = addToPath(localBinDir);
+                        installationSettings.setAddedToPath(pathUpdated);
+                    } else {
+                        // Already in PATH
+                        installationSettings.setAddedToPath(true);
+                    }
+                } else {
+                    System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
+                }
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+            }
+        } else {
+            System.out.println("Skipping CLI command installation (user opted out)");
+        }
+    }
+
+    /**
+     * Adds ~/.local/bin to the user's PATH by updating their shell configuration file.
+     * This method detects the user's shell and appends the PATH export to the appropriate config file.
+     *
+     * @param localBinDir The ~/.local/bin directory to add to PATH
+     * @return true if PATH was successfully updated or already contains the directory, false otherwise
+     */
+    private boolean addToPath(File localBinDir) {
+        try {
+            // Detect the user's shell
+            String shell = System.getenv("SHELL");
+            if (shell == null || shell.isEmpty()) {
+                shell = "/bin/bash"; // Default to bash
+            }
+
+            File configFile = null;
+            String shellName = new File(shell).getName();
+
+            // Determine which config file to update based on the shell
+            File homeDir = new File(System.getProperty("user.home"));
+            switch (shellName) {
+                case "bash":
+                    // For bash, prefer .bashrc, but use .bash_profile if .bashrc doesn't exist
+                    File bashrc = new File(homeDir, ".bashrc");
+                    File bashProfile = new File(homeDir, ".bash_profile");
+                    configFile = bashrc.exists() ? bashrc : bashProfile;
+                    break;
+                case "zsh":
+                    configFile = new File(homeDir, ".zshrc");
+                    break;
+                case "fish":
+                    // Fish uses a different syntax, skip for now
+                    System.out.println("Note: Fish shell detected. Please manually add ~/.local/bin to your PATH:");
+                    System.out.println("  set -U fish_user_paths ~/.local/bin $fish_user_paths");
+                    return false;
+                default:
+                    // For unknown shells, try .profile as a fallback
+                    configFile = new File(homeDir, ".profile");
+                    break;
+            }
+
+            // Check if the PATH export already exists in the config file
+            if (configFile.exists()) {
+                String content = IOUtil.readToString(new FileInputStream(configFile));
+                if (content.contains("$HOME/.local/bin") || content.contains(localBinDir.getAbsolutePath())) {
+                    System.out.println("~/.local/bin is already in PATH configuration");
+                    return true;
+                }
+            }
+
+            // Append PATH export to the config file
+            String pathExport = "\n# Added by jDeploy installer\nexport PATH=\"$HOME/.local/bin:$PATH\"\n";
+            try (FileOutputStream fos = new FileOutputStream(configFile, true)) {
+                fos.write(pathExport.getBytes());
+            }
+
+            System.out.println("Added ~/.local/bin to PATH in " + configFile.getName());
+            System.out.println("Please restart your terminal or run: source " + configFile.getAbsolutePath());
+            return true;
+
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to add ~/.local/bin to PATH: " + e.getMessage());
+            System.out.println("You may need to manually add ~/.local/bin to your PATH");
+            return false;
+        }
     }
 
 }

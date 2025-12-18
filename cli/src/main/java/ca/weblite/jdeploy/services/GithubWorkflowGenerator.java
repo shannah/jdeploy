@@ -16,7 +16,7 @@ public class GithubWorkflowGenerator {
 
 
     private boolean isGradleProject() {
-        return new File(directory, "build.gradle").exists();
+        return new File(directory, "build.gradle").exists() || new File(directory, "build.gradle.kts").exists();
     }
 
     private boolean isMavenProject() {

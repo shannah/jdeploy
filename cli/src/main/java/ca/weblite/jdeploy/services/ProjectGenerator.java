@@ -65,7 +65,7 @@ public class ProjectGenerator {
                 request.getParentDirectory(),
                 stringUtils.camelCaseToLowerCaseWithSeparator(request.getProjectName(), "-")
         );
-        if ( projectDir.exists() ) {
+        if (!request.isUseExistingDirectory() && projectDir.exists() ) {
             throw new Exception("Project directory already exists: " + projectDir.getAbsolutePath());
         }
         projectDir.mkdirs();
@@ -121,6 +121,7 @@ public class ProjectGenerator {
         buildFileSource = buildFileSource.replace("{{ appTitle }}", request.getAppTitle());
         buildFileSource = buildFileSource.replace("{{ groupId }}", request.getGroupId());
         buildFileSource = buildFileSource.replace("{{ artifactId }}", request.getArtifactId());
+        buildFileSource = buildFileSource.replace("{{ artifactId_snake }}", request.getArtifactId().replace('-', '_'));
         buildFileSource = buildFileSource.replace("{{ mainClass }}", request.getMainClassName());
         buildFileSource = buildFileSource.replace("{{ mainClassName }}", request.getMainClassName());
         buildFileSource = buildFileSource.replace("{{ packageName }}", request.getPackageName());
@@ -146,12 +147,15 @@ public class ProjectGenerator {
                         ".java",
                         ".properties",
                         ".xml",
+                        ".fxml",
                         ".gradle",
                         ".json",
                         ".yml",
                         ".yaml",
                         ".md",
-                        ".adoc"
+                        ".adoc",
+                        ".kts",
+                        ".kt"
                 };
                 boolean shouldProcessFile = Arrays.asList(processExtensions).stream().filter(ext -> name.endsWith(ext)).count() > 0;
                 if (shouldProcessFile) {

@@ -5,6 +5,8 @@
 
 package ca.weblite.jdeploy.appbundler;
 
+import java.io.File;
+import java.security.cert.Certificate;
 import java.util.*;
 
 /**
@@ -13,6 +15,7 @@ import java.util.*;
  */
 public class AppDescription {
     private String iconDataURI;
+    private String splashDataURI;
     private String npmPackage;
     private String npmVersion;
 
@@ -31,11 +34,54 @@ public class AppDescription {
     private String macBundleId;
     private boolean enableMacCodeSigning;
     private boolean enableMacNotarization;
+
     private String macCertificateName;
     private String macDeveloperID;
     private String macNotarizationPassword;
     private List<String> urlSchemes;
 
+    private String macDeveloperTeamID;
+
+    // Directory association support
+    private ca.weblite.jdeploy.models.DocumentTypeAssociation directoryAssociation;
+
+    private File bundleJre;
+
+    private String jDeployHome;
+
+    private String jDeployHomeWindows;
+    private String jDeployHomeMac;
+    private String jDeployHomeLinux;
+    private String jDeployRegistryUrl;
+
+    /**
+     * The version of the launcher/installer that created this bundle.
+     * This is only set when running as the installer, not during CLI packaging.
+     */
+    private String launcherVersion;
+
+    /**
+     * The version of the app that was initially installed.
+     * This is parsed from the installer filename and only set when running as the installer.
+     */
+    private String initialAppVersion;
+
+    private Map<String,String> macUsageDescriptions = new HashMap<>();
+
+    /**
+     * If package signing is enabled, then this flag tells us whether to "pin" the app to the signing certificate.
+     * If the app is pinned to a signing certificate, then the launcher will verify the signature of all files
+     * in the jdeploy-bundle before launching the app each time.  If verification fails, then the app will not launch.
+     */
+    private boolean isPackageCertificatePinningEnabled;
+
+    /**
+     * This is the certificate used to sign the jdeploy bundle - NOT to be confused with the apple or windows
+     * code signing certificates.
+     */
+    private List<Certificate> trustedCertificates;
+
+    private String packageSigningCertificateChainPath;
 
     public AppDescription() {
 
@@ -66,6 +112,62 @@ public class AppDescription {
         urlSchemes.add(scheme);
     }
 
+    /**
+     * Sets directory association for this application.
+     * @param association The directory document type association
+     */
+    public void setDirectoryAssociation(ca.weblite.jdeploy.models.DocumentTypeAssociation association) {
+        if (association != null && !association.isDirectory()) {
+            throw new IllegalArgumentException("Association must be a directory type");
+        }
+        this.directoryAssociation = association;
+    }
+
+    /**
+     * Sets directory association for this application.
+     * @param role "Editor" or "Viewer"
+     * @param description Human-readable description
+     * @param icon Optional path to custom icon
+     */
+    public void setDirectoryAssociation(String role, String description, String icon) {
+        this.directoryAssociation = new ca.weblite.jdeploy.models.DocumentTypeAssociation(role, description, icon);
+    }
+
+    /**
+     * @return true if this application has a directory association configured
+     */
+    public boolean hasDirectoryAssociation() {
+        return directoryAssociation != null;
+    }
+
+    /**
+     * @return the directory association, or null if none configured
+     */
+    public ca.weblite.jdeploy.models.DocumentTypeAssociation getDirectoryAssociation() {
+        return directoryAssociation;
+    }
+
+    /**
+     * @return the role for directory associations ("Editor" or "Viewer")
+     */
+    public String getDirectoryRole() {
+        return directoryAssociation != null ? directoryAssociation.getRole() : "Viewer";
+    }
+
+    /**
+     * @return the description for directory associations
+     */
+    public String getDirectoryDescription() {
+        return directoryAssociation != null ? directoryAssociation.getDescription() : null;
+    }
+
+    /**
+     * @return the icon path for directory associations
+     */
+    public String getDirectoryIcon() {
+        return directoryAssociation != null ? directoryAssociation.getIconPath() : null;
+    }
+
     public void setUrl(String url) {
         this.url = url;
     }
@@ -80,6 +182,34 @@ public class AppDescription {
 
     public Iterable<Jar> getJars() {
         return this.jars;
+    }
+
+    public void setTrustedCertificates(List<Certificate> cert) {
+        this.trustedCertificates = cert;
+    }
+
+    public List<Certificate> getTrustedCertificates() {
+        return this.trustedCertificates;
+    }
+
+    public void setPackageSigningCertificateChainPath(String path) {
+        this.packageSigningCertificateChainPath = path;
+    }
+
+    public String getPackageSigningCertificateChainPath() {
+        return this.packageSigningCertificateChainPath;
+    }
+
+    public void enablePackageCertificatePinning() {
+        this.isPackageCertificatePinningEnabled = true;
+    }
+
+    public void disablePackageCertificatePinning() {
+        this.isPackageCertificatePinningEnabled = false;
+    }
+
+    public boolean isPackageCertificatePinningEnabled() {
+        return isPackageCertificatePinningEnabled;
     }
 
     public void setMacBundleId(String id) {
@@ -169,13 +299,20 @@ public class AppDescription {
         return enableMacCodeSigning && getMacCertificateName() != null;
     }
     
-    public void enableMacNotarization(String developerId, String notarizationPassword) {
+    public void enableMacNotarization(
+            String developerId,
+            String notarizationPassword,
+            String developerTeamID
+    ) {
         enableMacNotarization = true;
         if (developerId != null) {
             setMacDeveloperID(developerId);
         }
         if (notarizationPassword != null) {
             this.setMacNotarizationPassword(notarizationPassword);
+        }
+        if (developerTeamID != null) {
+            this.setMacDeveloperTeamID(developerTeamID);
         }
         
     }
@@ -187,6 +324,7 @@ public class AppDescription {
     public boolean isMacNotarizationEnabled() {
         return enableMacNotarization && getMacDeveloperID() != null && getMacNotarizationPassword() != null;
     }
+
     
     /**
      * @return the macCertificateName
@@ -209,11 +347,19 @@ public class AppDescription {
         return macDeveloperID;
     }
 
+    public String getMacDeveloperTeamID() {
+        return macDeveloperTeamID;
+    }
+
     /**
      * @param macDeveloperID the macDeveloperID to set
      */
     public void setMacDeveloperID(String macDeveloperID) {
         this.macDeveloperID = macDeveloperID;
+    }
+
+    public void setMacDeveloperTeamID(String macDeveloperTeamID) {
+        this.macDeveloperTeamID = macDeveloperTeamID;
     }
 
     /**
@@ -262,6 +408,14 @@ public class AppDescription {
         this.iconDataURI = iconDataURI;
     }
 
+    public String getSplashDataURI() {
+        return splashDataURI;
+    }
+
+    public void setSplashDataURI(String splashDataURI) {
+        this.splashDataURI = splashDataURI;
+    }
+
     public boolean isNpmPrerelease() {
         return npmPrerelease;
     }
@@ -276,5 +430,77 @@ public class AppDescription {
 
     public void setFork(boolean fork) {
         this.fork = fork;
+    }
+
+    public void setBundleJre(File bundleJre) {
+        this.bundleJre = bundleJre;
+    }
+
+    public File getBundleJre() {
+        return bundleJre;
+    }
+
+
+    public String getjDeployHome() {
+        return jDeployHome;
+    }
+
+    public void setjDeployHome(String jDeployHome) {
+        this.jDeployHome = jDeployHome;
+    }
+
+    public String getjDeployHomeWindows() {
+        return jDeployHomeWindows;
+    }
+
+    public void setjDeployHomeWindows(String jDeployHomeWindows) {
+        this.jDeployHomeWindows = jDeployHomeWindows;
+    }
+
+    public String getjDeployHomeMac() {
+        return jDeployHomeMac;
+    }
+
+    public void setjDeployHomeMac(String jDeployHomeMac) {
+        this.jDeployHomeMac = jDeployHomeMac;
+    }
+
+    public String getjDeployHomeLinux() {
+        return jDeployHomeLinux;
+    }
+
+    public void setjDeployHomeLinux(String jDeployHomeLinux) {
+        this.jDeployHomeLinux = jDeployHomeLinux;
+    }
+
+    public void setJDeployRegistryUrl(String jDeployRegistryUrl) {
+        this.jDeployRegistryUrl = jDeployRegistryUrl;
+    }
+    public String getJDeployRegistryUrl() {
+        return jDeployRegistryUrl;
+    }
+
+    public Map<String,String> getMacUsageDescriptions() {
+        return macUsageDescriptions;
+    }
+
+    public void setMacUsageDescription(String key, String value) {
+        macUsageDescriptions.put(key, value);
+    }
+
+    public String getLauncherVersion() {
+        return launcherVersion;
+    }
+
+    public void setLauncherVersion(String launcherVersion) {
+        this.launcherVersion = launcherVersion;
+    }
+
+    public String getInitialAppVersion() {
+        return initialAppVersion;
+    }
+
+    public void setInitialAppVersion(String initialAppVersion) {
+        this.initialAppVersion = initialAppVersion;
     }
 }

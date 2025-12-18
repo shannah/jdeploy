@@ -1,26 +1,48 @@
 {
-  "bin": {"jdeploy-installer": "jdeploy-bundle/jdeploy.js"},
-  "author": "Steve Hannah",
-  "description": "Desktop installer for Java applications deployed using jDeploy",
-  "main": "index.js",
-  "preferGlobal": true,
-  "repository": {
-    "type" : "git",
-    "url" : "https://github.com/shannah/jdeploy.git",
-    "directory": "installer"
-  },
-  "version": "1.0.5",
-  "jdeploy": {
-      "jar": "target/jdeploy-installer-1.0-SNAPSHOT.jar",
-      "bundles" : ["mac-x64", "mac-arm64", "win", "linux"],
-      "macAppBundleId" : "HRNMHC7527.ca.weblite.jdeploy.installer",
-      "codesign" : true,
-      "notarize" : false,
-      "fork" : false
-  },
-  "dependencies": {"shelljs": "^0.8.4"},
-  "license": "ISC",
-  "name": "jdeploy-installer",
-  "files": ["jdeploy-bundle"],
-  "scripts": {"test": "echo \"Error: no test specified\" && exit 1"}
+    "bin": {"jdeploy-installer": "jdeploy-bundle/jdeploy.js"},
+    "author": "Steve Hannah",
+    "description": "Desktop installer for Java applications deployed using jDeploy",
+    "main": "index.js",
+    "preferGlobal": true,
+    "repository": {
+        "type": "git",
+        "directory": "installer",
+        "url": "https://github.com/shannah/jdeploy.git"
+    },
+    "version": "1.0.5",
+    "jdeploy": {
+        "packageMacX64": "jdeploy-installer-mac-x64",
+        "notarize": false,
+        "packageLinuxX64": "jdeploy-installer-linux-x64",
+        "packageMacArm64": "jdeploy-installer-mac-arm64",
+        "packageLinuxArm64": "jdeploy-installer-linux-arm64",
+        "downloadPage": {"platforms": ["all"]},
+        "fork": false,
+        "fallbackToUniversal": true,
+        "packageWinX64": "jdeploy-installer-win-x64",
+        "macAppBundleId": "HRNMHC7527.ca.weblite.jdeploy.installer",
+        "publishTargets": [{
+            "isDefault": true,
+            "name": "npm: jdeploy-installer",
+            "type": "NPM",
+            "url": "jdeploy-installer"
+        }],
+        "bundles": [
+            "mac-x64",
+            "mac-arm64",
+            "win-x64",
+            "win-arm64",
+            "linux-x64",
+            "linux-arm64"
+        ],
+        "jar": "target/jdeploy-installer-1.0-SNAPSHOT.jar",
+        "codesign": true,
+        "platformBundlesEnabled": true,
+        "packageWinArm64": "jdeploy-installer-win-arm64"
+    },
+    "dependencies": {"shelljs": "^0.8.4"},
+    "license": "ISC",
+    "name": "jdeploy-installer",
+    "files": ["jdeploy-bundle"],
+    "scripts": {"test": "echo \"Error: no test specified\" && exit 1"}
 }

@@ -22,6 +22,10 @@ public class ProjectTemplateCatalog {
         githubRepository = REPO_URL;
     }
 
+    public File getProjectsIndexFile() {
+        return new File(localPath, "projects.xml");
+    }
+
     public void update() throws IOException {
         try {
             updateInternal();
@@ -70,6 +74,14 @@ public class ProjectTemplateCatalog {
         return f;
     }
 
+    public File[] getProjectTemplates() {
+        return getProjectsDir().listFiles();
+    }
+
+    public boolean isCatalogInitialized() {
+        return new File(localPath).exists();
+    }
+
     private File getProjectsDir() {
         return new File(localPath, "projects");
     }
@@ -77,4 +89,6 @@ public class ProjectTemplateCatalog {
     private File getExtensionsDir() {
         return new File(localPath, "extensions");
     }
+
+
 }

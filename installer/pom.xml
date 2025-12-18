@@ -69,6 +69,45 @@
             <groupId>ca.weblite</groupId>
             <artifactId>jdeploy-shared</artifactId>
             <version>1.0-SNAPSHOT</version>
+            <exclusions>
+                <!-- Exclude OpenAI client and its dependencies -->
+                <exclusion>
+                    <groupId>com.theokanning.openai-gpt3-java</groupId>
+                    <artifactId>service</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.theokanning.openai-gpt3-java</groupId>
+                    <artifactId>client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.theokanning.openai-gpt3-java</groupId>
+                    <artifactId>api</artifactId>
+                </exclusion>
+                <!-- Exclude JSON Schema generator (uses Scala) -->
+                <exclusion>
+                    <groupId>com.kjetland</groupId>
+                    <artifactId>mbknor-jackson-jsonschema_2.12</artifactId>
+                </exclusion>
+                <!-- Exclude Scala library -->
+                <exclusion>
+                    <groupId>org.scala-lang</groupId>
+                    <artifactId>scala-library</artifactId>
+                </exclusion>
+                <!-- Exclude RxJava (used by OpenAI client) -->
+                <exclusion>
+                    <groupId>io.reactivex.rxjava2</groupId>
+                    <artifactId>rxjava</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.squareup.retrofit2</groupId>
+                    <artifactId>adapter-rxjava2</artifactId>
+                </exclusion>
+                <!-- Exclude other OpenAI dependencies -->
+                <exclusion>
+                    <groupId>com.knuddels</groupId>
+                    <artifactId>jtokkit</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>ca.weblite.jdeploy</groupId>
@@ -98,6 +137,13 @@
 
 
 
+        <!-- JUnit for testing -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 </project>

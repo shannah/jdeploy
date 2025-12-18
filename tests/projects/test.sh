@@ -14,3 +14,13 @@ cd ../TextEditor6
 bash test.sh
 cd ../TextEditor7
 bash test.sh
+cd ../TextEditorCodesign
+bash test.sh
+cd ../TextEditorBundleJRECodesign
+bash test.sh
+cd ../TextEditorBundleJRECodesignDMG
+bash test.sh
+cd ../LauncherTest1
+bash test.sh
+cd ../InitNPETest
+bash test.sh

@@ -519,6 +519,23 @@ public class ShellLink
     private static boolean libraryLoaded;
 
     /**
+     * Determines the appropriate ShellLink DLL name based on the JVM architecture.
+     * 
+     * @return the DLL filename to use for the current architecture
+     */
+    private static String getShellLinkDllName() {
+        String arch = System.getProperty("os.arch").toLowerCase();
+        
+        // Check for ARM64 architectures
+        if (arch.contains("aarch64") || arch.contains("arm64")) {
+            return "ShellLink_ARM64.dll";
+        }
+        
+        // Default to x64 for all other architectures (including x86_64, amd64, etc.)
+        return "ShellLink_x64.dll";
+    }
+
+    /**
      * Initializes COM and gets an instance of the IShellLink interface.
      *
      * @throws Exception if problems are encountered
@@ -529,9 +546,14 @@ public class ShellLink
             try {
                 //librarian.loadLibrary("ShellLink", this);
                 File jarFile = new File(ShellLink.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-                File dllFile = new File(jarFile.getParentFile(), "ShellLink_x64.dll");
+                
+                // Detect architecture and choose appropriate DLL
+                String dllName = getShellLinkDllName();
+                System.out.println("Loading ShellLink.dll: " + dllName);
+                File dllFile = new File(jarFile.getParentFile(), dllName);
+                
                 if (!dllFile.exists()) {
-                    try (InputStream input = ShellLink.class.getResourceAsStream("ShellLink_x64.dll")) {
+                    try (InputStream input = ShellLink.class.getResourceAsStream(dllName)) {
                         try (OutputStream output = new FileOutputStream(dllFile)) {
                             copy(input, output);
                         }

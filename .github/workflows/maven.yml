@@ -13,31 +13,33 @@ on:
   push:
     tags: "*"
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build:
 
-    runs-on: macos-latest
+    runs-on: macos-14
 
     steps:
     - uses: actions/checkout@v2
     - name: Set up JDK 11
-      uses: actions/setup-java@v2
+      uses: actions/setup-java@v4
       with:
         java-version: '11'
-        distribution: 'adopt'
+        distribution: 'temurin'
         cache: maven
     - name: Set up Node
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v4
       with:
-        node-version: '16.x'
-        registry-url: 'https://registry.npmjs.org'
-      env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-    - name: Setup Maven Action
-      uses: s4u/setup-maven-action@v1.6.0
-      with:
-        java-version: 11
-        maven-version: '3.6.3'
+        node-version: '20.x'
+    - name: Upgrade npm for trusted publishing
+      run: npm install -g npm@latest
+    - name: Install PHP
+      run: |
+        brew update
+        brew install php
     - name: Install osslsigncode
       run: brew install osslsigncode
     - name: Install MacOS Certificates
@@ -50,11 +52,12 @@ jobs:
         APPLE_ID: ${{ secrets.APPLE_ID }}
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         APPLE_2FA_PASSWORD: ${{ secrets.APPLE_2FA_PASSWORD }}
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
         MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         JDEPLOY_MAC_DEVELOPER_CERTIFICATE_NAME: ${{ secrets.DEVELOPER_ID_CERTIFICATE_NAME }}
         JDEPLOY_MAC_DEVELOPER_ID: ${{ secrets.APPLE_ID }}
         AUTHENTICODE_SPC: ${{ secrets.AUTHENTICODE_SPC }}
         AUTHENTICODE_KEY: ${{ secrets.AUTHENTICODE_KEY }}
+        EV_CODESIGN_SUBMITTER_PRIVATE_KEY: ${{ secrets.EV_CODESIGN_SUBMITTER_PRIVATE_KEY }}
+        EV_CODESIGN_PROCESSOR_PUBLIC_KEY: ${{ secrets.EV_CODESIGN_PROCESSOR_PUBLIC_KEY }}
       run: bash release.sh

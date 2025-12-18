@@ -19,6 +19,9 @@ public class ProjectGeneratorRequestBuilder implements ProjectGeneratorRequest.P
     @CommandLineParser.Help("Whether the repository should be private")
     private boolean privateRepository;
 
+    @CommandLineParser.Help("Whether to use an existing directory")
+    private boolean useExistingDirectory;
+
     @CommandLineParser.PositionalArg(1)
     @CommandLineParser.Help("The fully-qualified main class name.  If not specified, will be inferred from the package name and project name.")
     private String magicArg;
@@ -77,6 +80,11 @@ public class ProjectGeneratorRequestBuilder implements ProjectGeneratorRequest.P
 
     public ProjectGeneratorRequest.Params setProjectName(String projectName) {
         this.projectName = projectName;
+        return this;
+    }
+
+    public ProjectGeneratorRequest.Params setUseExistingDirectory(boolean useExistingDirectory) {
+        this.useExistingDirectory = useExistingDirectory;
         return this;
     }
 
@@ -398,6 +406,11 @@ public class ProjectGeneratorRequestBuilder implements ProjectGeneratorRequest.P
 
     public boolean isPrivateRepository() {
         return privateRepository;
+    }
+
+    @Override
+    public boolean isUseExistingDirectory() {
+        return useExistingDirectory;
     }
 
     private String getGithubUser() {

@@ -5,22 +5,21 @@
  */
 package ca.weblite.jdeploy.app;
 
+import ca.weblite.jdeploy.app.permissions.PermissionRequest;
+import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 
 import ca.weblite.tools.platform.Platform;
 
 import com.client4j.Client4J;
-import com.client4j.CommonRuntimes;
 import com.client4j.ResourceInfo;
 import com.client4j.security.RuntimeGrantedPermission;
 import com.client4j.security.RuntimeGrantedPermissions;
-
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.security.cert.Certificate;
 import java.util.*;
 import java.util.jar.Attributes.Name;
 import java.util.jar.Manifest;
-
-
 
 /**
  *
@@ -34,6 +33,15 @@ public class AppInfo  {
     private String windowsInstallerUrl;
     private String linuxInstallerUrl;
     private String githubRepositoryUrl;
+
+    private String macJdeployHome;
+
+    private String windowsJdeployHome;
+
+    private String linuxJdeployHome;
+    private String jdeployHome;
+    private String jdeployRegistryUrl;
+
     private String tagLine;
     private String title;
     private String description;
@@ -48,6 +56,18 @@ public class AppInfo  {
     private String jdeployBundleCode;
     private boolean fork;
 
+    /**
+     * The version of the launcher/installer that created this bundle.
+     * This is only set when running as the installer, not during CLI packaging.
+     */
+    private String launcherVersion;
+
+    /**
+     * The version of the app that was initially installed.
+     * This is parsed from the installer filename and only set when running as the installer.
+     */
+    private String initialAppVersion;
+
     private Map<String, String> documentMimetypes;
 
     private Map<String, String> documentTypeIcons;
@@ -56,6 +76,38 @@ public class AppInfo  {
 
     private Set<String> urlSchemes;
 
+    // Directory association support
+    private DocumentTypeAssociation directoryAssociation;
+
+    private Map<PermissionRequest, String> permissionRequests;
+
+    /**
+     * If package signing is enabled,
+     */
+    private List<Certificate> trustedCertificates;
+
+    private String packageSigningCertificateChainPath;
+
+    private boolean enableCertificatePinning = false;
+
+    private boolean allowRunAsAdmin = false;
+
+    private boolean requireRunAsAdmin = false;
+
+    /**
+     * Indicates that the app should use a dedicated JVM rather than the default shared JVM.
+     * This is required for Java 8 on Windows (at least) since Java 8 didn't provide a way to
+     * use a JRE at an arbitrary location.  This is no longer necessary in Java 9+, but we may
+     * want to employ its use for other reasons.
+     */
+    private boolean usePrivateJVM = false;
+
+    /**
+     * Indicates that the build should include an embedded JRE as part of the app bundle.
+     */
+    private boolean useBundledJVM = false;
+
+    private JVMSpecification jvmSpecification;
 
     public void addUrlScheme(String scheme) {
         if (urlSchemes == null) urlSchemes = new HashSet<>();
@@ -72,7 +124,36 @@ public class AppInfo  {
         }
         return urlSchemes;
     }
-    
+
+    public void addPermissionRequest(PermissionRequest request, String description) {
+        if (permissionRequests == null) permissionRequests = new HashMap<>();
+        permissionRequests.put(request, description);
+    }
+
+    public boolean hasPermissionRequests() {
+        return permissionRequests != null && !permissionRequests.isEmpty();
+    }
+
+    public Iterable<PermissionRequest> getPermissionRequests() {
+        if (permissionRequests == null) {
+            return new HashSet<>();
+        }
+        return permissionRequests.keySet();
+    }
+
+    public String getPermissionDescription(PermissionRequest request) {
+        if (permissionRequests != null && permissionRequests.containsKey(request)) {
+            return permissionRequests.get(request);
+        }
+        return null;
+    }
+
+    public Map<PermissionRequest, String> getPermissionRequestsWithDescriptions() {
+        if (permissionRequests == null) {
+            return new HashMap<>();
+        }
+        return new HashMap<>(permissionRequests);
+    }
 
     private Map<String, String> documentMimetypes() {
         if (documentMimetypes == null) documentMimetypes = new HashMap<>();
@@ -124,10 +205,69 @@ public class AppInfo  {
         return null;
     }
 
+    /**
+     * Sets directory association for this application.
+     * @param association The directory document type association
+     */
+    public void setDirectoryAssociation(DocumentTypeAssociation association) {
+        if (association != null && !association.isDirectory()) {
+            throw new IllegalArgumentException("Association must be a directory type");
+        }
+        this.directoryAssociation = association;
+    }
 
+    /**
+     * Sets directory association for this application.
+     * @param role "Editor" or "Viewer"
+     * @param description Human-readable description for context menus
+     * @param iconPath Optional path to custom icon
+     */
+    public void setDirectoryAssociation(String role, String description, String iconPath) {
+        this.directoryAssociation = new DocumentTypeAssociation(role, description, iconPath);
+    }
 
-    
-    
+    /**
+     * @return true if this application has a directory association configured
+     */
+    public boolean hasDirectoryAssociation() {
+        return directoryAssociation != null;
+    }
+
+    /**
+     * @return the directory association, or null if none configured
+     */
+    public DocumentTypeAssociation getDirectoryAssociation() {
+        return directoryAssociation;
+    }
+
+    /**
+     * @return the role for directory associations ("Editor" or "Viewer")
+     */
+    public String getDirectoryRole() {
+        return directoryAssociation != null ? directoryAssociation.getRole() : "Viewer";
+    }
+
+    /**
+     * @return the description for directory associations
+     */
+    public String getDirectoryDescription() {
+        return directoryAssociation != null ? directoryAssociation.getDescription() : null;
+    }
+
+    /**
+     * @return the icon path for directory associations
+     */
+    public String getDirectoryIconPath() {
+        return directoryAssociation != null ? directoryAssociation.getIconPath() : null;
+    }
+
+    /**
+     * Clears directory association from this application.
+     */
+    public void clearDirectoryAssociation() {
+        this.directoryAssociation = null;
+    }
+
     /**
      * @return the tagline
      */
@@ -171,6 +311,46 @@ public class AppInfo  {
         }
     }
 
+    public void setMacJdeployHome(String macJdeployHome) {
+        this.macJdeployHome = macJdeployHome;
+    }
+
+    public String getMacJdeployHome() {
+        return macJdeployHome;
+    }
+
+    public void setWindowsJdeployHome(String windowsJdeployHome) {
+        this.windowsJdeployHome = windowsJdeployHome;
+    }
+
+    public String getWindowsJdeployHome() {
+        return windowsJdeployHome;
+    }
+
+    public void setLinuxJdeployHome(String linuxJdeployHome) {
+        this.linuxJdeployHome = linuxJdeployHome;
+    }
+
+    public String getLinuxJdeployHome() {
+        return linuxJdeployHome;
+    }
+
+    public void setJdeployHome(String jdeployHome) {
+        this.jdeployHome = jdeployHome;
+    }
+
+    public String getJdeployHome() {
+        return jdeployHome;
+    }
+
+    public void setJdeployRegistryUrl(String jDeployRegistryUrl) {
+        this.jdeployRegistryUrl = jDeployRegistryUrl;
+    }
+
+    public String getJdeployRegistryUrl() {
+        return jdeployRegistryUrl;
+    }
+
     public CodeSignSettings getCodeSignSettings() {
         return codeSignSettings;
     }
@@ -178,7 +358,6 @@ public class AppInfo  {
     public void setCodeSignSettings(CodeSignSettings settings) {
         if (!Objects.equals(settings, codeSignSettings)) {
             codeSignSettings = settings;
-
         }
     }
     
@@ -321,6 +500,45 @@ public class AppInfo  {
         this.fork = fork;
     }
 
+    public List<Certificate> getTrustedCertificates() {
+        return trustedCertificates;
+    }
+
+    public void setTrustedCertificates(List<Certificate> key) {
+        this.trustedCertificates = key;
+    }
+
+    public boolean isCertificatePinningEnabled() {
+        return enableCertificatePinning;
+    }
+
+    public void setEnableCertificatePinning(boolean enable) {
+        this.enableCertificatePinning = enable;
+    }
+
+    public boolean isUsePrivateJVM() {
+        return usePrivateJVM;
+    }
+
+    public void setUsePrivateJVM(boolean usePrivateJVM) {
+        this.usePrivateJVM = usePrivateJVM;
+    }
+
+    public boolean isUseBundledJVM() {
+        return useBundledJVM;
+    }
+
+    public void setUseBundledJVM(boolean useBundledJVM) {
+        this.useBundledJVM = useBundledJVM;
+    }
+
+    public void setJVMSpecification(JVMSpecification spec) {
+        jvmSpecification = spec;
+    }
+
+    public JVMSpecification getJVMSpecification() {
+        return jvmSpecification;
+    }
 
     public static enum Updates {
         Auto,
@@ -368,12 +586,8 @@ public class AppInfo  {
         }
 
         public void clear() {
-
             permissions.clear();
-
         }
-        
-        
     }
     
     /**
@@ -383,8 +597,6 @@ public class AppInfo  {
         return permissions;
     }
 
-
-    
     /**
      * @return the dependencies
      */
@@ -421,14 +633,11 @@ public class AppInfo  {
             }
         }
         return out;
-        
     }
-            
-    
+
     public static class Permission implements Comparable<Permission> {
         
         public Permission() {
-            
         }
         
         public Permission(Permission toCopy) {
@@ -564,16 +773,13 @@ public class AppInfo  {
             return hash;
         }
         
-        
-        
         public static List<Permission> copy(List<Permission> src, List<Permission> dest) {
             for (Permission perm : src) {
                 dest.add(perm.copy());
             }
             return dest;
         }
-        
-        
+
         @Override
         public int compareTo(Permission perm) {
             return (name + ":" + target + ":" + action)
@@ -587,9 +793,6 @@ public class AppInfo  {
             if (target != null) target = target.trim();
             if (action != null) action = action.trim();
         }
-
-        
-        
     }
     
     public static class JRE extends Observable {
@@ -613,8 +816,6 @@ public class AppInfo  {
             return "JRE{version:"+version+", os:"+os+", arch:"+arch+", url:"+url+", fx: "+fx+"}";
         }
 
-        
-        
         /**
          * @return the version
          */
@@ -696,9 +897,6 @@ public class AppInfo  {
             
         }
         
-        
-        
-        
         public boolean isSupported() {
             return new Platform(os, arch).matchesSystem();
             
@@ -730,9 +928,7 @@ public class AppInfo  {
             if (fx) hash +=1;
             return hash;
         }
-        
-        
-        
+
         private URL url;
         
         private String os, arch, version;
@@ -809,13 +1005,9 @@ public class AppInfo  {
             hash = 47 * hash + Objects.hashCode(this.title);
             return hash;
         }
-        
-        
-        
+
         private URL url;
         private String title;
-
-        
     }
     
     public static class Dependency extends Observable {
@@ -990,13 +1182,6 @@ public class AppInfo  {
             hash = 89 * hash + Objects.hashCode(this.version);
             return hash;
         }
-
-        
-        
-        
-        
-       
-        
         
         public boolean isSupported() {
             return new Platform(platform, arch).matchesSystem();
@@ -1012,16 +1197,7 @@ public class AppInfo  {
         private boolean trusted;
         private String jarName;
         private String platform, arch, commonName, version;
-        
     }
-
-    
-
-
-
-    
-    
-    
     
     private URL url(URL baseUrl, String url) {
         try {
@@ -1044,7 +1220,6 @@ public class AppInfo  {
             throw new RuntimeException(mex);
         }
     }
-    
 
     /**
      * @return the installed
@@ -1090,8 +1265,7 @@ public class AppInfo  {
 
         }
     }
-    
-   
+
     public int getNumScreenshots() {
         return numScreenshots;
     }
@@ -1139,10 +1313,8 @@ public class AppInfo  {
     }
     
     public AppInfo() {
-        
     }
-    
-    
+
     public PermissionsList getPermissions(boolean init) {
         if (permissions == null && init) {
             permissions = new PermissionsList();
@@ -1228,6 +1400,22 @@ public class AppInfo  {
     public String getChanges() {
         return changes;
     }
+
+    public boolean isAllowRunAsAdmin() {
+        return allowRunAsAdmin;
+    }
+
+    public void setAllowRunAsAdmin(boolean allowRunAsAdmin) {
+        this.allowRunAsAdmin = allowRunAsAdmin;
+    }
+
+    public boolean isRequireRunAsAdmin() {
+        return requireRunAsAdmin;
+    }
+
+    public void setRequireRunAsAdmin(boolean requireRunAsAdmin) {
+        this.requireRunAsAdmin = requireRunAsAdmin;
+    }
     
     public AppInfo copy() {
         AppInfo out = new AppInfo();
@@ -1239,6 +1427,10 @@ public class AppInfo  {
         out.setWindowsInstallerUrl(getWindowsInstallerUrl());
         out.setLinuxAppUrl(getLinuxAppUrl());
         out.setLinuxInstallerUrl(getLinuxInstallerUrl());
+        out.setUsePrivateJVM(isUsePrivateJVM());
+        out.setUseBundledJVM(isUseBundledJVM());
+        out.allowRunAsAdmin = allowRunAsAdmin;
+        out.requireRunAsAdmin = requireRunAsAdmin;
         out.codeSignSettings = codeSignSettings;
         out.macAppBundleId = macAppBundleId;
         if (permissions != null) {
@@ -1258,8 +1450,6 @@ public class AppInfo  {
         }
         out.appURL = appURL;
         out.installed = installed;
-
-        
         out.numScreenshots = numScreenshots;
         out.updates = updates;
         
@@ -1276,8 +1466,22 @@ public class AppInfo  {
                 out.runtimes.add(r.copy());
             }
         }
-        
-        
+
+        out.jdeployHome = jdeployHome;
+        out.macJdeployHome = macJdeployHome;
+        out.windowsJdeployHome = windowsJdeployHome;
+        out.linuxJdeployHome = linuxJdeployHome;
+
+        if (permissionRequests != null) {
+            out.permissionRequests = new HashMap<>();
+            for (Map.Entry<PermissionRequest, String> entry : permissionRequests.entrySet()) {
+                out.permissionRequests.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        // Copy directory association
+        out.directoryAssociation = directoryAssociation;
+
         return out;
     }
 
@@ -1375,8 +1579,14 @@ public class AppInfo  {
             macAppBundleId, o.macAppBundleId,
                 npmPackage, o.npmPackage,
                 npmVersion, o.npmVersion,
-                npmAllowPrerelease, o.npmAllowPrerelease
-            
+                npmAllowPrerelease, o.npmAllowPrerelease,
+                jdeployHome, o.jdeployHome,
+                macJdeployHome, o.macJdeployHome,
+                windowsJdeployHome, o.windowsJdeployHome,
+                linuxJdeployHome, o.linuxJdeployHome,
+                permissionRequests, o.permissionRequests,
+                directoryAssociation, o.directoryAssociation
+
         });
     }
     
@@ -1405,27 +1615,33 @@ public class AppInfo  {
         CodeSign,
         CodeSignAndNotarize
     }
-    
-    
-    //private String title, description, changes;
+
     private PermissionsList permissions;
-    //private String vendor;
-    //private String version;
     private URL icon;
     private List<URL> screenshots;
     private URL appURL;
     private boolean installed;
-    //private QuickLinks quickLinks;
     private int numScreenshots;
     private Updates updates = Updates.Auto;
     private List<Dependency> dependencies;
     private List<JRE> runtimes;
     private CodeSignSettings codeSignSettings = CodeSignSettings.None;
     
-    
     private String macAppBundleId;
-    
-    
-    
-  
+
+    public String getLauncherVersion() {
+        return launcherVersion;
+    }
+
+    public void setLauncherVersion(String launcherVersion) {
+        this.launcherVersion = launcherVersion;
+    }
+
+    public String getInitialAppVersion() {
+        return initialAppVersion;
+    }
+
+    public void setInitialAppVersion(String initialAppVersion) {
+        this.initialAppVersion = initialAppVersion;
+    }
 }

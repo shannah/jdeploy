@@ -3,12 +3,17 @@ package ca.weblite.jdeploy.installer.npm;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 import ca.weblite.jdeploy.models.NPMApplication;
+import ca.weblite.jdeploy.app.permissions.PermissionRequest;
+import ca.weblite.jdeploy.app.permissions.PermissionRequestService;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 public class NPMPackageVersion {
+    private static final String DEFAULT_JAVA_VERSION = "11";
     private final NPMPackage npmPackage;
     private final String version;
     private final JSONObject packageJson;
@@ -36,7 +41,12 @@ public class NPMPackageVersion {
         return version;
     }
 
-
+    public String getJavaVersion() {
+        if (jdeploy().has("javaVersion")) {
+            return jdeploy().getString("javaVersion");
+        }
+        return DEFAULT_JAVA_VERSION;
+    }
 
     private JSONObject jdeploy() {
         return packageJson.getJSONObject("jdeploy");
@@ -49,6 +59,24 @@ public class NPMPackageVersion {
             int len = documentTypes.length();
             for (int i=0; i<len; i++) {
                 JSONObject docType = documentTypes.getJSONObject(i);
+
+                // Check if this is a directory association
+                if (docType.has("type") && "directory".equalsIgnoreCase(docType.getString("type"))) {
+                    String role = docType.has("role") ? docType.getString("role") : null;
+                    String description = docType.has("description") ? docType.getString("description") : null;
+                    String icon = docType.has("icon") ? docType.getString("icon") : null;
+                    DocumentTypeAssociation dirAssoc = new DocumentTypeAssociation(
+                            role,
+                            description,
+                            icon
+                    );
+                    if (dirAssoc.isValid()) {
+                        out.add(dirAssoc);
+                    }
+                    continue;
+                }
+
+                // Handle file associations
                 String ext = docType.has("extension") ? docType.getString("extension") : null;
                 if (ext == null) continue;
                 String mimetype = docType.has("mimetype") ? docType.getString("mimetype") : null;
@@ -87,8 +115,69 @@ public class NPMPackageVersion {
         return null;
     }
 
+    public Map<PermissionRequest, String> getPermissionRequests() {
+        return new PermissionRequestService().getPermissionRequests(packageJson);
+    }
 
+    public String getMainClass() {
+        if (jdeploy().has("mainClass")) {
+            return jdeploy().getString("mainClass");
+        }
+        return null;
+    }
 
+    public String getWmClassName() {
+        if (jdeploy().has("linux") && jdeploy().getJSONObject("linux").has("wmClassName")) {
+            return jdeploy().getJSONObject("linux").getString("wmClassName");
+        }
+        return null;
+    }
 
+    public RunAsAdministratorSettings getRunAsAdministratorSettings() {
+        if (jdeploy().has("runAsAdministrator")) {
+            String str = jdeploy().getString("runAsAdministrator");
+            if ("required".equalsIgnoreCase(str)) {
+                return RunAsAdministratorSettings.Required;
+            } else if ("allowed".equalsIgnoreCase(str)) {
+                return RunAsAdministratorSettings.Allowed;
+            } else {
+                return RunAsAdministratorSettings.Disabled;
+            }
+        }
+        return RunAsAdministratorSettings.Disabled;
+    }
 
+    /**
+     * Gets the command name from package.json.
+     * Priority:
+     * 1. jdeploy.command property
+     * 2. bin object key that maps to "jdeploy-bundle/jdeploy.js"
+     * 3. name property
+     *
+     * @return the command name, or null if not found
+     */
+    public String getCommandName() {
+        // 1. Check jdeploy.command
+        if (jdeploy().has("command")) {
+            return jdeploy().getString("command");
+        }
+
+        // 2. Check bin object for key that maps to "jdeploy-bundle/jdeploy.js"
+        if (packageJson.has("bin")) {
+            JSONObject bin = packageJson.getJSONObject("bin");
+            for (String key : bin.keySet()) {
+                String value = bin.getString(key);
+                if ("jdeploy-bundle/jdeploy.js".equals(value)) {
+                    return key;
+                }
+            }
+        }
+
+        // 3. Use name property
+        if (packageJson.has("name")) {
+            return packageJson.getString("name");
+        }
+
+        return null;
+    }
 }

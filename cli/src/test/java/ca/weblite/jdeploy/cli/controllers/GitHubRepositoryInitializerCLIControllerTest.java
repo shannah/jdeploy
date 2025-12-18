@@ -27,6 +27,12 @@ class GitHubRepositoryInitializerCLIControllerTest {
 
     @BeforeEach
     public void setUp() throws Exception {
+        Assumptions.assumeTrue(
+                System.getenv("GH_TOKEN") != null,
+                "GH_TOKEN is not provided");
+        Assumptions.assumeTrue(
+                System.getenv("GH_TOKEN").startsWith("ghp_"),
+                "GH_TOKEN is not personal access token");
         parentDirectory = Files.createTempDirectory("jdeploy-test").toFile();
         FileUtils.writeStringToFile(new File(parentDirectory, "package.json"), "{}", "UTF-8");
 
@@ -34,6 +40,12 @@ class GitHubRepositoryInitializerCLIControllerTest {
 
     @AfterEach
     public void tearDown() throws Exception {
+        Assumptions.assumeTrue(
+                System.getenv("GH_TOKEN") != null,
+                "GH_TOKEN is not provided");
+        Assumptions.assumeTrue(
+                System.getenv("GH_TOKEN").startsWith("ghp_"),
+                "GH_TOKEN is not personal access token");
         if (parentDirectory != null && parentDirectory.exists()) {
             FileUtils.deleteDirectory(parentDirectory);
         }
@@ -42,12 +54,6 @@ class GitHubRepositoryInitializerCLIControllerTest {
 
     @Test
     public void testRun() {
-        Assumptions.assumeTrue(
-                System.getenv("GH_TOKEN") != null,
-                "GH_TOKEN is not provided");
-        Assumptions.assumeTrue(
-                System.getenv("GH_TOKEN").startsWith("ghp_"),
-                "GH_TOKEN is not personal access token");
         GitHubRepositoryInitializerCLIController controller = new GitHubRepositoryInitializerCLIController(
                 new File(parentDirectory, "package.json"),
                 new String[] {

@@ -25,12 +25,17 @@ echo "----------- Building jDeploy Installer -------------"
 
 #Next build the installer because we need to sign it and bundle it
 cd ../installer
-mvn clean package
-if [ "$GITHUB_REF_TYPE" != "tag" ] || [[ "$GITHUB_REF_NAME" =~ "-alpha" ]]; then
+bash ./build-release.sh
+if [ "$GITHUB_REF_TYPE" != "tag" ] || [[ "$GITHUB_REF_NAME" =~ "-alpha" ]] || [[ "$GITHUB_REF_NAME" =~ "-dev" ]]; then
   # IF this is not a tag, or it is a tagged prerelease, then we'll mark the installer as
   # a prerelease installer so that it gets the latest installer - even prerelease.
   echo "----------------  Building Pre-release Bundle ------------------------"
-  JDEPLOY_BUNDLE_PRERELEASE=true java -jar "$JDEPLOY" clean package
+  REGISTRY_URL_PROPERTY=""
+  if [[ "$GITHUB_REF_NAME" =~ "-dev" ]]; then
+    # Builds marked dev should use the dev registry URL.
+    REGISTRY_URL_PROPERTY="-Djdeploy.registry.url=https://dev.jdeploy.com/"
+  fi
+  JDEPLOY_BUNDLE_PRERELEASE=true java "$REGISTRY_URL_PROPERTY" -jar "$JDEPLOY" clean package
 else
   # Otherwise, we just build normally - in which case the installer will only use the latest
   # stable version.
@@ -38,7 +43,35 @@ else
   java -jar "$JDEPLOY" clean package
 fi
 
-# Make sure the codesign was successful
+for WINDOWS_ARCH in "x64" "arm64"; do
+  if [ ! -z "$EV_CODESIGN_SUBMITTER_PRIVATE_KEY" ] && [ ! -z "$EV_CODESIGN_PROCESSOR_PUBLIC_KEY" ]; then
+    mkdir -p ~/.jdeploy-codesigner/private
+    echo "-------------------   About to Sign Windows Installer  with EV Cert --------------------------"
+    echo "$EV_CODESIGN_SUBMITTER_PRIVATE_KEY" > ~/.jdeploy-codesigner/private/submitter-private-key.pem
+    echo "$EV_CODESIGN_PROCESSOR_PUBLIC_KEY" > ~/.jdeploy-codesigner/processor-public-key.pem
+    bash $SCRIPTPATH/scripts/windows-ev-codesign.sh jdeploy/bundles/windows-$WINDOWS_ARCH/jdeploy-installer.exe jdeploy/bundles/windows-$WINDOWS_ARCH/jdeploy-installer-signed.exe
+    mv jdeploy/bundles/windows-$WINDOWS_ARCH/jdeploy-installer-signed.exe jdeploy/bundles/windows-$WINDOWS_ARCH/jdeploy-installer.exe
+    rm -rf ~/.jdeploy-codesigner
+  else
+    echo "-------------------   About to Sign Windows Installer with OV Cert  --------------------------"
+    echo "$AUTHENTICODE_SPC" | base64 --decode > authenticode.spc
+    echo "$AUTHENTICODE_KEY" | base64 --decode > authenticode.key
+
+    osslsigncode \
+      -spc authenticode.spc \
+      -key authenticode.key \
+      -t http://timestamp.digicert.com \
+      -in jdeploy/bundles/windows-$WINDOWS_ARCH/jdeploy-installer.exe \
+      -out jdeploy/bundles/windows-$WINDOWS_ARCH/jdeploy-installer-signed.exe \
+      -n "jDeploy Application Installer" \
+      -i https://www.jdeploy.com
+
+    mv jdeploy/bundles/windows-$WINDOWS_ARCH/jdeploy-installer-signed.exe jdeploy/bundles/windows-$WINDOWS_ARCH/jdeploy-installer.exe
+    rm authenticode.spc
+    rm authenticode.key
+  fi
+done
+
 
 
 for MAC_ARCH in "x64" "arm64"; do
@@ -61,27 +94,6 @@ for MAC_ARCH in "x64" "arm64"; do
   xcrun stapler validate "$APP_PATH"
 done
 
-#codesign --test-requirement="=notarized" --verify --verbose "$APP_PATH"
-
-# jdeploy/bundles/windows/jdeploy-installer.exe
-
-echo "-------------------   About to Sign Windows Installer  --------------------------"
-echo "$AUTHENTICODE_SPC" | base64 --decode > authenticode.spc
-echo "$AUTHENTICODE_KEY" | base64 --decode > authenticode.key
-
-osslsigncode \
-  -spc authenticode.spc \
-  -key authenticode.key \
-  -t http://timestamp.digicert.com \
-  -in jdeploy/bundles/windows/jdeploy-installer.exe \
-  -out jdeploy/bundles/windows/jdeploy-installer-signed.exe \
-  -n "jDeploy Application Installer" \
-  -i https://www.jdeploy.com
-
-mv jdeploy/bundles/windows/jdeploy-installer-signed.exe jdeploy/bundles/windows/jdeploy-installer.exe
-rm authenticode.spc
-rm authenticode.key
-
 echo "-------------------  About to Make Installer Templates --------------------------"
 
 bash make_installer_templates.sh
@@ -91,12 +103,36 @@ mvn clean package
 CLI_VERSION=$(../json.php version)
 if [ "$GITHUB_REF_TYPE" == "tag" ]; then
   npm version "$GITHUB_REF_NAME"
-  npm publish
+  VERSION="$GITHUB_REF_NAME"
+  DIST_TAG="latest"  # Default fallback
+
+  if [[ "$VERSION" =~ -alpha\.[0-9]+$ ]]; then
+    DIST_TAG="alpha"
+  elif [[ "$VERSION" =~ -beta\.[0-9]+$ ]]; then
+    DIST_TAG="next"
+  elif [[ "$VERSION" =~ -rc\.[0-9]+$ ]]; then
+    DIST_TAG="next"
+  elif [[ "$VERSION" =~ -dev\.[0-9]+$ ]]; then
+    DIST_TAG="dev"
+  fi
+  npm publish --tag "$DIST_TAG"
 fi
 
 cd ../installer
 INSTALLER_VERSION=$(../json.php version)
 if [ "$GITHUB_REF_TYPE" == "tag" ]; then
   npm version "$GITHUB_REF_NAME"
-  java -jar "$JDEPLOY" publish
+  VERSION="$GITHUB_REF_NAME"
+  DIST_TAG="latest"  # Default fallback
+
+  if [[ "$VERSION" =~ -alpha\.[0-9]+$ ]]; then
+    DIST_TAG="alpha"
+  elif [[ "$VERSION" =~ -beta\.[0-9]+$ ]]; then
+    DIST_TAG="next"
+  elif [[ "$VERSION" =~ -rc\.[0-9]+$ ]]; then
+    DIST_TAG="next"
+  elif [[ "$VERSION" =~ -dev\.[0-9]+$ ]]; then
+    DIST_TAG="dev"
+  fi
+  java -jar "$JDEPLOY" publish --tag "$DIST_TAG"
 fi

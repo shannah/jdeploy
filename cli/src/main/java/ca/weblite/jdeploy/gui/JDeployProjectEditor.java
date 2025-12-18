@@ -2,23 +2,41 @@ package ca.weblite.jdeploy.gui;
 
 import ca.weblite.jdeploy.DIContext;
 import ca.weblite.jdeploy.JDeploy;
+import ca.weblite.jdeploy.factories.PublishTargetFactory;
 import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
+import ca.weblite.jdeploy.gui.services.SwingOneTimePasswordProvider;
+import ca.weblite.jdeploy.gui.tabs.BundleFiltersPanel;
+import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
+import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
+import ca.weblite.jdeploy.gui.tabs.PermissionsPanel;
+import ca.weblite.jdeploy.gui.tabs.PublishSettingsPanel;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
+import ca.weblite.jdeploy.ideInterop.IdeInteropInterface;
+import ca.weblite.jdeploy.ideInterop.IdeInteropService;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
-import ca.weblite.jdeploy.services.ExportIdentityService;
-import ca.weblite.jdeploy.services.GithubService;
-import ca.weblite.jdeploy.services.GithubWorkflowGenerator;
-import ca.weblite.jdeploy.services.WebsiteVerifier;
+import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
+import ca.weblite.jdeploy.packaging.PackagingContext;
+import ca.weblite.jdeploy.packaging.PackagingPreferences;
+import ca.weblite.jdeploy.packaging.PackagingPreferencesService;
+import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
+import ca.weblite.jdeploy.publishTargets.PublishTargetServiceInterface;
+import ca.weblite.jdeploy.publishTargets.PublishTarget;
+import ca.weblite.jdeploy.publishTargets.PublishTargetType;
+import ca.weblite.jdeploy.publishing.PublishingContext;
+import ca.weblite.jdeploy.publishing.github.GitHubPublishDriver;
+import ca.weblite.jdeploy.services.*;
+import ca.weblite.jdeploy.claude.SetupClaudeService;
+import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
+import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
+import ca.weblite.jdeploy.downloadPage.swing.DownloadPageSettingsPanel;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.MD5;
 import com.sun.nio.file.SensitivityWatchEventModifier;
-import io.codeworth.panelmatic.PanelBuilder;
 import io.codeworth.panelmatic.PanelMatic;
 import io.codeworth.panelmatic.util.Groupings;
-import io.codeworth.panelmatic.util.PanelPostProcessors;
 import net.coobird.thumbnailator.Thumbnails;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONArray;
@@ -27,36 +45,45 @@ import org.kordamp.ikonli.material.Material;
 import org.kordamp.ikonli.swing.FontIcon;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.MatteBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.JTextComponent;
 import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.FocusAdapter;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 
 import static ca.weblite.jdeploy.PathUtil.fromNativePath;
 import static ca.weblite.jdeploy.PathUtil.toNativePath;
 
 public class JDeployProjectEditor {
-
+    public static final String JDEPLOY_WEBSITE_URL = System.getProperty("jdeploy.website.url", "https://www.jdeploy.com/");
     private boolean modified;
     private JSONObject packageJSON;
     private File packageJSONFile;
     private String packageJSONMD5;
+    private Map<String, String> jdpignoreFileMD5s = new HashMap<>(); // Maps filename to MD5
+    private boolean processingJdpignoreChange = false;
     private MainFields mainFields;
     private ArrayList<DoctypeFields> doctypeFields;
     private ArrayList<LinkFields> linkFields;
+    private DirectoryAssociationFields directoryAssociationFields;
     private JFrame frame;
     private WatchService watchService;
     private boolean pollWatchService = true;
@@ -66,6 +93,26 @@ public class JDeployProjectEditor {
 
     private JMenuItem generateGithubWorkflowMenuItem;
     private JMenuItem editGithubWorkflowMenuItem;
+    
+    private DownloadPageSettingsPanel downloadPageSettingsPanel;
+    private PermissionsPanel permissionsPanel;
+    private BundleFiltersPanel bundleFiltersPanel;
+    private PublishSettingsPanel publishSettingsPanel;
+
+    private NPM npm = null;
+
+    private NPM getNPM() {
+        if (
+                npm == null
+                        || npm.isUseManagedNode() != context.useManagedNode()
+                        ||!Objects.equals(npm.getNpmToken(), context.getNpmToken())
+        ) {
+            npm = new NPM(System.out, System.err, context.useManagedNode());
+            npm.setNpmToken(context.getNpmToken());
+        }
+
+        return npm;
+    }
 
     private class MainFields {
         private JTextField name, title, version, iconUrl, jar, urlSchemes, author,
@@ -73,16 +120,13 @@ public class JDeployProjectEditor {
         private JTextArea description, runArgs;
 
         private JCheckBox javafx, jdk;
-        private JComboBox javaVersion;
+        private JComboBox javaVersion, jdkProvider, jbrVariant;
         private JButton icon, installSplash, splash, selectJar;
         private JButton verifyHomepageButton;
         private JLabel homepageVerifiedLabel;
 
 
     }
-
-
-
 
     private void handlePackageJSONChangedOnFileSystem()  {
         if (processingPackageJSONChange) {
@@ -101,7 +145,8 @@ public class JDeployProjectEditor {
                 return;
             }
             int result = JOptionPane.showConfirmDialog(frame,
-                    "The package.json file has been modified.  Would you like to reload it?  Unsaved changes will be lost",
+                    "The package.json file has been modified.  " +
+                            "Would you like to reload it?  Unsaved changes will be lost",
                     "Reload package.json?",
                     JOptionPane.YES_NO_OPTION);
 
@@ -116,6 +161,79 @@ public class JDeployProjectEditor {
         }
     }
 
+    private void handleJdpignoreFileChangedOnFileSystem(String filename) {
+        if (processingJdpignoreChange || bundleFiltersPanel == null) {
+            return;
+        }
+        processingJdpignoreChange = true;
+        try {
+            File jdpignoreFile = new File(packageJSONFile.getParentFile(), filename);
+            
+            // Calculate current hash
+            String currentHash = "";
+            if (jdpignoreFile.exists()) {
+                currentHash = MD5.getMD5Checksum(jdpignoreFile);
+            }
+            
+            // Get stored hash
+            String storedHash = jdpignoreFileMD5s.get(filename);
+            
+            if (currentHash.equals(storedHash)) {
+                // File hasn't actually changed
+                return;
+            }
+            
+            if (!modified && !bundleFiltersPanel.hasUnsavedChanges()) {
+                // No unsaved changes, just reload
+                bundleFiltersPanel.reloadAllFiles();
+                updateJdpignoreFileMD5s();
+                return;
+            }
+            
+            int result = JOptionPane.showConfirmDialog(frame,
+                    "The " + filename + " file has been modified externally. " +
+                            "Would you like to reload it? Unsaved changes will be lost.",
+                    "Reload " + filename + "?",
+                    JOptionPane.YES_NO_OPTION);
+
+            if (result == JOptionPane.YES_OPTION) {
+                bundleFiltersPanel.reloadAllFiles();
+                updateJdpignoreFileMD5s();
+            }
+        } catch (Exception ex) {
+            System.err.println("A problem occurred while handling a file system change to " + filename);
+            ex.printStackTrace(System.err);
+        } finally {
+            processingJdpignoreChange = false;
+        }
+    }
+
+    private void updateJdpignoreFileMD5s() {
+        try {
+            jdpignoreFileMD5s.clear();
+            // Track global .jdpignore file
+            File globalIgnoreFile = new File(packageJSONFile.getParentFile(), ".jdpignore");
+            if (globalIgnoreFile.exists()) {
+                jdpignoreFileMD5s.put(".jdpignore", MD5.getMD5Checksum(globalIgnoreFile));
+            }
+            
+            // Track platform-specific .jdpignore files
+            ca.weblite.jdeploy.models.Platform[] platforms = ca.weblite.jdeploy.models.Platform.values();
+            for (ca.weblite.jdeploy.models.Platform platform : platforms) {
+                if (platform == ca.weblite.jdeploy.models.Platform.DEFAULT) {
+                    continue; // Skip DEFAULT, already handled above
+                }
+                String filename = ".jdpignore." + platform.getIdentifier();
+                File platformIgnoreFile = new File(packageJSONFile.getParentFile(), filename);
+                if (platformIgnoreFile.exists()) {
+                    jdpignoreFileMD5s.put(filename, MD5.getMD5Checksum(platformIgnoreFile));
+                }
+            }
+        } catch (Exception ex) {
+            System.err.println("Failed to update .jdpignore file MD5s: " + ex.getMessage());
+        }
+    }
+
     private void reloadPackageJSON() throws IOException {
         packageJSON = new JSONObject(FileUtils.readFileToString(packageJSONFile, "UTF-8"));
         packageJSONMD5 = MD5.getMD5Checksum(packageJSONFile);
@@ -123,10 +241,7 @@ public class JDeployProjectEditor {
         frame.getContentPane().removeAll();
         initMainFields(frame.getContentPane());
         frame.revalidate();
-
     }
-
-
 
     private void watchPackageJSONForChanges() throws IOException, InterruptedException {
         watchService = FileSystems.getDefault().newWatchService();
@@ -143,6 +258,9 @@ public class JDeployProjectEditor {
                     String contextString = "" + event.context();
                     if ("package.json".equals(contextString)) {
                         EventQueue.invokeLater(() -> handlePackageJSONChangedOnFileSystem());
+                    } else if (contextString.startsWith(".jdpignore")) {
+                        // Handle .jdpignore file changes
+                        EventQueue.invokeLater(() -> handleJdpignoreFileChangedOnFileSystem(contextString));
                     }
                 }
 
@@ -150,7 +268,6 @@ public class JDeployProjectEditor {
             } catch (ClosedWatchServiceException cwse) {
                 pollWatchService = false;
             }
-
         }
     }
 
@@ -164,7 +281,11 @@ public class JDeployProjectEditor {
         private JTextField url, label;
     }
 
-
+    private class DirectoryAssociationFields {
+        private JCheckBox enableCheckbox;        // Enable directory associations
+        private JComboBox<String> roleComboBox;  // Editor/Viewer dropdown
+        private JTextField descriptionField;     // Description for context menu
+    }
 
     private static void addChangeListenerTo(JTextComponent textField, Runnable r) {
         textField.getDocument().addDocumentListener(new DocumentListener() {
@@ -236,7 +357,9 @@ public class JDeployProjectEditor {
         try {
             this.packageJSONMD5 = MD5.getMD5Checksum(this.packageJSONFile);
         } catch (Exception ex) {
-            throw new RuntimeException("Failed to get MD5 checksum for packageJSON file.  This is used for the watch service.");
+            throw new RuntimeException(
+                    "Failed to get MD5 checksum for packageJSON file.  This is used for the watch service."
+            );
         }
     }
 
@@ -246,7 +369,9 @@ public class JDeployProjectEditor {
             try {
                 watchPackageJSONForChanges();
             } catch (Exception ex) {
-                System.err.println("A problem occurred while setting up watch service on package.json.  Disabling watch service.");
+                System.err.println(
+                        "A problem occurred while setting up watch service on package.json.  Disabling watch service."
+                );
                 ex.printStackTrace(System.err);
             }
         });
@@ -271,27 +396,22 @@ public class JDeployProjectEditor {
 
         initMainFields(frame.getContentPane());
         initMenu();
-
     }
-
 
     private void handleClosing() {
         if (modified) {
             int answer = showWarningUnsavedChangesMessage();
             switch (answer) {
                 case JOptionPane.YES_OPTION:
-                    //System.out.println("Save and Quit");
                     handleSave();
                     frame.dispose();
                     break;
 
                 case JOptionPane.NO_OPTION:
-                    //System.out.println("Don't Save and Quit");
                     frame.dispose();
                     break;
 
                 case JOptionPane.CANCEL_OPTION:
-                    //System.out.println("Don't Quit");
                     break;
             }
         }else {
@@ -345,10 +465,58 @@ public class JDeployProjectEditor {
 
     private void setModified() {
         modified = true;
+        if (frame != null && frame.getRootPane() != null) {
+            frame.getRootPane().putClientProperty("Window.documentModified", true);
+        }
     }
 
     private void clearModified() {
         modified = false;
+        if (frame != null && frame.getRootPane() != null) {
+            frame.getRootPane().putClientProperty("Window.documentModified", false);
+        }
+    }
+
+    private void updateJbrVariantVisibility() {
+        if (mainFields == null || mainFields.jdkProvider == null || mainFields.jbrVariant == null) {
+            return;
+        }
+
+        String selected = (String) mainFields.jdkProvider.getSelectedItem();
+        boolean isJbr = "JetBrains Runtime (JBR)".equals(selected);
+
+        // Find the parent panel containing the JBR variant field
+        Container parent = mainFields.jbrVariant.getParent();
+        if (parent != null) {
+            // Make the field visible/invisible
+            mainFields.jbrVariant.setVisible(isJbr);
+
+            // Find and toggle the label visibility
+            Component[] components = parent.getComponents();
+            for (int i = 0; i < components.length; i++) {
+                if (components[i] == mainFields.jbrVariant) {
+                    // Look backward for the label
+                    for (int j = i - 1; j >= 0; j--) {
+                        if (components[j] instanceof JLabel) {
+                            JLabel label = (JLabel) components[j];
+                            if ("JBR Variant".equals(label.getText())) {
+                                label.setVisible(isJbr);
+                                break;
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+            parent.revalidate();
+            parent.repaint();
+        }
+
+        // If not JBR, remove jbrVariant from package.json
+        JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
+        if (!isJbr && jdeploy.has("jbrVariant")) {
+            jdeploy.remove("jbrVariant");
+        }
     }
 
     private void createDocTypeRow(JSONArray docTypes, int index, Box doctypesPanel) {
@@ -402,16 +570,14 @@ public class JDeployProjectEditor {
         rowWrapper.setBorder(new MatteBorder(1, 0, 0, 0, Color.LIGHT_GRAY));
         doctypesPanel.add(rowWrapper);
         doctypesPanel.add(filler);
-
-
     }
-
-
 
     private void initDoctypeFields(DoctypeFields fields, JSONObject docTypeRow, Container cnt) {
         fields.extension = new JTextField();
         fields.extension.setColumns(8);
-        fields.extension.setMaximumSize(new Dimension(fields.extension.getPreferredSize().width, fields.extension.getPreferredSize().height));
+        fields.extension.setMaximumSize(
+                new Dimension(fields.extension.getPreferredSize().width, fields.extension.getPreferredSize().height)
+        );
         fields.extension.setToolTipText("Enter the file extension.  E.g. txt");
         if (docTypeRow.has("extension")) {
             fields.extension.setText(docTypeRow.getString("extension"));
@@ -438,7 +604,10 @@ public class JDeployProjectEditor {
             setModified();
         });
         fields.editor = new JCheckBox("Editor");
-        fields.editor.setToolTipText("Check this box if the app can edit this document type.  Leave unchecked if it can only view documents of this type");
+        fields.editor.setToolTipText(
+                "Check this box if the app can edit this document type.  " +
+                        "Leave unchecked if it can only view documents of this type"
+        );
         if (docTypeRow.has("editor") && docTypeRow.getBoolean("editor")) {
             fields.editor.setSelected(true);
         }
@@ -448,7 +617,10 @@ public class JDeployProjectEditor {
         });
 
         fields.custom = new JCheckBox("Custom");
-        fields.custom.setToolTipText("Check this box if this is a custom extension for your app, and should be added to the system mimetypes registry.");
+        fields.custom.setToolTipText(
+                "Check this box if this is a custom extension for your app, and should be added to the system " +
+                        "mimetypes registry."
+        );
         if (docTypeRow.has("custom") && docTypeRow.getBoolean("custom")) {
             fields.custom.setSelected(true);
         }
@@ -471,6 +643,83 @@ public class JDeployProjectEditor {
 
         cnt.add(pmPane);
     }
+
+    private JPanel createDirectoryAssociationPanel() {
+        directoryAssociationFields = new DirectoryAssociationFields();
+
+        // Enable checkbox
+        directoryAssociationFields.enableCheckbox = new JCheckBox("Allow opening directories/folders");
+        directoryAssociationFields.enableCheckbox.setOpaque(false);
+        directoryAssociationFields.enableCheckbox.setToolTipText(
+            "<html>When enabled, users can:<br>" +
+            "• Right-click folders to open them with your app<br>" +
+            "• Drag folders onto your app icon<br>" +
+            "• Use 'Open With' menu for folders</html>"
+        );
+        directoryAssociationFields.enableCheckbox.addActionListener(evt -> {
+            boolean enabled = directoryAssociationFields.enableCheckbox.isSelected();
+            directoryAssociationFields.roleComboBox.setEnabled(enabled);
+            directoryAssociationFields.descriptionField.setEnabled(enabled);
+            setModified();
+        });
+
+        // Role dropdown
+        directoryAssociationFields.roleComboBox = new JComboBox<>(new String[]{"Editor", "Viewer"});
+        directoryAssociationFields.roleComboBox.setEnabled(false);
+        directoryAssociationFields.roleComboBox.setToolTipText(
+            "Editor: allows modifying folder contents. Viewer: read-only access"
+        );
+        directoryAssociationFields.roleComboBox.addActionListener(evt -> setModified());
+
+        // Description field
+        directoryAssociationFields.descriptionField = new JTextField();
+        directoryAssociationFields.descriptionField.setEnabled(false);
+        directoryAssociationFields.descriptionField.setToolTipText(
+            "Text shown in context menu (e.g., 'Open folder as project')"
+        );
+        addChangeListenerTo(directoryAssociationFields.descriptionField, this::setModified);
+
+        // Don't use PanelMatic - use plain GridBagLayout like standard Swing forms
+        JPanel rowPanel = new JPanel(new GridBagLayout());
+        rowPanel.setBorder(new EmptyBorder(10, 10, 10, 10));  // Same padding as file type rows
+        rowPanel.setOpaque(false);
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.gridwidth = 2;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.insets = new Insets(5, 0, 5, 0);
+        rowPanel.add(directoryAssociationFields.enableCheckbox, gbc);
+
+        // Role
+        gbc.gridy++;
+        gbc.gridwidth = 1;
+        gbc.insets = new Insets(5, 0, 5, 5);
+        rowPanel.add(new JLabel("Role:"), gbc);
+
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
+        gbc.insets = new Insets(5, 0, 5, 0);
+        rowPanel.add(directoryAssociationFields.roleComboBox, gbc);
+
+        // Description
+        gbc.gridx = 0;
+        gbc.gridy++;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.insets = new Insets(5, 0, 5, 5);
+        rowPanel.add(new JLabel("Description:"), gbc);
+
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        gbc.insets = new Insets(5, 0, 5, 0);
+        rowPanel.add(directoryAssociationFields.descriptionField, gbc);
+
+        return rowPanel;
+    }
+
 
     private void setOpaqueRecursive(JComponent cnt, boolean opaque) {
         cnt.setOpaque(opaque);
@@ -529,7 +778,20 @@ public class JDeployProjectEditor {
 
     private void initMainFields(Container cnt) {
         mainFields = new MainFields();
-        mainFields.name = new JTextField();
+        cnt.setPreferredSize(new Dimension(1024, 768));
+        DetailsPanel detailsPanel = new DetailsPanel();
+        detailsPanel.getProjectPath().setText(packageJSONFile.getAbsoluteFile().getParentFile().getAbsolutePath());
+        // Set a small font in the project path
+        detailsPanel.getProjectPath().setFont(detailsPanel.getProjectPath().getFont().deriveFont(10f));
+
+        detailsPanel.getCopyPath().setText("");
+        detailsPanel.getCopyPath().setIcon(FontIcon.of(Material.CONTENT_COPY));
+        detailsPanel.getCopyPath().addActionListener(evt -> {
+            StringSelection stringSelection = new StringSelection(detailsPanel.getProjectPath().getText());
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(stringSelection, null);
+        });
+        mainFields.name = detailsPanel.getName();
         if (packageJSON.has("name")) {
             mainFields.name.setText(packageJSON.getString("name"));
         }
@@ -542,7 +804,7 @@ public class JDeployProjectEditor {
             setModified();
         }
 
-        mainFields.author = new JTextField();
+        mainFields.author = detailsPanel.getAuthor();
         if (packageJSON.has("author")) {
             Object authorO = packageJSON.get("author");
             String authorString = "";
@@ -569,7 +831,7 @@ public class JDeployProjectEditor {
 
 
 
-        mainFields.description = new JTextArea();
+        mainFields.description = detailsPanel.getDescription();
         mainFields.description.setLineWrap(true);
         mainFields.description.setWrapStyleWord(true);
         mainFields.description.setRows(4);
@@ -617,7 +879,7 @@ public class JDeployProjectEditor {
             setModified();
         });
 
-        mainFields.title = new JTextField();
+        mainFields.title = detailsPanel.getTitle();
         if (jdeploy.has("title")) {
             mainFields.title.setText(jdeploy.getString("title"));
         }
@@ -630,13 +892,20 @@ public class JDeployProjectEditor {
             setModified();
         });
 
-        mainFields.version = new JTextField();
+        mainFields.version = detailsPanel.getVersion();
         if (packageJSON.has("version")) {
-            mainFields.version.setText(packageJSON.getString("version"));
+            mainFields.version.setText(VersionCleaner.cleanVersion(packageJSON.getString("version")));
         }
         addChangeListenerTo(mainFields.version, () -> {
-            packageJSON.put("version", mainFields.version.getText());
+            String cleanVersion = VersionCleaner.cleanVersion(mainFields.version.getText());
+            packageJSON.put("version", cleanVersion);
             setModified();
+        });
+        mainFields.version.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(java.awt.event.FocusEvent evt) {
+                mainFields.version.setText(VersionCleaner.cleanVersion(mainFields.version.getText()));
+            }
         });
         mainFields.iconUrl = new JTextField();
         if (jdeploy.has("iconUrl")) {
@@ -648,11 +917,13 @@ public class JDeployProjectEditor {
             setModified();
         });
 
-        mainFields.repository = new JTextField();
+        mainFields.repository = detailsPanel.getRepositoryUrl();
         mainFields.repository.setColumns(30);
         mainFields.repository.setMinimumSize(new Dimension(100, mainFields.repository.getPreferredSize().height));
-        mainFields.repositoryDirectory = new JTextField();
-        mainFields.repositoryDirectory.setMinimumSize(new Dimension(100, mainFields.repositoryDirectory.getPreferredSize().height));
+        mainFields.repositoryDirectory = detailsPanel.getRepositoryDirectory();
+        mainFields.repositoryDirectory.setMinimumSize(
+                new Dimension(100, mainFields.repositoryDirectory.getPreferredSize().height)
+        );
         mainFields.repositoryDirectory.setColumns(20);
         if (packageJSON.has("repository")) {
             Object repoVal = packageJSON.get("repository");
@@ -679,7 +950,7 @@ public class JDeployProjectEditor {
         addChangeListenerTo(mainFields.repository, onRepoChange);
         addChangeListenerTo(mainFields.repositoryDirectory, onRepoChange);
 
-        mainFields.license = new JTextField();
+        mainFields.license = detailsPanel.getLicense();
         if (packageJSON.has("license")) {
             mainFields.license.setText(packageJSON.getString("license"));
         }
@@ -705,7 +976,7 @@ public class JDeployProjectEditor {
             setModified();
         });
 
-        mainFields.verifyHomepageButton = new JButton("Verify");
+        mainFields.verifyHomepageButton = detailsPanel.getVerifyButton();
         mainFields.verifyHomepageButton.setToolTipText("Verify that you own this page");
         mainFields.verifyHomepageButton.addActionListener(evt->{
             handleVerifyHomepage();
@@ -718,7 +989,7 @@ public class JDeployProjectEditor {
         queueHomepageVerification();
 
 
-        mainFields.homepage = new JTextField();
+        mainFields.homepage = detailsPanel.getHomepage();
         if (packageJSON.has("homepage")) {
             mainFields.homepage.setText(packageJSON.getString("homepage"));
         }
@@ -732,7 +1003,9 @@ public class JDeployProjectEditor {
         mainFields.splash = new JButton();
         if (getSplashFile(null) != null && getSplashFile(null).exists()) {
             try {
-                mainFields.splash.setIcon(new ImageIcon(Thumbnails.of(getSplashFile(null)).height(200).asBufferedImage()));
+                mainFields.splash.setIcon(
+                        new ImageIcon(Thumbnails.of(getSplashFile(null)).height(200).asBufferedImage())
+                );
             } catch (Exception ex) {
                 System.err.println("Failed to read splash image from "+getSplashFile(null));
                 ex.printStackTrace(System.err);
@@ -754,7 +1027,9 @@ public class JDeployProjectEditor {
                 }
                 FileUtils.copyFile(selected, getSplashFile(extension));
                 mainFields.splash.setText("");
-                mainFields.splash.setIcon(new ImageIcon(Thumbnails.of(getSplashFile(extension)).height(200).asBufferedImage()));
+                mainFields.splash.setIcon(
+                        new ImageIcon(Thumbnails.of(getSplashFile(extension)).height(200).asBufferedImage())
+                );
             } catch (Exception ex) {
                 System.err.println("Error while copying icon file");
                 ex.printStackTrace(System.err);
@@ -766,7 +1041,9 @@ public class JDeployProjectEditor {
         mainFields.installSplash = new JButton();
         if (getInstallSplashFile().exists()) {
             try {
-                mainFields.installSplash.setIcon(new ImageIcon(Thumbnails.of(getInstallSplashFile()).height(200).asBufferedImage()));
+                mainFields.installSplash.setIcon(
+                        new ImageIcon(Thumbnails.of(getInstallSplashFile()).height(200).asBufferedImage())
+                );
             } catch (Exception ex) {
                 System.err.println("Failed to read splash image from "+getInstallSplashFile());
                 ex.printStackTrace(System.err);
@@ -783,7 +1060,9 @@ public class JDeployProjectEditor {
 
                 FileUtils.copyFile(selected, getInstallSplashFile());
                 mainFields.installSplash.setText("");
-                mainFields.installSplash.setIcon(new ImageIcon(Thumbnails.of(getInstallSplashFile()).height(200).asBufferedImage()));
+                mainFields.installSplash.setIcon(
+                        new ImageIcon(Thumbnails.of(getInstallSplashFile()).height(200).asBufferedImage())
+                );
             } catch (Exception ex) {
                 System.err.println("Error while copying icon file");
                 ex.printStackTrace(System.err);
@@ -791,10 +1070,12 @@ public class JDeployProjectEditor {
 
             }
         });
-        mainFields.icon = new JButton();
+        mainFields.icon = detailsPanel.getIcon();
         if (getIconFile().exists()) {
             try {
-                mainFields.icon.setIcon(new ImageIcon(Thumbnails.of(getIconFile()).size(128, 128).asBufferedImage()));
+                mainFields.icon.setIcon(
+                        new ImageIcon(Thumbnails.of(getIconFile()).size(128, 128).asBufferedImage())
+                );
             } catch (Exception ex) {
                 System.err.println("Failed to read splash image from "+getIconFile());
                 ex.printStackTrace(System.err);
@@ -811,7 +1092,9 @@ public class JDeployProjectEditor {
 
                 FileUtils.copyFile(selected, getIconFile());
                 mainFields.icon.setText("");
-                mainFields.icon.setIcon(new ImageIcon(Thumbnails.of(getIconFile()).size(128, 128).asBufferedImage()));
+                mainFields.icon.setIcon(
+                        new ImageIcon(Thumbnails.of(getIconFile()).size(128, 128).asBufferedImage())
+                );
             } catch (Exception ex) {
                 System.err.println("Error while copying icon file");
                 ex.printStackTrace(System.err);
@@ -820,7 +1103,7 @@ public class JDeployProjectEditor {
             }
         });
 
-        mainFields.jar = new JTextField();
+        mainFields.jar = detailsPanel.getJarFile();
         mainFields.jar.setColumns(30);
         if (jdeploy.has("jar")) {
             mainFields.jar.setText(jdeploy.getString("jar"));
@@ -830,7 +1113,7 @@ public class JDeployProjectEditor {
             setModified();
         });
 
-        mainFields.selectJar = new JButton("Select...");
+        mainFields.selectJar = detailsPanel.getSelectJarFile();
         mainFields.selectJar.addActionListener(evt->{
             FileDialog dlg = new FileDialog(frame, "Select jar file", FileDialog.LOAD);
             if (mainFields.jar.getText().isEmpty()) {
@@ -855,7 +1138,10 @@ public class JDeployProjectEditor {
             File absDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
             File jarFile = selected[0].getAbsoluteFile();
             if (!jarFile.getAbsolutePath().startsWith(absDirectory.getAbsolutePath())) {
-                showError("Jar file must be in same directory as the package.json file, or a subdirectory thereof", null);
+                showError(
+                        "Jar file must be in same directory as the package.json file, or a subdirectory thereof",
+                        null
+                );
                 return;
             }
             try {
@@ -864,13 +1150,17 @@ public class JDeployProjectEditor {
                 showError(ex.getMessage(), ex);
                 return;
             }
-            mainFields.jar.setText(fromNativePath(jarFile.getAbsolutePath().substring(absDirectory.getAbsolutePath().length()+1)));
+            mainFields.jar.setText(
+                    fromNativePath(
+                            jarFile.getAbsolutePath().substring(absDirectory.getAbsolutePath().length()+1)
+                    )
+            );
             jdeploy.put("jar", mainFields.jar.getText());
             setModified();
 
         });
 
-        mainFields.javafx = new JCheckBox("Requires JavaFX");
+        mainFields.javafx = detailsPanel.getRequiresJavaFX();
         if (jdeploy.has("javafx") && jdeploy.getBoolean("javafx")) {
             mainFields.javafx.setSelected(true);
         }
@@ -878,7 +1168,7 @@ public class JDeployProjectEditor {
             jdeploy.put("javafx", mainFields.javafx.isSelected());
             setModified();
         });
-        mainFields.jdk = new JCheckBox("Requires Full JDK");
+        mainFields.jdk = detailsPanel.getRequiresFullJDK();
         if (jdeploy.has("jdk") && jdeploy.getBoolean("jdk")) {
             mainFields.jdk.setSelected(true);
         }
@@ -887,17 +1177,86 @@ public class JDeployProjectEditor {
             setModified();
         });
 
-        mainFields.javaVersion = new JComboBox<String>(new String[]{"8", "11", "17", "19", "20"});
+        mainFields.javaVersion = detailsPanel.getJavaVersion();
         mainFields.javaVersion.setEditable(true);
         if (jdeploy.has("javaVersion")) {
             mainFields.javaVersion.setSelectedItem(String.valueOf(jdeploy.get("javaVersion")));
         } else {
-            mainFields.javaVersion.setSelectedItem("17");
+            mainFields.javaVersion.setSelectedItem("21");
         }
         mainFields.javaVersion.addItemListener(evt -> {
             jdeploy.put("javaVersion", mainFields.javaVersion.getSelectedItem());
             setModified();
         });
+
+        // JDK Provider field
+        mainFields.jdkProvider = detailsPanel.getJdkProvider();
+        mainFields.jdkProvider.setToolTipText("Auto: Automatically selects the best JDK provider for your platform (Zulu, Adoptium, or Liberica). JBR: Use JetBrains Runtime for applications requiring JCEF or enhanced rendering.");
+
+        // Load existing value from package.json
+        if (jdeploy.has("jdkProvider")) {
+            String provider = jdeploy.getString("jdkProvider");
+            if ("jbr".equals(provider)) {
+                mainFields.jdkProvider.setSelectedItem("JetBrains Runtime (JBR)");
+            } else {
+                // For any other explicit provider (zulu, adoptium, liberica),
+                // show as Auto in the GUI but preserve the value in package.json
+                // This allows advanced users to set providers manually
+                mainFields.jdkProvider.setSelectedItem("Auto (Recommended)");
+            }
+        } else {
+            mainFields.jdkProvider.setSelectedItem("Auto (Recommended)");
+        }
+
+        mainFields.jdkProvider.addItemListener(evt -> {
+            String selected = (String) mainFields.jdkProvider.getSelectedItem();
+
+            // Update package.json
+            if ("Auto (Recommended)".equals(selected)) {
+                // Remove jdkProvider to use automatic selection
+                jdeploy.remove("jdkProvider");
+            } else if ("JetBrains Runtime (JBR)".equals(selected)) {
+                jdeploy.put("jdkProvider", "jbr");
+            }
+
+            // Show/hide JBR variant field
+            updateJbrVariantVisibility();
+            setModified();
+        });
+
+        // JBR Variant field
+        mainFields.jbrVariant = detailsPanel.getJbrVariant();
+        mainFields.jbrVariant.setToolTipText("JBR variant to use. Default uses standard or standard+SDK based on whether JDK is required. JCEF includes Chromium Embedded Framework for embedded browsers.");
+
+        // Load existing value from package.json
+        if (jdeploy.has("jbrVariant")) {
+            String variant = jdeploy.getString("jbrVariant");
+            if ("jcef".equals(variant)) {
+                mainFields.jbrVariant.setSelectedItem("JCEF");
+            } else {
+                // For any other variant (standard, sdk, sdk_jcef), show as Default
+                // and remove from package.json to use automatic selection
+                mainFields.jbrVariant.setSelectedItem("Default");
+                jdeploy.remove("jbrVariant");
+            }
+        } else {
+            mainFields.jbrVariant.setSelectedItem("Default");
+        }
+
+        mainFields.jbrVariant.addItemListener(evt -> {
+            String selected = (String) mainFields.jbrVariant.getSelectedItem();
+
+            if ("Default".equals(selected)) {
+                // Remove jbrVariant to use automatic selection based on jdk requirement
+                jdeploy.remove("jbrVariant");
+            } else if ("JCEF".equals(selected)) {
+                jdeploy.put("jbrVariant", "jcef");
+            }
+            setModified();
+        });
+
+        // Set initial visibility
+        updateJbrVariantVisibility();
 
         mainFields.urlSchemes = new JTextField();
         mainFields.urlSchemes.setToolTipText("Comma-delimited list of URL schemes to associate with your application.");
@@ -928,27 +1287,31 @@ public class JDeployProjectEditor {
             setModified();
         });
 
+        // Create SEPARATE section for directory associations (not using PanelMatic)
+        JPanel dirAssocSection = new JPanel(new BorderLayout());
+        dirAssocSection.setOpaque(false);
+
+        // Header with title and help button
+        JPanel dirAssocHeader = new JPanel();
+        dirAssocHeader.setOpaque(false);
+        dirAssocHeader.setLayout(new BorderLayout());
+        dirAssocHeader.add(new JLabel("<html><b>Directory Association</b></html>"), BorderLayout.WEST);
+        dirAssocHeader.add(
+                createHelpButton(
+                        JDEPLOY_WEBSITE_URL + "docs/help/#directory-associations",
+                        "",
+                        "Learn more about directory associations in jDeploy."
+                ),
+                BorderLayout.EAST
+        );
+
+        JPanel dirAssocContent = createDirectoryAssociationPanel();
+
+        // Create separate Box for file associations (using PanelMatic)
         Box doctypesPanel = Box.createVerticalBox();
-
         doctypesPanel.setOpaque(false);
-        //doctypesPanel.setLayout(new BoxLayout(doctypesPanel, BoxLayout.Y_AXIS));
-        JScrollPane doctypesPanelScroller = new JScrollPane(doctypesPanel);
-        doctypesPanelScroller.setOpaque(false);
-        doctypesPanelScroller.getViewport().setOpaque(false);
 
-        doctypesPanelScroller.setBorder(new EmptyBorder(0, 0, 0, 0));
-
-
-        if (jdeploy.has("documentTypes")) {
-            JSONArray docTypes = jdeploy.getJSONArray("documentTypes");
-            int len = docTypes.length();
-            for (int i=0; i<len; i++) {
-                createDocTypeRow(docTypes, i, doctypesPanel);
-            }
-        }
-        //doctypesPanel.setAlignmentY(Component.TOP_ALIGNMENT);
-
-
+        // Add toolbar with "+" button for file associations
         JButton addDocType = new JButton(FontIcon.of(Material.ADD));
         addDocType.setToolTipText("Add document type association");
         addDocType.addActionListener(evt->{
@@ -962,79 +1325,290 @@ public class JDeployProjectEditor {
             doctypesPanel.revalidate();
         });
 
-        JPanel doctypesPanelWrapper = new JPanel();
-        doctypesPanelWrapper.setOpaque(false);
-        doctypesPanelWrapper.setLayout(new BorderLayout());
-        doctypesPanelWrapper.add(doctypesPanelScroller, BorderLayout.CENTER);
         JToolBar tb = new JToolBar();
         tb.setFloatable(false);
         tb.setOpaque(false);
         tb.add(addDocType);
-        JPanel doctypesTop = new JPanel();
-        doctypesTop.setOpaque(false);
-        doctypesTop.setLayout(new BorderLayout());
-        doctypesTop.add(tb, BorderLayout.CENTER);
-        doctypesTop.add(createHelpButton("https://www.jdeploy.com/docs/help/#filetypes", "", "Learn more about file associations in jDeploy."), BorderLayout.EAST);
-        doctypesTop.setMaximumSize(new Dimension(doctypesTop.getPreferredSize()));
-        doctypesPanelWrapper.add(doctypesTop, BorderLayout.NORTH);
+
+        JPanel fileAssocHeader = new JPanel();
+        fileAssocHeader.setOpaque(false);
+        fileAssocHeader.setLayout(new BorderLayout());
+        fileAssocHeader.add(tb, BorderLayout.WEST);
+        fileAssocHeader.add(
+                createHelpButton(
+                        JDEPLOY_WEBSITE_URL + "docs/help/#filetypes",
+                        "",
+                        "Learn more about file associations in jDeploy."
+                ),
+                BorderLayout.EAST
+        );
+
+        Box dirAssocBox = Box.createVerticalBox();
+        dirAssocBox.setOpaque(false);
+        dirAssocBox.add(dirAssocHeader);
+        dirAssocBox.add(Box.createVerticalStrut(5));
+        dirAssocBox.add(dirAssocContent);
+        dirAssocBox.add(Box.createVerticalStrut(15));
+        dirAssocBox.add(fileAssocHeader);
+        dirAssocBox.add(Box.createVerticalStrut(5));
+
+        dirAssocSection.add(dirAssocBox, BorderLayout.NORTH);
+
+        // Load directory association if it exists
+        if (jdeploy.has("documentTypes")) {
+            JSONArray docTypes = jdeploy.getJSONArray("documentTypes");
+            for (int i = 0; i < docTypes.length(); i++) {
+                JSONObject docType = docTypes.getJSONObject(i);
+                if (docType.has("type") && "directory".equalsIgnoreCase(docType.getString("type"))) {
+                    // Found directory association
+                    directoryAssociationFields.enableCheckbox.setSelected(true);
+
+                    String role = docType.optString("role", "Viewer");
+                    directoryAssociationFields.roleComboBox.setSelectedItem(role);
+                    directoryAssociationFields.roleComboBox.setEnabled(true);
+
+                    String description = docType.optString("description", "");
+                    directoryAssociationFields.descriptionField.setText(description);
+                    directoryAssociationFields.descriptionField.setEnabled(true);
+
+                    break; // Only one directory association supported
+                }
+            }
+        }
+
+        // Add file associations below the toolbar
+        if (jdeploy.has("documentTypes")) {
+            JSONArray docTypes = jdeploy.getJSONArray("documentTypes");
+            int len = docTypes.length();
+            for (int i=0; i<len; i++) {
+                JSONObject docType = docTypes.getJSONObject(i);
+                // Skip directory associations in the file list (they're shown in the panel above)
+                if (docType.has("type") && "directory".equalsIgnoreCase(docType.getString("type"))) {
+                    continue;
+                }
+                createDocTypeRow(docTypes, i, doctypesPanel);
+            }
+        }
+
+        // Wrap file associations in container
+        JPanel fileAssocContainer = new JPanel(new BorderLayout());
+        fileAssocContainer.setOpaque(false);
+        fileAssocContainer.add(doctypesPanel, BorderLayout.NORTH);
+
+        // Combine directory and file associations sections
+        JPanel combinedPanel = new JPanel(new BorderLayout());
+        combinedPanel.setOpaque(false);
+        combinedPanel.add(dirAssocSection, BorderLayout.NORTH);
+        combinedPanel.add(fileAssocContainer, BorderLayout.CENTER);
+
+        JScrollPane doctypesPanelScroller = new JScrollPane(combinedPanel);
+        doctypesPanelScroller.setOpaque(false);
+        doctypesPanelScroller.getViewport().setOpaque(false);
+        doctypesPanelScroller.setBorder(new EmptyBorder(0, 0, 0, 0));
+
+        JPanel doctypesPanelWrapper = new JPanel();
+        doctypesPanelWrapper.setOpaque(false);
+        doctypesPanelWrapper.setLayout(new BorderLayout());
+        doctypesPanelWrapper.add(doctypesPanelScroller, BorderLayout.CENTER);
+        JPanel cheerpjSettingsRoot = null;
+        if (context.shouldDisplayCheerpJPanel()) {
+            CheerpJSettings cheerpJSettings = new CheerpJSettings();
+            cheerpJSettings.getButtons().add(
+                    createHelpButton(
+                            JDEPLOY_WEBSITE_URL + "docs/help/#cheerpj",
+                            "",
+                            "Learn more about CheerpJ support")
+            );
+            cheerpjSettingsRoot = cheerpJSettings.getRoot();
+            cheerpJSettings.getEnableCheerpJ().setSelected(
+                    jdeploy.has("cheerpj")
+                            && jdeploy.getJSONObject("cheerpj").has("enabled")
+                            && jdeploy.getJSONObject("cheerpj").getBoolean("enabled")
+            );
+
+            Runnable updateCheerpjUI = ()->{
+
+                cheerpJSettings.getEnableCheerpJ().setSelected(
+                        jdeploy.has("cheerpj")
+                                && jdeploy.getJSONObject("cheerpj").has("enabled")
+                                && jdeploy.getJSONObject("cheerpj").getBoolean("enabled")
+                );
+                boolean cheerpjEnabled = cheerpJSettings.getEnableCheerpJ().isSelected();
+                cheerpJSettings.getGithubPagesBranch().setEnabled(cheerpjEnabled);
+                cheerpJSettings.getGithubPagesBranchPath().setEnabled(cheerpjEnabled);
+                cheerpJSettings.getGithubPagesTagPath().setEnabled(cheerpjEnabled);
+                cheerpJSettings.getGithubPagesPath().setEnabled(cheerpjEnabled);
+                if (!cheerpjEnabled) {
+                    return;
+                }
+
+                boolean hasBranch = jdeploy.has("cheerpj")
+                        && jdeploy
+                        .getJSONObject("cheerpj")
+                        .has("githubPages")
+                        && jdeploy
+                        .getJSONObject("cheerpj")
+                        .getJSONObject("githubPages")
+                        .has("branch");
+
+                cheerpJSettings.getGithubPagesBranch().setText(
+                        !hasBranch
+                                ? ""
+                                :  jdeploy
+                                .getJSONObject("cheerpj")
+                                .getJSONObject("githubPages")
+                                .getString("branch")
+                );
+
+                boolean hasBranchPath = jdeploy.has("cheerpj")
+                        && jdeploy
+                        .getJSONObject("cheerpj")
+                        .has("githubPages")
+                        && jdeploy
+                        .getJSONObject("cheerpj")
+                        .getJSONObject("githubPages")
+                        .has("branchPath");
+
+                cheerpJSettings.getGithubPagesBranchPath().setText(
+                        !hasBranchPath
+                                ? ""
+                                :  jdeploy
+                                .getJSONObject("cheerpj")
+                                .getJSONObject("githubPages")
+                                .getString("branchPath")
+                );
+
+                boolean hasTagPath = jdeploy.has("cheerpj")
+                        && jdeploy.getJSONObject("cheerpj").has("githubPages")
+                        && jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").has("tagPath");
+
+                cheerpJSettings.getGithubPagesTagPath().setText(
+                        !hasTagPath
+                                ? ""
+                                :  jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").getString("tagPath")
+                );
+
+                boolean hasPath = jdeploy.has("cheerpj")
+                        && jdeploy.getJSONObject("cheerpj").has("githubPages")
+                        && jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").has("path");
+
+                cheerpJSettings.getGithubPagesPath().setText(
+                        !hasPath
+                                ? ""
+                                :  jdeploy
+                                .getJSONObject("cheerpj")
+                                .getJSONObject("githubPages")
+                                .getString("path")
+                );
 
 
+            };
+            cheerpJSettings.getEnableCheerpJ().addActionListener(evt->{
+                if (cheerpJSettings.getEnableCheerpJ().isSelected()) {
+                    if (jdeploy.has("cheerpj")) {
+                        jdeploy.getJSONObject("cheerpj").put("enabled", true);
+                        setModified();
+                        return;
+                    }
+                }
+
+                if (!cheerpJSettings.getEnableCheerpJ().isSelected()) {
+                    if (!jdeploy.has("cheerpj")) {
+                        return;
+                    } else {
+                        jdeploy.getJSONObject("cheerpj").put("enabled", false);
+                        setModified();
+                        return;
+                    }
+                }
+
+                if (!jdeploy.has("cheerpj")) {
+                    JSONObject initCheerpj = new JSONObject();
+                    initCheerpj.put("enabled", true);
+                    JSONObject initGithubPages = new JSONObject();
+                    initGithubPages.put("enabled", true);
+                    initGithubPages.put("branch", "gh-pages");
+                    initGithubPages.put("branchPath", "{{ branch }}");
+                    initGithubPages.put("tagPath", "app");
+                    initCheerpj.put("githubPages", initGithubPages);
+
+                    jdeploy.put("cheerpj",initCheerpj);
+                    updateCheerpjUI.run();
+                    setModified();
+                    return;
+
+                }
+                jdeploy.getJSONObject("cheerpj").put("enabled", cheerpJSettings.getEnableCheerpJ().isSelected());
+                setModified();
+            });
+
+            cheerpJSettings.getGithubPagesBranch().addActionListener(evt->{
+                if (
+                        jdeploy.has("cheerpj")
+                                && jdeploy.getJSONObject("cheerpj").has("githubPages")
+                ) {
+                    jdeploy
+                            .getJSONObject("cheerpj")
+                            .getJSONObject("githubPages")
+                            .put("branch", cheerpJSettings.getGithubPagesBranch().getText());
+                    setModified();
+                }
+            });
+
+            cheerpJSettings.getGithubPagesBranchPath().addActionListener(evt->{
+                if (
+                        jdeploy.has("cheerpj")
+                                && jdeploy.getJSONObject("cheerpj").has("githubPages")
+                ) {
+                    jdeploy.getJSONObject("cheerpj")
+                            .getJSONObject("githubPages")
+                            .put("branchPath", cheerpJSettings.getGithubPagesBranchPath().getText());
+                    setModified();
+                }
+            });
+
+            cheerpJSettings.getGithubPagesTagPath().addActionListener(evt->{
+                if (
+                        jdeploy.has("cheerpj")
+                                && jdeploy.getJSONObject("cheerpj").has("githubPages")
+                ) {
+                    jdeploy.getJSONObject("cheerpj")
+                            .getJSONObject("githubPages")
+                            .put("tagPath", cheerpJSettings.getGithubPagesTagPath().getText());
+                    setModified();
+                }
+            });
+
+            cheerpJSettings.getGithubPagesPath().addActionListener(evt->{
+                if (jdeploy.has("cheerpj") && jdeploy.getJSONObject("cheerpj").has("githubPages")) {
+                    jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").put("path", cheerpJSettings.getGithubPagesPath().getText());
+                    setModified();
+                }
+            });
+            updateCheerpjUI.run();
+        }
 
         JTabbedPane tabs = new JTabbedPane();
-
-        JComponent detailsPanel = PanelMatic.begin()
-                .add(Groupings.lineGroup(mainFields.icon,
-                        (JComponent)Box.createRigidArea(new Dimension(10, 10)),
-                        PanelMatic.begin()
-                                .add("Name", mainFields.name)
-                                .add("Version", mainFields.version)
-                                .add("Title", mainFields.title)
-                                .add("Author", mainFields.author)
-                                .add("Description", mainFields.description)
-                                .add("License", mainFields.license)
-                                .get()
-                        ))
-                .add((JComponent) Box.createRigidArea(new Dimension(10, 10)))
-                .add("JAR file", Groupings.lineGroup(mainFields.jar, mainFields.selectJar))
-                .addHeader(PanelBuilder.HeaderLevel.H5, "Runtime Environment")
-                .add("Java Version", mainFields.javaVersion)
-                .add("", mainFields.javafx)
-                .add("", mainFields.jdk)
-                .addHeader(PanelBuilder.HeaderLevel.H5, "Links")
-                .add("Homepage", Groupings.lineGroup(mainFields.homepage, mainFields.verifyHomepageButton, mainFields.homepageVerifiedLabel))
-                .add("Repository", Groupings.lineGroup(new JLabel("URL:"), mainFields.repository, new JLabel("Directory:"), mainFields.repositoryDirectory))
-                .get();
+        JPanel detailsPanelRoot = detailsPanel.getRoot();
         JPanel detailWrapper = new JPanel();
-        detailWrapper.setLayout(new BoxLayout(detailWrapper, BoxLayout.Y_AXIS));
-
-
+        detailWrapper.setLayout(new BorderLayout());
         detailWrapper.setBorder(new EmptyBorder(10, 10, 10, 10));
-        detailWrapper.setPreferredSize(new Dimension(640, 480));
-        detailWrapper.setOpaque(false);
-        detailsPanel.setAlignmentY(Component.TOP_ALIGNMENT);
-        detailsPanel.setMaximumSize(new Dimension(10000, detailsPanel.getPreferredSize().height));
-        Box.Filler filler = new Box.Filler(
-                new Dimension(0, 0),
-                new Dimension(0, 0),
-                new Dimension(1000, 1000)
-        );
-        filler.setOpaque(false);
+
         JPanel helpPanel = new JPanel();
         helpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        helpPanel.setOpaque(false);
-        helpPanel.add(createHelpButton("https://www.jdeploy.com/docs/help/#_the_details_tab", "", "Learn about what these fields do."));
-        //helpPanel.setMaximumSize(new Dimension(helpPanel.getPreferredSize()));
-        detailWrapper.add(helpPanel);
-        detailWrapper.add(detailsPanel);
-        detailWrapper.add(filler);
-
-        JScrollPane detailsScroller = new JScrollPane(detailWrapper);
-        detailsScroller.setBorder(new EmptyBorder(0,0,0,0));
-        detailsScroller.setOpaque(false);
-        detailsScroller.getViewport().setOpaque(false);
+        helpPanel.add(
+                createHelpButton(
+                        JDEPLOY_WEBSITE_URL + "docs/help/#_the_details_tab",
+                        "",
+                        "Learn about what these fields do."
+                )
+        );
+        detailWrapper.add(helpPanel, BorderLayout.NORTH);
+        detailWrapper.add(detailsPanelRoot, BorderLayout.CENTER);
 
 
-        tabs.addTab("Details", detailsScroller);
+
+        tabs.addTab("Details", detailWrapper);
 
         JComponent imagesPanel = PanelMatic.begin()
 
@@ -1048,8 +1622,14 @@ public class JDeployProjectEditor {
         JPanel imagesHelpPanel = new JPanel();
         imagesHelpPanel.setOpaque(false);
         imagesHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        imagesHelpPanel.add(createHelpButton("https://www.jdeploy.com/docs/help/#splashscreens", "", "Learn more about this panel, and how splash screen images are used in jDeploy."));
-        //imagesHelpPanel.setMaximumSize(new Dimension(imagesHelpPanel.getPreferredSize()));
+        imagesHelpPanel.add(
+                createHelpButton(
+                        JDEPLOY_WEBSITE_URL + "docs/help/#splashscreens",
+                        "",
+                        "Learn more about this panel, and how splash screen images are used in jDeploy."
+                )
+        );
+
         imagesPanelWrapper.add(imagesHelpPanel, BorderLayout.NORTH);
         tabs.add("Splash Screens", imagesPanelWrapper);
 
@@ -1064,16 +1644,26 @@ public class JDeployProjectEditor {
         urlSchemesHelp.setOpaque(false);
         urlSchemesHelp.setLineWrap(true);
         urlSchemesHelp.setWrapStyleWord(true);
-        urlSchemesHelp.setText("Create one or more custom URL schemes that will trigger your app to launch when users try to open a link in their web browser with one of them.\nEnter one or more URL schemes separated by commas in the field below." +
+        urlSchemesHelp.setText(
+                "Create one or more custom URL schemes that will trigger your app to launch when users try to open a " +
+                        "link in their web browser with one of them.\nEnter one or more URL schemes separated by commas " +
+                        "in the field below." +
                 "\n\nFor example, if you want links like mynews:foobarfoo and mymusic:fuzzbazz to launch your app, then " +
-                "add 'mynews, mymusic' to the field below.");
+                "add 'mynews, mymusic' to the field below."
+        );
         urlSchemesHelp.setMaximumSize(new Dimension(600, 150));
         urlsPanel.setLayout(new BoxLayout(urlsPanel, BoxLayout.Y_AXIS));
 
         JPanel urlsHelpPanelWrapper = new JPanel();
         urlsHelpPanelWrapper.setLayout(new FlowLayout(FlowLayout.RIGHT));
         urlsHelpPanelWrapper.setOpaque(false);
-        urlsHelpPanelWrapper.add(createHelpButton("https://www.jdeploy.com/docs/help/#_the_urls_tab", "", "Learn more about custom URL schemes in jDeploy"));
+        urlsHelpPanelWrapper.add(
+                createHelpButton(
+                        JDEPLOY_WEBSITE_URL + "docs/help/#_the_urls_tab",
+                        "",
+                        "Learn more about custom URL schemes in jDeploy"
+                )
+        );
         urlsHelpPanelWrapper.setMaximumSize(new Dimension(10000, urlsHelpPanelWrapper.getPreferredSize().height));
         urlsPanel.add(urlsHelpPanelWrapper);
         urlsPanel.add(urlSchemesHelp);
@@ -1098,19 +1688,38 @@ public class JDeployProjectEditor {
         JPanel cliHelpPanel = new JPanel();
         cliHelpPanel.setOpaque(false);
         cliHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        cliHelpPanel.add(createHelpButton("https://www.jdeploy.com/docs/help/#cli", "", "Learn more about this tab in the help guide."));
+        cliHelpPanel.add(createHelpButton(
+                JDEPLOY_WEBSITE_URL + "docs/help/#cli",
+                "",
+                "Learn more about this tab in the help guide."
+        ));
         cliHelpPanel.setMaximumSize(new Dimension(10000, cliHelpPanel.getPreferredSize().height));
         cliPanel.add(cliHelpPanel);
-        cliPanel.add(new JLabel("<html><p style='width:400px'>Your app will also be installable and runnable as a command-line app using npm/npx.  See the CLI tutorialfor more details</p></html>"));
+        cliPanel.add(new JLabel(
+                "<html>" +
+                        "<p style='width:400px'>" +
+                        "Your app will also be installable and runnable as a command-line app using npm/npx.  " +
+                        "See the CLI tutorialfor more details" +
+                        "</p>" +
+                        "</html>"
+        ));
         JButton viewCLITutorial = new JButton("Open CLI Tutorial");
         viewCLITutorial.addActionListener(evt->{
             try {
-                context.browse(new URI("https://www.jdeploy.com/docs/getting-started-tutorial-cli/"));
+                context.browse(new URI(JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/"));
             } catch (Exception ex) {
                 System.err.println("Failed to open cli tutorial.");
                 ex.printStackTrace(System.err);
                 JOptionPane.showMessageDialog(frame,
-                        new JLabel("<html><p style='width:400px'>Failed to open the CLI tutorial.  Try opening https://www.jdeploy.com/docs/getting-started-tutorial-cli/ manually in your browser."),
+                        new JLabel(
+                                "<html>" +
+                                        "<p style='width:400px'>" +
+                                        "Failed to open the CLI tutorial.  " +
+                                        "Try opening " + JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/ " +
+                                        "manually in your browser." +
+                                        "</p>" +
+                                        "</html>"
+                        ),
                         "Failed to Open",
                         JOptionPane.ERROR_MESSAGE);
             }
@@ -1119,7 +1728,13 @@ public class JDeployProjectEditor {
         cliPanel.add(Box.createVerticalStrut(10));
         cliPanel.add(viewCLITutorial);
         cliPanel.add(Box.createVerticalStrut(10));
-        cliPanel.add(new JLabel("<html><p style='width:400px'>The following field allows you to specify the command name for your app.  Users will launch your app by entering this name in the command-line. </p></html>"));
+        cliPanel.add(new JLabel("" +
+                "<html>" +
+                "<p style='width:400px'>" +
+                "The following field allows you to specify the command name for your app.  " +
+                "Users will launch your app by entering this name in the command-line. " +
+                "</p>" +
+                "</html>"));
         cliPanel.add(mainFields.command);
         mainFields.command.setMaximumSize(new Dimension(1000, mainFields.command.getPreferredSize().height));
         //cliPanel.add(Box.createVerticalGlue());
@@ -1135,24 +1750,36 @@ public class JDeployProjectEditor {
         runArgsTop.setOpaque(false);
         runArgsTop.setLayout(new BorderLayout());
 
-        JButton runargsHelp = createHelpButton("https://www.jdeploy.com/docs/help/#runargs", "", "Open run arguments help in web browser");
+        JButton runargsHelp = createHelpButton(
+                JDEPLOY_WEBSITE_URL + "docs/help/#runargs",
+                "",
+                "Open run arguments help in web browser"
+        );
         runargsHelp.setMaximumSize(new Dimension(runargsHelp.getPreferredSize()));
 
         JLabel runArgsLabel = new JLabel("Runtime Arguments");
-        JLabel runArgsDescription = new JLabel("<html><p style='font-size:x-small;width:400px'>One argument per line.<br/></p>" +
+        JLabel runArgsDescription = new JLabel("<html>" +
+                "<p style='font-size:x-small;width:400px'>One argument per line.<br/></p>" +
                 "<p style='font-size:x-small; width:400px'>Prefix system properties with '-D'.  E.g. -Dfoo=bar</p>" +
                 "<p style='font-size:x-small;width:400px'>Prefix JVM options with '-X'.  E.g. -Xmx2G</p><br/>" +
                 "<p style='font-size:x-small;width:400px;padding-top:1em'><strong>Placeholder Variables</strong><br/>" +
                 "<strong>{{ user.home }}</strong> : The user's home directory<br/>" +
                 "<strong>{{ exe.path }}</strong> : The path to the program executable.<br/>" +
-                "<strong>{{ app.path }}</strong> : The path to the .app bundle on Mac.  Falls back to executable path on other platforms.<br/>" +
+                "<strong>{{ app.path }}</strong> : " +
+                "The path to the .app bundle on Mac.  Falls back to executable path on other platforms.<br/>" +
                 "</p><br/>" +
                 "<p style='font-size:x-small;width:400px;padding-top:1em'>" +
                 "<strong>Platform-Specific Arguments:</strong><br/>" +
                 "Platform-specific arguments are only added on specific platforms.<br/>" +
-                "<strong>Property Args:</strong> -D[PLATFORMS]foo=bar, where PLATFORMS is mac, win, or linux, or pipe-concatenated list.  E.g. '-D[mac]foo=bar', '-D[win]foo=bar', '-D[linux]foo=bar', '-D[mac|linux]foo=bar', etc...<br/>" +
-                "<strong>JVM Options:</strong> -X[PLATFORMS]foo, where PLATFORMS is mac, win, or linux, or pipe-concatenated list.  E.g. '-X[mac]foo', '-X[win]foo', '-X[linux]foo', '-X[mac|linux]foo', etc...<br/>" +
-                "<strong>Program Args:</strong> -[PLATFORMS]foo, where PLATFORMS is mac, win, or linux, or pipe-concatenated list.  E.g. '-[mac]foo', '-[win]foo', '-[linux]foo', '-[mac|linux]foo', etc...<br/>" +
+                "<strong>Property Args:</strong> " +
+                "-D[PLATFORMS]foo=bar, where PLATFORMS is mac, win, or linux, or pipe-concatenated list. " +
+                " E.g. '-D[mac]foo=bar', '-D[win]foo=bar', '-D[linux]foo=bar', '-D[mac|linux]foo=bar', etc...<br/>" +
+                "<strong>JVM Options:</strong> " +
+                "-X[PLATFORMS]foo, where PLATFORMS is mac, win, or linux, or pipe-concatenated list.  " +
+                "E.g. '-X[mac]foo', '-X[win]foo', '-X[linux]foo', '-X[mac|linux]foo', etc...<br/>" +
+                "<strong>Program Args:</strong> " +
+                "-[PLATFORMS]foo, where PLATFORMS is mac, win, or linux, or pipe-concatenated list.  " +
+                "E.g. '-[mac]foo', '-[win]foo', '-[linux]foo', '-[mac|linux]foo', etc...<br/>" +
                 "</p>" +
                 "</html>");
         runArgsDescription.setBorder(new EmptyBorder(10,10,10,10));
@@ -1169,11 +1796,61 @@ public class JDeployProjectEditor {
 
         tabs.add("Runtime Args", runargsPanel);
 
+        if (context.shouldDisplayCheerpJPanel()) {
+            tabs.add("CheerpJ", cheerpjSettingsRoot);
+        }
+        
+        // Permissions panel
+        permissionsPanel = new PermissionsPanel();
+        permissionsPanel.loadPermissions(packageJSON);
+        permissionsPanel.addChangeListener(evt -> {
+            permissionsPanel.savePermissions(packageJSON);
+            setModified();
+        });
+        tabs.add("Permissions", permissionsPanel);
 
+        // Add Bundle Filters tab
+        bundleFiltersPanel = new BundleFiltersPanel(packageJSONFile.getParentFile());
+        bundleFiltersPanel.setOnChangeCallback(() -> setModified());
+        bundleFiltersPanel.loadConfiguration(packageJSON);
+        
+        // Set up NPM enabled checker to check current UI state
+        bundleFiltersPanel.setNpmEnabledChecker(() -> {
+            return publishSettingsPanel != null && publishSettingsPanel.getNpmCheckbox().isSelected();
+        });
+        
+        tabs.add("Platform-Specific Bundles", bundleFiltersPanel);
+        
+        // Initialize .jdpignore file MD5 tracking
+        updateJdpignoreFileMD5s();
+
+        downloadPageSettingsPanel = new DownloadPageSettingsPanel(loadDownloadPageSettings());
+        downloadPageSettingsPanel.addChangeListener(evt -> {
+            this.saveDownloadPageSettings(downloadPageSettingsPanel.getSettings());
+            setModified();
+
+        });
+        tabs.add("Download Page", downloadPageSettingsPanel);
+
+        if (context.shouldDisplayPublishSettingsTab()) {
+            tabs.add("Publish Settings", createPublishSettingsPanel());
+        }
 
         cnt.removeAll();
         cnt.setLayout(new BorderLayout());
         cnt.add(tabs, BorderLayout.CENTER);
+        
+        // Add tab change listener to refresh Platform-Specific Bundles panel
+        // This handles cases where publish settings change but package.json hasn't been saved yet
+        tabs.addChangeListener(e -> {
+            int selectedIndex = tabs.getSelectedIndex();
+            if (selectedIndex >= 0) {
+                String tabTitle = tabs.getTitleAt(selectedIndex);
+                if ("Platform-Specific Bundles".equals(tabTitle) && bundleFiltersPanel != null) {
+                    bundleFiltersPanel.refreshUI();
+                }
+            }
+        });
 
         JPanel bottomButtons = new JPanel();
         bottomButtons.setLayout(new FlowLayout(FlowLayout.RIGHT));
@@ -1181,37 +1858,16 @@ public class JDeployProjectEditor {
 
         JButton viewDownloadPage = new JButton("View Download Page");
         viewDownloadPage.addActionListener(evt->{
-            String packageName = packageJSON.getString("name");
-            String source = packageJSON.has("source") ? packageJSON.getString("source") : "";
             try {
-                JSONObject packageInfo = new NPM(System.out, System.err).fetchPackageInfoFromNpm(packageName, source);
-
-            } catch (Exception ex) {
-                GithubService githubService = DIContext.getInstance().getInstance(GithubService.class);
-                String githubUrl = githubService.getFirstRemoteHttpsUrl(
-                        packageJSONFile.getParentFile().getAbsolutePath()
-                );
-                if (githubUrl != null) {
-                    String releasesUrl = githubUrl + "/releases";
-                    if (githubService.isRepoPrivateOrDoesNotExist(githubUrl)) {
-                        releasesUrl = githubUrl + "-releases/releases";
-                    }
-                    try {
-                        context.browse(new URI(releasesUrl));
-                        return;
-                    } catch (Exception ex2) {
-                        showError("Failed to open download page.  "+ex2.getMessage(), ex2);
-                        return;
-                    }
-                }
-                showError("Unable to load your package details from NPM.  Either you haven't published your app yet, or there was a network error.", ex);
-                return;
-            }
-            try {
-                context.browse(new URI("https://www.jdeploy.com/~" + packageName));
+                context.browse(new URI(getDownloadPageUrl()));
             } catch (Exception ex) {
                 showError("Failed to open download page.  "+ex.getMessage(), ex);
             }
+        });
+
+        JButton preview = new JButton("Web Preview");
+        preview.addActionListener(evt->{
+            context.showWebPreview(frame);
         });
 
 
@@ -1219,40 +1875,179 @@ public class JDeployProjectEditor {
         publish.setDefaultCapable(true);
 
         publish.addActionListener(evt->{
-
-            int result = JOptionPane.showConfirmDialog(frame, new JLabel("<html><p style='width:400px'>Are you sure you want to publish your app to npm?  " +
-                    "Once published, users will be able to download your app at <a href='https://www.jdeploy.com/~"+packageJSON.getString("name")+"'>https://www.jdeploy.com/~"+packageJSON.getString("name")+"</a>.<br/>Do you wish to proceed?</p></html>"),
-                    "Publish to NPM?",
+            String publishTargetName = getPublishTargetNames();
+            String downloadPageUrl = getDownloadPageUrl();
+            int result = JOptionPane.showConfirmDialog(
+                    frame,
+                    new JLabel("<html><p style='width:400px'>Are you sure you want to publish your app to " + publishTargetName + "?  " +
+                    "Once published, users will be able to download your app at " +
+                            "<a href='" + downloadPageUrl + "'>" +
+                            downloadPageUrl +
+                            "</a>." +
+                            "<br/>Do you wish to proceed?</p>" +
+                            "</html>"
+                    ),
+                    "Publish to " + publishTargetName + "?",
                     JOptionPane.YES_NO_OPTION);
             if (result == JOptionPane.NO_OPTION) {
                 return;
             }
-
-
 
             new Thread(()->{
                 handlePublish();
             }).start();
         });
 
+        JCheckBox buildOnPublish = new JCheckBox("Build Project");
+        buildOnPublish.setToolTipText("Build the project before publishing.  " +
+                "This will ensure that the latest changes are included in the published app.");
+        PackagingPreferencesService packagingPreferencesService = DIContext.get(PackagingPreferencesService.class);
+        PackagingPreferences packagingPreferences = packagingPreferencesService.getPackagingPreferences(packageJSONFile.getAbsolutePath());
+        buildOnPublish.setSelected(packagingPreferences.isBuildProjectBeforePackaging());
+        buildOnPublish.addActionListener(evt->{
+            packagingPreferences.setBuildProjectBeforePackaging(buildOnPublish.isSelected());
+            packagingPreferencesService.setPackagingPreferences(packagingPreferences);
+        });
+
         JButton apply = new JButton("Apply");
         apply.addActionListener(evt -> handleSave());
 
-        JButton cancel = new JButton("Cancel");
-        cancel.addActionListener(evt -> handleClosing());
+        JButton closeBtn = new JButton("Close");
+        closeBtn.addActionListener(evt -> handleClosing());
 
         bottomButtons.add(viewDownloadPage);
+        if (context.isWebPreviewSupported()) {
+            bottomButtons.add(preview);
+        }
         if (context.shouldShowPublishButton()) {
             bottomButtons.add(publish);
+            bottomButtons.add(buildOnPublish);
         }
         if (context.shouldDisplayApplyButton()) {
             bottomButtons.add(apply);
         }
         if (context.shouldDisplayCancelButton()) {
-            bottomButtons.add(cancel);
+            bottomButtons.add(closeBtn);
         }
         cnt.add(bottomButtons, BorderLayout.SOUTH);
 
+
+    }
+
+    private Component createPublishSettingsPanel() {
+        publishSettingsPanel = new PublishSettingsPanel();
+        PublishSettingsPanel panel = publishSettingsPanel;
+        PublishTargetFactory factory = DIContext.get(PublishTargetFactory.class);
+        PublishTargetServiceInterface publishTargetService = DIContext.get(PublishTargetServiceInterface.class);
+        try {
+            List<PublishTargetInterface> targets = publishTargetService.getTargetsForPackageJson(packageJSON, true);
+            PublishTargetInterface npmTarget = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
+            PublishTargetInterface gitHubTarget = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
+            panel.getNpmCheckbox().setSelected(npmTarget != null);
+            panel.getGithubCheckbox().setSelected(gitHubTarget != null);
+            if (gitHubTarget != null) {
+                panel.getGithubRepositoryField().setText(gitHubTarget.getUrl());
+            }
+
+            panel.getNpmCheckbox().addActionListener(evt -> {
+                if (panel.getNpmCheckbox().isSelected()) {
+                    try {
+                        PublishTargetInterface existingNpm = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
+                        if (existingNpm == null || existingNpm.isDefault()) {
+                            if (existingNpm != null && existingNpm.isDefault()) {
+                                targets.remove(existingNpm);
+                            }
+                            targets.add(factory.createWithUrlAndName(packageJSON.getString("name"), packageJSON.getString("name")));
+                            publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
+                            setModified();
+                        }
+                    } catch (Exception ex) {
+                        showError("Failed to create NPM publish target", ex);
+                    }
+                } else {
+                    try {
+                        PublishTargetInterface existingNpm = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
+                        if (existingNpm != null) {
+                            targets.remove(existingNpm);
+                            publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
+                            setModified();
+                        }
+                    } catch (Exception ex) {
+                        showError("Failed to delete NPM publish target", ex);
+                    }
+                }
+            });
+
+            panel.getGithubCheckbox().addActionListener(evt -> {
+                if (panel.getGithubCheckbox().isSelected()) {
+                    try {
+                        PublishTargetInterface existingGithub = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
+                        if (existingGithub == null) {
+                            String githubUrl = panel.getGithubRepositoryField().getText();
+                            String name = "github: " + (githubUrl.isEmpty() ? packageJSON.getString("name") : githubUrl);
+                            targets.add(new PublishTarget(name, PublishTargetType.GITHUB, githubUrl));
+                            publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
+                            setModified();
+                        }
+                    } catch (Exception ex) {
+                        showError("Failed to create NPM publish target", ex);
+                    }
+                } else {
+                    try {
+                        PublishTargetInterface existingGithub = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
+                        if (existingGithub != null) {
+                            targets.remove(existingGithub);
+                            publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
+                            setModified();
+                        }
+                    } catch (Exception ex) {
+                        showError("Failed to delete NPM publish target", ex);
+                    }
+                }
+            });
+
+            panel.getGithubRepositoryField().getDocument().addDocumentListener(new DocumentListener() {
+                @Override
+                public void insertUpdate(DocumentEvent e) {
+                    updateGithubUrl();
+                }
+
+                @Override
+                public void removeUpdate(DocumentEvent e) {
+                    updateGithubUrl();
+                }
+
+                @Override
+                public void changedUpdate(DocumentEvent e) {
+                    updateGithubUrl();
+                }
+
+                private void updateGithubUrl() {
+                    if (!panel.getGithubCheckbox().isSelected()) {
+                        return; // Only update URL if GitHub is actually selected
+                    }
+                    try {
+                        PublishTargetInterface existingGithub = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
+                        if (existingGithub != null) {
+                            targets.remove(existingGithub);
+                        }
+                        // Explicitly create GitHub target instead of relying on URL-based factory logic
+                        String githubUrl = panel.getGithubRepositoryField().getText();
+                        String name = "github: " + (githubUrl.isEmpty() ? packageJSON.getString("name") : githubUrl);
+                        PublishTargetInterface newGithub = new PublishTarget(name, PublishTargetType.GITHUB, githubUrl);
+                        targets.add(newGithub);
+                        publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
+                        setModified();
+                    } catch (Exception ex) {
+                        showError("Failed to update Github URL", ex);
+                    }
+                }
+            });
+        } catch (Exception ex) {
+            showError("Failed to load publish targets", ex);
+        }
+
+        return panel;
 
     }
 
@@ -1261,25 +2056,7 @@ public class JDeployProjectEditor {
         return showFileChooser(title, new HashSet<String>(Arrays.asList(extensions)));
     }
     private File showFileChooser(String title, Set<String> extensions) {
-        FileDialog fd = new FileDialog(frame, title, FileDialog.LOAD);
-        fd.setFilenameFilter(new FilenameFilter() {
-            @Override
-            public boolean accept(File dir, String name) {
-                if (extensions == null) {
-                    return true;
-                }
-                int pos = name.lastIndexOf(".");
-                if (pos >= 0) {
-                    String extension = name.substring(pos+1);
-                    return extensions.contains(extension);
-                }
-                return false;
-            }
-        });
-        fd.setVisible(true);
-        File[] files = fd.getFiles();
-        if (files == null || files.length == 0) return null;
-        return files[0];
+        return context.getFileChooserInterop().showFileChooser(frame, title, extensions);
     }
 
 
@@ -1297,11 +2074,63 @@ public class JDeployProjectEditor {
         openInTextEditor.setToolTipText("Open the package.json file for editing in your system text editor");
 
         openInTextEditor.addActionListener(evt-> handleOpenInTextEditor());
+
+        JMenuItem openProjectDirectory = new JMenuItem("Open Project Directory");
+        openProjectDirectory.setToolTipText("Open the project directory in your system file manager");
+        openProjectDirectory.addActionListener(evt->{
+            if (context.getDesktopInterop().isDesktopSupported()) {
+                try {
+                    context.getDesktopInterop().openDirectory(packageJSONFile.getParentFile());
+                } catch (Exception ex) {
+                    showError("Failed to open project directory in file manager", ex);
+                }
+            } else {
+                showError("That feature isn't supported on this platform.", null);
+            }
+        });
+
+        JMenu openInIde = new JMenu("Open in IDE");
+        IdeInteropService ideInteropService = DIContext.get(IdeInteropService.class);
+        openInIde.setToolTipText("Open the project directory in your IDE");
+        try {
+            for (IdeInteropInterface ideInterop : ideInteropService.findAll()) {
+                try {
+                    JMenuItem ideMenuItem = new JMenuItem(ideInterop.getName());
+                    ideMenuItem.setToolTipText("Open the project directory in " + ideInterop.getPath());
+                    ideMenuItem.addActionListener(evt -> {
+                        SwingWorker worker = new SwingWorker() {
+                            @Override
+                            protected Object doInBackground() throws Exception {
+                                try {
+                                    ideInterop.openProject(packageJSONFile.getParentFile().getAbsolutePath());
+                                } catch (Exception ex) {
+                                    showError("Failed to open project directory in " + ideInterop.getName(), ex);
+                                }
+                                return null;
+                            }
+                        };
+
+                        worker.execute();
+                    });
+                    openInIde.add(ideMenuItem);
+                } catch (Exception ex) {
+                    System.err.println("Failed to create menu item for IDE: " + ideInterop.getName());
+                    ex.printStackTrace(System.err);
+                }
+            }
+        } catch (Exception ideInteropException) {
+            ideInteropException.printStackTrace();
+        }
+
         file.addSeparator();
         file.add(openInTextEditor);
+        file.add(openProjectDirectory);
+        file.add(openInIde);
 
         generateGithubWorkflowMenuItem = new JMenuItem("Create Github Workflow");
-        generateGithubWorkflowMenuItem.setToolTipText("Generate a Github workflow to deploy your application automatically with Github Actions");
+        generateGithubWorkflowMenuItem.setToolTipText(
+                "Generate a Github workflow to deploy your application automatically with Github Actions"
+        );
         generateGithubWorkflowMenuItem.addActionListener(evt -> generateGithubWorkflow());
 
         editGithubWorkflowMenuItem = new JMenuItem("Edit Github Workflow");
@@ -1311,47 +2140,75 @@ public class JDeployProjectEditor {
         file.add(generateGithubWorkflowMenuItem);
         file.add(editGithubWorkflowMenuItem);
 
-        /*
-        JMenuItem exportIdentity = new JMenuItem("Export Signing Keys");
-        exportIdentity.setToolTipText("Export the developer signing keys as a PEM file.  Useful for using in GitHub actions.");
-        exportIdentity.addActionListener(evt->{
-            handleExportIdentity();
-        });
-        file.add(exportIdentity);
-
-         */
-
         JMenuItem verifyHomepage = new JMenuItem("Verify Homepage");
-        verifyHomepage.setToolTipText("Verify your app's homepage so that users will know that you are the developer of your app");
+        verifyHomepage.setToolTipText(
+                "Verify your app's homepage so that users will know that you are the developer of your app"
+        );
         verifyHomepage.addActionListener(evt->{
             handleVerifyHomepage();
         });
+        
+        JMenuItem setupClaude = new JMenuItem("Setup Claude AI Assistant");
+        setupClaude.setToolTipText(
+                "Setup Claude AI assistant for this project by adding jDeploy-specific instructions to CLAUDE.md"
+        );
+        setupClaude.addActionListener(evt->{
+            handleSetupClaude();
+        });
+        
         file.addSeparator();
         file.add(verifyHomepage);
+        file.add(setupClaude);
 
         if (context.shouldDisplayExitMenu()) {
             file.addSeparator();
             JMenuItem quit = new JMenuItem("Exit");
-            quit.setAccelerator(KeyStroke.getKeyStroke('Q', Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+            quit.setAccelerator(
+                    KeyStroke.getKeyStroke('Q', Toolkit.getDefaultToolkit().getMenuShortcutKeyMask())
+            );
             quit.addActionListener(evt -> handleClosing());
             file.add(quit);
         }
 
         JMenu help = new JMenu("Help");
-        JMenuItem jdeployHelp = createLinkItem("https://www.jdeploy.com/docs/help", "jDeploy Help", "Open jDeploy application help in your web browser");
+        JMenuItem jdeployHelp = createLinkItem(
+                JDEPLOY_WEBSITE_URL + "docs/help",
+                "jDeploy Help", "Open jDeploy application help in your web browser"
+        );
         help.add(jdeployHelp);
 
         help.addSeparator();
-        help.add(createLinkItem("https://www.jdeploy.com/", "jDeploy Website", "Open the jDeploy website in your web browser."));
-        help.add(createLinkItem("https://www.jdeploy.com/docs/manual", "jDeploy Developers Guide", "Open the jDeploy developers guide in your web browser."));
+        help.add(createLinkItem(
+                JDEPLOY_WEBSITE_URL,
+                "jDeploy Website",
+                "Open the jDeploy website in your web browser."
+        ));
+        help.add(createLinkItem(
+                JDEPLOY_WEBSITE_URL + "docs/manual",
+                "jDeploy Developers Guide",
+                "Open the jDeploy developers guide in your web browser."
+        ));
         help.addSeparator();
-        help.add(createLinkItem("https://groups.google.com/g/jdeploy-developers", "jDeploy Developers Mailing List", "A mailing list for developers who are developing apps with jDeploy"));
-        help.add(createLinkItem("https://github.com/shannah/jdeploy/discussions", "Support Forum", "A place to ask questions and get help from the community"));
-        help.add(createLinkItem("https://github.com/shannah/jdeploy/issues", "Issue Tracker", "Find and report bugs"));
+        help.add(createLinkItem(
+                "https://groups.google.com/g/jdeploy-developers",
+                "jDeploy Developers Mailing List",
+                "A mailing list for developers who are developing apps with jDeploy"
+        ));
+        help.add(createLinkItem(
+                "https://github.com/shannah/jdeploy/discussions",
+                "Support Forum",
+                "A place to ask questions and get help from the community"));
+        help.add(createLinkItem(
+                "https://github.com/shannah/jdeploy/issues",
+                "Issue Tracker",
+                "Find and report bugs"
+        ));
 
         jmb.add(file);
         jmb.add(help);
-        frame.setJMenuBar(jmb);
+        if (context.shouldDisplayMenuBar()) {
+            frame.setJMenuBar(jmb);
+        }
     }
 
     private void handleVerifyHomepage() {
@@ -1359,15 +2216,50 @@ public class JDeployProjectEditor {
         VerifyWebsiteController verifyController = new VerifyWebsiteController(frame, app);
         EventQueue.invokeLater(verifyController);
     }
+    
+    private void handleSetupClaude() {
+        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                SetupClaudeService service = new SetupClaudeService();
+                File projectDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
+                service.setup(projectDirectory);
+                return null;
+            }
+            
+            @Override
+            protected void done() {
+                try {
+                    get();
+                    JOptionPane.showMessageDialog(
+                        frame,
+                        "Claude AI assistant has been successfully set up for this project.\nCLAUDE.md file has been created/updated with jDeploy-specific instructions.",
+                        "Claude Setup Complete",
+                        JOptionPane.INFORMATION_MESSAGE
+                    );
+                } catch (Exception ex) {
+                    showError("Failed to setup Claude AI assistant: " + ex.getMessage(), ex);
+                }
+            }
+        };
+        worker.execute();
+    }
 
     private void generateGithubWorkflow() {
         final File projectDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
         final JDeploy jdeploy = new JDeploy(projectDirectory, false);
+        jdeploy.setNpmToken(context.getNpmToken());
+        jdeploy.setUseManagedNode(context.useManagedNode());
+
+        final PackagingContext packagingContext = PackagingContext.builder()
+                .directory(projectDirectory)
+                .exitOnFail(false)
+                .build();
 
         EventQueue.invokeLater(
                 new GenerateGithubWorkflowController(
                         frame,
-                        jdeploy.getJavaVersion(17),
+                        packagingContext.getJavaVersion(17),
                         "master",
                         new GithubWorkflowGenerator(projectDirectory)
                 )
@@ -1434,12 +2326,83 @@ public class JDeployProjectEditor {
         }
     }
 
+    private String validateDirectoryAssociation() {
+        if (directoryAssociationFields == null ||
+            !directoryAssociationFields.enableCheckbox.isSelected()) {
+            return null; // Not enabled, no validation needed
+        }
 
+        // Validate description is not empty (good UX practice)
+        String description = directoryAssociationFields.descriptionField.getText().trim();
+        if (description.isEmpty()) {
+            return "Directory association description should not be empty. " +
+                   "This text appears in the context menu.";
+        }
+
+        return null; // Valid
+    }
 
     private void handleSave() {
         try {
+            if (downloadPageSettingsPanel != null) {
+                saveDownloadPageSettings(downloadPageSettingsPanel.getSettings());
+            }
+            if (bundleFiltersPanel != null) {
+                bundleFiltersPanel.saveConfiguration(packageJSON.getJSONObject("jdeploy"));
+                                bundleFiltersPanel.saveAllFiles();
+            }
+
+            // Validate directory association
+            String validationError = validateDirectoryAssociation();
+            if (validationError != null) {
+                int result = JOptionPane.showConfirmDialog(
+                    frame,
+                    validationError + "\n\nContinue saving anyway?",
+                    "Validation Warning",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE
+                );
+                if (result != JOptionPane.YES_OPTION) {
+                    return; // Don't save
+                }
+            }
+
+            // Save directory association
+            if (directoryAssociationFields != null) {
+                JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
+
+                // Get or create documentTypes array
+                if (!jdeploy.has("documentTypes")) {
+                    jdeploy.put("documentTypes", new JSONArray());
+                }
+                JSONArray docTypes = jdeploy.getJSONArray("documentTypes");
+
+                // Remove existing directory associations
+                for (int i = docTypes.length() - 1; i >= 0; i--) {
+                    JSONObject docType = docTypes.getJSONObject(i);
+                    if (docType.has("type") && "directory".equalsIgnoreCase(docType.getString("type"))) {
+                        docTypes.remove(i);
+                    }
+                }
+
+                // Add new directory association if enabled
+                if (directoryAssociationFields.enableCheckbox.isSelected()) {
+                    JSONObject dirAssoc = new JSONObject();
+                    dirAssoc.put("type", "directory");
+                    dirAssoc.put("role", directoryAssociationFields.roleComboBox.getSelectedItem());
+
+                    String description = directoryAssociationFields.descriptionField.getText().trim();
+                    if (!description.isEmpty()) {
+                        dirAssoc.put("description", description);
+                    }
+
+                    docTypes.put(dirAssoc);
+                }
+            }
+
             FileUtil.writeStringToFile(packageJSON.toString(4), packageJSONFile);
             packageJSONMD5 = MD5.getMD5Checksum(packageJSONFile);
+            updateJdpignoreFileMD5s(); // Update .jdpignore file MD5s after saving
             clearModified();
             context.onFileUpdated(packageJSONFile);
         } catch (Exception ex) {
@@ -1450,18 +2413,67 @@ public class JDeployProjectEditor {
     }
 
     private void showError(String message, Throwable exception) {
-        JOptionPane.showMessageDialog(frame, new JLabel("<html><p style='width:400px'>"+message+"</p></html>"), "Error", JOptionPane.ERROR_MESSAGE);
-        exception.printStackTrace(System.err);
+        File logFile = exception instanceof ValidationException
+                ? ((ValidationException) exception).getLogFile()
+                : null;
 
+        JPanel dialogComponent = new JPanel();
+        dialogComponent.setLayout(new BoxLayout(dialogComponent, BoxLayout.Y_AXIS));
+        dialogComponent.setOpaque(false);
+        dialogComponent.setBorder(new EmptyBorder(10, 10, 10, 10));
+        dialogComponent.add(new JLabel(
+                "<html><p style='width:400px'>" + message + "</p></html>"
+        ));
+
+        if (logFile != null) {
+            String[] options = {"Copy Path", "OK"};
+            int choice = JOptionPane.showOptionDialog(
+                    frame,
+                    dialogComponent,
+                    "Error",
+                    JOptionPane.DEFAULT_OPTION,
+                    JOptionPane.ERROR_MESSAGE,
+                    null,
+                    options,
+                    options[1]
+            );
+
+            if (choice == 0) { // Copy Path selected
+                try {
+                    StringSelection stringSelection = new StringSelection(logFile.getAbsolutePath());
+                    Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+                    clipboard.setContents(stringSelection, null);
+                } catch (Exception ex) {
+                    showError("Failed to copy path to clipboard. " + ex.getMessage(), ex);
+                }
+            }
+        } else {
+            JOptionPane.showMessageDialog(
+                    frame,
+                    dialogComponent,
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
+
+        exception.printStackTrace(System.err);
     }
+
 
     private static final int NOT_LOGGED_IN = 1;
 
     private class ValidationException extends Exception {
         private int type;
 
-        ValidationException(String msg) {
+        private File logFile;
+
+        ValidationException(String msg){
+            this(msg, (File)null);
+        }
+
+        ValidationException(String msg, File logFile) {
             super(msg);
+            this.logFile = logFile;
         }
 
         ValidationException(String msg, int type) {
@@ -1469,8 +2481,25 @@ public class JDeployProjectEditor {
             this.type = type;
         }
 
+        ValidationException(String msg, int type, File logFile) {
+            super(msg);
+            this.type = type;
+            this.logFile = logFile;
+        }
+
+        ValidationException(String msg, Throwable cause, File logFile) {
+            super(msg, cause);
+            this.logFile = logFile;
+        }
+
         ValidationException(String msg, Throwable cause) {
             super(msg, cause);
+        }
+
+        ValidationException(String msg, Throwable cause, int type, File logFile) {
+            super(msg, cause);
+            this.type = type;
+            this.logFile = logFile;
         }
 
         ValidationException(String msg, Throwable cause, int type) {
@@ -1481,9 +2510,11 @@ public class JDeployProjectEditor {
         int getType() {
             return type;
         }
+
+        File getLogFile() {
+            return logFile;
+        }
     }
-
-
 
     private void validateJar(File jar) throws ValidationException {
         try {
@@ -1491,7 +2522,10 @@ public class JDeployProjectEditor {
             if(jarFile.getManifest().getMainAttributes().getValue(Attributes.Name.MAIN_CLASS) != null) {
                 return;
             }
-            throw new ValidationException("Selected jar file is not an executable Jar file.  \nPlease see https://www.jdeploy.com/docs/manual/#_appendix_building_executable_jar_file");
+            throw new ValidationException(
+                    "Selected jar file is not an executable Jar file.  " +
+                            "\nPlease see " + JDEPLOY_WEBSITE_URL + "docs/manual/#_appendix_building_executable_jar_file"
+            );
         } catch (IOException ex) {
             throw new ValidationException("Failed to load jar file", ex);
         }
@@ -1502,19 +2536,56 @@ public class JDeployProjectEditor {
     private void handlePublish() {
         if (publishInProgress) return;
         publishInProgress = true;
-
         try {
             handlePublish0();
         } catch (ValidationException ex) {
             if (ex.type == NOT_LOGGED_IN) {
-                LoginDialog dlg = new LoginDialog();
-                dlg.onLogin(()->{
-                    new Thread(()->{
-                        publishInProgress = false;
-                        handlePublish();
-                    }).start();
-                });
-                dlg.show(frame);
+
+                try {
+                    TerminalLoginLauncher.launchLoginTerminal();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } catch (URISyntaxException e) {
+                    throw new RuntimeException(e);
+                }
+
+                // Create a JOptionPane with the desired message
+                JOptionPane optionPane = new JOptionPane(
+                        "<html><p style='width:400px'>You must be logged into NPM in order to publish your app. " +
+                                "We have opened a terminal window for you to login. " +
+                                "Please login to NPM in the terminal window and then try to publish again.</p></html>",
+                        JOptionPane.INFORMATION_MESSAGE,
+                        JOptionPane.DEFAULT_OPTION
+                );
+
+                // Create a JDialog from the JOptionPane
+                JDialog dialog = optionPane.createDialog(frame, "Login to NPM");
+                dialog.setModal(false); // Set to non-modal
+
+                // Display the dialog
+                dialog.setVisible(true);
+
+                new Thread(()->{
+                    NPM npm = getNPM();
+                    try {
+                        while (!npm.isLoggedIn() || !dialog.isShowing()) {
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException ex1) {
+                                throw new RuntimeException(ex1);
+                            }
+                        }
+                    } finally {
+                        EventQueue.invokeLater(()->{
+                            dialog.setVisible(false);
+                            dialog.dispose();
+                        });
+                    }
+
+                    handlePublish();
+
+                }).start();
+
             } else {
                 showError(ex.getMessage(), ex);
             }
@@ -1531,11 +2602,11 @@ public class JDeployProjectEditor {
         }
     }
 
-
-
     private void handleExportIdentity0() throws IOException {
         ExportIdentityService exportIdentityService = new ExportIdentityService();
         JDeploy jdeploy = new JDeploy(packageJSONFile.getAbsoluteFile().getParentFile(), false);
+        jdeploy.setNpmToken(context.getNpmToken());
+        jdeploy.setUseManagedNode(context.useManagedNode());
         exportIdentityService.setDeveloperIdentityKeyStore(jdeploy.getKeyStore());
         FileDialog saveDialog = new FileDialog(frame, "Select Destination", FileDialog.SAVE);
         saveDialog.setVisible(true);
@@ -1546,12 +2617,94 @@ public class JDeployProjectEditor {
         exportIdentityService.exportIdentityToFile(dest[0]);
     }
 
+    private boolean isNpmPublishingEnabled() {
+        try {
+            return DIContext.get(PublishTargetServiceInterface.class)
+                    .getTargetsForProject(
+                            packageJSONFile
+                                    .getAbsoluteFile()
+                                    .getParentFile()
+                                    .getAbsolutePath(),
+                            true
+                    ).stream()
+                    .anyMatch(t -> t.getType() == PublishTargetType.NPM);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private boolean isGitHubPublishingEnabled() {
+        try {
+            return DIContext.get(PublishTargetServiceInterface.class)
+                    .getTargetsForProject(
+                            packageJSONFile
+                                    .getAbsoluteFile()
+                                    .getParentFile()
+                                    .getAbsolutePath(),
+                            true
+                    ).stream()
+                    .anyMatch(t -> t.getType() == PublishTargetType.GITHUB);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private String getPublishTargetNames() {
+        try {
+            return DIContext.get(PublishTargetServiceInterface.class)
+                    .getTargetsForProject(
+                            packageJSONFile
+                                    .getAbsoluteFile()
+                                    .getParentFile()
+                                    .getAbsolutePath(),
+                            true
+                    ).stream()
+                    .map(t -> t.getType().name())
+                    .collect(Collectors.joining(", "));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private String getDownloadPageUrl() {
+        try {
+            List<PublishTargetInterface> targets = DIContext.get(PublishTargetServiceInterface.class)
+                    .getTargetsForProject(
+                            packageJSONFile
+                                    .getAbsoluteFile()
+                                    .getParentFile()
+                                    .getAbsolutePath(),
+                            true
+                    );
+            PublishTargetInterface npmTarget = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
+            if (npmTarget != null) {
+                return JDEPLOY_WEBSITE_URL + "~"+packageJSON.getString("name");
+            }
+
+            PublishTargetInterface githubTarget = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
+            if (githubTarget != null) {
+                return githubTarget.getUrl() + "/releases/tag/" + packageJSON.getString("version");
+            }
+
+        } catch (IOException e) {
+            return JDEPLOY_WEBSITE_URL + "~"+packageJSON.getString("name");
+        }
+
+        return JDEPLOY_WEBSITE_URL + "~"+packageJSON.getString("name");
+    }
 
     private void handlePublish0() throws ValidationException {
-
+        if (!EventQueue.isDispatchThread()) {
+            // We don't prompt on the dispatch thread because promptForNpmToken blocks
+            if (isNpmPublishingEnabled() && !context.promptForNpmToken(frame)) {
+                return;
+            }
+            if (isGitHubPublishingEnabled() && !context.promptForGithubToken(frame)) {
+                return;
+            }
+        }
 
         File absDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
-
         String[] requiredFields = new String[]{
                 "name",
                 "author",
@@ -1564,7 +2717,6 @@ public class JDeployProjectEditor {
             }
         }
 
-
         if (!packageJSON.has("jdeploy")) {
             throw new ValidationException("This package.json is missing the jdeploy object which is required.");
         }
@@ -1574,66 +2726,178 @@ public class JDeployProjectEditor {
         }
         File jarFile = new File(absDirectory, toNativePath(jdeploy.getString("jar")));
         if (!jarFile.getName().endsWith(".jar")) {
-            throw new ValidationException("The selected jar file is not a jar file.  Jar files must have the .jar extension");
+            throw new ValidationException(
+                    "The selected jar file is not a jar file.  Jar files must have the .jar extension"
+            );
+        }
+
+        ProjectBuilderService projectBuilderService = DIContext.get(ProjectBuilderService.class);
+        PackagingPreferencesService packagingPreferencesService = DIContext.get(PackagingPreferencesService.class);
+        PackagingPreferences packagingPreferences = packagingPreferencesService.getPackagingPreferences(packageJSONFile.getAbsolutePath());
+        boolean buildRequired = packagingPreferences.isBuildProjectBeforePackaging();
+        PackagingContext buildContext = PackagingContext.builder()
+                .directory(absDirectory)
+                .exitOnFail(false)
+                .isBuildRequired(buildRequired)
+                .build();
+
+        if (!jarFile.exists()) {
+            // If the jar file doesn't exist, then we need to build the project.
+            if (projectBuilderService.isBuildSupported(buildContext)) {
+                try {
+                    File buildLogFile = File.createTempFile("jdeploy-build-log", ".txt");
+                    final JDialog[] buildProgressDialog = new JDialog[1];
+                    try {
+
+                        EventQueue.invokeLater(() -> {
+                            buildProgressDialog[0] = createProgressDialog(
+                                    "Building Project",
+                                    "Building project.  Please wait..."
+                            );
+                            buildProgressDialog[0].setVisible(true);
+                        });
+                        projectBuilderService.buildProject(buildContext, buildLogFile);
+                        buildRequired = false;
+                    } catch (Exception ex) {
+                        ex.printStackTrace(System.err);
+                        throw new ValidationException(
+                                "Failed to build project before publishing.  See build log at "
+                                        + buildLogFile.getAbsolutePath(),
+                                ex,
+                                buildLogFile
+                        );
+                    } finally {
+                        EventQueue.invokeLater(()-> {
+                            if (buildProgressDialog[0] != null) {
+                                buildProgressDialog[0].setVisible(false);
+                                buildProgressDialog[0].dispose();
+                            }
+                        });
+                    }
+                } catch (IOException ex) {
+                    ex.printStackTrace(System.err);
+                    throw new ValidationException("Failed to create build log file", ex);
+                }
+
+            }
         }
         if (!jarFile.exists()) {
-            throw new ValidationException("The selected jar file does not exist.  Please check the selected jar file and try again.");
+            throw new ValidationException(
+                    "The selected jar file does not exist.  Please check the selected jar file and try again."
+            );
         }
         // This validates that the jar file is an executable jar file.
         validateJar(jarFile);
 
         // Now let's make sure that this version isn't already published.
-        String version = packageJSON.getString("version");
+        String rawVersion = packageJSON.getString("version");
+        String version = VersionCleaner.cleanVersion(packageJSON.getString("version"));
         String packageName = packageJSON.getString("name");
         String source = packageJSON.has("source") ? packageJSON.getString("source") : "";
-        if (new NPM(System.out, System.err).isVersionPublished(packageName, version, source)) {
-            throw new ValidationException("The package " + packageName + " already has a published version " + version + ".  Please increment the version number and try to publish again.");
+        if (isNpmPublishingEnabled()) {
+            if (getNPM().isVersionPublished(packageName, version, source)) {
+                throw new ValidationException(
+                        "The package " + packageName + " already has a published version " + version + ".  " +
+                                "Please increment the version number and try to publish again."
+                );
+            }
+            if (!getNPM().isLoggedIn()) {
+                throw new ValidationException("You must be logged into NPM in order to publish", NOT_LOGGED_IN);
+            }
         }
 
+        if (isGitHubPublishingEnabled()) {
+            GitHubPublishDriver gitHubPublishDriver = DIContext.get(GitHubPublishDriver.class);
+            try {
+                PublishTargetInterface githubTarget = DIContext.get(PublishTargetServiceInterface.class)
+                        .getTargetsForProject(absDirectory.getAbsolutePath(), true)
+                        .stream()
+                        .filter(t -> t.getType() == PublishTargetType.GITHUB)
+                        .findFirst()
+                        .orElse(null);
+                if (
+                        gitHubPublishDriver.isVersionPublished(packageName, version, githubTarget)
+                        || gitHubPublishDriver.isVersionPublished(packageName, rawVersion, githubTarget)
+                ) {
+                    throw new ValidationException(
+                            "The package " + packageName + " already has a published version " + version + " on Github.  " +
+                                    "Please increment the version number and try to publish again."
+                    );
+                }
+            } catch (IOException ex) {
+                throw new ValidationException("Failed to load github publish target", ex);
+            }
+        }
 
         // Let's check to see if we're logged into
 
-        if (!new NPM(System.out, System.err).isLoggedIn()) {
-            throw new ValidationException("You must be logged into NPM in order to publish", NOT_LOGGED_IN);
-        }
 
-        ProgressDialog progressDialog = new ProgressDialog(packageJSON.getString("name"));
+        ProgressDialog progressDialog = new ProgressDialog(packageJSON.getString("name"), getDownloadPageUrl());
+
+        PackagingContext packagingContext = PackagingContext.builder()
+                .directory(packageJSONFile.getAbsoluteFile().getParentFile())
+                .out(new PrintStream(progressDialog.createOutputStream()))
+                .err(new PrintStream(progressDialog.createOutputStream()))
+                .exitOnFail(false)
+                .isBuildRequired(buildRequired)
+                .build();
         JDeploy jdeployObject = new JDeploy(packageJSONFile.getAbsoluteFile().getParentFile(), false);
-        jdeployObject.setOut(new PrintStream(progressDialog.createOutputStream()));
-        jdeployObject.setErr(new PrintStream(progressDialog.createOutputStream()));
+        jdeployObject.setOut(packagingContext.out);
+        jdeployObject.setErr(packagingContext.err);
+        jdeployObject.setNpmToken(context.getNpmToken());
+        jdeployObject.setUseManagedNode(context.useManagedNode());
         EventQueue.invokeLater(()->{
             progressDialog.show(frame, "Publishing in Progress...");
-            progressDialog.setMessage1("Publishing "+packageJSON.get("name")+" to npm.  Please wait...");
+            progressDialog.setMessage1("Publishing "+packageJSON.get("name")+" to " + getPublishTargetNames()+".  Please wait...");
             progressDialog.setMessage2("");
 
         });
         try {
             handleSave();
-            jdeployObject.publish();
+            PublishingContext publishingContext = PublishingContext
+                    .builder()
+                    .setPackagingContext(packagingContext)
+                    .setNPM(jdeployObject.getNPM())
+                    .setGithubToken(context.getGithubToken())
+                    .build();
+            jdeployObject.publish(
+                    publishingContext,
+                    new SwingOneTimePasswordProvider(frame)
+            );
             EventQueue.invokeLater(()->{
                 progressDialog.setComplete();
 
             });
         } catch (Exception ex) {
-            System.err.println("An error occurred during publishing");
-            ex.printStackTrace(System.err);
+            packagingContext.err.println("An error occurred during publishing");
+            ex.printStackTrace(packagingContext.err);
             EventQueue.invokeLater(() -> {
                 progressDialog.setFailed();
             });
         }
-
-
-
-
-
-
-
-
-
-
-
-
     }
 
-
+    private JDialog createProgressDialog(String title, String message) {
+        JDialog dialog = new JDialog(frame, title, true);
+        dialog.setLayout(new FlowLayout());
+        dialog.add(new JLabel(message));
+        JProgressBar progressBar = progressBar = new JProgressBar();
+        progressBar.setIndeterminate(true);
+        dialog.add(progressBar);
+        dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+        dialog.pack();
+        dialog.setLocationRelativeTo(frame);
+        dialog.setModal(false);
+        return dialog;
+    }
+    
+    private DownloadPageSettings loadDownloadPageSettings() {
+        DownloadPageSettingsService service = DIContext.get(DownloadPageSettingsService.class);
+        return service.read(packageJSON);
+    }
+    
+    private void saveDownloadPageSettings(DownloadPageSettings settings) {
+        DownloadPageSettingsService service = DIContext.get(DownloadPageSettingsService.class);
+        service.write(settings, packageJSON);
+    }
 }

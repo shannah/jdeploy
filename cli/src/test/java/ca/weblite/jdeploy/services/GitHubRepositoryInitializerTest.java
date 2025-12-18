@@ -25,6 +25,7 @@ class GitHubRepositoryInitializerTest {
 
     @BeforeEach
     public void setUp() throws Exception {
+        applyAssumptions();
         parentDirectory = Files.createTempDirectory("jdeploy-test").toFile();
         FileUtils.writeStringToFile(new File(parentDirectory, "package.json"), "{}", "UTF-8");
         gitHubRepositoryInitializer = DIContext.getInstance().getInstance(GitHubRepositoryInitializer.class);
@@ -32,6 +33,7 @@ class GitHubRepositoryInitializerTest {
 
     @AfterEach
     public void tearDown() throws Exception {
+        applyAssumptions();
         if (parentDirectory != null && parentDirectory.exists()) {
             FileUtils.deleteDirectory(parentDirectory);
         }
@@ -40,18 +42,21 @@ class GitHubRepositoryInitializerTest {
 
     @Test
     public void testInitAndPublish() throws Exception {
-        Assumptions.assumeTrue(
-                System.getenv("GH_TOKEN") != null,
-                "GH_TOKEN is not provided");
-        Assumptions.assumeTrue(
-                System.getenv("GH_TOKEN").startsWith("ghp_"),
-                "GH_TOKEN is not personal access token");
-
+        applyAssumptions();
         GitHubRepositoryInitializationRequestBuilder params = (GitHubRepositoryInitializationRequestBuilder)
                 new GitHubRepositoryInitializationRequestBuilder()
                 .setRepoName(repoName)
                 .setProjectPath(parentDirectory.getPath());
 
         gitHubRepositoryInitializer.initAndPublish(params.build());
+    }
+
+    private void applyAssumptions() {
+        Assumptions.assumeTrue(
+                System.getenv("GH_TOKEN") != null,
+                "GH_TOKEN is not provided");
+        Assumptions.assumeTrue(
+                System.getenv("GH_TOKEN").startsWith("ghp_"),
+                "GH_TOKEN is not personal access token");
     }
 }

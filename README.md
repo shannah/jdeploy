@@ -54,7 +54,7 @@ jobs:
       - name: Build with Maven
         run: mvn -B package --file pom.xml
       - name: Build App Installer Bundles
-        uses: actions/jdeploy@master
+        uses: shannah/jdeploy@master
         with:
           github_token: ${{ github.token }}
 ```

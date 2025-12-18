@@ -18,8 +18,6 @@ public class NPMPackage {
         return packageInfo.getString("name");
     }
 
-
-
     private static boolean isPrerelease(String version) {
         if (!version.contains("-")) return false;
         String lcVersion = version.toLowerCase();
@@ -99,16 +97,24 @@ public class NPMPackage {
     }
 
     public NPMPackageVersion getLatestVersion(boolean prerelease, String semVer) {
-        if (semVer.startsWith("0.0.0-")) {
-            if (packageInfo.getJSONObject("versions").has(semVer)) {
-                return new NPMPackageVersion(this, semVer, packageInfo.getJSONObject("versions").getJSONObject(semVer));
+        // Normalize semVer by stripping "v" prefix for version lookups
+        // This ensures "v2.0.36" matches "2.0.36" in package-info.json
+        // Only strip "v" if followed by a digit to avoid breaking special versions like "vnext"
+        String normalizedSemVer = semVer;
+        if (semVer != null && semVer.startsWith("v") && semVer.length() > 1 && Character.isDigit(semVer.charAt(1))) {
+            normalizedSemVer = semVer.substring(1);
+        }
+
+        if (normalizedSemVer != null && normalizedSemVer.startsWith("0.0.0-")) {
+            if (packageInfo.getJSONObject("versions").has(normalizedSemVer)) {
+                return new NPMPackageVersion(this, normalizedSemVer, packageInfo.getJSONObject("versions").getJSONObject(normalizedSemVer));
             } else {
                 return null;
             }
         }
         String versionNumber = null;
-        if (semVer == null) semVer = "latest";
-        if (prerelease && "latest".equals(semVer)) {
+        if (normalizedSemVer == null) normalizedSemVer = "latest";
+        if (prerelease && "latest".equals(normalizedSemVer)) {
             versionNumber = packageInfo.getJSONObject("dist-tags").getString("latest");
         } else {
             //JSONObject versions = packageInfo.getJSONObject("versions");
@@ -118,12 +124,12 @@ public class NPMPackage {
             for (String v : sortedVersions(packageInfo)) {
 
                 //String v = keys.next();
-                if (v.equals(semVer)) {
+                if (v.equals(normalizedSemVer)) {
                     // Exact match matches regardless of prerelease settings.
                     versionNumber = v;
                     break;
                 }
-                boolean matches = versionMatches(v, semVer);
+                boolean matches = versionMatches(v, normalizedSemVer);
 
                 if (matches && (prerelease || !isPrerelease(v))) {
                     versionNumber = v;
@@ -135,7 +141,4 @@ public class NPMPackage {
         }
         return new NPMPackageVersion(this, versionNumber, packageInfo.getJSONObject("versions").getJSONObject(versionNumber));
     }
-
-
-
 }

@@ -9,6 +9,8 @@ import javafx.scene.image.Image;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 
+import java.io.File;
+
 /**
  * The FXApplication class used to launch JavaFX.
  */
@@ -27,6 +29,18 @@ public class FXApplication extends Application {
         // before JavaFX is initialized.  This flag is used to ensure that
         // we don't use JavaFX until it is ready.
         FXUI.initialized = true;
+
+        // Set window icon
+        File iconFile = installationForm.installationSettings.getApplicationIcon();
+        if (iconFile != null && iconFile.exists()) {
+            try {
+                Image icon = new Image(iconFile.toURI().toURL().toExternalForm());
+                stage.getIcons().add(icon);
+            } catch (Exception ex) {
+                // Log but don't fail - fall back to default icon
+                System.err.println("Warning: Could not load application icon for installer window: " + ex.getMessage());
+            }
+        }
 
         // Create an "Install" button that the user presses to proceed with installation.
         install = new Button("Install");

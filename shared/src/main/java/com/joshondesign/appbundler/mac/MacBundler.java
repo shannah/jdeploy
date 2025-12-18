@@ -5,6 +5,7 @@ import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.IOUtil;
 import ca.weblite.tools.io.URLUtil;
 import ca.weblite.tools.platform.Platform;
+import ca.weblite.tools.security.CertificateUtil;
 import com.client4j.publisher.server.SigningRequest;
 import com.github.gino0631.icns.IcnsBuilder;
 import com.github.gino0631.icns.IcnsType;
@@ -14,9 +15,11 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.URL;
 import java.nio.file.Paths;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
 import java.text.MessageFormat;
-import java.util.Iterator;
-import java.util.Scanner;
+import java.util.*;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
@@ -27,12 +30,20 @@ public class MacBundler {
     public static int verboseLevel = Bundler.verboseLevel;
     private static final String OSNAME = "mac";
 
+    private static final boolean useNotaryToolForNotarization = true;
+
     public enum TargetArchitecture {
         X64,
         ARM64
     }
 
-    public static BundlerResult start(BundlerSettings bundlerSettings, TargetArchitecture targetArchitecture, AppDescription app, String dest_dir, String releaseDir) throws Exception {
+    public static BundlerResult start(
+            BundlerSettings bundlerSettings,
+            TargetArchitecture targetArchitecture,
+            AppDescription app,
+            String dest_dir,
+            String releaseDir
+    ) throws Exception {
         String OSNAME_WITH_ARCH = OSNAME+"-" + targetArchitecture.name().toLowerCase();
         verboseLevel = Bundler.verboseLevel;
         File destDir = new File(dest_dir+"/"+OSNAME_WITH_ARCH+"/");
@@ -64,14 +75,14 @@ public class MacBundler {
                 if(ifile.exists()) {
                     processIcon(app, contentsDir, ext, ifile);
                 }
-                
             }
         }
         processInfoPlist(app,contentsDir);
         processAppXml(app, contentsDir);
         Bundler.copyStream(
                 MacBundler.class.getResourceAsStream("PkgInfo.txt"),
-                new FileOutputStream(new File(contentsDir,"PkgInfo")));
+                new FileOutputStream(new File(contentsDir,"PkgInfo"))
+        );
 
         InputStream stub_path = getClient4JLauncherResource(targetArchitecture);
         File stub_dest = new File(contentsDir,"MacOS/Client4JLauncher");
@@ -79,7 +90,11 @@ public class MacBundler {
 
         stub_dest.setExecutable(true, false);
 
-        SigningRequest signingRequest = new SigningRequest(app.getMacDeveloperID(), app.getMacCertificateName(), app.getMacNotarizationPassword());
+        SigningRequest signingRequest = new SigningRequest(
+                app.getMacDeveloperID(),
+                app.getMacCertificateName(),
+                app.getMacNotarizationPassword()
+        );
         signingRequest.setCodesign(app.isMacCodeSigningEnabled());
         signingRequest.setNotarize(app.isMacNotarizationEnabled());
         signingRequest.setBundleId(app.getMacBundleId());
@@ -99,6 +114,13 @@ public class MacBundler {
                 ex.printStackTrace();
             }
 
+            if (app.getBundleJre() != null && app.getBundleJre().exists()) {
+                MacOSFileHandler.copyOrExtract(
+                        app.getBundleJre().getAbsolutePath(),
+                        Paths.get(contentsDir.getPath(), "jre").toString()
+                );
+            }
+
             if (app.isMacCodeSigningEnabled()) {
                 System.out.println("Signing "+appDir.getAbsolutePath());
 
@@ -106,7 +128,10 @@ public class MacBundler {
                 if (!entitlementsFile.exists()) {
                     entitlementsFile = File.createTempFile("jdeploy.mac.bundle", ".entitlements");
                     entitlementsFile.deleteOnExit();
-                    FileUtils.copyInputStreamToFile(MacBundler.class.getResourceAsStream("mac.bundle.entitlements"), entitlementsFile);
+                    FileUtils.copyInputStreamToFile(
+                            MacBundler.class.getResourceAsStream("mac.bundle.entitlements"),
+                            entitlementsFile
+                    );
                 }
                 {
                     ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign",
@@ -150,30 +175,46 @@ public class MacBundler {
         releaseFileName = releaseFileName.replaceAll("\\s+", ".");
         File releaseFile = new File(releaseDestDir, releaseFileName);
         releaseDestDir.mkdirs();
-        
         Util.compressAsTarGz(releaseFile, appDir);
+
         if (Platform.getSystemPlatform().isMac() && app.isMacCodeSigningEnabled() && app.isMacNotarizationEnabled()) {
             System.out.println("Attempting to notarize app.");
+
             // Notarization can only be enabled if the app is signed.
             if (app.isMacNotarizationEnabled()) {
-                ProcessBuilder pb = new ProcessBuilder("/usr/bin/xcrun", 
-                        "altool", 
-                        "--notarize-app", 
-                        "--primary-bundle-id", 
-                        app.getMacBundleId(),
-                        "--username",
-                        app.getMacDeveloperID(),
-                        "--password",
-                        app.getMacNotarizationPassword(),
-                        "--file",
-                        releaseFile.getAbsolutePath()
-                );
-                pb.inheritIO();
-                Process p = pb.start();
-                int exitCode = p.waitFor();
-                if (exitCode != 0) {
-                    throw new RuntimeException("Notarization failed with exit code "+exitCode);
+                if (useNotaryToolForNotarization) {
+                    NotaryTool notaryTool = new NotaryTool();
+                    notaryTool.notarizeApp(
+                            appDir.getAbsolutePath(),
+                            app.getMacDeveloperID(),
+                            app.getMacNotarizationPassword(),
+                            app.getMacDeveloperTeamID()
+                    );
+                    if (releaseFile.exists()) {
+                        releaseFile.delete();
+                    }
+                    Util.compressAsTarGz(releaseFile, appDir);
+                } else {
+                    ProcessBuilder pb = new ProcessBuilder("/usr/bin/xcrun",
+                            "altool",
+                            "--notarize-app",
+                            "--primary-bundle-id",
+                            app.getMacBundleId(),
+                            "--username",
+                            app.getMacDeveloperID(),
+                            "--password",
+                            app.getMacNotarizationPassword(),
+                            "--file",
+                            releaseFile.getAbsolutePath()
+                    );
+                    pb.inheritIO();
+                    Process p = pb.start();
+                    int exitCode = p.waitFor();
+                    if (exitCode != 0) {
+                        throw new RuntimeException("Notarization failed with exit code "+exitCode);
+                    }
                 }
+
             }
         }
         out.addReleaseFile(releaseFile);
@@ -200,22 +241,80 @@ public class MacBundler {
             app.setIconDataURI("");
         }
         if (app.getNpmPackage() != null && app.getNpmVersion() != null) {
-
-            out.start("app",
-                    "name", app.getName(),
-                    "package", app.getNpmPackage(),
-                    "source", app.getNpmSource(),
-                    "version", app.getNpmVersion(),
-                    "icon", app.getIconDataURI(),
-                    "prerelease", app.isNpmPrerelease() ? "true" : "false",
-                    "fork", ""+app.isFork()
-            ).end();
+            out.start("app", getNpmAppAttributes(app)).end();
         } else {
             out.start("app", "name", app.getName(), "url", app.getUrl(), "icon", app.getIconDataURI()).end();
         }
         out.close();
     }
-    
+
+    private static String[] getNpmAppAttributes(AppDescription app) {
+
+        List<String> atts = new ArrayList<String>(Arrays.asList(new String[] {
+                "name", app.getName(),
+                "package", app.getNpmPackage(),
+                "source", app.getNpmSource(),
+                "version", app.getNpmVersion(),
+                "icon", app.getIconDataURI(),
+                "prerelease", app.isNpmPrerelease() ? "true" : "false",
+                "registry-url", app.getJDeployRegistryUrl(),
+                "fork", ""+app.isFork()
+        }));
+
+        if (app.getSplashDataURI() != null && !app.getSplashDataURI().isEmpty()) {
+            atts.add("splash");
+            atts.add(app.getSplashDataURI());
+        }
+
+        if (app.getjDeployHome() != null || app.getjDeployHomeMac() != null) {
+            atts.add("jdeploy-home");
+            atts.add(app.getjDeployHomeMac() == null ? app.getjDeployHome() : app.getjDeployHomeMac());
+        }
+        if (app.isPackageCertificatePinningEnabled()) {
+            atts.add("certificate-pinning");
+            atts.add("enabled");
+            if (app.getTrustedCertificates() != null && !app.getTrustedCertificates().isEmpty()) {
+                atts.add("trusted-certificates");
+                StringBuilder chainValue = new StringBuilder();
+                for (Certificate certificate : app.getTrustedCertificates()) {
+                    try {
+                        chainValue.append(CertificateUtil.toPemEncodedString(certificate));
+                        chainValue.append("\n");
+                    } catch (CertificateEncodingException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+
+                atts.add(chainValue.toString());
+
+                atts.add("trusted-sha1-fingerprints");
+                chainValue.setLength(0);
+                for (Certificate certificate : app.getTrustedCertificates()) {
+                    try {
+                        chainValue.append(CertificateUtil.getSHA1Fingerprint(certificate));
+                        chainValue.append("\n");
+                    } catch (CertificateEncodingException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+            } else {
+                throw new IllegalArgumentException("Certificate pinning is enabled but there are not trusted certificates specified");
+            }
+        }
+
+        if (app.getLauncherVersion() != null && !app.getLauncherVersion().isEmpty()) {
+            atts.add("launcher-version");
+            atts.add(app.getLauncherVersion());
+        }
+
+        if (app.getInitialAppVersion() != null && !app.getInitialAppVersion().isEmpty()) {
+            atts.add("initial-app-version");
+            atts.add(app.getInitialAppVersion());
+        }
+
+        return atts.toArray(new String[0]);
+    }
+
     private static void createThumbnail(File f, File contentsDir, int size) throws IOException {
         Thumbnails.of(f)
                 .size(size, size)
@@ -440,9 +539,36 @@ public class MacBundler {
                 if(icon != null) {
                     out.start("key").text("CFBundleTypeIconFile").end();
                     File ifile = new File(icon);
-                    System.out.println("doing icon: " + ifile.getAbsolutePath());
                     out.start("string").text(ifile.getName()).end();
                     //copy over the icon
+                }
+            out.end().end();
+        }
+
+        // Directory associations
+        if (app.hasDirectoryAssociation()) {
+            String role = app.getDirectoryRole();
+
+            out.start("key").text("CFBundleDocumentTypes").end();
+            out.start("array").start("dict");
+                // Use LSItemContentTypes for folder handling
+                out.start("key").text("LSItemContentTypes").end();
+                out.start("array");
+                    out.start("string").text("public.folder").end();
+                out.end();
+
+                out.start("key").text("CFBundleTypeName").end();
+                out.start("string").text("Folder").end();
+
+                out.start("key").text("CFBundleTypeRole").end();
+                out.start("string").text(role).end();
+
+                // Optional: Custom icon for folders
+                String dirIcon = app.getDirectoryIcon();
+                if (dirIcon != null) {
+                    out.start("key").text("CFBundleTypeIconFile").end();
+                    File ifile = new File(dirIcon);
+                    out.start("string").text(ifile.getName()).end();
                 }
             out.end().end();
         }
@@ -484,6 +610,10 @@ public class MacBundler {
         out.start("key").text("CFBundleInfoDictionaryVersion").end().start("string").text("6.0").end();
         out.start("key").text("CFBundleIconFile").end().start("string").text("icon.icns").end();
         out.start("key").text("NSHighResolutionCapable").end().start("true").end();
+        for (Map.Entry<String,String> usageDescriptionEntry : app.getMacUsageDescriptions().entrySet()) {
+            out.start("key").text(usageDescriptionEntry.getKey()).end();
+            out.start("string").text(usageDescriptionEntry.getValue()).end();
+        }
         out.end().end(); //dict, plist
         out.close();
         fixPlistXML(new File(contentsDir, "Info.plist"));

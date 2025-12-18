@@ -6,6 +6,8 @@ import ca.weblite.jdeploy.openai.interop.ChatThreadDispatcher;
 import ca.weblite.jdeploy.openai.interop.UiThreadDispatcher;
 import ca.weblite.jdeploy.project.service.DefaultProjectLoader;
 import ca.weblite.jdeploy.project.service.ProjectLoader;
+import ca.weblite.jdeploy.publishTargets.PublishTargetService;
+import ca.weblite.jdeploy.publishTargets.PublishTargetServiceInterface;
 import org.codejargon.feather.Provides;
 
 public class JDeployCliModule {
@@ -24,4 +26,10 @@ public class JDeployCliModule {
     public ProjectLoader projectLoader(DefaultProjectLoader impl) {
         return impl;
     }
+
+    @Provides
+    public PublishTargetServiceInterface publishTargetServiceInterface(PublishTargetService impl) {
+        return impl;
+    }
+
 }

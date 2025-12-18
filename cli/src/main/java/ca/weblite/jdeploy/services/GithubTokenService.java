@@ -16,4 +16,8 @@ public class GithubTokenService {
     public String getToken() {
         return config.getToken();
     }
+
+    public void setToken(String token) {
+        config.setToken(token);
+    }
 }

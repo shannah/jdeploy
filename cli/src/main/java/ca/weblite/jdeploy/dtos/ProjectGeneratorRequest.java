@@ -23,6 +23,8 @@ public class ProjectGeneratorRequest {
 
     private final boolean privateRepository;
 
+    private final boolean useExistingDirectory;
+
     public File getParentDirectory() {
         return parentDirectory;
     }
@@ -71,6 +73,10 @@ public class ProjectGeneratorRequest {
         return privateRepository;
     }
 
+    public boolean isUseExistingDirectory() {
+        return useExistingDirectory;
+    }
+
     public interface Params {
 
         @CommandLineParser.Help("The github repository to use.  E.g. \"username/repo\".  If not specified, will be inferred from the package name and project name.")
@@ -79,6 +85,10 @@ public class ProjectGeneratorRequest {
         @CommandLineParser.Help("Whether the repository should be private")
         @CommandLineParser.Alias("p")
         boolean isPrivateRepository();
+
+        @CommandLineParser.Help("Use existing directory")
+        @CommandLineParser.Alias("e")
+        boolean isUseExistingDirectory();
 
         @CommandLineParser.PositionalArg(1)
         @CommandLineParser.Help("The fully-qualified main class name.  If not specified, will be inferred from the package name and project name.")
@@ -151,6 +161,8 @@ public class ProjectGeneratorRequest {
 
         Params setPrivateRepository(boolean privateRepository);
 
+        Params setUseExistingDirectory(boolean useExistingDirectory);
+
         Params setExtensions(String[] extensions);
 
         Params setWithCheerpj(boolean withCheerpj);
@@ -170,6 +182,7 @@ public class ProjectGeneratorRequest {
         this.extensions = params.getExtensions();
         this.githubRepository = params.getGithubRepository();
         this.privateRepository = params.isPrivateRepository();
+        this.useExistingDirectory = params.isUseExistingDirectory();
     }
 }
 

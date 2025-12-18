@@ -106,7 +106,13 @@ class ProjectGeneratorTest {
     @Test
     public void testGenerateJavafx() throws Exception{
         Assumptions.assumeTrue(getJavaVersion() >= 17, "Java version is less than 17");
-
+        // Skip if the platform is Windows ARM
+        String os = System.getProperty("os.name").toLowerCase();
+        String arch = System.getProperty("os.arch").toLowerCase();
+        Assumptions.assumeTrue(
+                !(os.contains("windows") && (arch.contains("arm") || arch.contains("aarch64"))),
+                "Test is skipped on Windows ARM"
+        );
         ProjectGeneratorRequestBuilder params = new ProjectGeneratorRequestBuilder();
         params.setMagicArg("com.mycompany.myapp.Main");
         params.setParentDirectory(parentDirectory);

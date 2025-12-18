@@ -79,28 +79,41 @@
                 </executions>
             </plugin>
 
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.22.0</version>
-                <dependencies>
-                    <dependency>
-                        <groupId>org.junit.platform</groupId>
-                        <artifactId>junit-platform-surefire-provider</artifactId>
-                        <version>1.2.0</version>
-                    </dependency>
-                </dependencies>
-                <configuration>
-                    <additionalClasspathElements>
-                        <additionalClasspathElement>src/test/java/</additionalClasspathElement>
-                    </additionalClasspathElements>
-                </configuration>
+                <version>3.0.0-M8</version>
             </plugin>
-
 
         </plugins>
     </build>
     <dependencies>
+
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.5.14</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpcore</artifactId>
+            <version>4.4.14</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.nanohttpd</groupId>
+            <artifactId>nanohttpd</artifactId>
+            <version>2.3.1</version>
+        </dependency>
+
+
+        <!-- https://mvnrepository.com/artifact/com.vdurmont/semver4j -->
+        <dependency>
+            <groupId>com.vdurmont</groupId>
+            <artifactId>semver4j</artifactId>
+            <version>2.0.1</version>
+        </dependency>
 
         <dependency>
             <groupId>ca.weblite</groupId>
@@ -133,6 +146,11 @@
         </dependency>
         <dependency>
             <groupId>ca.weblite.jdeploy</groupId>
+            <artifactId>jdeploy-installer-template-win-arm64</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>ca.weblite.jdeploy</groupId>
             <artifactId>jdeploy-installer-template-mac-amd64</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
@@ -144,6 +162,11 @@
         <dependency>
             <groupId>ca.weblite.jdeploy</groupId>
             <artifactId>jdeploy-installer-template-linux-amd64</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>ca.weblite.jdeploy</groupId>
+            <artifactId>jdeploy-installer-template-linux-arm64</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
@@ -160,6 +183,11 @@
             <groupId>org.eclipse.jgit</groupId>
             <artifactId>org.eclipse.jgit</artifactId>
             <version>5.13.0.202109080827-r</version>
+        </dependency>
+        <dependency>
+            <groupId>com.jgoodies</groupId>
+            <artifactId>jgoodies-forms</artifactId>
+            <version>1.9.0</version> <!-- Use the latest version -->
         </dependency>
 
         <dependency>
@@ -219,21 +247,32 @@
 
         <!-- https://mvnrepository.com/artifact/com.github.alphazero/Blake2b -->
         <dependency>
-            <groupId>com.github.alphazero</groupId>
-            <artifactId>Blake2b</artifactId>
-            <version>bbf094983c</version>
+            <groupId>ca.weblite.jdeploy</groupId>
+            <artifactId>blake2b</artifactId>
+            <version>1.0.0</version>
         </dependency>
+
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <version>5.2.0</version>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.9.3</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- JUnit Vintage Engine to run JUnit 4 tests -->
         <dependency>
-            <groupId>org.junit.platform</groupId>
-            <artifactId>junit-platform-runner</artifactId>
-            <version>1.2.0</version>
+            <groupId>org.junit.vintage</groupId>
+            <artifactId>junit-vintage-engine</artifactId>
+            <version>5.9.3</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- JUnit 4 (for JUnit 4 tests) -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
 
@@ -268,5 +307,53 @@
 
 
     </dependencies>
+
+    <profiles>
+        <!-- Profile for JDK 8 -->
+        <profile>
+            <id>jdk8</id>
+            <activation>
+                <jdk>[1.8,21)</jdk>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-core</artifactId>
+                    <version>${mockito.version.jdk8}</version>
+                    <scope>test</scope>
+                </dependency>
+                <!-- add support for Mockito extensions in tests -->
+                <dependency>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-junit-jupiter</artifactId>
+                    <version>${mockito.version.jdk8}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+
+        <!-- Profile for JDK 21 -->
+        <profile>
+            <id>jdk21</id>
+            <activation>
+                <jdk>[21,)</jdk>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-core</artifactId>
+                    <version>${mockito.version.jdk21}</version>
+                    <scope>test</scope>
+                </dependency>
+                <!-- add support for Mockito extensions in tests -->
+                <dependency>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-junit-jupiter</artifactId>
+                    <version>${mockito.version.jdk21}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 
 </project>

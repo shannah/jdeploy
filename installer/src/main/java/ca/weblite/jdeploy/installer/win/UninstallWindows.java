@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.win;
 
+import ca.weblite.jdeploy.installer.util.PackagePathResolver;
 import ca.weblite.tools.io.MD5;
 import org.apache.commons.io.FileUtils;
 
@@ -21,7 +22,13 @@ public class UninstallWindows {
 
     private String appFileName;
 
-    public UninstallWindows(String packageName, String source, String version, String appTitle, InstallWindowsRegistry installer) {
+    public UninstallWindows(
+            String packageName,
+            String source,
+            String version,
+            String appTitle,
+            InstallWindowsRegistry installer
+    ) {
         this.packageName = packageName;
         this.source = source;
         this.version = version;
@@ -39,19 +46,9 @@ public class UninstallWindows {
     }
 
     private File getPackagePath() {
-        if (source == null || source.isEmpty()) {
-            if (version == null) {
-                return new File(getJDeployHome(), "packages" + File.separator + new File(packageName).getName());
-            } else {
-                return new File(getJDeployHome(), "packages" + File.separator + new File(packageName).getName() + File.separator + new File(version).getName());
-            }
-        }
-
-        if (version == null) {
-            return new File(getJDeployHome(), "gh-packages" + MD5.getMd5(source) + "." + packageName);
-        } else {
-            return new File(getJDeployHome(), "gh-packages" + MD5.getMd5(source) + "." + packageName + File.separator + new File(version).getName());
-        }
+        // Use the new PackagePathResolver which checks architecture-specific paths first,
+        // then falls back to legacy paths for backward compatibility
+        return PackagePathResolver.resolvePackagePath(packageName, version, source);
     }
 
     private File getStartMenuPath() {
@@ -63,20 +60,23 @@ public class UninstallWindows {
                 "Start Menu");
     }
 
-    private File getStartMenuLink() {
-        return new File(getStartMenuPath(), new File(appFileName).getName() + ".lnk");
+    private File getStartMenuLink(String suffix) {
+        return new File(getStartMenuPath(), new File(appFileName + suffix).getName() + ".lnk");
     }
 
     private File getProgramsMenuPath() {
         return new File(getStartMenuPath(), "Programs");
     }
 
-    private File getProgramsMenuLink() {
-        return new File(getProgramsMenuPath(), new File(appFileName).getName() + ".lnk");
+    private File getProgramsMenuLink(String suffix) {
+        return new File(getProgramsMenuPath(), new File(appFileName + suffix).getName() + ".lnk");
     }
 
-    private File getDesktopLink() {
-        return new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + new File(appFileName).getName() + ".lnk");
+    private File getDesktopLink(String suffix) {
+        return new File(
+                System.getProperty("user.home") + File.separator +
+                        "Desktop" + File.separator + new File(appFileName + suffix).getName() + ".lnk"
+        );
     }
 
     private File getAppDirPath() {
@@ -99,7 +99,12 @@ public class UninstallWindows {
         List<File> out = new ArrayList<>();
         if (version == null && getPackagePath().exists())  {
             for (File child : getPackagePath().listFiles()) {
-                if (child.isDirectory() && !child.getName().isEmpty() && Character.isDigit(child.getName().charAt(0))) {
+                if (
+                        child.isDirectory() &&
+                                !child.getName().isEmpty() &&
+                                Character.isDigit(child.getName().charAt(0)) &&
+                                !child.getName().startsWith("0.0.0-")
+                ) {
                     out.add(child);
                 }
             }
@@ -113,43 +118,109 @@ public class UninstallWindows {
     }
 
     private void deletePackage() throws IOException {
-        for (File versionDir : getVersionDirectories()) {
-            if (versionDir.exists()) {
-                FileUtils.deleteDirectory(versionDir);
+        // Delete from all possible locations (architecture-specific and legacy)
+        File[] allPossiblePaths = PackagePathResolver.getAllPossiblePackagePaths(packageName, version, source);
+
+        for (File possiblePath : allPossiblePaths) {
+            if (version == null && possiblePath.exists()) {
+                // Delete all version subdirectories
+                for (File child : possiblePath.listFiles()) {
+                    if (child.isDirectory() &&
+                            !child.getName().isEmpty() &&
+                            Character.isDigit(child.getName().charAt(0)) &&
+                            !child.getName().startsWith("0.0.0-")) {
+                        System.out.println("Deleting version dir: " + child.getAbsolutePath());
+                        FileUtils.deleteDirectory(child);
+                    }
+                }
+            } else if (possiblePath.exists()) {
+                // Delete specific version directory
+                System.out.println("Deleting version dir: " + possiblePath.getAbsolutePath());
+                FileUtils.deleteDirectory(possiblePath);
+            }
+        }
+    }
+
+    private void cleanupPackageDir() throws IOException {
+        // Clean up both architecture-specific and legacy package directories if empty
+        File[] allPossiblePaths = PackagePathResolver.getAllPossiblePackagePaths(packageName, version, source);
+
+        for (File packageDir : allPossiblePaths) {
+            if (version != null && packageDir.getParentFile() != null) {
+                packageDir = packageDir.getParentFile();
+            }
+
+            // Don't delete the root packages/gh-packages directories
+            if (packageDir.getName().equals("packages") ||
+                    packageDir.getName().startsWith("packages-") ||
+                    packageDir.getName().equals("gh-packages") ||
+                    packageDir.getName().startsWith("gh-packages-")) {
+                continue;
+            }
+
+            if (packageDir.exists()) {
+                int numVersionDirectoriesRemaining = 0;
+                File[] children = packageDir.listFiles();
+                if (children != null) {
+                    for (File child : children) {
+                        if (child.isDirectory()) {
+                            numVersionDirectoriesRemaining++;
+                        }
+                    }
+                }
+
+                if (numVersionDirectoriesRemaining == 0) {
+                    System.out.println("Deleting package dir: " + packageDir.getAbsolutePath());
+                    FileUtils.deleteDirectory(packageDir);
+                }
             }
         }
     }
 
     private void deleteApp() throws IOException {
         if (getAppDirPath().exists()) {
+            System.out.println("Deleting app dir: "+getAppDirPath().getAbsolutePath());
             FileUtils.deleteDirectory(getAppDirPath());
         }
     }
 
     private void scheduleDeleteUninstaller() throws IOException {
         //cmd.exe /C TIMEOUT 10 && del "{your uninstaller path}"
-        Runtime.getRuntime().exec("cmd.exe /C TIMEOUT 5 && rd /s /q \""+getUninstallerPath().getParentFile().getAbsolutePath()+"\"");
-        //Runtime.getRuntime().exec(new String[]{"cmd.exe", "/C", "TIMEOUT", "5", )
+        Runtime
+                .getRuntime()
+                .exec(
+                        "cmd.exe /C TIMEOUT 5 && rd /s /q \"" +
+                                getUninstallerPath().getParentFile().getAbsolutePath() + "\""
+                );
     }
 
 
 
 
     private void removeDesktopAlias() {
-        if (getDesktopLink().exists()) {
-            getDesktopLink().delete();
+        for (String suffix : new String[]{"", InstallWindows.RUN_AS_ADMIN_SUFFIX}) {
+            if (getDesktopLink(suffix).exists()) {
+                System.out.println("Deleting desktop link: "+getDesktopLink(suffix).getAbsolutePath());
+                getDesktopLink(suffix).delete();
+            }
         }
     }
 
     private void removeStartMenuLink() {
-        if (getStartMenuLink().exists()) {
-            getStartMenuLink().delete();
+        for (String suffix : new String[]{"", InstallWindows.RUN_AS_ADMIN_SUFFIX}) {
+            if (getStartMenuLink(suffix).exists()) {
+                System.out.println("Deleting start menu link: " + getStartMenuLink(suffix).getAbsolutePath());
+                getStartMenuLink(suffix).delete();
+            }
         }
     }
 
     private void removeProgramsMenuLink() {
-        if (getProgramsMenuLink().exists()) {
-            getProgramsMenuLink().delete();
+        for (String suffix : new String[]{"", InstallWindows.RUN_AS_ADMIN_SUFFIX}) {
+            if (getProgramsMenuLink(suffix).exists()) {
+                System.out.println("Deleting programs menu link: " + getProgramsMenuLink(suffix).getAbsolutePath());
+                getProgramsMenuLink(suffix).delete();
+            }
         }
     }
 
@@ -159,6 +230,7 @@ public class UninstallWindows {
         removeProgramsMenuLink();
         removeStartMenuLink();
         deletePackage();
+        cleanupPackageDir();
         deleteApp();
         installWindowsRegistry.unregister(null);
         File uninstallerJDeployFiles = new File(getUninstallerPath().getParentFile(), ".jdeploy-files");

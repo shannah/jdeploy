@@ -1,0 +1,13 @@
+!/com/joshondesign/appbundler/win/x64
+/com/joshondesign/appbundler/linux/arm64
+/com/joshondesign/appbundler/linux/x64
+/com/joshondesign/appbundler/mac/arm64
+/com/joshondesign/appbundler/mac/x64
+/com/joshondesign/appbundler/win/arm64
+/com/sun/jna/linux-*
+/com/sun/jna/openbsd-*
+/com/sun/jna/win32-aarch64
+/com/sun/jna/win32-x86
+/com/sun/jna/darwin-*
+/com/sun/jna/sunos-*
+/com/sun/jna/freebsd-*

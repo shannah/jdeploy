@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.cli.controllers;
 
+import ca.weblite.jdeploy.http.StaticFileServer;
 import ca.weblite.jdeploy.services.CheerpjService;
 
 import java.io.File;
@@ -36,8 +37,17 @@ public class CheerpjController extends BaseController implements Runnable {
         try {
             CheerpjService cheerpjService = getCheerpjService();
             if (args != null) cheerpjService.setArgs(args);
-            cheerpjService.execute();
+            CheerpjService.Result result = cheerpjService.execute();
+            StaticFileServer server = result.server;
             out.println("Web app created in jdeploy/cheerpj directory");
+            if (server != null) {
+                out.println("Serving at http://localhost:" + server.getListeningPort());
+                System.out.println("Press ENTER to stop the server...");
+
+                System.in.read(); // Wait for user input
+                server.stop();
+                System.out.println("Server stopped.");
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }

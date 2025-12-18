@@ -1,0 +1,135 @@
+name: Test Action on Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      jdeploy_version:
+        description: 'jDeploy version to test (e.g., 5.5.1 or git://master)'
+        required: false
+        default: 'git://fix/320-github-action-windows-runner-support'
+
+jobs:
+  test-windows-runner:
+    name: Test jDeploy Action Scripts on Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout test repository
+        uses: actions/checkout@v3
+
+      - name: Display runner information
+        shell: bash
+        run: |
+          echo "Runner OS: $RUNNER_OS"
+          echo "Runner architecture: $RUNNER_ARCH"
+          echo "GitHub workspace: $GITHUB_WORKSPACE"
+          echo "GitHub action path (simulated): D:\\a\\_actions\\shannah\\jdeploy\\master"
+          which bash
+          bash --version
+
+      - name: Test path quoting with action_path simulation
+        shell: bash
+        run: |
+          # Simulate what github.action_path would return on Windows
+          ACTION_PATH="D:\\a\\_actions\\shannah\\jdeploy\\master"
+
+          echo "=== Testing UNQUOTED path (should fail) ==="
+          echo "Unquoted path command would be:"
+          echo "chmod +x $ACTION_PATH/.github/scripts/download-jdeploy-baseline.sh"
+          echo "This expands to:"
+          # Don't actually run it, just show what happens
+          echo "$ACTION_PATH/.github/scripts/download-jdeploy-baseline.sh" | cat -v
+
+          echo ""
+          echo "=== Testing QUOTED path (should work) ==="
+          echo "Quoted path command would be:"
+          echo "chmod +x \"$ACTION_PATH/.github/scripts/download-jdeploy-baseline.sh\""
+          echo "This expands to:"
+          echo "\"$ACTION_PATH/.github/scripts/download-jdeploy-baseline.sh\"" | cat -v
+
+      - name: Test actual script execution with proper quoting
+        shell: bash
+        run: |
+          # Use actual github.action_path to test the scripts
+          # We'll test that the scripts are accessible and executable
+          echo "Testing script accessibility..."
+
+          # Create a minimal test - just verify the scripts exist and can be made executable
+          TEST_SCRIPT=".github/scripts/download-jdeploy-baseline.sh"
+
+          if [ -f "$TEST_SCRIPT" ]; then
+            echo "✓ Script found: $TEST_SCRIPT"
+            chmod +x "$TEST_SCRIPT"
+            echo "✓ chmod succeeded with quoted path"
+
+            # Test that we can at least invoke it with --help or see usage
+            # (it will fail without proper args, but that's expected)
+            if "$TEST_SCRIPT" 2>&1 | grep -q "Usage:"; then
+              echo "✓ Script is executable and shows usage"
+            else
+              echo "✓ Script is executable (error message is expected without args)"
+            fi
+          else
+            echo "✗ Script not found: $TEST_SCRIPT"
+            exit 1
+          fi
+
+      - name: Create test package.json for jDeploy
+        shell: bash
+        run: |
+          cat > package.json << 'EOF'
+          {
+            "name": "test-windows-action",
+            "version": "1.0.0",
+            "description": "Test package for Windows action verification",
+            "jdeploy": {
+              "jar": "test.jar",
+              "javac": {
+                "source": "."
+              }
+            },
+            "bin": {
+              "test-windows-action": "jdeploy.js"
+            }
+          }
+          EOF
+          echo "Created test package.json"
+
+      - name: Create dummy JAR file
+        shell: bash
+        run: |
+          mkdir -p target
+          echo "Test JAR content" > test.jar
+          echo "Created dummy JAR file"
+
+      - name: Run jDeploy Action (using current branch)
+        uses: ./
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          deploy_target: github
+          jdeploy_version: ${{ github.event.inputs.jdeploy_version }}
+          target_repository: ${{ github.repository }}
+
+      - name: Verify action completed successfully
+        shell: bash
+        run: |
+          echo "==================================="
+          echo "✓ Action completed successfully on Windows!"
+          echo "==================================="
+          echo ""
+          echo "This confirms that:"
+          echo "  1. Paths with backslashes are handled correctly"
+          echo "  2. Scripts can be made executable with chmod"
+          echo "  3. Scripts execute properly on Windows runner"
+          echo "  4. The quoted path fix resolves issue #320"
+
+      - name: Display generated files
+        if: always()
+        shell: bash
+        run: |
+          echo "=== Generated files in jdeploy directory ==="
+          if [ -d "jdeploy" ]; then
+            find jdeploy -type f -exec echo "  {}" \;
+          else
+            echo "No jdeploy directory found (this may be expected for first publish)"
+          fi

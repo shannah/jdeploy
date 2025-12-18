@@ -3,6 +3,16 @@
   <component name="RemoteRepositoriesConfiguration">
     <remote-repository>
       <option name="id" value="central" />
+      <option name="name" value="Maven Central" />
+      <option name="url" value="https://repo.maven.apache.org/maven2" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="my-local-repo" />
+      <option name="name" value="my-local-repo" />
+      <option name="url" value="file://$PROJECT_DIR$/installer/../maven-repository" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="central" />
       <option name="name" value="Central Repository" />
       <option name="url" value="https://repo.maven.apache.org/maven2" />
     </remote-repository>
@@ -14,7 +24,7 @@
     <remote-repository>
       <option name="id" value="my-local-repo" />
       <option name="name" value="my-local-repo" />
-      <option name="url" value="file://C:\Users\steve\jdeploy\cli/../maven-repository" />
+      <option name="url" value="file://C:\Users\steve\jdeploy\installer/../maven-repository" />
     </remote-repository>
     <remote-repository>
       <option name="id" value="my-local-repo" />

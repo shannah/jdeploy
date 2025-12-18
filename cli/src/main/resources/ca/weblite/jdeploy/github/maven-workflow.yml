@@ -8,9 +8,15 @@ on:
     branches: ['*']
     tags: ['*']
 
+# Prevent concurrent jDeploy workflows to avoid race conditions
+concurrency:
+  group: jdeploy-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   build:
-
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
 
     steps:

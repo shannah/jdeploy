@@ -37,8 +37,73 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
                 "Close"
         };
 
+        // Build message with command-line info for Linux
+        Object message = "Installation was completed successfully";
+        if (Platform.getSystemPlatform().isLinux() && installationSettings.isCommandLineSymlinkCreated()) {
+            String commandPath = installationSettings.getCommandLinePath();
+            if (commandPath != null) {
+                String commandName = new java.io.File(commandPath).getName();
+
+                // Create a custom panel with better layout
+                JPanel panel = new JPanel();
+                panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+                panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+                JLabel successLabel = new JLabel("Installation was completed successfully");
+                successLabel.setFont(successLabel.getFont().deriveFont(Font.BOLD, 14f));
+                successLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                panel.add(successLabel);
+
+                panel.add(Box.createVerticalStrut(15));
+
+                JLabel cliHeaderLabel = new JLabel("Command-Line Installation:");
+                cliHeaderLabel.setFont(cliHeaderLabel.getFont().deriveFont(Font.BOLD));
+                cliHeaderLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                panel.add(cliHeaderLabel);
+
+                panel.add(Box.createVerticalStrut(5));
+
+                JLabel pathLabel = new JLabel(commandPath);
+                pathLabel.setFont(new Font("Monospaced", Font.PLAIN, 12));
+                pathLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                panel.add(pathLabel);
+
+                panel.add(Box.createVerticalStrut(10));
+
+                if (installationSettings.isAddedToPath()) {
+                    JLabel launchLabel = new JLabel("Launch from command line:");
+                    launchLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    panel.add(launchLabel);
+
+                    panel.add(Box.createVerticalStrut(5));
+
+                    JLabel commandLabel = new JLabel(commandName);
+                    commandLabel.setFont(new Font("Monospaced", Font.BOLD, 13));
+                    commandLabel.setForeground(new Color(0, 100, 0));
+                    commandLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    panel.add(commandLabel);
+
+                    panel.add(Box.createVerticalStrut(10));
+
+                    JLabel noteLabel = new JLabel("<html><i>Note: You may need to restart your terminal for PATH changes to take effect</i></html>");
+                    noteLabel.setFont(noteLabel.getFont().deriveFont(Font.PLAIN, 11f));
+                    noteLabel.setForeground(Color.GRAY);
+                    noteLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    panel.add(noteLabel);
+                } else {
+                    JLabel noteLabel = new JLabel("<html><i>Note: ~/.local/bin is not in your PATH.<br>Add it to your shell configuration to run the command from anywhere.</i></html>");
+                    noteLabel.setFont(noteLabel.getFont().deriveFont(Font.PLAIN, 11f));
+                    noteLabel.setForeground(Color.GRAY);
+                    noteLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    panel.add(noteLabel);
+                }
+
+                message = panel;
+            }
+        }
+
         int choice = JOptionPane.showOptionDialog(this,
-                "Installation was completed successfully",
+                message,
                 "Installation Complete",
                 JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE,
                 null, options, options[0]);
@@ -59,6 +124,19 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         this.installationSettings = installationSettings;
         final AppInfo appInfo = installationSettings.getAppInfo();
         setTitle("Install "+appInfo.getTitle()+" "+npmPackageVersion().getVersion());
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        // Set window icon
+        File iconFile = installationSettings.getApplicationIcon();
+        if (iconFile != null && iconFile.exists()) {
+            try {
+                ImageIcon icon = new ImageIcon(iconFile.toURI().toURL());
+                setIconImage(icon.getImage());
+            } catch (Exception ex) {
+                // Log but don't fail - fall back to default icon
+                System.err.println("Warning: Could not load application icon for installer window: " + ex.getMessage());
+            }
+        }
 
         installButton = new JButton("Install");
         installButton.addActionListener(evt->{
@@ -91,17 +169,42 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
             installationSettings.setAddToDesktop(desktopCheckbox.isSelected());
         });
 
+        // On Linux, disable desktop checkbox if no desktop environment is detected
+        if (Platform.getSystemPlatform().isLinux() && !installationSettings.hasDesktopEnvironment()) {
+            desktopCheckbox.setSelected(false);
+            desktopCheckbox.setEnabled(false);
+            desktopCheckbox.setToolTipText("No desktop environment detected");
+            installationSettings.setAddToDesktop(false);
+        }
+
         JCheckBox addToDockCheckBox = new JCheckBox("Add to dock");
-        addToDockCheckBox.setSelected(installationSettings.isAddToDock());
-        addToDockCheckBox.addActionListener(evt->{
-            installationSettings.setAddToDock(addToDockCheckBox.isSelected());
-        });
+
+        if (installationSettings.isAlreadyAddedToDock()) {
+            addToDockCheckBox.setSelected(false);
+            addToDockCheckBox.setEnabled(false);
+            addToDockCheckBox.setToolTipText("This app is already in the dock");
+            installationSettings.setAddToDock(false);
+        } else {
+            addToDockCheckBox.setSelected(installationSettings.isAddToDock());
+            addToDockCheckBox.addActionListener(evt->{
+                installationSettings.setAddToDock(addToDockCheckBox.isSelected());
+            });
+        }
 
         JCheckBox addToStartMenuCheckBox = new JCheckBox("Add to Start menu");
         addToStartMenuCheckBox.setSelected(installationSettings.isAddToStartMenu());
         addToStartMenuCheckBox.addActionListener(evt->{
             installationSettings.setAddToStartMenu(addToStartMenuCheckBox.isSelected());
         });
+
+        JCheckBox installCliCheckBox = new JCheckBox("Install CLI Command");
+        if (Platform.getSystemPlatform().isLinux() && installationSettings.getCommandLinePath() != null) {
+            installCliCheckBox.setSelected(installationSettings.isInstallCliCommand());
+            installCliCheckBox.setToolTipText(installationSettings.getCommandLinePath());
+            installCliCheckBox.addActionListener(evt->{
+                installationSettings.setInstallCliCommand(installCliCheckBox.isSelected());
+            });
+        }
 
         JPanel checkboxesPanel = new JPanel();
         if (Platform.getSystemPlatform().isWindows()) {
@@ -110,6 +213,12 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
             checkboxesPanel.add(addToDockCheckBox);
         }
         checkboxesPanel.add(desktopCheckbox);
+
+        // Add CLI checkbox for Linux
+        if (Platform.getSystemPlatform().isLinux() && installationSettings.getCommandLinePath() != null) {
+            checkboxesPanel.add(installCliCheckBox);
+        }
+
         JPanel southPanel = new JPanel();
         southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
 

@@ -11,8 +11,14 @@ public class InstallationSettings {
     private boolean addToPrograms=true;
     private boolean addToStartMenu=true;
     private boolean addToDock=true;
+    private boolean installCliCommand=true;
+    private boolean alreadyAddedToDock=false;
     private boolean prerelease=false;
     private boolean overwriteApp=true;
+    private boolean hasDesktopEnvironment=true;
+    private String commandLinePath=null;
+    private boolean commandLineSymlinkCreated=false;
+    private boolean addedToPath=false;
     private AppInfo appInfo;
     private NPMPackageVersion npmPackageVersion;
     private File installFilesDir;
@@ -51,6 +57,14 @@ public class InstallationSettings {
 
     public void setAddToDock(boolean addToDock) {
         this.addToDock = addToDock;
+    }
+
+    public boolean isAlreadyAddedToDock() {
+        return alreadyAddedToDock;
+    }
+
+    public void setAlreadyAddedToDock(boolean alreadyAddedToDock) {
+        this.alreadyAddedToDock = alreadyAddedToDock;
     }
 
     public boolean isPrerelease() {
@@ -105,6 +119,10 @@ public class InstallationSettings {
         return new File(installFilesDir, "installsplash.png");
     }
 
+    public File getApplicationIcon() {
+        return new File(installFilesDir, "icon.png");
+    }
+
     public URL getWebsiteURL() {
         return websiteURL;
     }
@@ -119,5 +137,45 @@ public class InstallationSettings {
 
     public void setWebsiteVerified(boolean websiteVerified) {
         this.websiteVerified = websiteVerified;
+    }
+
+    public boolean hasDesktopEnvironment() {
+        return hasDesktopEnvironment;
+    }
+
+    public void setHasDesktopEnvironment(boolean hasDesktopEnvironment) {
+        this.hasDesktopEnvironment = hasDesktopEnvironment;
+    }
+
+    public String getCommandLinePath() {
+        return commandLinePath;
+    }
+
+    public void setCommandLinePath(String commandLinePath) {
+        this.commandLinePath = commandLinePath;
+    }
+
+    public boolean isCommandLineSymlinkCreated() {
+        return commandLineSymlinkCreated;
+    }
+
+    public void setCommandLineSymlinkCreated(boolean commandLineSymlinkCreated) {
+        this.commandLineSymlinkCreated = commandLineSymlinkCreated;
+    }
+
+    public boolean isAddedToPath() {
+        return addedToPath;
+    }
+
+    public void setAddedToPath(boolean addedToPath) {
+        this.addedToPath = addedToPath;
+    }
+
+    public boolean isInstallCliCommand() {
+        return installCliCommand;
+    }
+
+    public void setInstallCliCommand(boolean installCliCommand) {
+        this.installCliCommand = installCliCommand;
     }
 }
