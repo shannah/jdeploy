@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="jetty-runner">
-    <CLASSES>
-      <root url="jar://$PROJECT_DIR$/src/ca/weblite/jdeploy/jetty-runner.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>
