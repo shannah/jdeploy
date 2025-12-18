@@ -43,7 +43,7 @@
                 <enabled>true</enabled>
                 <updatePolicy>always</updatePolicy>
             </snapshots>
-            <url>file://${basedir}/maven-repository</url>
+            <url>file://${maven.multiModuleProjectDirectory}/maven-repository</url>
         </repository>
         <repository>
             <id>sci-java</id>
