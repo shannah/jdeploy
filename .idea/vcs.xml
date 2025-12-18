@@ -2,9 +2,5 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/jdeploy-javafx-private1" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/jdeploy-javafx-private1-releases" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/jdeploy-javafx-private2" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/jdeploy-javafx-private2-releases" vcs="Git" />
   </component>
 </project>
