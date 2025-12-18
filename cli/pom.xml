@@ -329,6 +329,13 @@
                     <version>${mockito.version.jdk8}</version>
                     <scope>test</scope>
                 </dependency>
+                <!-- mockito-inline required for static mocking with Mockito 4.x -->
+                <dependency>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-inline</artifactId>
+                    <version>${mockito.version.jdk8}</version>
+                    <scope>test</scope>
+                </dependency>
             </dependencies>
         </profile>
 
