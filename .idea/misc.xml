@@ -10,6 +10,7 @@
         <option value="$PROJECT_DIR$/installer/fx-theme/pom.xml" />
         <option value="$PROJECT_DIR$/jdeploy-cheerpj/pom.xml" />
         <option value="$PROJECT_DIR$/jdeploy-maven-plugin/pom.xml" />
+        <option value="$PROJECT_DIR$/pom.xml" />
       </list>
     </option>
     <option name="workspaceImportForciblyTurnedOn" value="true" />
