@@ -1,3 +1,4 @@
+.idea/
 dist
 bin/*.jar
 build
@@ -12,10 +13,6 @@ installer/jdeploy-bundle
 cli/bin
 tests/projects/*/jdeploy
 ./jdeploy
-./.idea
-./.idea/jarRepositories.xml
-./.idea/vcs.xml
-#./installer/tests/*/mock_launcher*
 
 ### BROKK'S CONFIGURATION ###
 .brokk/**
@@ -23,6 +20,7 @@ tests/projects/*/jdeploy
 /.brokk/sessions/
 /.brokk/dependencies/
 /.brokk/history.zip
+!AGENTS.md
 !.brokk/style.md
 !.brokk/review.md
 !.brokk/project.properties

@@ -4,16 +4,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>ca.weblite</groupId>
-    <artifactId>jdeploy-cli</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <parent>
+        <groupId>ca.weblite</groupId>
+        <artifactId>jdeploy-parent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
 
-    <properties>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
-        <mockito.version.jdk21>5.4.0</mockito.version.jdk21>
-        <mockito.version.jdk8>4.6.1</mockito.version.jdk8>
-    </properties>
+    <artifactId>jdeploy-cli</artifactId>
     <build>
 
         <plugins>
@@ -136,12 +134,10 @@
         <dependency>
             <groupId>commons-cli</groupId>
             <artifactId>commons-cli</artifactId>
-            <version>1.4</version>
         </dependency>
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>2.5</version>
         </dependency>
         <dependency>
             <groupId>ca.weblite.jdeploy</groupId>
@@ -197,7 +193,6 @@
         <dependency>
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
-            <version>20231013</version>
             <scope>compile</scope>
         </dependency>
         <!-- https://mvnrepository.com/artifact/io.codeworth/PanelMatic -->
@@ -296,7 +291,6 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>1.7.32</version> <!-- Use the appropriate version -->
         </dependency>
         <!-- Logback implementation -->
         <dependency>
@@ -307,34 +301,12 @@
 
         <dependency>
             <groupId>org.mockito</groupId>
-            <artifactId>mockito-inline</artifactId>
-            <version>3.12.4</version>
+            <artifactId>mockito-core</artifactId>
             <scope>test</scope>
         </dependency>
 
 
     </dependencies>
-    <repositories>
-        <repository>
-            <id>my-local-repo</id>
-            <snapshots>
-                <enabled>true</enabled>
-                <updatePolicy>always</updatePolicy>
-            </snapshots>
-            <url>file://${project.basedir}/../maven-repository</url>
-        </repository>
-        <repository>
-            <id>central</id>
-            <name>Maven Central</name>
-            <url>https://repo.maven.apache.org/maven2</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-    </repositories>
 
     <profiles>
         <!-- Profile for JDK 8 -->
@@ -354,6 +326,13 @@
                 <dependency>
                     <groupId>org.mockito</groupId>
                     <artifactId>mockito-junit-jupiter</artifactId>
+                    <version>${mockito.version.jdk8}</version>
+                    <scope>test</scope>
+                </dependency>
+                <!-- mockito-inline required for static mocking with Mockito 4.x -->
+                <dependency>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-inline</artifactId>
                     <version>${mockito.version.jdk8}</version>
                     <scope>test</scope>
                 </dependency>
