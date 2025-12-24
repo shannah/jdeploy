@@ -40,9 +40,9 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             // Update user PATH via registry
             boolean pathUpdated = addToPath(userBinDir);
 
-            // Persist metadata for uninstall
-            persistMetadata(settings.getAppInfo() != null ? new File(System.getProperty("user.home"), ".jdeploy") : userBinDir, 
-                           wrapperFiles, pathUpdated);
+            // Persist metadata for uninstall in the app directory
+            File appDir = launcherPath.getParentFile();
+            persistMetadata(appDir, wrapperFiles, pathUpdated);
 
         } catch (IOException e) {
             System.err.println("Warning: Failed to install CLI commands: " + e.getMessage());

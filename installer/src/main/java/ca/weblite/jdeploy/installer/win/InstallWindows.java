@@ -133,20 +133,6 @@ public class InstallWindows {
                 ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller cliInstaller = 
                     new ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller();
                 cliInstaller.installCommands(exePath, commands, installationSettings);
-
-                // Persist metadata so uninstall can clean up
-                try {
-                    org.json.JSONObject meta = new org.json.JSONObject();
-                    org.json.JSONArray arr = new org.json.JSONArray();
-                    for (ca.weblite.jdeploy.models.CommandSpec cs : commands) {
-                        arr.put(cs.getName() + ".cmd");
-                    }
-                    meta.put(CliInstallerConstants.CREATED_WRAPPERS_KEY, arr);
-                    meta.put(CliInstallerConstants.PATH_UPDATED_KEY, true);
-                    org.apache.commons.io.FileUtils.writeStringToFile(new File(appDir, CliInstallerConstants.CLI_METADATA_FILE), meta.toString(), "UTF-8");
-                } catch (Exception e) {
-                    System.err.println("Warning: Failed to write CLI metadata file: " + e.getMessage());
-                }
             }
 
             //Try to copy the uninstaller
