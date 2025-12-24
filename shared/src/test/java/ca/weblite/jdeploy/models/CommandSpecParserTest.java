@@ -257,4 +257,155 @@ public class CommandSpecParserTest {
         // Verify args list is unmodifiable
         assertThrows(Exception.class, () -> spec.getArgs().add("--new-flag"));
     }
+
+    @Test
+    void testParseCommands_argWithSemicolonRejected() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        JSONArray args = new JSONArray();
+        args.put("--flag; rm -rf /");
+        JSONObject commandSpec = new JSONObject();
+        commandSpec.put("args", args);
+        commands.put("cmd", commandSpec);
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("dangerous shell metacharacters"));
+    }
+
+    @Test
+    void testParseCommands_argWithPipeRejected() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        JSONArray args = new JSONArray();
+        args.put("--output | cat /etc/passwd");
+        JSONObject commandSpec = new JSONObject();
+        commandSpec.put("args", args);
+        commands.put("cmd", commandSpec);
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("dangerous shell metacharacters"));
+    }
+
+    @Test
+    void testParseCommands_argWithAmpersandRejected() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        JSONArray args = new JSONArray();
+        args.put("--flag && malicious");
+        JSONObject commandSpec = new JSONObject();
+        commandSpec.put("args", args);
+        commands.put("cmd", commandSpec);
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("dangerous shell metacharacters"));
+    }
+
+    @Test
+    void testParseCommands_argWithBacktickRejected() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        JSONArray args = new JSONArray();
+        args.put("--flag=`whoami`");
+        JSONObject commandSpec = new JSONObject();
+        commandSpec.put("args", args);
+        commands.put("cmd", commandSpec);
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("dangerous shell metacharacters"));
+    }
+
+    @Test
+    void testParseCommands_argWithDollarParenRejected() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        JSONArray args = new JSONArray();
+        args.put("--flag=$(whoami)");
+        JSONObject commandSpec = new JSONObject();
+        commandSpec.put("args", args);
+        commands.put("cmd", commandSpec);
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("dangerous shell metacharacters"));
+    }
+
+    @Test
+    void testParseCommands_argWithSafeDollarSignAllowed() {
+        // $ alone (not followed by parenthesis) should be allowed for variable placeholders like ${args}
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        JSONArray args = new JSONArray();
+        args.put("${args}");
+        args.put("$HOME");
+        args.put("-Dprop=$VALUE");
+        JSONObject commandSpec = new JSONObject();
+        commandSpec.put("args", args);
+        commands.put("cmd", commandSpec);
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+
+        assertEquals(1, result.size());
+        assertEquals(3, result.get(0).getArgs().size());
+        assertEquals("${args}", result.get(0).getArgs().get(0));
+        assertEquals("$HOME", result.get(0).getArgs().get(1));
+        assertEquals("-Dprop=$VALUE", result.get(0).getArgs().get(2));
+    }
+
+    @Test
+    void testParseCommands_argWithSafeSpecialCharsAllowed() {
+        // Safe special chars like =, -, _, ., :, / should be allowed
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        JSONArray args = new JSONArray();
+        args.put("--main-class=com.example.Main");
+        args.put("-Xmx1024m");
+        args.put("/path/to/file");
+        args.put("--config:value");
+        JSONObject commandSpec = new JSONObject();
+        commandSpec.put("args", args);
+        commands.put("cmd", commandSpec);
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+
+        assertEquals(1, result.size());
+        assertEquals(4, result.get(0).getArgs().size());
+    }
+
+    @Test
+    void testParseCommands_errorMessageIncludesArgIndex() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        JSONArray args = new JSONArray();
+        args.put("--safe-flag");
+        args.put("--also-safe");
+        args.put("--bad; injection");  // index 2
+        JSONObject commandSpec = new JSONObject();
+        commandSpec.put("args", args);
+        commands.put("mycmd", commandSpec);
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("mycmd"));
+        assertTrue(ex.getMessage().contains("index 2"));
+    }
 }

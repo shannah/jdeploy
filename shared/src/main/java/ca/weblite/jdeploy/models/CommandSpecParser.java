@@ -21,6 +21,13 @@ public class CommandSpecParser {
     private static final String COMMAND_NAME_REGEX = "^[A-Za-z0-9][A-Za-z0-9._-]*$";
 
     /**
+     * Regex pattern to detect dangerous shell metacharacters in args.
+     * These characters could enable command injection if args were ever passed through a shell.
+     * Matches: ; | & ` $( )
+     */
+    private static final String DANGEROUS_ARG_CHARS_REGEX = "[;|&`]|\\$\\(";
+
+    /**
      * Parses and returns the list of CommandSpec objects declared in jdeploy config under commands.
      * The returned list is sorted by command name to ensure deterministic ordering.
      *
@@ -28,6 +35,7 @@ public class CommandSpecParser {
      * - command names must match COMMAND_NAME_REGEX
      * - each command value must be a JSONObject (or absent)
      * - args, if present, must be a JSONArray of strings
+     * - args entries must not contain dangerous shell metacharacters (;|&` or $())
      *
      * @param jdeployConfig the jdeploy configuration object
      * @return list of CommandSpec (empty list if none configured)
@@ -71,7 +79,9 @@ public class CommandSpecParser {
                     if (!(el instanceof String)) {
                         throw new IllegalArgumentException("Command '" + name + "': all 'args' elements must be strings");
                     }
-                    args.add((String) el);
+                    String argValue = (String) el;
+                    validateArg(name, argValue, i);
+                    args.add(argValue);
                 }
             }
             result.add(new CommandSpec(name, args));
@@ -80,6 +90,26 @@ public class CommandSpecParser {
         // sort by name for deterministic order
         result.sort(Comparator.comparing(CommandSpec::getName));
         return Collections.unmodifiableList(result);
+    }
+
+    /**
+     * Validates that an arg string does not contain dangerous shell metacharacters.
+     *
+     * @param commandName the command name (for error messages)
+     * @param arg the arg string to validate
+     * @param index the index of the arg in the array (for error messages)
+     * @throws IllegalArgumentException if the arg contains dangerous characters or is null
+     */
+    private static void validateArg(String commandName, String arg, int index) {
+        if (arg == null) {
+            throw new IllegalArgumentException("Command '" + commandName + "': arg at index " + index + " must not be null");
+        }
+        if (java.util.regex.Pattern.compile(DANGEROUS_ARG_CHARS_REGEX).matcher(arg).find()) {
+            throw new IllegalArgumentException(
+                "Command '" + commandName + "': arg at index " + index + " contains dangerous shell metacharacters. " +
+                "Args must not contain: ; | & ` or $()"
+            );
+        }
     }
 
     private CommandSpecParser() {
