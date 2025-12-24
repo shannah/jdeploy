@@ -266,6 +266,30 @@ public class UnixPathManagerTest {
         assertTrue(content.contains("export PATH=\"$HOME/.local/bin:$PATH\""));
     }
 
+    @Test
+    public void testAddToPathIdempotency() throws IOException {
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        // First call to addToPath
+        boolean result1 = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+        assertTrue(result1);
+
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertTrue(bashProfile.exists());
+        String contentAfterFirstCall = IOUtil.readToString(new FileInputStream(bashProfile));
+        int occurrencesAfterFirst = countOccurrences(contentAfterFirstCall, "$HOME/.local/bin");
+        assertEquals(1, occurrencesAfterFirst, "PATH should appear exactly once after first call");
+
+        // Second call to addToPath
+        boolean result2 = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+        assertTrue(result2);
+
+        String contentAfterSecondCall = IOUtil.readToString(new FileInputStream(bashProfile));
+        int occurrencesAfterSecond = countOccurrences(contentAfterSecondCall, "$HOME/.local/bin");
+        assertEquals(1, occurrencesAfterSecond, "PATH should still appear exactly once after second call (idempotent)");
+    }
+
     /**
      * Helper method to count occurrences of a substring in a string.
      */
