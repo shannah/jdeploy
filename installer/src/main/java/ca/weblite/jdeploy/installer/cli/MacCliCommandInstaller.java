@@ -35,7 +35,12 @@ public class MacCliCommandInstaller implements CliCommandInstaller {
             return createdFiles;
         }
 
-        File localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+        File localBinDir;
+        if (settings != null && settings.getCommandLinePath() != null && !settings.getCommandLinePath().isEmpty()) {
+            localBinDir = new File(settings.getCommandLinePath());
+        } else {
+            localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+        }
 
         // Create ~/.local/bin if it doesn't exist
         if (!localBinDir.exists()) {
@@ -132,6 +137,34 @@ public class MacCliCommandInstaller implements CliCommandInstaller {
         }
 
         File localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+        
+        // Try to load metadata from the default binDir location first
+        File metadataFileInBinDir = new File(localBinDir, CliInstallerConstants.CLI_METADATA_FILE);
+        if (metadataFileInBinDir.exists()) {
+            try {
+                String content = IOUtil.readToString(new FileInputStream(metadataFileInBinDir));
+                JSONObject metadata = new JSONObject(content);
+                if (metadata.has("binDir")) {
+                    localBinDir = new File(metadata.getString("binDir"));
+                }
+            } catch (IOException e) {
+                // Fall back to default localBinDir
+            }
+        }
+        
+        // Also try to load metadata from appDir if it exists there
+        File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
+        if (metadataFile.exists()) {
+            try {
+                String content = IOUtil.readToString(new FileInputStream(metadataFile));
+                JSONObject metadata = new JSONObject(content);
+                if (metadata.has("binDir")) {
+                    localBinDir = new File(metadata.getString("binDir"));
+                }
+            } catch (IOException e) {
+                // Fall back to determined localBinDir
+            }
+        }
 
         try {
             // Load metadata to find installed commands
@@ -146,11 +179,14 @@ public class MacCliCommandInstaller implements CliCommandInstaller {
                 }
             }
 
-            // Remove metadata file
-            File metadataFile = new File(localBinDir, CliInstallerConstants.CLI_METADATA_FILE);
+            // Remove metadata files from both locations
+            metadataFileInBinDir = new File(localBinDir, CliInstallerConstants.CLI_METADATA_FILE);
+            if (metadataFileInBinDir.exists()) {
+                metadataFileInBinDir.delete();
+                System.out.println("Removed command metadata file");
+            }
             if (metadataFile.exists()) {
                 metadataFile.delete();
-                System.out.println("Removed command metadata file");
             }
         } catch (IOException ioe) {
             System.err.println("Warning: Failed to uninstall commands: " + ioe.getMessage());
@@ -294,6 +330,7 @@ public class MacCliCommandInstaller implements CliCommandInstaller {
         metadata.put(CliInstallerConstants.CREATED_WRAPPERS_KEY, commandsArray);
         metadata.put(CliInstallerConstants.PATH_UPDATED_KEY, pathUpdated);
         metadata.put("installedAt", System.currentTimeMillis());
+        metadata.put("binDir", localBinDir.getAbsolutePath());
 
         File metadataFile = new File(localBinDir, CliInstallerConstants.CLI_METADATA_FILE);
         try (FileOutputStream fos = new FileOutputStream(metadataFile)) {

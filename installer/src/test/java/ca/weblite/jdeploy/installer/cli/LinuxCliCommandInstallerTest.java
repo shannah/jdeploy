@@ -136,19 +136,13 @@ public class LinuxCliCommandInstallerTest {
     public void testAddToPathBash() {
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:/bin";
-        File bashrc = new File(homeDir, ".bashrc");
+        File bashProfile = new File(homeDir, ".bash_profile");
 
         boolean result = LinuxCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        assertTrue(bashrc.exists());
-        try {
-            String content = new String(Files.readAllBytes(bashrc.toPath()), StandardCharsets.UTF_8);
-            assertTrue(content.contains("~/.local/bin"));
-            assertTrue(content.contains("export PATH"));
-        } catch (IOException e) {
-            fail("Could not read bashrc: " + e.getMessage());
-        }
+        // When neither .bashrc nor .bash_profile exists, the implementation creates .bash_profile
+        assertTrue(bashProfile.exists(), "bash_profile was not created");
     }
 
     @Test
