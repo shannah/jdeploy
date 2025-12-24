@@ -28,6 +28,9 @@ import ca.weblite.jdeploy.installer.win.UninstallWindows;
 
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 import ca.weblite.jdeploy.models.CommandSpec;
+import ca.weblite.jdeploy.installer.cli.CliCommandInstaller;
+import ca.weblite.jdeploy.installer.cli.MacCliCommandInstaller;
+import ca.weblite.jdeploy.installer.cli.LinuxCliCommandInstaller;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
 import org.apache.commons.io.FileUtils;
@@ -38,6 +41,8 @@ import java.awt.Desktop;
 import java.io.*;
 import java.net.URL;
 import java.util.*;
+import java.util.Collections;
+import java.util.List;
 import static ca.weblite.tools.io.IOUtil.copyResourceToFile;
 
 public class Main implements Runnable, Constants {
@@ -904,19 +909,6 @@ public class Main implements Runnable, Constants {
 
             // Install CLI scripts/launchers on macOS (in ~/.local/bin) if the user requested either feature.
             if (installationSettings.isInstallCliCommands() || installationSettings.isInstallCliLauncher()) {
-                File localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
-
-                if (!localBinDir.exists()) {
-                    if (!localBinDir.mkdirs()) {
-                        System.err.println("Warning: Failed to create ~/.local/bin directory");
-                    } else {
-                        System.out.println("Created ~/.local/bin directory");
-                    }
-                }
-
-                boolean anyCreated = false;
-
-                // Prefer the dedicated CLI launcher copy if present; fall back to the GUI launcher if needed.
                 File cliLauncher = new File(installAppPath, "Contents" + File.separator + "MacOS" + File.separator + CliInstallerConstants.CLI_LAUNCHER_NAME);
                 if (!cliLauncher.exists()) {
                     File fallback = new File(installAppPath, "Contents" + File.separator + "MacOS" + File.separator + "Client4JLauncher");
@@ -925,64 +917,9 @@ public class Main implements Runnable, Constants {
                     }
                 }
 
-                // Create per-command scripts if requested
-                if (installationSettings.isInstallCliCommands()) {
-                    try {
-                        List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
-                        if (commands != null && !commands.isEmpty()) {
-                            for (CommandSpec cs : commands) {
-                                String cmdName = cs.getName();
-                                File scriptPath = new File(localBinDir, cmdName);
-                                if (scriptPath.exists()) {
-                                    scriptPath.delete();
-                                }
-                                try {
-                                    ca.weblite.jdeploy.installer.linux.LinuxCliScriptWriter.writeExecutableScript(scriptPath, cliLauncher.getAbsolutePath(), cmdName);
-                                    System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
-                                    anyCreated = true;
-                                } catch (IOException ioe) {
-                                    System.err.println("Warning: Failed to create command script for " + cmdName + ": " + ioe.getMessage());
-                                }
-                            }
-                        }
-                    } catch (Exception ex) {
-                        System.err.println("Warning: Failed to enumerate commands: " + ex.getMessage());
-                    }
-                }
-
-                // Create traditional single symlink for primary command if requested
-                if (installationSettings.isInstallCliLauncher()) {
-                    String commandName = deriveCommandName();
-                    File symlinkPath = new File(localBinDir, commandName);
-                    if (symlinkPath.exists()) {
-                        symlinkPath.delete();
-                    }
-                    try {
-                        Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", cliLauncher.getAbsolutePath(), symlinkPath.getAbsolutePath()});
-                        int result = p.waitFor();
-                        if (result == 0) {
-                            System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
-                            installationSettings.setCommandLineSymlinkCreated(true);
-                            anyCreated = true;
-                        } else {
-                            System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
-                        }
-                    } catch (Exception e) {
-                        System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
-                    }
-                }
-
-                if (anyCreated) {
-                    // Check if ~/.local/bin is in PATH
-                    String path = System.getenv("PATH");
-                    String localBinPath = localBinDir.getAbsolutePath();
-                    if (path == null || !path.contains(localBinPath)) {
-                        boolean pathUpdated = addToPath(localBinDir);
-                        installationSettings.setAddedToPath(pathUpdated);
-                    } else {
-                        installationSettings.setAddedToPath(true);
-                    }
-                }
+                List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
+                MacCliCommandInstaller macCliInstaller = new MacCliCommandInstaller();
+                macCliInstaller.installCommands(cliLauncher, commands, installationSettings);
             }
         } else if (Platform.getSystemPlatform().isLinux()) {
             File tmpExePath = null;
@@ -1309,77 +1246,9 @@ public class Main implements Runnable, Constants {
 
         // Install command-line scripts and/or symlink in ~/.local/bin if user requested either feature
         if (installationSettings.isInstallCliCommands() || installationSettings.isInstallCliLauncher()) {
-            File localBinDir = new File(System.getProperty("user.home"), ".local"+File.separator+"bin");
-
-            // Create ~/.local/bin if it doesn't exist
-            if (!localBinDir.exists()) {
-                if (!localBinDir.mkdirs()) {
-                    System.err.println("Warning: Failed to create ~/.local/bin directory");
-                    return;
-                }
-                System.out.println("Created ~/.local/bin directory");
-            }
-
-            boolean anyCreated = false;
-
-            // Create per-command scripts if requested
-            if (installationSettings.isInstallCliCommands()) {
-                try {
-                    List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
-                    if (commands != null && !commands.isEmpty()) {
-                        for (CommandSpec cs : commands) {
-                            String cmdName = cs.getName();
-                            File scriptPath = new File(localBinDir, cmdName);
-                            if (scriptPath.exists()) {
-                                scriptPath.delete();
-                            }
-                            try {
-                                ca.weblite.jdeploy.installer.linux.LinuxCliScriptWriter.writeExecutableScript(scriptPath, launcherFile.getAbsolutePath(), cmdName);
-                                System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
-                                anyCreated = true;
-                            } catch (IOException ioe) {
-                                System.err.println("Warning: Failed to create command script for " + cmdName + ": " + ioe.getMessage());
-                            }
-                        }
-                    }
-                } catch (Exception ex) {
-                    System.err.println("Warning: Failed to enumerate commands: " + ex.getMessage());
-                }
-            }
-
-            // Create traditional single symlink for primary command if requested
-            if (installationSettings.isInstallCliLauncher()) {
-                String commandName = deriveCommandName();
-                File symlinkPath = new File(localBinDir, commandName);
-                if (symlinkPath.exists()) {
-                    symlinkPath.delete();
-                }
-                try {
-                    Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", launcherFile.getAbsolutePath(), symlinkPath.getAbsolutePath()});
-                    int result = p.waitFor();
-                    if (result == 0) {
-                        System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
-                        installationSettings.setCommandLineSymlinkCreated(true);
-                        anyCreated = true;
-                    } else {
-                        System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
-                    }
-                } catch (Exception e) {
-                    System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
-                }
-            }
-
-            if (anyCreated) {
-                // Check if ~/.local/bin is in PATH
-                String path = System.getenv("PATH");
-                String localBinPath = localBinDir.getAbsolutePath();
-                if (path == null || !path.contains(localBinPath)) {
-                    boolean pathUpdated = addToPath(localBinDir);
-                    installationSettings.setAddedToPath(pathUpdated);
-                } else {
-                    installationSettings.setAddedToPath(true);
-                }
-            }
+            List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
+            LinuxCliCommandInstaller linuxCliInstaller = new LinuxCliCommandInstaller();
+            linuxCliInstaller.installCommands(launcherFile, commands, installationSettings);
         } else {
             System.out.println("Skipping CLI command and launcher installation (user opted out)");
         }
