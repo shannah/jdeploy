@@ -46,6 +46,11 @@ public class LinuxCliScriptWriter {
 
     private static String escapeDoubleQuotes(String s) {
         if (s == null) return "";
-        return s.replace("\"", "\\\"");
+        // Order matters: escape backslashes first to avoid double-escaping
+        // Then escape other special chars that have meaning inside double quotes
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("`", "\\`")
+                .replace("$", "\\$");
     }
 }
