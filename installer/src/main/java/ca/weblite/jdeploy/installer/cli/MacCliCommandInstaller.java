@@ -6,6 +6,8 @@ import ca.weblite.jdeploy.models.CommandSpec;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,8 +18,6 @@ import java.util.List;
  * to the CLI launcher, PATH management, and persistence of command metadata.
  */
 public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
-
-    private static final String CLI_LAUNCHER_NAME = "Client4JLauncher-cli";
 
     @Override
     public List<File> installCommands(File launcherPath, List<CommandSpec> commands, InstallationSettings settings) {
@@ -83,16 +83,11 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             }
 
             try {
-                Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", launcherPath.getAbsolutePath(), symlinkPath.getAbsolutePath()});
-                int result = p.waitFor();
-                if (result == 0) {
-                    System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
-                    settings.setCommandLineSymlinkCreated(true);
-                    createdFiles.add(symlinkPath);
-                    anyCreated = true;
-                } else {
-                    System.err.println("Warning: Failed to create command-line symlink. Exit code " + result);
-                }
+                Files.createSymbolicLink(symlinkPath.toPath(), launcherPath.toPath());
+                System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+                settings.setCommandLineSymlinkCreated(true);
+                createdFiles.add(symlinkPath);
+                anyCreated = true;
             } catch (Exception e) {
                 System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
             }
@@ -129,7 +124,7 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
         script.append(" \"$@\"\n");
 
         try (FileOutputStream fos = new FileOutputStream(scriptPath)) {
-            fos.write(script.toString().getBytes());
+            fos.write(script.toString().getBytes(StandardCharsets.UTF_8));
         }
 
         scriptPath.setExecutable(true, false);
