@@ -1,11 +1,11 @@
 package ca.weblite.jdeploy.installer.linux;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.nio.file.Files;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class LinuxCliScriptWriterTest {
 
