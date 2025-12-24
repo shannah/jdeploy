@@ -276,7 +276,7 @@ public class NPMPackageVersionTest {
      * Helper method to create a minimal NPMPackageVersion for testing.
      */
     private NPMPackageVersion createNPMPackageVersion(JSONObject packageJson) {
-        NPMPackage npmPackage = new NPMPackage("test-package");
+        NPMPackage npmPackage = new NPMPackage(packageJson);
         return new NPMPackageVersion(npmPackage, "1.0.0", packageJson);
     }
 

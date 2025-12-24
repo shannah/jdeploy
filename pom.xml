@@ -33,7 +33,8 @@
         <junit.version>5.8.1</junit.version>
         <mockito.version>4.1.0</mockito.version>
         <mockito.version.jdk8>4.11.0</mockito.version.jdk8>
-        <mockito.version.jdk21>5.8.0</mockito.version.jdk21>
+        <mockito.version.jdk21>5.17.0</mockito.version.jdk21>
+        <mockito.selected.version>${mockito.version}</mockito.selected.version>
     </properties>
 
     <repositories>
@@ -101,14 +102,35 @@
             <dependency>
                 <groupId>org.mockito</groupId>
                 <artifactId>mockito-core</artifactId>
-                <version>${mockito.version}</version>
+                <version>${mockito.selected.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.mockito</groupId>
                 <artifactId>mockito-junit-jupiter</artifactId>
-                <version>${mockito.version}</version>
+                <version>${mockito.selected.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <profiles>
+        <profile>
+            <id>jdk21plus</id>
+            <activation>
+                <jdk>[21,)</jdk>
+            </activation>
+            <properties>
+                <mockito.selected.version>${mockito.version.jdk21}</mockito.selected.version>
+            </properties>
+        </profile>
+        <profile>
+            <id>jdk8to20</id>
+            <activation>
+                <jdk>[1.8,21)</jdk>
+            </activation>
+            <properties>
+                <mockito.selected.version>${mockito.version.jdk8}</mockito.selected.version>
+            </properties>
+        </profile>
+    </profiles>
 
 </project>
