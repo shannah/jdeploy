@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.cli;
 
+import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.linux.LinuxCliScriptWriter;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.models.CommandSpec;
@@ -20,10 +21,6 @@ import java.util.*;
  * including script creation, symlink management, and PATH updates.
  */
 public class LinuxCliCommandInstaller implements CliCommandInstaller {
-
-    private static final String CLI_METADATA_FILE = ".jdeploy-cli.json";
-    private static final String INSTALLED_COMMANDS_KEY = "installedCommands";
-    private static final String PATH_UPDATED_KEY = "pathUpdated";
 
     /**
      * Installs CLI commands for the given launcher executable.
@@ -92,6 +89,66 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
     }
 
     /**
+     * Installs a single CLI launcher symlink (no individual command scripts).
+     * Used when installCliLauncher is true but installCliCommands is false.
+     *
+     * @param launcherPath the path to the main launcher executable
+     * @param commandName the name to use for the symlink
+     * @param settings installation settings containing platform-specific configuration
+     * @return the symlink File if created, or null if creation was skipped
+     */
+    public File installLauncher(File launcherPath, String commandName, InstallationSettings settings) {
+        if (launcherPath == null || commandName == null || commandName.isEmpty()) {
+            return null;
+        }
+
+        File localBinDir;
+        if (settings != null && settings.getCommandLinePath() != null && !settings.getCommandLinePath().isEmpty()) {
+            localBinDir = new File(settings.getCommandLinePath()).getParentFile();
+        } else {
+            localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+        }
+
+        // Create ~/.local/bin if it doesn't exist
+        if (!localBinDir.exists()) {
+            if (!localBinDir.mkdirs()) {
+                System.err.println("Warning: Failed to create ~/.local/bin directory");
+                return null;
+            }
+            System.out.println("Created ~/.local/bin directory");
+        }
+
+        File symlinkPath = new File(localBinDir, commandName);
+
+        // Remove existing symlink/file if present
+        if (symlinkPath.exists() || Files.isSymbolicLink(symlinkPath.toPath())) {
+            try {
+                Files.delete(symlinkPath.toPath());
+            } catch (IOException e) {
+                System.err.println("Warning: Failed to delete existing launcher symlink: " + e.getMessage());
+                return null;
+            }
+        }
+
+        try {
+            // Create symlink to the launcher
+            Files.createSymbolicLink(symlinkPath.toPath(), launcherPath.toPath());
+            System.out.println("Created launcher symlink: " + symlinkPath.getAbsolutePath());
+
+            // Update PATH and save metadata
+            boolean pathUpdated = addToPath(localBinDir);
+            if (pathUpdated) {
+                saveMetadata(launcherPath.getParentFile(), java.util.Collections.singletonList(symlinkPath), true, localBinDir);
+            }
+
+            return symlinkPath;
+        } catch (IOException ioe) {
+            System.err.println("Warning: Failed to create launcher symlink: " + ioe.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Uninstalls CLI commands that were previously installed.
      *
      * @param appDir the application directory containing installed command files
@@ -108,8 +165,8 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
             return;
         }
 
-        if (metadata.has(INSTALLED_COMMANDS_KEY)) {
-            JSONArray installedCommands = metadata.getJSONArray(INSTALLED_COMMANDS_KEY);
+        if (metadata.has(CliInstallerConstants.CREATED_WRAPPERS_KEY)) {
+            JSONArray installedCommands = metadata.getJSONArray(CliInstallerConstants.CREATED_WRAPPERS_KEY);
             File localBinDir;
             if (metadata.has("binDir")) {
                 localBinDir = new File(metadata.getString("binDir"));
@@ -133,7 +190,7 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
         }
 
         // Remove metadata file
-        File metadataFile = new File(appDir, CLI_METADATA_FILE);
+        File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
         if (metadataFile.exists()) {
             metadataFile.delete();
         }
@@ -246,7 +303,7 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
      */
     private void saveMetadata(File appDir, List<File> createdFiles, boolean pathUpdated, File binDir) {
         try {
-            File metadataFile = new File(appDir, CLI_METADATA_FILE);
+            File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
             JSONObject metadata = new JSONObject();
 
             // Store installed command names (just the filenames, not full paths)
@@ -254,8 +311,8 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
             for (File file : createdFiles) {
                 commandNames.put(file.getName());
             }
-            metadata.put(INSTALLED_COMMANDS_KEY, commandNames);
-            metadata.put(PATH_UPDATED_KEY, pathUpdated);
+            metadata.put(CliInstallerConstants.CREATED_WRAPPERS_KEY, commandNames);
+            metadata.put(CliInstallerConstants.PATH_UPDATED_KEY, pathUpdated);
             metadata.put("binDir", binDir.getAbsolutePath());
 
             // Write metadata to file
@@ -277,7 +334,7 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
      */
     private JSONObject loadMetadata(File appDir) {
         try {
-            File metadataFile = new File(appDir, CLI_METADATA_FILE);
+            File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
             if (!metadataFile.exists()) {
                 return null;
             }
