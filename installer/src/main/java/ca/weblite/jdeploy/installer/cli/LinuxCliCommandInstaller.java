@@ -7,7 +7,6 @@ import ca.weblite.jdeploy.models.CommandSpec;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.io.File;
 
@@ -30,6 +29,12 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
     public List<File> installCommands(File launcherPath, List<CommandSpec> commands, InstallationSettings settings) {
         List<File> createdFiles = new ArrayList<>();
 
+        if (launcherPath == null || !launcherPath.exists()) {
+            System.err.println("Warning: Launcher path does not exist: " + launcherPath);
+            return createdFiles;
+        }
+
+        // Return empty if no commands provided
         if (commands == null || commands.isEmpty()) {
             return createdFiles;
         }
@@ -41,7 +46,7 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             return createdFiles;
         }
 
-        // Create per-command scripts
+        // Create command scripts
         for (CommandSpec command : commands) {
             String cmdName = command.getName();
             File scriptPath = new File(localBinDir, cmdName);
@@ -64,12 +69,12 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             }
         }
 
-        // Update PATH if any commands were created
+        // Update PATH and save metadata if any files were created
+        // IMPORTANT: Save metadata to launcherPath's parent directory (the app directory), NOT binDir
         if (!createdFiles.isEmpty()) {
             boolean pathUpdated = addToPath(localBinDir);
-            if (pathUpdated) {
-                saveMetadata(launcherPath.getParentFile(), createdFiles, true, localBinDir);
-            }
+            File appDir = launcherPath.getParentFile();
+            saveMetadata(appDir, createdFiles, pathUpdated, localBinDir);
         }
 
         return createdFiles;
@@ -115,9 +120,7 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
 
             // Update PATH and save metadata
             boolean pathUpdated = addToPath(localBinDir);
-            if (pathUpdated) {
-                saveMetadata(launcherPath.getParentFile(), Collections.singletonList(symlinkPath), true, localBinDir);
-            }
+            saveMetadata(localBinDir, java.util.Collections.singletonList(symlinkPath), pathUpdated, localBinDir);
 
             return symlinkPath;
         } catch (IOException ioe) {
