@@ -1006,38 +1006,6 @@ public class PackageService implements BundleConstants {
         String jdeployContents = FileUtils.readFileToString(jDeployFile, "UTF-8");
         jdeployContents = processJdeployTemplate(context, jdeployContents);
         FileUtils.writeStringToFile(jDeployFile, jdeployContents, "UTF-8");
-
-        // Write jdeploy metadata (including jdeploy.commands) into the jdeploy bundle
-        writeJdeployMetadata(context);
-    }
-
-    /**
-     * Writes a small metadata JSON file into the jdeploy bundle directory containing the jdeploy
-     * configuration object (verbatim) so installer/runtime can consume it. The file is named
-     * "package-info.json" and contains at least name, version, and jdeploy properties.
-     *
-     * This method is static so it can be exercised easily by unit tests.
-     */
-    public static void writeJdeployMetadata(PackagingContext context) throws IOException {
-        JSONObject pkgObj = context.packageJsonObject();
-        JSONObject jdeployObj = new JSONObject();
-        if (pkgObj != null && pkgObj.has("jdeploy")) {
-            jdeployObj = pkgObj.getJSONObject("jdeploy");
-        }
-        JSONObject metadata = new JSONObject();
-        metadata.put("name", pkgObj != null ? pkgObj.optString("name", "") : "");
-        metadata.put("version", pkgObj != null ? pkgObj.optString("version", "") : "");
-        metadata.put("jdeploy", jdeployObj);
-
-        File bin = context.getJdeployBundleDir();
-        if (!bin.exists()) {
-            if (!bin.mkdirs()) {
-                throw new IOException("Failed to create jdeploy bundle dir: " + bin.getAbsolutePath());
-            }
-        }
-
-        File metadataFile = new File(bin, "package-info.json");
-        FileUtils.writeStringToFile(metadataFile, metadata.toString(2), "UTF-8");
     }
 
     private String processJdeployTemplate(PackagingContext context, String jdeployContents) {
