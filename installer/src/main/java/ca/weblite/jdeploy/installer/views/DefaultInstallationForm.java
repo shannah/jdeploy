@@ -199,10 +199,10 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
 
         JCheckBox installCliCheckBox = new JCheckBox("Install CLI Command");
         if (Platform.getSystemPlatform().isLinux() && installationSettings.getCommandLinePath() != null) {
-            installCliCheckBox.setSelected(installationSettings.isInstallCliCommand());
+            installCliCheckBox.setSelected(installationSettings.isInstallCliLauncher());
             installCliCheckBox.setToolTipText(installationSettings.getCommandLinePath());
             installCliCheckBox.addActionListener(evt->{
-                installationSettings.setInstallCliCommand(installCliCheckBox.isSelected());
+                installationSettings.setInstallCliLauncher(installCliCheckBox.isSelected());
             });
         }
 

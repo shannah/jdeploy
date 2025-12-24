@@ -902,8 +902,8 @@ public class Main implements Runnable, Constants {
                 Runtime.getRuntime().exec(shellScript.getAbsolutePath());
             }
 
-            // Install per-command CLI scripts on macOS (in ~/.local/bin) if the user requested CLI command installation.
-            if (installationSettings.isInstallCliCommand()) {
+            // Install CLI scripts/launchers on macOS (in ~/.local/bin) if the user requested either feature.
+            if (installationSettings.isInstallCliCommands() || installationSettings.isInstallCliLauncher()) {
                 File localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
 
                 if (!localBinDir.exists()) {
@@ -925,46 +925,51 @@ public class Main implements Runnable, Constants {
                     }
                 }
 
-                try {
-                    List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
-                    if (commands != null && !commands.isEmpty()) {
-                        for (CommandSpec cs : commands) {
-                            String cmdName = cs.getName();
-                            File scriptPath = new File(localBinDir, cmdName);
-                            if (scriptPath.exists()) {
-                                scriptPath.delete();
-                            }
-                            try {
-                                ca.weblite.jdeploy.installer.linux.LinuxCliScriptWriter.writeExecutableScript(scriptPath, cliLauncher.getAbsolutePath(), cmdName);
-                                System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
-                                anyCreated = true;
-                            } catch (IOException ioe) {
-                                System.err.println("Warning: Failed to create command script for " + cmdName + ": " + ioe.getMessage());
+                // Create per-command scripts if requested
+                if (installationSettings.isInstallCliCommands()) {
+                    try {
+                        List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
+                        if (commands != null && !commands.isEmpty()) {
+                            for (CommandSpec cs : commands) {
+                                String cmdName = cs.getName();
+                                File scriptPath = new File(localBinDir, cmdName);
+                                if (scriptPath.exists()) {
+                                    scriptPath.delete();
+                                }
+                                try {
+                                    ca.weblite.jdeploy.installer.linux.LinuxCliScriptWriter.writeExecutableScript(scriptPath, cliLauncher.getAbsolutePath(), cmdName);
+                                    System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
+                                    anyCreated = true;
+                                } catch (IOException ioe) {
+                                    System.err.println("Warning: Failed to create command script for " + cmdName + ": " + ioe.getMessage());
+                                }
                             }
                         }
+                    } catch (Exception ex) {
+                        System.err.println("Warning: Failed to enumerate commands: " + ex.getMessage());
                     }
-                } catch (Exception ex) {
-                    System.err.println("Warning: Failed to enumerate commands: " + ex.getMessage());
                 }
 
-                // Maintain compatibility: also create traditional single symlink for primary command
-                String commandName = deriveCommandName();
-                File symlinkPath = new File(localBinDir, commandName);
-                if (symlinkPath.exists()) {
-                    symlinkPath.delete();
-                }
-                try {
-                    Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", cliLauncher.getAbsolutePath(), symlinkPath.getAbsolutePath()});
-                    int result = p.waitFor();
-                    if (result == 0) {
-                        System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
-                        installationSettings.setCommandLineSymlinkCreated(true);
-                        anyCreated = true;
-                    } else {
-                        System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
+                // Create traditional single symlink for primary command if requested
+                if (installationSettings.isInstallCliLauncher()) {
+                    String commandName = deriveCommandName();
+                    File symlinkPath = new File(localBinDir, commandName);
+                    if (symlinkPath.exists()) {
+                        symlinkPath.delete();
                     }
-                } catch (Exception e) {
-                    System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+                    try {
+                        Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", cliLauncher.getAbsolutePath(), symlinkPath.getAbsolutePath()});
+                        int result = p.waitFor();
+                        if (result == 0) {
+                            System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+                            installationSettings.setCommandLineSymlinkCreated(true);
+                            anyCreated = true;
+                        } else {
+                            System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
+                        }
+                    } catch (Exception e) {
+                        System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+                    }
                 }
 
                 if (anyCreated) {
@@ -1302,8 +1307,8 @@ public class Main implements Runnable, Constants {
             System.out.println("No desktop environment detected. Skipping desktop shortcuts and mimetype registration.");
         }
 
-        // Install command-line scripts and/or symlink in ~/.local/bin if user requested it
-        if (installationSettings.isInstallCliCommand()) {
+        // Install command-line scripts and/or symlink in ~/.local/bin if user requested either feature
+        if (installationSettings.isInstallCliCommands() || installationSettings.isInstallCliLauncher()) {
             File localBinDir = new File(System.getProperty("user.home"), ".local"+File.separator+"bin");
 
             // Create ~/.local/bin if it doesn't exist
@@ -1317,47 +1322,51 @@ public class Main implements Runnable, Constants {
 
             boolean anyCreated = false;
 
-            // Create per-command scripts if commands are declared in package metadata
-            try {
-                List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
-                if (commands != null && !commands.isEmpty()) {
-                    for (CommandSpec cs : commands) {
-                        String cmdName = cs.getName();
-                        File scriptPath = new File(localBinDir, cmdName);
-                        if (scriptPath.exists()) {
-                            scriptPath.delete();
-                        }
-                        try {
-                            ca.weblite.jdeploy.installer.linux.LinuxCliScriptWriter.writeExecutableScript(scriptPath, launcherFile.getAbsolutePath(), cmdName);
-                            System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
-                            anyCreated = true;
-                        } catch (IOException ioe) {
-                            System.err.println("Warning: Failed to create command script for " + cmdName + ": " + ioe.getMessage());
+            // Create per-command scripts if requested
+            if (installationSettings.isInstallCliCommands()) {
+                try {
+                    List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
+                    if (commands != null && !commands.isEmpty()) {
+                        for (CommandSpec cs : commands) {
+                            String cmdName = cs.getName();
+                            File scriptPath = new File(localBinDir, cmdName);
+                            if (scriptPath.exists()) {
+                                scriptPath.delete();
+                            }
+                            try {
+                                ca.weblite.jdeploy.installer.linux.LinuxCliScriptWriter.writeExecutableScript(scriptPath, launcherFile.getAbsolutePath(), cmdName);
+                                System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
+                                anyCreated = true;
+                            } catch (IOException ioe) {
+                                System.err.println("Warning: Failed to create command script for " + cmdName + ": " + ioe.getMessage());
+                            }
                         }
                     }
+                } catch (Exception ex) {
+                    System.err.println("Warning: Failed to enumerate commands: " + ex.getMessage());
                 }
-            } catch (Exception ex) {
-                System.err.println("Warning: Failed to enumerate commands: " + ex.getMessage());
             }
 
-            // Maintain compatibility: also create traditional single symlink for primary command
-            String commandName = deriveCommandName();
-            File symlinkPath = new File(localBinDir, commandName);
-            if (symlinkPath.exists()) {
-                symlinkPath.delete();
-            }
-            try {
-                Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", launcherFile.getAbsolutePath(), symlinkPath.getAbsolutePath()});
-                int result = p.waitFor();
-                if (result == 0) {
-                    System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
-                    installationSettings.setCommandLineSymlinkCreated(true);
-                    anyCreated = true;
-                } else {
-                    System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
+            // Create traditional single symlink for primary command if requested
+            if (installationSettings.isInstallCliLauncher()) {
+                String commandName = deriveCommandName();
+                File symlinkPath = new File(localBinDir, commandName);
+                if (symlinkPath.exists()) {
+                    symlinkPath.delete();
                 }
-            } catch (Exception e) {
-                System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+                try {
+                    Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", launcherFile.getAbsolutePath(), symlinkPath.getAbsolutePath()});
+                    int result = p.waitFor();
+                    if (result == 0) {
+                        System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+                        installationSettings.setCommandLineSymlinkCreated(true);
+                        anyCreated = true;
+                    } else {
+                        System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+                }
             }
 
             if (anyCreated) {
@@ -1372,7 +1381,7 @@ public class Main implements Runnable, Constants {
                 }
             }
         } else {
-            System.out.println("Skipping CLI command installation (user opted out)");
+            System.out.println("Skipping CLI command and launcher installation (user opted out)");
         }
     }
 

@@ -131,7 +131,7 @@ public class InstallWindows {
             boolean pathUpdated = false;
             File userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
             List<ca.weblite.jdeploy.models.CommandSpec> commands = npmPackageVersion != null ? npmPackageVersion.getCommands() : null;
-            if (installationSettings.isInstallCliCommand() && commands != null && !commands.isEmpty()) {
+            if (installationSettings.isInstallCliCommands() && commands != null && !commands.isEmpty()) {
                 List<File> created = writeCommandWrappers(userBinDir, exePath, commands);
                 anyWrappersCreated = created != null && !created.isEmpty();
                 try {
