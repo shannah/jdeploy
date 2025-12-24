@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.cli;
 
+import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.tools.io.IOUtil;
@@ -24,7 +25,6 @@ import java.util.List;
 public class MacCliCommandInstaller implements CliCommandInstaller {
 
     private static final String CLI_LAUNCHER_NAME = "Client4JLauncher-cli";
-    private static final String METADATA_FILE_NAME = ".jdeploy-cli.json";
 
     @Override
     public List<File> installCommands(File launcherPath, List<CommandSpec> commands, InstallationSettings settings) {
@@ -70,7 +70,15 @@ public class MacCliCommandInstaller implements CliCommandInstaller {
 
             // Persist command metadata
             try {
-                persistCommandMetadata(localBinDir, commands);
+                boolean pathUpdated = false;
+                String path = System.getenv("PATH");
+                String localBinPath = localBinDir.getAbsolutePath();
+                if (path == null || !path.contains(localBinPath)) {
+                    pathUpdated = addToPath(localBinDir);
+                } else {
+                    pathUpdated = true;
+                }
+                persistCommandMetadata(localBinDir, commands, pathUpdated);
             } catch (IOException ioe) {
                 System.err.println("Warning: Failed to persist command metadata: " + ioe.getMessage());
             }
@@ -139,7 +147,7 @@ public class MacCliCommandInstaller implements CliCommandInstaller {
             }
 
             // Remove metadata file
-            File metadataFile = new File(localBinDir, METADATA_FILE_NAME);
+            File metadataFile = new File(localBinDir, CliInstallerConstants.CLI_METADATA_FILE);
             if (metadataFile.exists()) {
                 metadataFile.delete();
                 System.out.println("Removed command metadata file");
@@ -272,26 +280,22 @@ public class MacCliCommandInstaller implements CliCommandInstaller {
      * 
      * @param localBinDir the ~/.local/bin directory
      * @param commands the list of commands to persist
+     * @param pathUpdated whether the PATH was updated
      * @throws IOException if the metadata file cannot be written
      */
-    private void persistCommandMetadata(File localBinDir, List<CommandSpec> commands) throws IOException {
+    private void persistCommandMetadata(File localBinDir, List<CommandSpec> commands, boolean pathUpdated) throws IOException {
         JSONObject metadata = new JSONObject();
         JSONArray commandsArray = new JSONArray();
 
         for (CommandSpec cmd : commands) {
-            JSONObject cmdObj = new JSONObject();
-            cmdObj.put("name", cmd.getName());
-            if (cmd.getArgs() != null && !cmd.getArgs().isEmpty()) {
-                JSONArray argsArray = new JSONArray(cmd.getArgs());
-                cmdObj.put("args", argsArray);
-            }
-            commandsArray.put(cmdObj);
+            commandsArray.put(cmd.getName());
         }
 
-        metadata.put("commands", commandsArray);
+        metadata.put(CliInstallerConstants.CREATED_WRAPPERS_KEY, commandsArray);
+        metadata.put(CliInstallerConstants.PATH_UPDATED_KEY, pathUpdated);
         metadata.put("installedAt", System.currentTimeMillis());
 
-        File metadataFile = new File(localBinDir, METADATA_FILE_NAME);
+        File metadataFile = new File(localBinDir, CliInstallerConstants.CLI_METADATA_FILE);
         try (FileOutputStream fos = new FileOutputStream(metadataFile)) {
             fos.write(metadata.toString(2).getBytes());
         }
@@ -305,28 +309,20 @@ public class MacCliCommandInstaller implements CliCommandInstaller {
      * @throws IOException if the metadata file cannot be read
      */
     private List<CommandSpec> loadCommandMetadata(File localBinDir) throws IOException {
-        File metadataFile = new File(localBinDir, METADATA_FILE_NAME);
+        File metadataFile = new File(localBinDir, CliInstallerConstants.CLI_METADATA_FILE);
         if (!metadataFile.exists()) {
             return Collections.emptyList();
         }
 
         String content = IOUtil.readToString(new FileInputStream(metadataFile));
         JSONObject metadata = new JSONObject(content);
-        JSONArray commandsArray = metadata.optJSONArray("commands");
+        JSONArray commandsArray = metadata.optJSONArray(CliInstallerConstants.CREATED_WRAPPERS_KEY);
 
         List<CommandSpec> commands = new ArrayList<>();
         if (commandsArray != null) {
             for (int i = 0; i < commandsArray.length(); i++) {
-                JSONObject cmdObj = commandsArray.getJSONObject(i);
-                String name = cmdObj.getString("name");
-                List<String> args = new ArrayList<>();
-                JSONArray argsArray = cmdObj.optJSONArray("args");
-                if (argsArray != null) {
-                    for (int j = 0; j < argsArray.length(); j++) {
-                        args.add(argsArray.getString(j));
-                    }
-                }
-                commands.add(new CommandSpec(name, args));
+                String name = commandsArray.getString(i);
+                commands.add(new CommandSpec(name, Collections.emptyList()));
             }
         }
 
