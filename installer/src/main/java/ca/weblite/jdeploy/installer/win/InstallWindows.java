@@ -127,19 +127,12 @@ public class InstallWindows {
             InstallWindowsRegistry registryInstaller = new InstallWindowsRegistry(appInfo, exePath, icoPath, fos);
             registryInstaller.register();
 
-            // Create per-command .cmd wrappers (Windows) if user requested
-            boolean anyWrappersCreated = false;
-            boolean pathUpdated = false;
-            File userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
+            // Install CLI commands if user requested
             List<ca.weblite.jdeploy.models.CommandSpec> commands = npmPackageVersion != null ? npmPackageVersion.getCommands() : null;
             if (installationSettings.isInstallCliCommands() && commands != null && !commands.isEmpty()) {
-                List<File> created = writeCommandWrappers(userBinDir, exePath, commands);
-                anyWrappersCreated = created != null && !created.isEmpty();
-                try {
-                    pathUpdated = registryInstaller.addToUserPath(userBinDir);
-                } catch (Exception ex) {
-                    System.err.println("Warning: Failed to update user PATH in registry: " + ex.getMessage());
-                }
+                ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller cliInstaller = 
+                    new ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller();
+                cliInstaller.installCommands(exePath, commands, installationSettings);
 
                 // Persist metadata so uninstall can clean up
                 try {
@@ -149,7 +142,7 @@ public class InstallWindows {
                         arr.put(cs.getName() + ".cmd");
                     }
                     meta.put(CliInstallerConstants.CREATED_WRAPPERS_KEY, arr);
-                    meta.put(CliInstallerConstants.PATH_UPDATED_KEY, pathUpdated);
+                    meta.put(CliInstallerConstants.PATH_UPDATED_KEY, true);
                     org.apache.commons.io.FileUtils.writeStringToFile(new File(appDir, CliInstallerConstants.CLI_METADATA_FILE), meta.toString(), "UTF-8");
                 } catch (Exception e) {
                     System.err.println("Warning: Failed to write CLI metadata file: " + e.getMessage());
@@ -342,29 +335,20 @@ public class InstallWindows {
     }
 
     /**
-     * Write .cmd wrappers for each command spec into the specified bin directory.
+     * Static helper method for writing command wrappers.
+     * This method is provided for backwards compatibility with existing tests.
+     * The actual implementation delegates to WindowsCliCommandInstaller.
      *
-     * Returns list of created files.
+     * @param binDir the directory where wrappers will be created
+     * @param exePath the path to the launcher executable
+     * @param commands list of command specifications
+     * @return list of created wrapper files
+     * @throws IOException if wrapper creation fails
      */
     static List<File> writeCommandWrappers(File binDir, File exePath, List<ca.weblite.jdeploy.models.CommandSpec> commands) throws IOException {
-        List<File> created = new ArrayList<>();
-        if (commands == null || commands.isEmpty()) return created;
-        if (!binDir.exists()) {
-            if (!binDir.mkdirs()) {
-                throw new IOException("Failed to create bin directory: " + binDir.getAbsolutePath());
-            }
-        }
-        for (ca.weblite.jdeploy.models.CommandSpec cs : commands) {
-            String name = cs.getName();
-            File wrapper = new File(binDir, name + ".cmd");
-            // Windows batch wrapper: invoke the launcher with --jdeploy:command=<name> and forward all args
-            String content = "@echo off\r\n\"" + exePath.getAbsolutePath() + "\" " + CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX + name + " %*\r\n";
-            org.apache.commons.io.FileUtils.writeStringToFile(wrapper, content, "UTF-8");
-            // Ensure writable - Windows doesn't need Unix exec bit
-            wrapper.setExecutable(true, false);
-            created.add(wrapper);
-        }
-        return created;
+        ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller installer = 
+            new ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller();
+        return installer.writeCommandWrappersForTest(binDir, exePath, commands);
     }
 
     // (rest of private helpers and methods remain unchanged)
