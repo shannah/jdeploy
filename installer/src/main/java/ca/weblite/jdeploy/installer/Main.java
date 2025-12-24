@@ -771,6 +771,11 @@ public class Main implements Runnable, Constants {
             fullyQualifiedPackageName = sourceHash + "." + fullyQualifiedPackageName;
         }
 
+        // Enable CLI launcher creation if user requested CLI commands or launcher installation
+        bundlerSettings.setCliCommandsEnabled(
+            installationSettings.isInstallCliCommands() || installationSettings.isInstallCliLauncher()
+        );
+
         // Set launcher version from system property if available (installer context only)
         String launcherVersion = System.getProperty("jdeploy.app.version");
         if (launcherVersion != null && !launcherVersion.isEmpty()) {
