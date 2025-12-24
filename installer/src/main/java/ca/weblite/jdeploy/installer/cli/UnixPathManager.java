@@ -82,33 +82,26 @@ public class UnixPathManager {
     }
 
     /**
-     * Selects the appropriate shell configuration file based on the detected shell.
-     * For bash, checks both .bashrc and .bash_profile, preferring .bashrc if it exists.
-     * For zsh, uses .zshrc. For fish, returns null (manual configuration required).
-     * For unknown shells, uses .profile.
+     * Selects the shell configuration file for PATH updates.
+     * Always returns ~/.profile for POSIX compatibility, regardless of the detected shell.
+     * Warns users about non-standard shells that may require additional configuration.
      *
      * @param shell   the shell path (e.g., /bin/bash, /bin/zsh, /usr/bin/fish)
      * @param homeDir the user's home directory
-     * @return the config File to update, or null if the shell requires manual configuration
+     * @return the config File (~/.profile) to update
      */
     static File selectConfigFile(String shell, File homeDir) {
         String shellName = new File(shell).getName();
 
-        switch (shellName) {
-            case "bash": {
-                File bashrc = new File(homeDir, ".bashrc");
-                File bashProfile = new File(homeDir, ".bash_profile");
-                return bashrc.exists() ? bashrc : bashProfile;
-            }
-            case "zsh":
-                return new File(homeDir, ".zshrc");
-            case "fish":
-                // Fish uses a different syntax; do not attempt to auto-update
-                System.out.println("Note: Fish shell detected. Please manually add ~/.local/bin to your PATH:");
-                System.out.println("  set -U fish_user_paths ~/.local/bin $fish_user_paths");
-                return null;
-            default:
-                return new File(homeDir, ".profile");
+        // Warn about detected shell and POSIX approach
+        if ("fish".equals(shellName) || "tcsh".equals(shellName) || "csh".equals(shellName)) {
+            System.out.println("Note: " + shellName + " shell detected. Using ~/.profile for POSIX compatibility.");
+            System.out.println("You may need to manually configure your shell to source ~/.profile or add ~/.local/bin to your PATH.");
+        } else if (!"bash".equals(shellName) && !"zsh".equals(shellName) && !"sh".equals(shellName)) {
+            System.out.println("Note: Non-standard shell '" + shellName + "' detected. Using ~/.profile for POSIX compatibility.");
         }
+
+        // Always use .profile for POSIX compatibility
+        return new File(homeDir, ".profile");
     }
 }
