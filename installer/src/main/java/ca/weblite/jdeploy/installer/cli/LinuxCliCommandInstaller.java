@@ -5,7 +5,6 @@ import ca.weblite.jdeploy.installer.linux.LinuxCliScriptWriter;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.tools.io.IOUtil;
-import org.apache.commons.io.FileUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -208,11 +207,12 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
         String shell = System.getenv("SHELL");
         String pathEnv = System.getenv("PATH");
         File homeDir = new File(System.getProperty("user.home"));
-        return LinuxCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        return UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
     }
 
     /**
      * Testable overload for addToPath with explicit environment parameters.
+     * Delegates to UnixPathManager for the actual implementation.
      *
      * @param binDir   directory to add to PATH
      * @param shell    shell path from environment (e.g., /bin/bash)
@@ -221,76 +221,7 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
      * @return true if PATH was updated or already contained the directory, false otherwise
      */
     public static boolean addToPath(File binDir, String shell, String pathEnv, File homeDir) {
-        try {
-            // Detect the user's shell; default to bash when unknown
-            if (shell == null || shell.isEmpty()) {
-                shell = "/bin/bash";
-            }
-
-            File configFile = null;
-            String shellName = new File(shell).getName();
-
-            switch (shellName) {
-                case "bash": {
-                    File bashrc = new File(homeDir, ".bashrc");
-                    File bashProfile = new File(homeDir, ".bash_profile");
-                    configFile = bashrc.exists() ? bashrc : bashProfile;
-                    break;
-                }
-                case "zsh":
-                    configFile = new File(homeDir, ".zshrc");
-                    break;
-                case "fish":
-                    // Fish uses a different syntax; do not attempt to auto-update
-                    System.out.println("Note: Fish shell detected. Please manually add ~/.local/bin to your PATH:");
-                    System.out.println("  set -U fish_user_paths ~/.local/bin $fish_user_paths");
-                    return false;
-                default:
-                    configFile = new File(homeDir, ".profile");
-                    break;
-            }
-
-            // If PATH already contains binDir, nothing to do
-            if (pathEnv != null && pathEnv.contains(binDir.getAbsolutePath())) {
-                System.out.println("~/.local/bin is already in PATH");
-                return true;
-            }
-
-            // Ensure configFile exists (create if necessary)
-            if (!configFile.exists()) {
-                // create parent directories if necessary
-                File parent = configFile.getParentFile();
-                if (parent != null && !parent.exists()) {
-                    parent.mkdirs();
-                }
-                // create empty file so we can append to it
-                try {
-                    configFile.createNewFile();
-                } catch (Exception ignored) { }
-            } else {
-                // Check file contents to avoid duplicate entries
-                String content = IOUtil.readToString(new FileInputStream(configFile));
-                if (content.contains("$HOME/.local/bin") || content.contains(binDir.getAbsolutePath())) {
-                    System.out.println("~/.local/bin is already in PATH configuration");
-                    return true;
-                }
-            }
-
-            // Append PATH export to the config file
-            String pathExport = "\n# Added by jDeploy installer\nexport PATH=\"$HOME/.local/bin:$PATH\"\n";
-            try (FileOutputStream fos = new FileOutputStream(configFile, true)) {
-                fos.write(pathExport.getBytes(StandardCharsets.UTF_8));
-            }
-
-            System.out.println("Added ~/.local/bin to PATH in " + configFile.getName());
-            System.out.println("Please restart your terminal or run: source " + configFile.getAbsolutePath());
-            return true;
-
-        } catch (Exception e) {
-            System.err.println("Warning: Failed to add ~/.local/bin to PATH: " + e.getMessage());
-            System.out.println("You may need to manually add ~/.local/bin to your PATH");
-            return false;
-        }
+        return UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
     }
 
     /**
