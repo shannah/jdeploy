@@ -1,18 +1,12 @@
 package ca.weblite.jdeploy.installer.cli;
 
-import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.models.CommandSpec;
-import ca.weblite.tools.io.IOUtil;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -21,7 +15,7 @@ import java.util.List;
  * Handles installation of CLI commands to ~/.local/bin, creation of symlinks
  * to the CLI launcher, PATH management, and persistence of command metadata.
  */
-public class MacCliCommandInstaller implements CliCommandInstaller {
+public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
 
     private static final String CLI_LAUNCHER_NAME = "Client4JLauncher-cli";
 
@@ -34,20 +28,11 @@ public class MacCliCommandInstaller implements CliCommandInstaller {
             return createdFiles;
         }
 
-        File localBinDir;
-        if (settings != null && settings.getCommandLinePath() != null && !settings.getCommandLinePath().isEmpty()) {
-            localBinDir = new File(settings.getCommandLinePath());
-        } else {
-            localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
-        }
+        File localBinDir = getBinDir(settings);
 
         // Create ~/.local/bin if it doesn't exist
-        if (!localBinDir.exists()) {
-            if (!localBinDir.mkdirs()) {
-                System.err.println("Warning: Failed to create ~/.local/bin directory");
-                return createdFiles;
-            }
-            System.out.println("Created ~/.local/bin directory");
+        if (!ensureBinDirExists(localBinDir)) {
+            return createdFiles;
         }
 
         boolean anyCreated = false;
@@ -63,7 +48,7 @@ public class MacCliCommandInstaller implements CliCommandInstaller {
                 }
 
                 try {
-                    createCommandScript(scriptPath, launcherPath.getAbsolutePath(), cmdName, cs.getArgs());
+                    writeCommandScript(scriptPath, launcherPath.getAbsolutePath(), cmdName, cs.getArgs());
                     System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
                     createdFiles.add(scriptPath);
                     anyCreated = true;
@@ -82,9 +67,9 @@ public class MacCliCommandInstaller implements CliCommandInstaller {
                 } else {
                     pathUpdated = true;
                 }
-                persistCommandMetadata(localBinDir, commands, pathUpdated);
-            } catch (IOException ioe) {
-                System.err.println("Warning: Failed to persist command metadata: " + ioe.getMessage());
+                saveMetadata(localBinDir, createdFiles, pathUpdated, localBinDir);
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to persist command metadata: " + e.getMessage());
             }
         }
 
@@ -129,101 +114,7 @@ public class MacCliCommandInstaller implements CliCommandInstaller {
     }
 
     @Override
-    public void uninstallCommands(File appDir) {
-        if (appDir == null || !appDir.exists()) {
-            System.err.println("Warning: App directory does not exist: " + appDir);
-            return;
-        }
-
-        File localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
-        
-        // Try to load metadata from the default binDir location first
-        File metadataFileInBinDir = new File(localBinDir, CliInstallerConstants.CLI_METADATA_FILE);
-        if (metadataFileInBinDir.exists()) {
-            try {
-                String content = IOUtil.readToString(new FileInputStream(metadataFileInBinDir));
-                JSONObject metadata = new JSONObject(content);
-                if (metadata.has("binDir")) {
-                    localBinDir = new File(metadata.getString("binDir"));
-                }
-            } catch (IOException e) {
-                // Fall back to default localBinDir
-            }
-        }
-        
-        // Also try to load metadata from appDir if it exists there
-        File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
-        if (metadataFile.exists()) {
-            try {
-                String content = IOUtil.readToString(new FileInputStream(metadataFile));
-                JSONObject metadata = new JSONObject(content);
-                if (metadata.has("binDir")) {
-                    localBinDir = new File(metadata.getString("binDir"));
-                }
-            } catch (IOException e) {
-                // Fall back to determined localBinDir
-            }
-        }
-
-        try {
-            // Load metadata to find installed commands
-            List<CommandSpec> commands = loadCommandMetadata(localBinDir);
-            if (commands != null && !commands.isEmpty()) {
-                for (CommandSpec cs : commands) {
-                    File scriptPath = new File(localBinDir, cs.getName());
-                    if (scriptPath.exists()) {
-                        scriptPath.delete();
-                        System.out.println("Removed command script: " + scriptPath.getAbsolutePath());
-                    }
-                }
-            }
-
-            // Remove metadata files from both locations
-            metadataFileInBinDir = new File(localBinDir, CliInstallerConstants.CLI_METADATA_FILE);
-            if (metadataFileInBinDir.exists()) {
-                metadataFileInBinDir.delete();
-                System.out.println("Removed command metadata file");
-            }
-            if (metadataFile.exists()) {
-                metadataFile.delete();
-            }
-        } catch (IOException ioe) {
-            System.err.println("Warning: Failed to uninstall commands: " + ioe.getMessage());
-        }
-    }
-
-    @Override
-    public boolean addToPath(File localBinDir) {
-        String shell = System.getenv("SHELL");
-        String pathEnv = System.getenv("PATH");
-        File homeDir = new File(System.getProperty("user.home"));
-        return UnixPathManager.addToPath(localBinDir, shell, pathEnv, homeDir);
-    }
-
-    /**
-     * Testable overload for addToPath with injectable dependencies.
-     * Delegates to UnixPathManager for the actual implementation.
-     * 
-     * @param localBinDir directory to add to PATH
-     * @param shell shell path from environment (e.g., /bin/bash)
-     * @param pathEnv PATH environment variable
-     * @param homeDir user's home directory
-     * @return true if PATH was updated or already contains the directory
-     */
-    static boolean addToPath(File localBinDir, String shell, String pathEnv, File homeDir) {
-        return UnixPathManager.addToPath(localBinDir, shell, pathEnv, homeDir);
-    }
-
-    /**
-     * Creates a shell script that invokes the launcher with the specified command name.
-     * 
-     * @param scriptPath the path where the script should be created
-     * @param launcherPath the path to the launcher executable
-     * @param commandName the command name to invoke
-     * @param args additional command-line arguments (if any)
-     * @throws IOException if the script cannot be created
-     */
-    private void createCommandScript(File scriptPath, String launcherPath, String commandName, List<String> args) throws IOException {
+    protected void writeCommandScript(File scriptPath, String launcherPath, String commandName, List<String> args) throws IOException {
         StringBuilder script = new StringBuilder();
         script.append("#!/bin/bash\n");
         script.append("\"").append(escapeDoubleQuotes(launcherPath)).append("\" ");
@@ -242,77 +133,6 @@ public class MacCliCommandInstaller implements CliCommandInstaller {
         }
 
         scriptPath.setExecutable(true, false);
-    }
-
-    /**
-     * Persists the list of installed commands to a metadata file for later uninstallation.
-     * 
-     * @param localBinDir the ~/.local/bin directory
-     * @param commands the list of commands to persist
-     * @param pathUpdated whether the PATH was updated
-     * @throws IOException if the metadata file cannot be written
-     */
-    private void persistCommandMetadata(File localBinDir, List<CommandSpec> commands, boolean pathUpdated) throws IOException {
-        JSONObject metadata = new JSONObject();
-        JSONArray commandsArray = new JSONArray();
-
-        for (CommandSpec cmd : commands) {
-            commandsArray.put(cmd.getName());
-        }
-
-        metadata.put(CliInstallerConstants.CREATED_WRAPPERS_KEY, commandsArray);
-        metadata.put(CliInstallerConstants.PATH_UPDATED_KEY, pathUpdated);
-        metadata.put("installedAt", System.currentTimeMillis());
-        metadata.put("binDir", localBinDir.getAbsolutePath());
-
-        File metadataFile = new File(localBinDir, CliInstallerConstants.CLI_METADATA_FILE);
-        try (FileOutputStream fos = new FileOutputStream(metadataFile)) {
-            fos.write(metadata.toString(2).getBytes());
-        }
-    }
-
-    /**
-     * Loads command metadata from the persistence file.
-     * 
-     * @param localBinDir the ~/.local/bin directory
-     * @return list of CommandSpec objects, or empty list if metadata not found
-     * @throws IOException if the metadata file cannot be read
-     */
-    private List<CommandSpec> loadCommandMetadata(File localBinDir) throws IOException {
-        File metadataFile = new File(localBinDir, CliInstallerConstants.CLI_METADATA_FILE);
-        if (!metadataFile.exists()) {
-            return Collections.emptyList();
-        }
-
-        String content = IOUtil.readToString(new FileInputStream(metadataFile));
-        JSONObject metadata = new JSONObject(content);
-        JSONArray commandsArray = metadata.optJSONArray(CliInstallerConstants.CREATED_WRAPPERS_KEY);
-
-        List<CommandSpec> commands = new ArrayList<>();
-        if (commandsArray != null) {
-            for (int i = 0; i < commandsArray.length(); i++) {
-                String name = commandsArray.getString(i);
-                commands.add(new CommandSpec(name, Collections.emptyList()));
-            }
-        }
-
-        return commands;
-    }
-
-    /**
-     * Derives the primary command name from installation settings.
-     * 
-     * @param settings the installation settings
-     * @return the command name to use
-     */
-    private String deriveCommandName(InstallationSettings settings) {
-        if (settings.getAppInfo() != null && settings.getAppInfo().getTitle() != null) {
-            return settings.getAppInfo().getTitle()
-                    .toLowerCase()
-                    .replace(" ", "-")
-                    .replaceAll("[^a-z0-9\\-]", "");
-        }
-        return "app";
     }
 
     /**

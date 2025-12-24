@@ -1,25 +1,22 @@
 package ca.weblite.jdeploy.installer.cli;
 
-import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.linux.LinuxCliScriptWriter;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.models.CommandSpec;
-import ca.weblite.tools.io.IOUtil;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
-import java.io.*;
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.io.File;
 
 /**
  * Linux-specific implementation of CLI command installer.
  * Handles installation and uninstallation of CLI commands on Linux systems,
  * including script creation, symlink management, and PATH updates.
  */
-public class LinuxCliCommandInstaller implements CliCommandInstaller {
+public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
 
     /**
      * Installs CLI commands for the given launcher executable.
@@ -37,20 +34,11 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
             return createdFiles;
         }
 
-        File localBinDir;
-        if (settings != null && settings.getCommandLinePath() != null && !settings.getCommandLinePath().isEmpty()) {
-            localBinDir = new File(settings.getCommandLinePath());
-        } else {
-            localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
-        }
+        File localBinDir = getBinDir(settings);
 
         // Create ~/.local/bin if it doesn't exist
-        if (!localBinDir.exists()) {
-            if (!localBinDir.mkdirs()) {
-                System.err.println("Warning: Failed to create ~/.local/bin directory");
-                return createdFiles;
-            }
-            System.out.println("Created ~/.local/bin directory");
+        if (!ensureBinDirExists(localBinDir)) {
+            return createdFiles;
         }
 
         // Create per-command scripts
@@ -68,7 +56,7 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
             }
 
             try {
-                LinuxCliScriptWriter.writeExecutableScript(scriptPath, launcherPath.getAbsolutePath(), cmdName);
+                writeCommandScript(scriptPath, launcherPath.getAbsolutePath(), cmdName, command.getArgs());
                 System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
                 createdFiles.add(scriptPath);
             } catch (IOException ioe) {
@@ -101,20 +89,11 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
             return null;
         }
 
-        File localBinDir;
-        if (settings != null && settings.getCommandLinePath() != null && !settings.getCommandLinePath().isEmpty()) {
-            localBinDir = new File(settings.getCommandLinePath()).getParentFile();
-        } else {
-            localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
-        }
+        File localBinDir = getBinDir(settings);
 
         // Create ~/.local/bin if it doesn't exist
-        if (!localBinDir.exists()) {
-            if (!localBinDir.mkdirs()) {
-                System.err.println("Warning: Failed to create ~/.local/bin directory");
-                return null;
-            }
-            System.out.println("Created ~/.local/bin directory");
+        if (!ensureBinDirExists(localBinDir)) {
+            return null;
         }
 
         File symlinkPath = new File(localBinDir, commandName);
@@ -137,7 +116,7 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
             // Update PATH and save metadata
             boolean pathUpdated = addToPath(localBinDir);
             if (pathUpdated) {
-                saveMetadata(launcherPath.getParentFile(), java.util.Collections.singletonList(symlinkPath), true, localBinDir);
+                saveMetadata(launcherPath.getParentFile(), Collections.singletonList(symlinkPath), true, localBinDir);
             }
 
             return symlinkPath;
@@ -147,134 +126,8 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
         }
     }
 
-    /**
-     * Uninstalls CLI commands that were previously installed.
-     *
-     * @param appDir the application directory containing installed command files
-     */
     @Override
-    public void uninstallCommands(File appDir) {
-        if (appDir == null || !appDir.exists()) {
-            return;
-        }
-
-        // Load metadata to find installed commands
-        JSONObject metadata = loadMetadata(appDir);
-        if (metadata == null) {
-            return;
-        }
-
-        if (metadata.has(CliInstallerConstants.CREATED_WRAPPERS_KEY)) {
-            JSONArray installedCommands = metadata.getJSONArray(CliInstallerConstants.CREATED_WRAPPERS_KEY);
-            File localBinDir;
-            if (metadata.has("binDir")) {
-                localBinDir = new File(metadata.getString("binDir"));
-            } else {
-                localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
-            }
-
-            for (int i = 0; i < installedCommands.length(); i++) {
-                String cmdName = installedCommands.getString(i);
-                File scriptPath = new File(localBinDir, cmdName);
-
-                if (scriptPath.exists()) {
-                    try {
-                        scriptPath.delete();
-                        System.out.println("Removed command-line script: " + scriptPath.getAbsolutePath());
-                    } catch (Exception e) {
-                        System.err.println("Warning: Failed to remove command script for " + cmdName + ": " + e.getMessage());
-                    }
-                }
-            }
-        }
-
-        // Remove metadata file
-        File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
-        if (metadataFile.exists()) {
-            metadataFile.delete();
-        }
-    }
-
-    /**
-     * Adds a directory to the system PATH environment variable.
-     * Updates shell configuration files (.bashrc, .zshrc, etc.) to persist the change.
-     *
-     * @param binDir the directory to add to PATH
-     * @return true if the PATH was successfully updated, false otherwise
-     */
-    @Override
-    public boolean addToPath(File binDir) {
-        String shell = System.getenv("SHELL");
-        String pathEnv = System.getenv("PATH");
-        File homeDir = new File(System.getProperty("user.home"));
-        return UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
-    }
-
-    /**
-     * Testable overload for addToPath with explicit environment parameters.
-     * Delegates to UnixPathManager for the actual implementation.
-     *
-     * @param binDir   directory to add to PATH
-     * @param shell    shell path from environment (e.g., /bin/bash)
-     * @param pathEnv  PATH environment variable
-     * @param homeDir  user's home directory to update config files under
-     * @return true if PATH was updated or already contained the directory, false otherwise
-     */
-    public static boolean addToPath(File binDir, String shell, String pathEnv, File homeDir) {
-        return UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
-    }
-
-    /**
-     * Saves metadata about installed CLI commands to a JSON file for later retrieval.
-     *
-     * @param appDir       the application directory where metadata will be stored
-     * @param createdFiles list of files created during installation
-     * @param pathUpdated  whether the PATH was updated
-     * @param binDir       the bin directory where commands were installed
-     */
-    private void saveMetadata(File appDir, List<File> createdFiles, boolean pathUpdated, File binDir) {
-        try {
-            File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
-            JSONObject metadata = new JSONObject();
-
-            // Store installed command names (just the filenames, not full paths)
-            JSONArray commandNames = new JSONArray();
-            for (File file : createdFiles) {
-                commandNames.put(file.getName());
-            }
-            metadata.put(CliInstallerConstants.CREATED_WRAPPERS_KEY, commandNames);
-            metadata.put(CliInstallerConstants.PATH_UPDATED_KEY, pathUpdated);
-            metadata.put("binDir", binDir.getAbsolutePath());
-
-            // Write metadata to file
-            try (java.io.BufferedWriter writer = java.nio.file.Files.newBufferedWriter(metadataFile.toPath(), StandardCharsets.UTF_8)) {
-                writer.write(metadata.toString(2)); // Pretty-print with 2-space indent
-            }
-
-            System.out.println("Saved CLI metadata to " + metadataFile.getAbsolutePath());
-        } catch (Exception e) {
-            System.err.println("Warning: Failed to save CLI metadata: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Loads metadata about installed CLI commands from a JSON file.
-     *
-     * @param appDir the application directory where metadata is stored
-     * @return the metadata JSONObject, or null if the metadata file does not exist
-     */
-    private JSONObject loadMetadata(File appDir) {
-        try {
-            File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
-            if (!metadataFile.exists()) {
-                return null;
-            }
-
-            String content = new String(Files.readAllBytes(Paths.get(metadataFile.getAbsolutePath())), StandardCharsets.UTF_8);
-            return new JSONObject(content);
-        } catch (Exception e) {
-            System.err.println("Warning: Failed to load CLI metadata: " + e.getMessage());
-            return null;
-        }
+    protected void writeCommandScript(File scriptPath, String launcherPath, String commandName, List<String> args) throws IOException {
+        LinuxCliScriptWriter.writeExecutableScript(scriptPath, launcherPath, commandName);
     }
 }

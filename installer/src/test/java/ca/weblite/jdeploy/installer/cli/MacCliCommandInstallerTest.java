@@ -194,7 +194,7 @@ public class MacCliCommandInstallerTest {
         File bashrc = new File(homeDir, ".bashrc");
         File bashProfile = new File(homeDir, ".bash_profile");
 
-        boolean result = MacCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
         // When neither .bashrc nor .bash_profile exists, the implementation falls back to .bash_profile
@@ -207,7 +207,7 @@ public class MacCliCommandInstallerTest {
         String pathEnv = "/usr/bin:/bin";
         File zshrc = new File(homeDir, ".zshrc");
 
-        boolean result = MacCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
         assertTrue(zshrc.exists());
@@ -219,7 +219,7 @@ public class MacCliCommandInstallerTest {
         String pathEnv = "/usr/bin:" + binDir.getAbsolutePath() + ":/bin";
         File bashrc = new File(homeDir, ".bashrc");
 
-        boolean result = MacCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
     }
@@ -234,7 +234,7 @@ public class MacCliCommandInstallerTest {
         // Pre-populate bashrc with the path
         Files.write(bashrc.toPath(), ("export PATH=\"$HOME/.local/bin:$PATH\"\n").getBytes(StandardCharsets.UTF_8));
 
-        boolean result = MacCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
     }
@@ -244,7 +244,7 @@ public class MacCliCommandInstallerTest {
         String shell = "/usr/bin/fish";
         String pathEnv = "/usr/bin:/bin";
 
-        boolean result = MacCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertFalse(result);
     }
@@ -255,7 +255,7 @@ public class MacCliCommandInstallerTest {
         String pathEnv = "/usr/bin:/bin";
         File profile = new File(homeDir, ".profile");
 
-        boolean result = MacCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
         assertTrue(profile.exists());
@@ -267,7 +267,7 @@ public class MacCliCommandInstallerTest {
         String pathEnv = "/usr/bin:/bin";
         File bashrc = new File(homeDir, ".bashrc");
 
-        boolean result = MacCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
     }
