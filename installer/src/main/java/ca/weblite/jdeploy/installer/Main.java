@@ -31,6 +31,7 @@ import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.jdeploy.installer.cli.CliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.MacCliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.LinuxCliCommandInstaller;
+import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
 import org.apache.commons.io.FileUtils;
@@ -792,6 +793,14 @@ public class Main implements Runnable, Constants {
                     tmpBundles,
                     npmPackageVersion()
             );
+
+            // Install CLI commands on Windows if the user requested either feature.
+            if (installationSettings.isInstallCliCommands() || installationSettings.isInstallCliLauncher()) {
+                File launcherPath = installedApp;
+                List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
+                WindowsCliCommandInstaller windowsCliInstaller = new WindowsCliCommandInstaller();
+                windowsCliInstaller.installCommands(launcherPath, commands, installationSettings);
+            }
         } else if (Platform.getSystemPlatform().isMac()) {
             File jdeployAppsDir = new File(System.getProperty("user.home") + File.separator + "Applications");
             if (!jdeployAppsDir.exists()) {
