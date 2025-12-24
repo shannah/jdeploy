@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.win;
 
 import ca.weblite.jdeploy.app.AppInfo;
+import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.InstallationContext;
 import ca.weblite.jdeploy.installer.Main;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
@@ -147,9 +148,9 @@ public class InstallWindows {
                     for (ca.weblite.jdeploy.models.CommandSpec cs : commands) {
                         arr.put(cs.getName() + ".cmd");
                     }
-                    meta.put("createdWrappers", arr);
-                    meta.put("pathUpdated", pathUpdated);
-                    org.apache.commons.io.FileUtils.writeStringToFile(new File(appDir, ".jdeploy-cli.json"), meta.toString(), "UTF-8");
+                    meta.put(CliInstallerConstants.CREATED_WRAPPERS_KEY, arr);
+                    meta.put(CliInstallerConstants.PATH_UPDATED_KEY, pathUpdated);
+                    org.apache.commons.io.FileUtils.writeStringToFile(new File(appDir, CliInstallerConstants.CLI_METADATA_FILE), meta.toString(), "UTF-8");
                 } catch (Exception e) {
                     System.err.println("Warning: Failed to write CLI metadata file: " + e.getMessage());
                 }
@@ -357,7 +358,7 @@ public class InstallWindows {
             String name = cs.getName();
             File wrapper = new File(binDir, name + ".cmd");
             // Windows batch wrapper: invoke the launcher with --jdeploy:command=<name> and forward all args
-            String content = "@echo off\r\n\"" + exePath.getAbsolutePath() + "\" --jdeploy:command=" + name + " %*\r\n";
+            String content = "@echo off\r\n\"" + exePath.getAbsolutePath() + "\" " + CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX + name + " %*\r\n";
             org.apache.commons.io.FileUtils.writeStringToFile(wrapper, content, "UTF-8");
             // Ensure writable - Windows doesn't need Unix exec bit
             wrapper.setExecutable(true, false);

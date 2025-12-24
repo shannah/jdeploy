@@ -1,6 +1,7 @@
 package com.joshondesign.appbundler.mac;
 
 import ca.weblite.jdeploy.appbundler.*;
+import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.IOUtil;
 import ca.weblite.tools.io.URLUtil;
@@ -260,7 +261,7 @@ public class MacBundler {
             createCliLauncher = true;
         }
         if (createCliLauncher) {
-            File cliDest = new File(contentsDir, "MacOS/Client4JLauncher-cli");
+            File cliDest = new File(contentsDir, "MacOS/" + CliInstallerConstants.CLI_LAUNCHER_NAME);
             FileUtils.copyFile(guiLauncher, cliDest);
             cliDest.setExecutable(true, false);
         }

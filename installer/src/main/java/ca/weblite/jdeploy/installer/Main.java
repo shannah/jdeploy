@@ -917,7 +917,7 @@ public class Main implements Runnable, Constants {
                 boolean anyCreated = false;
 
                 // Prefer the dedicated CLI launcher copy if present; fall back to the GUI launcher if needed.
-                File cliLauncher = new File(installAppPath, "Contents" + File.separator + "MacOS" + File.separator + "Client4JLauncher-cli");
+                File cliLauncher = new File(installAppPath, "Contents" + File.separator + "MacOS" + File.separator + CliInstallerConstants.CLI_LAUNCHER_NAME);
                 if (!cliLauncher.exists()) {
                     File fallback = new File(installAppPath, "Contents" + File.separator + "MacOS" + File.separator + "Client4JLauncher");
                     if (fallback.exists()) {

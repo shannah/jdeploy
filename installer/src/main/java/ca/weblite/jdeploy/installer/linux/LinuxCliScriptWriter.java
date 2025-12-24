@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.linux;
 
+import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -22,7 +23,7 @@ public class LinuxCliScriptWriter {
     public static String generateContent(String launcherPath, String commandName) {
         StringBuilder sb = new StringBuilder();
         sb.append("#!/bin/sh\n");
-        sb.append("exec \"").append(escapeDoubleQuotes(launcherPath)).append("\" --jdeploy:command=").append(commandName).append(" -- \"$@\"\n");
+        sb.append("exec \"").append(escapeDoubleQuotes(launcherPath)).append("\" ").append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName).append(" -- \"$@\"\n");
         return sb.toString();
     }
 

@@ -1,0 +1,34 @@
+package ca.weblite.jdeploy.installer;
+
+/**
+ * Constants for CLI installer functionality.
+ * Centralizes magic strings used across CLI command installation and management.
+ */
+public interface CliInstallerConstants {
+    /**
+     * JSON metadata file stored in app directory to track CLI installation state.
+     */
+    String CLI_METADATA_FILE = ".jdeploy-cli.json";
+
+    /**
+     * JSON key for array of created command wrapper names.
+     */
+    String CREATED_WRAPPERS_KEY = "createdWrappers";
+
+    /**
+     * JSON key for boolean flag indicating if PATH was updated.
+     */
+    String PATH_UPDATED_KEY = "pathUpdated";
+
+    /**
+     * Command-line argument prefix for specifying which command to invoke.
+     * Example: --jdeploy:command=mycommand
+     */
+    String JDEPLOY_COMMAND_ARG_PREFIX = "--jdeploy:command=";
+
+    /**
+     * Name of the CLI-capable launcher executable in the macOS .app bundle.
+     * This launcher copy is dedicated to CLI usage (vs. GUI launching).
+     */
+    String CLI_LAUNCHER_NAME = "Client4JLauncher-cli";
+}

@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.win;
 
+import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.util.PackagePathResolver;
 import ca.weblite.tools.io.MD5;
 import org.apache.commons.io.FileUtils;
@@ -236,13 +237,13 @@ public class UninstallWindows {
 
         // Try to remove any CLI wrappers and revert PATH if we added it.
         File appDir = getAppDirPath();
-        File metaFile = new File(appDir, ".jdeploy-cli.json");
+        File metaFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
         if (metaFile.exists()) {
             try {
                 String json = FileUtils.readFileToString(metaFile, "UTF-8");
                 org.json.JSONObject meta = new org.json.JSONObject(json);
-                org.json.JSONArray arr = meta.optJSONArray("createdWrappers");
-                boolean pathUpdated = meta.optBoolean("pathUpdated", false);
+                org.json.JSONArray arr = meta.optJSONArray(CliInstallerConstants.CREATED_WRAPPERS_KEY);
+                boolean pathUpdated = meta.optBoolean(CliInstallerConstants.PATH_UPDATED_KEY, false);
                 File binDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
                 if (arr != null) {
                     for (int i = 0; i < arr.length(); i++) {
