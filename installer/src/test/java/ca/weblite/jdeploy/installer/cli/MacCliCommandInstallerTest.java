@@ -39,7 +39,7 @@ public class MacCliCommandInstallerTest {
         launcherPath.createNewFile();
         launcherPath.setExecutable(true);
 
-        binDir = new File(tempDir, ".local", "bin");
+        binDir = new File(new File(tempDir, ".local"), "bin");
         binDir.mkdirs();
 
         homeDir = new File(tempDir, "home");

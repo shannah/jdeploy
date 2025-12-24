@@ -208,7 +208,7 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
         String shell = System.getenv("SHELL");
         String pathEnv = System.getenv("PATH");
         File homeDir = new File(System.getProperty("user.home"));
-        return addToPath(binDir, shell, pathEnv, homeDir);
+        return LinuxCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
     }
 
     /**
@@ -220,7 +220,7 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
      * @param homeDir  user's home directory to update config files under
      * @return true if PATH was updated or already contained the directory, false otherwise
      */
-    static boolean addToPath(File binDir, String shell, String pathEnv, File homeDir) {
+    public static boolean addToPath(File binDir, String shell, String pathEnv, File homeDir) {
         try {
             // Detect the user's shell; default to bash when unknown
             if (shell == null || shell.isEmpty()) {
