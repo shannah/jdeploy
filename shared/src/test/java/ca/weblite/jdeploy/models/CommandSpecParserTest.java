@@ -408,4 +408,78 @@ public class CommandSpecParserTest {
         assertTrue(ex.getMessage().contains("mycmd"));
         assertTrue(ex.getMessage().contains("index 2"));
     }
+
+    @Test
+    void testParseCommands_commandNameWithMaximumLength() {
+        // Test that a 255-character command name (max reasonable length) is accepted
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        StringBuilder longName = new StringBuilder();
+        // Start with alphanumeric, then add 254 more valid characters (alphanumeric, dot, dash, underscore)
+        longName.append('a');
+        for (int i = 1; i < 255; i++) {
+            longName.append('x');
+        }
+        String maxLengthName = longName.toString();
+        assertEquals(255, maxLengthName.length());
+        
+        commands.put(maxLengthName, new JSONObject());
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+
+        assertEquals(1, result.size());
+        assertEquals(maxLengthName, result.get(0).getName());
+    }
+
+    @Test
+    void testParseCommands_unicodeCharactersInCommandNameRejected() {
+        // Test that unicode characters (non-ASCII) are rejected in command names
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        // Unicode characters like é, ñ, 中文 should be rejected
+        commands.put("commandé", new JSONObject());
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("Invalid command name"));
+    }
+
+    @Test
+    void testParseCommands_commandNameStartingWithDotRejected() {
+        // Test that command names starting with a dot are rejected
+        // (regex requires starting with alphanumeric: ^[A-Za-z0-9][A-Za-z0-9._-]*$)
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        commands.put(".hidden", new JSONObject());
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("Invalid command name"));
+    }
+
+    @Test
+    void testParseCommands_commandNameWithDotInMiddleAllowed() {
+        // Test that command names with dots in the middle are allowed
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        commands.put("my.command", new JSONObject());
+        commands.put("a.b.c", new JSONObject());
+        commands.put("test.123", new JSONObject());
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+
+        assertEquals(3, result.size());
+        List<String> names = result.stream().map(CommandSpec::getName).collect(Collectors.toList());
+        assertTrue(names.contains("my.command"));
+        assertTrue(names.contains("a.b.c"));
+        assertTrue(names.contains("test.123"));
+    }
 }
