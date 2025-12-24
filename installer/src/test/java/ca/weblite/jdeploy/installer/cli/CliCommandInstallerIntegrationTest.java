@@ -63,6 +63,7 @@ public class CliCommandInstallerIntegrationTest {
 
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliCommands(true);
+        settings.setCommandLinePath(binDir.getAbsolutePath());
 
         // Act - Install commands
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
@@ -114,6 +115,7 @@ public class CliCommandInstallerIntegrationTest {
         );
 
         InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
 
         // Act
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
@@ -138,6 +140,7 @@ public class CliCommandInstallerIntegrationTest {
         );
 
         InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
 
         assertTrue(!installedFiles.isEmpty(), "Commands should be installed");

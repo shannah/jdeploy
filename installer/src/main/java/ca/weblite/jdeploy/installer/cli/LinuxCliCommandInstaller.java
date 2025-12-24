@@ -41,7 +41,12 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
             return createdFiles;
         }
 
-        File localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+        File localBinDir;
+        if (settings != null && settings.getCommandLinePath() != null && !settings.getCommandLinePath().isEmpty()) {
+            localBinDir = new File(settings.getCommandLinePath());
+        } else {
+            localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+        }
 
         // Create ~/.local/bin if it doesn't exist
         if (!localBinDir.exists()) {
@@ -79,7 +84,7 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
         if (!createdFiles.isEmpty()) {
             boolean pathUpdated = addToPath(localBinDir);
             if (pathUpdated) {
-                saveMetadata(launcherPath.getParentFile(), createdFiles, true);
+                saveMetadata(launcherPath.getParentFile(), createdFiles, true, localBinDir);
             }
         }
 
@@ -105,7 +110,12 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
 
         if (metadata.has(INSTALLED_COMMANDS_KEY)) {
             JSONArray installedCommands = metadata.getJSONArray(INSTALLED_COMMANDS_KEY);
-            File localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+            File localBinDir;
+            if (metadata.has("binDir")) {
+                localBinDir = new File(metadata.getString("binDir"));
+            } else {
+                localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+            }
 
             for (int i = 0; i < installedCommands.length(); i++) {
                 String cmdName = installedCommands.getString(i);
@@ -232,8 +242,9 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
      * @param appDir       the application directory where metadata will be stored
      * @param createdFiles list of files created during installation
      * @param pathUpdated  whether the PATH was updated
+     * @param binDir       the bin directory where commands were installed
      */
-    private void saveMetadata(File appDir, List<File> createdFiles, boolean pathUpdated) {
+    private void saveMetadata(File appDir, List<File> createdFiles, boolean pathUpdated, File binDir) {
         try {
             File metadataFile = new File(appDir, CLI_METADATA_FILE);
             JSONObject metadata = new JSONObject();
@@ -245,6 +256,7 @@ public class LinuxCliCommandInstaller implements CliCommandInstaller {
             }
             metadata.put(INSTALLED_COMMANDS_KEY, commandNames);
             metadata.put(PATH_UPDATED_KEY, pathUpdated);
+            metadata.put("binDir", binDir.getAbsolutePath());
 
             // Write metadata to file
             try (java.io.BufferedWriter writer = java.nio.file.Files.newBufferedWriter(metadataFile.toPath(), StandardCharsets.UTF_8)) {
