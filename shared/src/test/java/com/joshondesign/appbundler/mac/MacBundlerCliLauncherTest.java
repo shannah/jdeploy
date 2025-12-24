@@ -1,5 +1,6 @@
 package com.joshondesign.appbundler.mac;
 
+import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -25,8 +26,6 @@ public class MacBundlerCliLauncherTest {
         if (tmpDir != null && tmpDir.exists()) {
             FileUtils.deleteDirectory(tmpDir);
         }
-        // Clear property to avoid affecting other tests
-        System.clearProperty("jdeploy.commands.exists");
     }
 
     @Test
@@ -42,11 +41,12 @@ public class MacBundlerCliLauncherTest {
         FileUtils.writeStringToFile(guiLauncher, launcherContent, StandardCharsets.UTF_8);
         guiLauncher.setExecutable(true, false);
 
-        // Ensure property is set to signal CLI launcher creation
-        System.setProperty("jdeploy.commands.exists", "true");
+        // Create bundler settings with CLI commands enabled
+        BundlerSettings bundlerSettings = new BundlerSettings();
+        bundlerSettings.setCliCommandsEnabled(true);
 
         // Call helper directly (avoids running full bundler)
-        MacBundler.maybeCreateCliLauncher(contentsDir, guiLauncher);
+        MacBundler.maybeCreateCliLauncher(bundlerSettings, contentsDir, guiLauncher);
 
         File cliLauncher = new File(macosDir, "Client4JLauncher-cli");
         assertTrue(cliLauncher.exists(), "CLI launcher should have been created");
@@ -70,11 +70,11 @@ public class MacBundlerCliLauncherTest {
         FileUtils.writeStringToFile(guiLauncher, launcherContent, StandardCharsets.UTF_8);
         guiLauncher.setExecutable(true, false);
 
-        // Ensure property is not set (default)
-        System.clearProperty("jdeploy.commands.exists");
+        // Create bundler settings with CLI commands disabled (default)
+        BundlerSettings bundlerSettings = new BundlerSettings();
 
         // Call helper directly (avoids running full bundler)
-        MacBundler.maybeCreateCliLauncher(contentsDir, guiLauncher);
+        MacBundler.maybeCreateCliLauncher(bundlerSettings, contentsDir, guiLauncher);
 
         File cliLauncher = new File(macosDir, "Client4JLauncher-cli");
         assertFalse(cliLauncher.exists(), "CLI launcher should NOT have been created");
