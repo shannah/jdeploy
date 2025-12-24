@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.installer.win;
 
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.util.PackagePathResolver;
+import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
 import ca.weblite.tools.io.MD5;
 import org.apache.commons.io.FileUtils;
 
@@ -235,43 +236,13 @@ public class UninstallWindows {
         deleteApp();
         installWindowsRegistry.unregister(null);
 
-        // Try to remove any CLI wrappers and revert PATH if we added it.
+        // Delegate CLI command cleanup to WindowsCliCommandInstaller
         File appDir = getAppDirPath();
-        File metaFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
-        if (metaFile.exists()) {
-            try {
-                String json = FileUtils.readFileToString(metaFile, "UTF-8");
-                org.json.JSONObject meta = new org.json.JSONObject(json);
-                org.json.JSONArray arr = meta.optJSONArray(CliInstallerConstants.CREATED_WRAPPERS_KEY);
-                boolean pathUpdated = meta.optBoolean(CliInstallerConstants.PATH_UPDATED_KEY, false);
-                File binDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
-                if (arr != null) {
-                    for (int i = 0; i < arr.length(); i++) {
-                        String wrapperName = arr.getString(i);
-                        File wrapper = new File(binDir, wrapperName);
-                        if (wrapper.exists()) {
-                            try {
-                                System.out.println("Deleting CLI wrapper: " + wrapper.getAbsolutePath());
-                                wrapper.delete();
-                            } catch (Exception ex) {
-                                System.err.println("Warning: Failed to delete wrapper " + wrapper.getAbsolutePath() + ": " + ex.getMessage());
-                            }
-                        }
-                    }
-                }
-                if (pathUpdated) {
-                    try {
-                        installWindowsRegistry.removeFromUserPath(binDir);
-                    } catch (Exception ex) {
-                        System.err.println("Warning: Failed to revert PATH entry for " + binDir.getAbsolutePath() + ": " + ex.getMessage());
-                    }
-                }
-            } catch (Exception ex) {
-                System.err.println("Warning: Failed to process CLI uninstall metadata: " + ex.getMessage());
-            } finally {
-                // remove metadata file if present
-                try { metaFile.delete(); } catch (Exception ignored) {}
-            }
+        try {
+            WindowsCliCommandInstaller cliInstaller = new WindowsCliCommandInstaller();
+            cliInstaller.uninstallCommands(appDir);
+        } catch (Exception ex) {
+            System.err.println("Warning: Failed to uninstall CLI commands: " + ex.getMessage());
         }
 
         File uninstallerJDeployFiles = new File(getUninstallerPath().getParentFile(), ".jdeploy-files");
