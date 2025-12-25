@@ -187,8 +187,8 @@ public class MacCliCommandInstallerTest {
         File scriptFile = new File(binDir, "mycmd");
         String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
 
-        assertTrue(content.contains("--flag"));
-        assertTrue(content.contains("value"));
+        assertTrue(content.contains(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX + "mycmd"));
+        assertTrue(content.contains("\"$@\""));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.cli;
 
+import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.models.CommandSpec;
 
@@ -83,14 +84,7 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
         StringBuilder script = new StringBuilder();
         script.append("#!/bin/bash\n");
         script.append("\"").append(escapeDoubleQuotes(launcherPath)).append("\" ");
-        script.append(escapeDoubleQuotes(commandName));
-        
-        if (args != null && !args.isEmpty()) {
-            for (String arg : args) {
-                script.append(" \"").append(escapeDoubleQuotes(arg)).append("\"");
-            }
-        }
-        
+        script.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
         script.append(" \"$@\"\n");
 
         try (FileOutputStream fos = new FileOutputStream(scriptPath)) {
