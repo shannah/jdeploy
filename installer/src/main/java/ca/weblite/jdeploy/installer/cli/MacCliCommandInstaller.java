@@ -39,38 +39,8 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
 
         // Create per-command scripts if requested and commands are present
         if (settings.isInstallCliCommands() && commands != null && !commands.isEmpty()) {
-            for (CommandSpec cs : commands) {
-                String cmdName = cs.getName();
-                File scriptPath = new File(localBinDir, cmdName);
-
-                if (scriptPath.exists()) {
-                    scriptPath.delete();
-                }
-
-                try {
-                    writeCommandScript(scriptPath, launcherPath.getAbsolutePath(), cmdName, cs.getArgs());
-                    System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
-                    createdFiles.add(scriptPath);
-                    anyCreated = true;
-                } catch (IOException ioe) {
-                    System.err.println("Warning: Failed to create command script for " + cmdName + ": " + ioe.getMessage());
-                }
-            }
-
-            // Persist command metadata
-            try {
-                boolean pathUpdated = false;
-                String path = System.getenv("PATH");
-                String localBinPath = localBinDir.getAbsolutePath();
-                if (path == null || !path.contains(localBinPath)) {
-                    pathUpdated = addToPath(localBinDir);
-                } else {
-                    pathUpdated = true;
-                }
-                saveMetadata(localBinDir, createdFiles, pathUpdated, localBinDir);
-            } catch (Exception e) {
-                System.err.println("Warning: Failed to persist command metadata: " + e.getMessage());
-            }
+            createdFiles.addAll(installCommandScripts(launcherPath, commands, localBinDir));
+            anyCreated = !createdFiles.isEmpty();
         }
 
         // Create traditional single symlink for primary command if requested
@@ -93,16 +63,14 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             }
         }
 
-        // Add to PATH if any files were created
+        // Add to PATH and save metadata if any files were created
         if (anyCreated) {
-            String path = System.getenv("PATH");
-            String localBinPath = localBinDir.getAbsolutePath();
-            if (path == null || !path.contains(localBinPath)) {
-                boolean pathUpdated = addToPath(localBinDir);
-                settings.setAddedToPath(pathUpdated);
-            } else {
-                settings.setAddedToPath(true);
-            }
+            boolean pathUpdated = addToPath(localBinDir);
+            // Save metadata to the bin directory itself (where commands are installed)
+            saveMetadata(localBinDir, createdFiles, pathUpdated, localBinDir);
+
+            // Update settings
+            settings.setAddedToPath(pathUpdated);
         }
 
         return createdFiles;

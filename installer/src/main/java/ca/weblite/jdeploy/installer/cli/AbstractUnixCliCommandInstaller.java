@@ -100,9 +100,10 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
 
     /**
      * Uninstalls CLI commands that were previously installed.
-     * Loads metadata to find installed commands and removes them from the bin directory.
+     * Loads metadata from appDir to find installed commands and removes them from the bin directory.
+     * Falls back to checking the default ~/.local/bin location for backwards compatibility.
      *
-     * @param appDir the application directory containing installed command files
+     * @param appDir the application directory that may contain the metadata file
      */
     @Override
     public void uninstallCommands(File appDir) {
@@ -111,24 +112,39 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
             return;
         }
 
-        // Load metadata to find installed commands
+        // Try to load metadata from appDir first
         JSONObject metadata = loadMetadata(appDir);
+        File metadataSearchDir = appDir;
+
+        // Fall back to checking ~/.local/bin (for backwards compatibility)
+        if (metadata == null) {
+            File defaultBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+            metadata = loadMetadata(defaultBinDir);
+            if (metadata != null) {
+                metadataSearchDir = defaultBinDir;
+            }
+        }
+
         if (metadata == null) {
             return;
         }
 
+        // Get binDir from metadata (where scripts were actually installed)
+        File binDir;
+        if (metadata.has("binDir")) {
+            binDir = new File(metadata.getString("binDir"));
+        } else {
+            // Fallback to default
+            binDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+        }
+
+        // Remove installed commands
         if (metadata.has(CliInstallerConstants.CREATED_WRAPPERS_KEY)) {
             JSONArray installedCommands = metadata.getJSONArray(CliInstallerConstants.CREATED_WRAPPERS_KEY);
-            File localBinDir;
-            if (metadata.has("binDir")) {
-                localBinDir = new File(metadata.getString("binDir"));
-            } else {
-                localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
-            }
 
             for (int i = 0; i < installedCommands.length(); i++) {
                 String cmdName = installedCommands.getString(i);
-                File scriptPath = new File(localBinDir, cmdName);
+                File scriptPath = new File(binDir, cmdName);
 
                 if (scriptPath.exists()) {
                     try {
@@ -141,8 +157,8 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
             }
         }
 
-        // Remove metadata file
-        File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
+        // Remove metadata file from where it was found
+        File metadataFile = new File(metadataSearchDir, CliInstallerConstants.CLI_METADATA_FILE);
         if (metadataFile.exists()) {
             try {
                 metadataFile.delete();
@@ -180,6 +196,49 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
      */
     public static boolean addToPath(File binDir, String shell, String pathEnv, File homeDir) {
         return UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+    }
+
+    /**
+     * Protected helper method for installing command scripts.
+     * Encapsulates the common logic of creating scripts and updating metadata.
+     * Called by subclasses to implement their specific installation workflows.
+     *
+     * @param launcherPath the path to the main launcher executable
+     * @param commands list of command specifications to install
+     * @param binDir the directory where scripts will be installed
+     * @return list of files created during script installation
+     */
+    protected List<File> installCommandScripts(File launcherPath, List<CommandSpec> commands, File binDir) {
+        List<File> createdFiles = new ArrayList<>();
+
+        if (commands == null || commands.isEmpty()) {
+            return createdFiles;
+        }
+
+        // Create command scripts
+        for (CommandSpec command : commands) {
+            String cmdName = command.getName();
+            File scriptPath = new File(binDir, cmdName);
+
+            // Remove existing script if present
+            if (scriptPath.exists()) {
+                try {
+                    scriptPath.delete();
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to delete existing script for " + cmdName);
+                }
+            }
+
+            try {
+                writeCommandScript(scriptPath, launcherPath.getAbsolutePath(), cmdName, command.getArgs());
+                System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
+                createdFiles.add(scriptPath);
+            } catch (IOException ioe) {
+                System.err.println("Warning: Failed to create command script for " + cmdName + ": " + ioe.getMessage());
+            }
+        }
+
+        return createdFiles;
     }
 
     /**

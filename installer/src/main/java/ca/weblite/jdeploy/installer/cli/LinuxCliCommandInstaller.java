@@ -46,35 +46,16 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             return createdFiles;
         }
 
-        // Create command scripts
-        for (CommandSpec command : commands) {
-            String cmdName = command.getName();
-            File scriptPath = new File(localBinDir, cmdName);
-
-            // Remove existing script if present
-            if (scriptPath.exists()) {
-                try {
-                    scriptPath.delete();
-                } catch (Exception e) {
-                    System.err.println("Warning: Failed to delete existing script for " + cmdName);
-                }
-            }
-
-            try {
-                writeCommandScript(scriptPath, launcherPath.getAbsolutePath(), cmdName, command.getArgs());
-                System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
-                createdFiles.add(scriptPath);
-            } catch (IOException ioe) {
-                System.err.println("Warning: Failed to create command script for " + cmdName + ": " + ioe.getMessage());
-            }
-        }
+        // Create command scripts using common helper
+        createdFiles.addAll(installCommandScripts(launcherPath, commands, localBinDir));
 
         // Update PATH and save metadata if any files were created
-        // IMPORTANT: Save metadata to launcherPath's parent directory (the app directory), NOT binDir
         if (!createdFiles.isEmpty()) {
             boolean pathUpdated = addToPath(localBinDir);
             File appDir = launcherPath.getParentFile();
-            saveMetadata(appDir, createdFiles, pathUpdated, localBinDir);
+            // Save metadata to launcher's parent directory if it differs from bin, otherwise use bin
+            File metadataDir = (appDir != null && !appDir.equals(localBinDir)) ? appDir : localBinDir;
+            saveMetadata(metadataDir, createdFiles, pathUpdated, localBinDir);
         }
 
         return createdFiles;
@@ -120,7 +101,10 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
 
             // Update PATH and save metadata
             boolean pathUpdated = addToPath(localBinDir);
-            saveMetadata(localBinDir, java.util.Collections.singletonList(symlinkPath), pathUpdated, localBinDir);
+            File appDir = launcherPath.getParentFile();
+            // Save metadata to launcher's parent directory if it differs from bin, otherwise use bin
+            File metadataDir = (appDir != null && !appDir.equals(localBinDir)) ? appDir : localBinDir;
+            saveMetadata(metadataDir, java.util.Collections.singletonList(symlinkPath), pathUpdated, localBinDir);
 
             return symlinkPath;
         } catch (IOException ioe) {
