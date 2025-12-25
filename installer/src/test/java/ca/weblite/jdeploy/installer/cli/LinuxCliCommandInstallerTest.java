@@ -133,6 +133,176 @@ public class LinuxCliCommandInstallerTest {
     }
 
     @Test
+    public void testInstallCommandsScriptContent_pathWithSpaces() throws IOException {
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
+
+        File spaceDir = new File(tempDir, "path with spaces");
+        spaceDir.mkdirs();
+        File spacedLauncher = new File(spaceDir, "launcher");
+        spacedLauncher.createNewFile();
+        spacedLauncher.setExecutable(true);
+
+        installer.installCommands(spacedLauncher, commands, settings);
+
+        File scriptFile = new File(binDir, "testcmd");
+        String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
+
+        assertTrue(content.contains("#!/bin/sh"));
+        assertTrue(content.contains(spacedLauncher.getAbsolutePath()));
+        assertTrue(content.contains("--jdeploy:command=testcmd"));
+    }
+
+    @Test
+    public void testInstallCommandsScriptContent_pathWithSingleQuotes() throws IOException {
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
+
+        File quoteDir = new File(tempDir, "path'with'quotes");
+        quoteDir.mkdirs();
+        File quotedLauncher = new File(quoteDir, "launcher");
+        quotedLauncher.createNewFile();
+        quotedLauncher.setExecutable(true);
+
+        installer.installCommands(quotedLauncher, commands, settings);
+
+        File scriptFile = new File(binDir, "testcmd");
+        String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
+
+        assertTrue(content.contains("#!/bin/sh"));
+        // Single quotes don't need escaping in double quotes
+        assertTrue(content.contains(quotedLauncher.getAbsolutePath()));
+    }
+
+    @Test
+    public void testInstallCommandsScriptContent_pathWithDoubleQuotes() throws IOException {
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
+
+        File doubleQuoteDir = new File(tempDir, "path\"with\"quotes");
+        doubleQuoteDir.mkdirs();
+        File doubleQuotedLauncher = new File(doubleQuoteDir, "launcher");
+        doubleQuotedLauncher.createNewFile();
+        doubleQuotedLauncher.setExecutable(true);
+
+        installer.installCommands(doubleQuotedLauncher, commands, settings);
+
+        File scriptFile = new File(binDir, "testcmd");
+        String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
+
+        assertTrue(content.contains("#!/bin/sh"));
+        // Double quotes should be escaped
+        assertTrue(content.contains("\\\""));
+    }
+
+    @Test
+    public void testInstallCommandsScriptContent_pathWithBackticks() throws IOException {
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
+
+        File backtickDir = new File(tempDir, "path`with`backticks");
+        backtickDir.mkdirs();
+        File backtickLauncher = new File(backtickDir, "launcher");
+        backtickLauncher.createNewFile();
+        backtickLauncher.setExecutable(true);
+
+        installer.installCommands(backtickLauncher, commands, settings);
+
+        File scriptFile = new File(binDir, "testcmd");
+        String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
+
+        assertTrue(content.contains("#!/bin/sh"));
+        // Backticks should be escaped
+        assertTrue(content.contains("\\`"));
+    }
+
+    @Test
+    public void testInstallCommandsScriptContent_pathWithDollarSign() throws IOException {
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
+
+        File dollarDir = new File(tempDir, "path$with$dollar");
+        dollarDir.mkdirs();
+        File dollarLauncher = new File(dollarDir, "launcher");
+        dollarLauncher.createNewFile();
+        dollarLauncher.setExecutable(true);
+
+        installer.installCommands(dollarLauncher, commands, settings);
+
+        File scriptFile = new File(binDir, "testcmd");
+        String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
+
+        assertTrue(content.contains("#!/bin/sh"));
+        // Dollar signs should be escaped
+        assertTrue(content.contains("\\$"));
+    }
+
+    @Test
+    public void testInstallCommandsScriptContent_pathWithBackslash() throws IOException {
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
+
+        File backslashDir = new File(tempDir, "path\\with\\backslash");
+        backslashDir.mkdirs();
+        File backslashLauncher = new File(backslashDir, "launcher");
+        backslashLauncher.createNewFile();
+        backslashLauncher.setExecutable(true);
+
+        installer.installCommands(backslashLauncher, commands, settings);
+
+        File scriptFile = new File(binDir, "testcmd");
+        String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
+
+        assertTrue(content.contains("#!/bin/sh"));
+        // Backslashes should be escaped
+        assertTrue(content.contains("\\\\"));
+    }
+
+    @Test
+    public void testInstallCommandsScriptContent_pathWithMultipleSpecialChars() throws IOException {
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
+
+        File specialDir = new File(tempDir, "path`with$multiple\"special'chars");
+        specialDir.mkdirs();
+        File specialLauncher = new File(specialDir, "launcher");
+        specialLauncher.createNewFile();
+        specialLauncher.setExecutable(true);
+
+        installer.installCommands(specialLauncher, commands, settings);
+
+        File scriptFile = new File(binDir, "testcmd");
+        String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
+
+        assertTrue(content.contains("#!/bin/sh"));
+        // Multiple special chars should be escaped appropriately
+        assertTrue(content.contains("\\`"));
+        assertTrue(content.contains("\\$"));
+        assertTrue(content.contains("\\\""));
+    }
+
+    @Test
     public void testAddToPathBash() {
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:/bin";

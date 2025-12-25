@@ -1,14 +1,16 @@
 package ca.weblite.jdeploy.installer.cli;
 
-import ca.weblite.jdeploy.installer.linux.LinuxCliScriptWriter;
+import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.models.CommandSpec;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
-import java.io.File;
 
 /**
  * Linux-specific implementation of CLI command installer.
@@ -115,6 +117,43 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
 
     @Override
     protected void writeCommandScript(File scriptPath, String launcherPath, String commandName, List<String> args) throws IOException {
-        LinuxCliScriptWriter.writeExecutableScript(scriptPath, launcherPath, commandName);
+        String content = generateContent(launcherPath, commandName);
+        try (FileOutputStream fos = new FileOutputStream(scriptPath)) {
+            fos.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+        // make executable for owner/group/other (non-strict)
+        scriptPath.setExecutable(true, false);
+    }
+
+    /**
+     * Generate the content of a POSIX shell script that exec's the given launcher with
+     * the configured command name and forwards user-supplied args.
+     *
+     * @param launcherPath Absolute path to the CLI-capable launcher binary.
+     * @param commandName  The command name to pass as --jdeploy:command=<name>.
+     * @return Script content (including shebang and trailing newline).
+     */
+    private static String generateContent(String launcherPath, String commandName) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("#!/bin/sh\n");
+        sb.append("exec \"").append(escapeDoubleQuotes(launcherPath)).append("\" ").append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName).append(" -- \"$@\"\n");
+        return sb.toString();
+    }
+
+    /**
+     * Escapes special characters in a string for use within double quotes in a shell script.
+     * Order matters: escape backslashes first to avoid double-escaping.
+     *
+     * @param s the string to escape
+     * @return the escaped string safe for use in double quotes
+     */
+    private static String escapeDoubleQuotes(String s) {
+        if (s == null) return "";
+        // Order matters: escape backslashes first to avoid double-escaping
+        // Then escape other special chars that have meaning inside double quotes
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("`", "\\`")
+                .replace("$", "\\$");
     }
 }
