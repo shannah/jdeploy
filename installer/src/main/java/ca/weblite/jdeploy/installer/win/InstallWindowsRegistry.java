@@ -9,6 +9,8 @@ import static com.sun.jna.platform.win32.Advapi32Util.*;
 import static com.sun.jna.platform.win32.WinReg.*;
 
 import java.io.*;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
@@ -883,57 +885,158 @@ public class InstallWindowsRegistry {
     /**
      * Adds the provided binDir to the user's HKCU\Environment\Path if not already present.
      * Returns true if the registry value was changed, false if the directory was already present.
+     * Uses file-based locking to prevent race conditions when multiple processes update PATH simultaneously.
      */
     public boolean addToUserPath(File binDir) {
         if (binDir == null) return false;
-        String binPath = binDir.getAbsolutePath();
-        String key = "Environment";
-        String curr = null;
-        boolean hadRegistryValue = false;
-        if (registryKeyExists(HKEY_CURRENT_USER, key) && registryValueExists(HKEY_CURRENT_USER, key, "Path")) {
-            curr = registryGetStringValue(HKEY_CURRENT_USER, key, "Path");
-            hadRegistryValue = true;
-        } else {
-            curr = System.getenv("PATH");
+        
+        try (PathUpdateLock lock = new PathUpdateLock()) {
+            lock.acquire(30000); // 30 second timeout
+            
+            String binPath = binDir.getAbsolutePath();
+            String key = "Environment";
+            String curr = null;
+            boolean hadRegistryValue = false;
+            if (registryKeyExists(HKEY_CURRENT_USER, key) && registryValueExists(HKEY_CURRENT_USER, key, "Path")) {
+                curr = registryGetStringValue(HKEY_CURRENT_USER, key, "Path");
+                hadRegistryValue = true;
+            } else {
+                curr = System.getenv("PATH");
+            }
+            String newPath = computePathWithAdded(curr, binPath);
+            if (newPath == null) newPath = binPath;
+            if (curr != null && curr.equals(newPath)) {
+                return false;
+            }
+            if (!registryKeyExists(HKEY_CURRENT_USER, key)) {
+                registryCreateKey(HKEY_CURRENT_USER, key);
+            }
+            registrySetStringValue(HKEY_CURRENT_USER, key, "Path", newPath);
+            return true;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to acquire PATH update lock", e);
         }
-        String newPath = computePathWithAdded(curr, binPath);
-        if (newPath == null) newPath = binPath;
-        if (curr != null && curr.equals(newPath)) {
-            return false;
-        }
-        if (!registryKeyExists(HKEY_CURRENT_USER, key)) {
-            registryCreateKey(HKEY_CURRENT_USER, key);
-        }
-        registrySetStringValue(HKEY_CURRENT_USER, key, "Path", newPath);
-        return true;
     }
 
     /**
      * Removes the provided binDir from the user's HKCU\Environment\Path.
      * Returns true if the registry value was changed (or set) and false if no change was needed.
+     * Uses file-based locking to prevent race conditions when multiple processes update PATH simultaneously.
      */
     public boolean removeFromUserPath(File binDir) {
         if (binDir == null) return false;
-        String binPath = binDir.getAbsolutePath();
-        String key = "Environment";
-        String curr = null;
-        boolean hadRegistryValue = false;
-        if (registryKeyExists(HKEY_CURRENT_USER, key) && registryValueExists(HKEY_CURRENT_USER, key, "Path")) {
-            curr = registryGetStringValue(HKEY_CURRENT_USER, key, "Path");
-            hadRegistryValue = true;
-        } else {
-            curr = System.getenv("PATH");
+        
+        try (PathUpdateLock lock = new PathUpdateLock()) {
+            lock.acquire(30000); // 30 second timeout
+            
+            String binPath = binDir.getAbsolutePath();
+            String key = "Environment";
+            String curr = null;
+            boolean hadRegistryValue = false;
+            if (registryKeyExists(HKEY_CURRENT_USER, key) && registryValueExists(HKEY_CURRENT_USER, key, "Path")) {
+                curr = registryGetStringValue(HKEY_CURRENT_USER, key, "Path");
+                hadRegistryValue = true;
+            } else {
+                curr = System.getenv("PATH");
+            }
+            String newPath = computePathWithRemoved(curr, binPath);
+            if (newPath == null) newPath = "";
+            if (curr != null && curr.equals(newPath)) {
+                return false;
+            }
+            if (!registryKeyExists(HKEY_CURRENT_USER, key)) {
+                registryCreateKey(HKEY_CURRENT_USER, key);
+            }
+            registrySetStringValue(HKEY_CURRENT_USER, key, "Path", newPath);
+            return true;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to acquire PATH update lock", e);
         }
-        String newPath = computePathWithRemoved(curr, binPath);
-        if (newPath == null) newPath = "";
-        if (curr != null && curr.equals(newPath)) {
-            return false;
+    }
+
+    /**
+     * Helper class to manage file-based locking for PATH updates.
+     * Uses an exclusive lock on %USERPROFILE%\.jdeploy\path.lock to coordinate
+     * read-modify-write operations across multiple processes.
+     */
+    static class PathUpdateLock implements AutoCloseable {
+        private File lockFile;
+        private RandomAccessFile lockFileHandle;
+        private FileLock fileLock;
+
+        PathUpdateLock() throws IOException {
+            String userHome = System.getProperty("user.home");
+            File jdeployDir = new File(userHome, ".jdeploy");
+            if (!jdeployDir.exists()) {
+                jdeployDir.mkdirs();
+            }
+            this.lockFile = new File(jdeployDir, "path.lock");
+            this.lockFileHandle = new RandomAccessFile(lockFile, "rw");
         }
-        if (!registryKeyExists(HKEY_CURRENT_USER, key)) {
-            registryCreateKey(HKEY_CURRENT_USER, key);
+
+        /**
+         * Acquires an exclusive lock on the PATH lock file.
+         *
+         * @param timeoutMs Maximum time to wait for the lock in milliseconds.
+         * @throws IOException If the lock cannot be acquired within the timeout.
+         */
+        void acquire(long timeoutMs) throws IOException {
+            long startTime = System.currentTimeMillis();
+            while (true) {
+                try {
+                    // Try to acquire an exclusive lock (second parameter: shared=false)
+                    fileLock = lockFileHandle.getChannel().tryLock();
+                    if (fileLock != null) {
+                        // Lock acquired successfully
+                        return;
+                    }
+                } catch (IOException e) {
+                    // tryLock() threw an exception; may be due to unsupported operation
+                    // In that case, we'll retry or timeout
+                }
+
+                long elapsedTime = System.currentTimeMillis() - startTime;
+                if (elapsedTime >= timeoutMs) {
+                    throw new IOException(
+                        "Failed to acquire PATH update lock within " + timeoutMs + "ms. " +
+                        "Lock file: " + lockFile.getAbsolutePath()
+                    );
+                }
+
+                // Back off briefly before retrying
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while waiting for PATH update lock", e);
+                }
+            }
         }
-        registrySetStringValue(HKEY_CURRENT_USER, key, "Path", newPath);
-        return true;
+
+        /**
+         * Releases the lock and closes the lock file handle.
+         */
+        @Override
+        public void close() {
+            if (fileLock != null) {
+                try {
+                    fileLock.release();
+                } catch (IOException e) {
+                    // Log or handle, but don't throw from close()
+                    System.err.println("Warning: Failed to release PATH update lock: " + e.getMessage());
+                }
+                fileLock = null;
+            }
+            if (lockFileHandle != null) {
+                try {
+                    lockFileHandle.close();
+                } catch (IOException e) {
+                    // Log or handle, but don't throw from close()
+                    System.err.println("Warning: Failed to close PATH update lock file: " + e.getMessage());
+                }
+                lockFileHandle = null;
+            }
+        }
     }
 
 }
