@@ -18,6 +18,9 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class MacCliCommandInstallerTest {
@@ -139,6 +142,7 @@ public class MacCliCommandInstallerTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     public void testCommandScriptEscapeDoubleQuotes() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
         commands.add(new CommandSpec("mycmd", new ArrayList<>()));

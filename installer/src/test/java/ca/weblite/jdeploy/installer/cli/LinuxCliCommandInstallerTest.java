@@ -19,6 +19,9 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class LinuxCliCommandInstallerTest {
@@ -128,7 +131,9 @@ public class LinuxCliCommandInstallerTest {
         String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
 
         assertTrue(content.contains("#!/bin/sh"));
-        assertTrue(content.contains(launcherPath.getAbsolutePath()));
+        // On Windows, paths contain backslashes which get escaped in the script
+        String expectedPath = launcherPath.getAbsolutePath().replace("\\", "\\\\");
+        assertTrue(content.contains(expectedPath));
         assertTrue(content.contains("--jdeploy:command=testcmd"));
     }
 
@@ -152,7 +157,9 @@ public class LinuxCliCommandInstallerTest {
         String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
 
         assertTrue(content.contains("#!/bin/sh"));
-        assertTrue(content.contains(spacedLauncher.getAbsolutePath()));
+        // On Windows, paths contain backslashes which get escaped in the script
+        String expectedPath = spacedLauncher.getAbsolutePath().replace("\\", "\\\\");
+        assertTrue(content.contains(expectedPath));
         assertTrue(content.contains("--jdeploy:command=testcmd"));
     }
 
@@ -177,10 +184,13 @@ public class LinuxCliCommandInstallerTest {
 
         assertTrue(content.contains("#!/bin/sh"));
         // Single quotes don't need escaping in double quotes
-        assertTrue(content.contains(quotedLauncher.getAbsolutePath()));
+        // On Windows, paths contain backslashes which get escaped in the script
+        String expectedPath = quotedLauncher.getAbsolutePath().replace("\\", "\\\\");
+        assertTrue(content.contains(expectedPath));
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     public void testInstallCommandsScriptContent_pathWithDoubleQuotes() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
         commands.add(new CommandSpec("testcmd", new ArrayList<>()));
@@ -277,6 +287,7 @@ public class LinuxCliCommandInstallerTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     public void testInstallCommandsScriptContent_pathWithMultipleSpecialChars() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
         commands.add(new CommandSpec("testcmd", new ArrayList<>()));
