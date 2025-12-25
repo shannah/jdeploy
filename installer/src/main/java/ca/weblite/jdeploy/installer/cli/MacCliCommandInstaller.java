@@ -66,8 +66,10 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
         // Add to PATH and save metadata if any files were created
         if (anyCreated) {
             boolean pathUpdated = addToPath(localBinDir);
-            // Save metadata to the bin directory itself (where commands are installed)
-            saveMetadata(localBinDir, createdFiles, pathUpdated, localBinDir);
+            // Save metadata to launcher's parent directory (appDir) if it differs from binDir
+            File appDir = launcherPath.getParentFile();
+            File metadataDir = (appDir != null && !appDir.equals(localBinDir)) ? appDir : localBinDir;
+            saveMetadata(metadataDir, createdFiles, pathUpdated, localBinDir);
 
             // Update settings
             settings.setAddedToPath(pathUpdated);

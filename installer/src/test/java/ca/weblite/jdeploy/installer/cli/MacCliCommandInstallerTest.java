@@ -292,8 +292,8 @@ public class MacCliCommandInstallerTest {
         assertTrue(new File(binDir, "cmd1").exists());
         assertTrue(new File(binDir, "cmd2").exists());
 
-        // Now uninstall - pass binDir since metadata is stored there
-        installer.uninstallCommands(binDir);
+        // Now uninstall - pass launcherDir since metadata is stored there
+        installer.uninstallCommands(launcherDir);
 
         // Verify files are removed
         assertFalse(new File(binDir, "cmd1").exists());
@@ -325,7 +325,7 @@ public class MacCliCommandInstallerTest {
 
         installer.installCommands(launcherPath, commands, settings);
 
-        File metadataFile = new File(binDir, CliInstallerConstants.CLI_METADATA_FILE);
+        File metadataFile = new File(launcherDir, CliInstallerConstants.CLI_METADATA_FILE);
         assertTrue(metadataFile.exists());
 
         String content = new String(Files.readAllBytes(metadataFile.toPath()), StandardCharsets.UTF_8);
@@ -407,7 +407,7 @@ public class MacCliCommandInstallerTest {
 
         installer.installCommands(launcherPath, commands, settings);
 
-        File metadataFile = new File(binDir, CliInstallerConstants.CLI_METADATA_FILE);
+        File metadataFile = new File(launcherDir, CliInstallerConstants.CLI_METADATA_FILE);
         String content = new String(Files.readAllBytes(metadataFile.toPath()), StandardCharsets.UTF_8);
         JSONObject metadata = new JSONObject(content);
 
@@ -427,7 +427,7 @@ public class MacCliCommandInstallerTest {
 
         installer.installCommands(launcherPath, commands, settings);
 
-        File metadataFile = new File(binDir, CliInstallerConstants.CLI_METADATA_FILE);
+        File metadataFile = new File(launcherDir, CliInstallerConstants.CLI_METADATA_FILE);
         String content = new String(Files.readAllBytes(metadataFile.toPath()), StandardCharsets.UTF_8);
         JSONObject metadata = new JSONObject(content);
 
@@ -450,5 +450,94 @@ public class MacCliCommandInstallerTest {
         installer.installCommands(launcherPath, commands, settings);
 
         assertTrue(settings.isCommandLineSymlinkCreated() || settings.isAddedToPath());
+    }
+
+    @Test
+    public void testMetadataSavedToAppDirNotBinDir() throws IOException {
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
+        settings.setInstallCliCommands(true);
+        settings.setInstallCliLauncher(false);
+
+        installer.installCommands(launcherPath, commands, settings);
+
+        // Metadata should be in launcherDir (appDir), not binDir
+        File metadataInAppDir = new File(launcherDir, CliInstallerConstants.CLI_METADATA_FILE);
+        File metadataInBinDir = new File(binDir, CliInstallerConstants.CLI_METADATA_FILE);
+        
+        assertTrue(metadataInAppDir.exists(), "Metadata should be saved to appDir (launcher parent)");
+        // Note: binDir might also have metadata if appDir equals binDir, but in this test they differ
+        assertFalse(metadataInBinDir.exists(), "Metadata should NOT be saved to binDir when appDir differs");
+    }
+
+    @Test
+    public void testUninstallFromAppDirRemovesScriptsFromBinDir() throws IOException {
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("cmd1", new ArrayList<>()));
+        commands.add(new CommandSpec("cmd2", new ArrayList<>()));
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
+        settings.setInstallCliCommands(true);
+        settings.setInstallCliLauncher(false);
+
+        installer.installCommands(launcherPath, commands, settings);
+
+        // Verify scripts are in binDir
+        assertTrue(new File(binDir, "cmd1").exists());
+        assertTrue(new File(binDir, "cmd2").exists());
+
+        // Verify metadata is in launcherDir (appDir)
+        File metadataFile = new File(launcherDir, CliInstallerConstants.CLI_METADATA_FILE);
+        assertTrue(metadataFile.exists(), "Metadata should exist in appDir");
+
+        // Uninstall using appDir (where metadata lives)
+        installer.uninstallCommands(launcherDir);
+
+        // Scripts in binDir should be removed
+        assertFalse(new File(binDir, "cmd1").exists(), "Script cmd1 should be removed from binDir");
+        assertFalse(new File(binDir, "cmd2").exists(), "Script cmd2 should be removed from binDir");
+        
+        // Metadata file should also be removed
+        assertFalse(metadataFile.exists(), "Metadata file should be removed after uninstall");
+    }
+
+    @Test
+    public void testTemplateMethodProducesEquivalentBehaviorToLinux() throws IOException {
+        // This test documents that Mac and Linux installers follow the same pattern:
+        // 1. Scripts go to binDir
+        // 2. Metadata goes to appDir (launcher parent)
+        // 3. Uninstall from appDir removes scripts from binDir
+        
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
+        settings.setInstallCliCommands(true);
+        settings.setInstallCliLauncher(false);
+
+        List<File> created = installer.installCommands(launcherPath, commands, settings);
+
+        // Verify: script created in binDir
+        assertEquals(1, created.size());
+        assertEquals(binDir, created.get(0).getParentFile());
+        
+        // Verify: metadata in appDir with binDir reference
+        File metadataFile = new File(launcherDir, CliInstallerConstants.CLI_METADATA_FILE);
+        assertTrue(metadataFile.exists());
+        
+        String content = new String(Files.readAllBytes(metadataFile.toPath()), StandardCharsets.UTF_8);
+        JSONObject metadata = new JSONObject(content);
+        
+        // Metadata should contain binDir location for uninstall
+        assertTrue(metadata.has("binDir"));
+        assertEquals(binDir.getAbsolutePath(), metadata.getString("binDir"));
+        
+        // Metadata should list created wrappers
+        assertTrue(metadata.has(CliInstallerConstants.CREATED_WRAPPERS_KEY));
     }
 }
