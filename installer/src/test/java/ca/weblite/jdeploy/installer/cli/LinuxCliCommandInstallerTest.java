@@ -136,25 +136,25 @@ public class LinuxCliCommandInstallerTest {
     public void testAddToPathBash() {
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:/bin";
-        File bashProfile = new File(homeDir, ".bash_profile");
+        File profile = new File(homeDir, ".profile");
 
         boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        // When neither .bashrc nor .bash_profile exists, the implementation creates .bash_profile
-        assertTrue(bashProfile.exists(), "bash_profile was not created");
+        // UnixPathManager always uses .profile for POSIX compatibility
+        assertTrue(profile.exists(), "profile was not created");
     }
 
     @Test
     public void testAddToPathZsh() {
         String shell = "/bin/zsh";
         String pathEnv = "/usr/bin:/bin";
-        File zshrc = new File(homeDir, ".zshrc");
+        File profile = new File(homeDir, ".profile");
 
         boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        assertTrue(zshrc.exists());
+        assertTrue(profile.exists());
     }
 
     @Test
@@ -187,10 +187,12 @@ public class LinuxCliCommandInstallerTest {
     public void testAddToPathFish() {
         String shell = "/usr/bin/fish";
         String pathEnv = "/usr/bin:/bin";
+        File profile = new File(homeDir, ".profile");
 
         boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
-        assertFalse(result);
+        assertTrue(result);
+        assertTrue(profile.exists());
     }
 
     @Test
