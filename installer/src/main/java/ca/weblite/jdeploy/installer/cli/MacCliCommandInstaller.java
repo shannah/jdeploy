@@ -85,7 +85,7 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
         script.append("#!/bin/bash\n");
         script.append("\"").append(escapeDoubleQuotes(launcherPath)).append("\" ");
         script.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
-        script.append(" \"$@\"\n");
+        script.append(" -- \"$@\"\n");
 
         try (FileOutputStream fos = new FileOutputStream(scriptPath)) {
             fos.write(script.toString().getBytes(StandardCharsets.UTF_8));
