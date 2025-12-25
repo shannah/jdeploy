@@ -482,4 +482,318 @@ public class CommandSpecParserTest {
         assertTrue(names.contains("a.b.c"));
         assertTrue(names.contains("test.123"));
     }
+
+    // ===== Edge-case security tests =====
+
+    @Test
+    void testParseCommands_unicodeHomoglyphAttack_cyrillicA() {
+        // Test that command names with Cyrillic 'а' (U+0430) which looks like ASCII 'a' are rejected
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        // Cyrillic 'а' (U+0430) looks identical to ASCII 'a' but is a different character
+        String homoglyphName = "\u0430pple";  // Cyrillic a + "pple"
+        commands.put(homoglyphName, new JSONObject());
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("Invalid command name"));
+    }
+
+    @Test
+    void testParseCommands_unicodeHomoglyphAttack_greekO() {
+        // Test that command names with Greek omicron (U+03BF) which looks like ASCII 'o' are rejected
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        // Greek omicron (U+03BF) looks identical to ASCII 'o'
+        String homoglyphName = "c\u03bfmmand";  // "c" + Greek o + "mmand"
+        commands.put(homoglyphName, new JSONObject());
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("Invalid command name"));
+    }
+
+    @Test
+    void testParseCommands_unicodeHomoglyphAttack_cyrillic_в() {
+        // Test rejection of Cyrillic 'в' (U+0432) which looks like ASCII 'B'
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        String homoglyphName = "cmd\u0432uild";  // "cmd" + Cyrillic в + "uild"
+        commands.put(homoglyphName, new JSONObject());
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("Invalid command name"));
+    }
+
+    @Test
+    void testParseCommands_emptyStringArgumentAllowed() {
+        // Test that empty string arguments are allowed (safe, just represents empty parameter)
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        JSONArray args = new JSONArray();
+        args.put("");
+        args.put("--flag");
+        args.put("");
+        JSONObject commandSpec = new JSONObject();
+        commandSpec.put("args", args);
+        commands.put("cmd", commandSpec);
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+
+        assertEquals(1, result.size());
+        CommandSpec spec = result.get(0);
+        assertEquals(3, spec.getArgs().size());
+        assertEquals("", spec.getArgs().get(0));
+        assertEquals("--flag", spec.getArgs().get(1));
+        assertEquals("", spec.getArgs().get(2));
+    }
+
+    @Test
+    void testParseCommands_whitespaceOnlyArgumentAllowed() {
+        // Test that whitespace-only arguments are allowed (safe, just whitespace)
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        JSONArray args = new JSONArray();
+        args.put("   ");
+        args.put("\t");
+        args.put("\n");
+        args.put("  \t  ");
+        JSONObject commandSpec = new JSONObject();
+        commandSpec.put("args", args);
+        commands.put("cmd", commandSpec);
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+
+        assertEquals(1, result.size());
+        CommandSpec spec = result.get(0);
+        assertEquals(4, spec.getArgs().size());
+        assertEquals("   ", spec.getArgs().get(0));
+        assertEquals("\t", spec.getArgs().get(1));
+        assertEquals("\n", spec.getArgs().get(2));
+        assertEquals("  \t  ", spec.getArgs().get(3));
+    }
+
+    @Test
+    void testParseCommands_extremelyLongArgumentList() {
+        // Test that parsing handles 100+ arguments without stack overflow or performance issues
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        JSONArray args = new JSONArray();
+        int argCount = 150;
+        for (int i = 0; i < argCount; i++) {
+            args.put("--arg-" + i);
+        }
+        JSONObject commandSpec = new JSONObject();
+        commandSpec.put("args", args);
+        commands.put("cmd", commandSpec);
+        jdeployConfig.put("commands", commands);
+
+        long startTime = System.currentTimeMillis();
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+        long elapsedTime = System.currentTimeMillis() - startTime;
+
+        assertEquals(1, result.size());
+        CommandSpec spec = result.get(0);
+        assertEquals(argCount, spec.getArgs().size());
+        
+        // Parsing should complete quickly (not take more than 5 seconds)
+        assertTrue(elapsedTime < 5000, "Parsing of 150 arguments took too long: " + elapsedTime + "ms");
+    }
+
+    @Test
+    void testParseCommands_extremelyLongArgumentString() {
+        // Test that parsing handles 10KB+ argument strings gracefully
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        // Create a 10KB+ safe argument string
+        StringBuilder longArg = new StringBuilder();
+        longArg.append("--very-long-argument=");
+        // Fill with safe characters: alphanumerics and hyphens
+        for (int i = 0; i < 10240; i++) {
+            longArg.append('a');
+        }
+        
+        JSONArray args = new JSONArray();
+        args.put(longArg.toString());
+        JSONObject commandSpec = new JSONObject();
+        commandSpec.put("args", args);
+        commands.put("cmd", commandSpec);
+        jdeployConfig.put("commands", commands);
+
+        long startTime = System.currentTimeMillis();
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+        long elapsedTime = System.currentTimeMillis() - startTime;
+
+        assertEquals(1, result.size());
+        CommandSpec spec = result.get(0);
+        assertEquals(1, spec.getArgs().size());
+        assertEquals(10240 + 21, spec.getArgs().get(0).length());  // 10240 'a's + "--very-long-argument=" prefix
+        
+        // Should complete quickly even with large strings
+        assertTrue(elapsedTime < 5000, "Parsing of 10KB+ argument took too long: " + elapsedTime + "ms");
+    }
+
+    @Test
+    void testParseCommands_multipleExtremeLongArgumentStrings() {
+        // Test handling multiple large argument strings together
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        JSONArray args = new JSONArray();
+        for (int i = 0; i < 10; i++) {
+            StringBuilder longArg = new StringBuilder();
+            longArg.append("--arg-").append(i).append("=");
+            // Fill with safe characters
+            for (int j = 0; j < 5120; j++) {  // 5KB each
+                longArg.append('x');
+            }
+            args.put(longArg.toString());
+        }
+        
+        JSONObject commandSpec = new JSONObject();
+        commandSpec.put("args", args);
+        commands.put("cmd", commandSpec);
+        jdeployConfig.put("commands", commands);
+
+        long startTime = System.currentTimeMillis();
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+        long elapsedTime = System.currentTimeMillis() - startTime;
+
+        assertEquals(1, result.size());
+        CommandSpec spec = result.get(0);
+        assertEquals(10, spec.getArgs().size());
+        
+        // Should handle 10 x 5KB arguments gracefully
+        assertTrue(elapsedTime < 5000, "Parsing of 10x5KB arguments took too long: " + elapsedTime + "ms");
+    }
+
+    @Test
+    void testParseCommands_dangerousCharsRejectedInLongArgs() {
+        // Test that dangerous characters are still detected even in very long argument strings
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        // Create a long argument with a semicolon somewhere in the middle
+        StringBuilder longArg = new StringBuilder();
+        for (int i = 0; i < 5000; i++) {
+            longArg.append('a');
+        }
+        longArg.append("; malicious");  // Injection attempt in the middle
+        for (int i = 0; i < 5000; i++) {
+            longArg.append('b');
+        }
+        
+        JSONArray args = new JSONArray();
+        args.put(longArg.toString());
+        JSONObject commandSpec = new JSONObject();
+        commandSpec.put("args", args);
+        commands.put("cmd", commandSpec);
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("dangerous shell metacharacters"));
+    }
+
+    @Test
+    void testParseCommands_commandNameWithMixedUnicode() {
+        // Test that mixed unicode and ASCII in command name is rejected
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        // Mix of ASCII and Chinese characters
+        commands.put("cmd\u4E2D\u6587", new JSONObject());
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("Invalid command name"));
+    }
+
+    @Test
+    void testParseCommands_zeroWidthCharactersInCommandName() {
+        // Test that zero-width characters in command names are rejected
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        // Zero-width joiner (U+200D) inserted in a name
+        String nameWithZeroWidth = "cmd\u200Dtest";
+        commands.put(nameWithZeroWidth, new JSONObject());
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("Invalid command name"));
+    }
+
+    @Test
+    void testParseCommands_rightToLeftOverrideInCommandName() {
+        // Test that right-to-left override (U+202E) in command names is rejected
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        // Right-to-left override character
+        String nameWithRLO = "cmd\u202Emalicious";
+        commands.put(nameWithRLO, new JSONObject());
+        jdeployConfig.put("commands", commands);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+            () -> CommandSpecParser.parseCommands(jdeployConfig));
+        assertTrue(ex.getMessage().contains("Invalid command name"));
+    }
+
+    @Test
+    void testParseCommands_allDangerousCharactersDetected() {
+        // Comprehensive test verifying all dangerous characters are caught
+        String[] dangerousChars = {";", "|", "&", "`", "$("};
+        
+        for (String dangerous : dangerousChars) {
+            JSONObject jdeployConfig = new JSONObject();
+            JSONObject commands = new JSONObject();
+            
+            JSONArray args = new JSONArray();
+            args.put("--safe" + dangerous + "injection");
+            JSONObject commandSpec = new JSONObject();
+            commandSpec.put("args", args);
+            commands.put("cmd", commandSpec);
+            jdeployConfig.put("commands", commands);
+
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, 
+                () -> CommandSpecParser.parseCommands(jdeployConfig),
+                "Failed to reject dangerous character: " + dangerous);
+            assertTrue(ex.getMessage().contains("dangerous shell metacharacters"),
+                "Error message missing for character: " + dangerous);
+        }
+    }
+
+    @Test
+    void testParseCommands_veryDeepCommandHierarchyNotSupported() {
+        // Verify that commands with nested objects (which parser doesn't support) are rejected
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        
+        JSONObject nestedSpec = new JSONObject();
+        JSONObject nestedLevel2 = new JSONObject();
+        nestedLevel2.put("deep", new JSONObject());
+        nestedSpec.put("nested", nestedLevel2);
+        commands.put("cmd", nestedSpec);
+        jdeployConfig.put("commands", commands);
+
+        // Should parse successfully (extra fields are ignored by the parser)
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+        assertEquals(1, result.size());
+    }
 }
