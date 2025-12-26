@@ -10,8 +10,12 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Windows implementation of CLI command installer.
@@ -20,6 +24,17 @@ import java.util.List;
  * and metadata persistence for CLI command installation on Windows.
  */
 public class WindowsCliCommandInstaller implements CliCommandInstaller {
+
+    private CollisionHandler collisionHandler = new DefaultCollisionHandler();
+
+    /**
+     * Sets the collision handler for detecting and resolving command name conflicts.
+     * 
+     * @param collisionHandler the handler to use for collision resolution
+     */
+    public void setCollisionHandler(CollisionHandler collisionHandler) {
+        this.collisionHandler = collisionHandler != null ? collisionHandler : new DefaultCollisionHandler();
+    }
 
     @Override
     public List<File> installCommands(File launcherPath, List<CommandSpec> commands, InstallationSettings settings) {
@@ -151,6 +166,29 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             String name = cs.getName();
             File wrapper = new File(binDir, name + ".cmd");
 
+            // Check for collision with existing wrapper
+            if (wrapper.exists()) {
+                String existingLauncherPath = extractLauncherPathFromCmdFile(wrapper);
+                
+                if (existingLauncherPath != null && !existingLauncherPath.equals(launcherPath.getAbsolutePath())) {
+                    // Different app owns this command - invoke collision handler
+                    CollisionAction action = collisionHandler.handleCollision(
+                        name, 
+                        existingLauncherPath, 
+                        launcherPath.getAbsolutePath()
+                    );
+                    
+                    if (action == CollisionAction.SKIP) {
+                        System.out.println("Skipping command '" + name + "' - already owned by another app");
+                        continue;
+                    }
+                    // OVERWRITE - fall through to delete and recreate
+                    System.out.println("Overwriting command '" + name + "' from another app");
+                }
+                // Same app or couldn't parse - silently overwrite
+                wrapper.delete();
+            }
+
             // Windows batch wrapper: invoke the launcher with --jdeploy:command=<name> and forward all args
             String content = "@echo off\r\n\"" + launcherPath.getAbsolutePath() + "\" " + 
                            CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX + name + " %*\r\n";
@@ -161,6 +199,28 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
         }
 
         return created;
+    }
+
+    /**
+     * Extracts the launcher path from an existing .cmd wrapper file.
+     * Parses the file looking for the pattern: "path\to\launcher.exe" --jdeploy:command=
+     * 
+     * @param cmdFile the path to the existing .cmd file
+     * @return the launcher path if found, or null if parsing fails
+     */
+    protected String extractLauncherPathFromCmdFile(File cmdFile) {
+        try {
+            String content = new String(Files.readAllBytes(cmdFile.toPath()), StandardCharsets.UTF_8);
+            // Pattern matches: "path\to\launcher.exe" --jdeploy:command=
+            Pattern pattern = Pattern.compile("\"([^\"]+)\"\\s+--jdeploy:command=");
+            Matcher matcher = pattern.matcher(content);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        } catch (IOException e) {
+            System.err.println("Warning: Failed to read existing .cmd file " + cmdFile + ": " + e.getMessage());
+        }
+        return null;
     }
 
     /**
