@@ -8,6 +8,7 @@ import ca.weblite.jdeploy.installer.events.InstallationFormEventListener;
 import ca.weblite.jdeploy.installer.models.AutoUpdateSettings;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
+import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.tools.platform.Platform;
 
 import javax.swing.*;
@@ -15,6 +16,8 @@ import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.TimerTask;
 
 public class DefaultInstallationForm extends JFrame implements InstallationForm {
@@ -206,6 +209,33 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
             });
         }
 
+        // Add CLI commands checkbox if commands are defined
+        List<CommandSpec> commands = Collections.emptyList();
+        if (installationSettings.getNpmPackageVersion() != null) {
+            commands = installationSettings.getNpmPackageVersion().getCommands();
+        }
+        final JCheckBox cliCommandsCheckBox;
+        if (!commands.isEmpty()) {
+            cliCommandsCheckBox = new JCheckBox("Add command-line tools to PATH");
+            cliCommandsCheckBox.setSelected(installationSettings.isInstallCliCommands());
+
+            // Build tooltip with command names
+            StringBuilder tooltipBuilder = new StringBuilder("Commands: ");
+            for (int i = 0; i < commands.size(); i++) {
+                if (i > 0) tooltipBuilder.append(", ");
+                tooltipBuilder.append(commands.get(i).getName());
+            }
+            cliCommandsCheckBox.setToolTipText(tooltipBuilder.toString());
+
+            cliCommandsCheckBox.addActionListener(evt->{
+                boolean selected = cliCommandsCheckBox.isSelected();
+                installationSettings.setInstallCliCommands(selected);
+                installationSettings.setInstallCliLauncher(selected);
+            });
+        } else {
+            cliCommandsCheckBox = null;
+        }
+
         JPanel checkboxesPanel = new JPanel();
         if (Platform.getSystemPlatform().isWindows()) {
             checkboxesPanel.add(addToStartMenuCheckBox);
@@ -217,6 +247,11 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         // Add CLI checkbox for Linux
         if (Platform.getSystemPlatform().isLinux() && installationSettings.getCommandLinePath() != null) {
             checkboxesPanel.add(installCliCheckBox);
+        }
+
+        // Add CLI commands checkbox if it was created
+        if (cliCommandsCheckBox != null) {
+            checkboxesPanel.add(cliCommandsCheckBox);
         }
 
         JPanel southPanel = new JPanel();

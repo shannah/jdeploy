@@ -36,6 +36,14 @@ public class FXInstallationForm implements InstallationForm {
     }
 
     /**
+     * Gets the installation settings.
+     * @return the installation settings
+     */
+    public InstallationSettings getInstallationSettings() {
+        return installationSettings;
+    }
+
+    /**
      * Displays the dialog when installation is successful and complete.  Should
      * give the user the option to open the app, reveal the app in the explorer/finder,
      * or simply close the installer.
