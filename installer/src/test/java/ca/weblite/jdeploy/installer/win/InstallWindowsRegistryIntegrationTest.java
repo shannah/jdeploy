@@ -265,6 +265,24 @@ public class InstallWindowsRegistryIntegrationTest {
     }
 
     @Test
+    void testRegistryPathsWithoutSourceHash() throws IOException {
+        appInfo.setNpmSource(""); // Explicitly empty
+        installer.register();
+
+        // Verify no double dots in registered app name
+        String registeredAppName = installer.getRegisteredAppName();
+        assertEquals("jdeploy.test-app", registeredAppName);
+
+        // Verify Software\Clients\Other path
+        String expectedPath = "Software\\Clients\\Other\\jdeploy.test-app";
+        assertTrue(registryOps.keyExists(expectedPath), "Registry path should be correctly formed without double dots");
+
+        // Verify RegisteredApplications
+        assertEquals("Software\\Clients\\Other\\jdeploy.test-app\\Capabilities",
+                registryOps.getStringValue("Software\\RegisteredApplications", "jdeploy.test-app"));
+    }
+
+    @Test
     void testUnregister_RemovesFileAssociations() throws IOException {
         // First register
         installer.register();

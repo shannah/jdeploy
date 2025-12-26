@@ -235,18 +235,7 @@ public class InstallWindowsRegistry {
     }
 
     public String getFullyQualifiedPackageName() {
-        String sourceHash = getSourceHash();
-        String suffix = "";
-        if (appInfo.getNpmVersion() != null && appInfo.getNpmVersion().startsWith("0.0.0-")) {
-            String v = appInfo.getNpmVersion();
-            if (v.contains("-")) {
-                suffix = "." + v.substring(v.indexOf("-") + 1);
-            }
-        }
-        if (sourceHash == null || sourceHash.isEmpty()) {
-            return appInfo.getNpmPackage() + suffix;
-        }
-        return sourceHash + "." + appInfo.getNpmPackage() + suffix;
+        return getHashedName(null);
     }
 
     private Set<AppType> getAppTypes() {
@@ -275,18 +264,7 @@ public class InstallWindowsRegistry {
 
 
     public String getRegisteredAppName() {
-        String sourceHash = getSourceHash();
-        String suffix = "";
-        if (appInfo.getNpmVersion() != null && appInfo.getNpmVersion().startsWith("0.0.0-")) {
-            String v = appInfo.getNpmVersion();
-            if (v.contains("-")) {
-                suffix = "." + v.substring(v.indexOf("-") + 1);
-            }
-        }
-        if (sourceHash == null || sourceHash.isEmpty()) {
-            return "jdeploy." + appInfo.getNpmPackage() + suffix;
-        }
-        return "jdeploy." + sourceHash + "." + appInfo.getNpmPackage() + suffix;
+        return getHashedName("jdeploy");
     }
 
     private String getSourceHash() {
@@ -339,6 +317,10 @@ public class InstallWindowsRegistry {
      * @return
      */
     private String getProgId() {
+        return getHashedName("jdeploy") + ".file";
+    }
+
+    private String getHashedName(String prefix) {
         String sourceHash = getSourceHash();
         String suffix = "";
         if (appInfo.getNpmVersion() != null && appInfo.getNpmVersion().startsWith("0.0.0-")) {
@@ -347,10 +329,26 @@ public class InstallWindowsRegistry {
                 suffix = "." + v.substring(v.indexOf("-") + 1);
             }
         }
-        if (sourceHash == null || sourceHash.isEmpty()) {
-            return "jdeploy." + appInfo.getNpmPackage() + suffix + ".file";
+
+        StringBuilder sb = new StringBuilder();
+        if (prefix != null && !prefix.isEmpty()) {
+            sb.append(prefix).append(".");
         }
-        return "jdeploy." + sourceHash + "." + appInfo.getNpmPackage() + suffix + ".file";
+        if (sourceHash != null && !sourceHash.isEmpty()) {
+            sb.append(sourceHash).append(".");
+        }
+        sb.append(appInfo.getNpmPackage());
+        
+        if (suffix != null && !suffix.isEmpty()) {
+            // Suffix logic above ensures it starts with a dot (e.g. ".alpha")
+            // if it was derived from a 0.0.0- prerelease version.
+            if (!suffix.startsWith(".")) {
+                sb.append(".");
+            }
+            sb.append(suffix.startsWith(".") ? suffix : suffix);
+        }
+
+        return sb.toString();
     }
 
     /**
