@@ -319,24 +319,4 @@ public class InstallWindows {
         // Use centralized architecture detection utility
         return ArchitectureUtil.getArchitectureSuffix();
     }
-
-    /**
-     * Static helper method for writing command wrappers.
-     * This method is provided for backwards compatibility with existing tests.
-     * The actual implementation delegates to WindowsCliCommandInstaller.
-     *
-     * @param binDir the directory where wrappers will be created
-     * @param exePath the path to the launcher executable
-     * @param commands list of command specifications
-     * @return list of created wrapper files
-     * @throws IOException if wrapper creation fails
-     */
-    static List<File> writeCommandWrappers(File binDir, File exePath, List<ca.weblite.jdeploy.models.CommandSpec> commands) throws IOException {
-        ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller installer = 
-            new ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller();
-        return installer.writeCommandWrappersForTest(binDir, exePath, commands);
-    }
-
-    // (rest of private helpers and methods remain unchanged)
-    // Note: other methods in this class are unchanged from the original file.
 }
