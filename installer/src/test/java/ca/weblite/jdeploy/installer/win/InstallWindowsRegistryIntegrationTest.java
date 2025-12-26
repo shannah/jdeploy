@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.installer.win;
 
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -40,6 +41,9 @@ public class InstallWindowsRegistryIntegrationTest {
         iconFile = Files.createFile(tempDir.resolve("app.ico")).toFile();
         backupLogFile = Files.createFile(tempDir.resolve("backup.reg")).toFile();
 
+        // Set the required system property for InstallWindowsRegistry.register()
+        System.setProperty("client4j.launcher.path", exeFile.getAbsolutePath());
+
         // Set up AppInfo with realistic data
         appInfo = new AppInfo();
         appInfo.setTitle("Test Application");
@@ -66,6 +70,11 @@ public class InstallWindowsRegistryIntegrationTest {
         registryOps = new InMemoryRegistryOperations();
         ByteArrayOutputStream backupLog = new ByteArrayOutputStream();
         installer = new InstallWindowsRegistry(appInfo, exeFile, iconFile, backupLog, registryOps);
+    }
+
+    @AfterEach
+    void tearDown() {
+        System.clearProperty("client4j.launcher.path");
     }
 
     @Test
