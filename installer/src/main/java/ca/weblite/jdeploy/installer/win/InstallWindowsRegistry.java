@@ -21,6 +21,7 @@ public class InstallWindowsRegistry {
     private AppInfo appInfo;
     private File icon, exe;
     private RegistryOperations registryOps;
+    private boolean skipWinRegistryOperations = false;
     private static final Set<String> contactExtensions = new HashSet<>();
     private static final Set<String> mediaExtensions = new HashSet<>();
 
@@ -215,6 +216,14 @@ public class InstallWindowsRegistry {
             this.backupLog = backupLog;
             this.backupLogOut = new PrintStream(backupLog);
         }
+    }
+
+    /**
+     * Sets whether to skip WinRegistry operations (exportKey, notifyFileAssociationsChanged, regImport).
+     * This is useful when testing with in-memory registry implementations.
+     */
+    public void setSkipWinRegistryOperations(boolean skip) {
+        this.skipWinRegistryOperations = skip;
     }
 
     public File getUninstallerPath() {
@@ -530,7 +539,7 @@ public class InstallWindowsRegistry {
         }
         String schemeKey = getURLSchemeRegistryKey(scheme);
 
-        if (registryOps.keyExists(schemeKey)) {
+        if (!skipWinRegistryOperations && registryOps.keyExists(schemeKey)) {
             // NOTE: We back up the old key to the backup log so that we can revert on uninstall.
             new WinRegistry().exportKey(schemeKey, backupLog);
         }
@@ -633,10 +642,10 @@ public class InstallWindowsRegistry {
         // Register in HKEY_CURRENT_USER\Software\Classes\Directory\shell
         String directoryShellKey = "Software\\Classes\\Directory\\shell\\" + progId;
 
-        if (registryOps.keyExists(directoryShellKey)) {
+        if (!skipWinRegistryOperations && registryOps.keyExists(directoryShellKey)) {
             // Backup existing key
             new WinRegistry().exportKey(directoryShellKey, backupLog);
-        } else {
+        } else if (skipWinRegistryOperations || !registryOps.keyExists(directoryShellKey)) {
             backupLogOut.println(";CREATE " + directoryShellKey);
             backupLogOut.flush();
         }
@@ -667,9 +676,9 @@ public class InstallWindowsRegistry {
         // Also register for Directory\Background\shell for "Open folder with..." in empty space
         String backgroundShellKey = "Software\\Classes\\Directory\\Background\\shell\\" + progId;
 
-        if (registryOps.keyExists(backgroundShellKey)) {
+        if (!skipWinRegistryOperations && registryOps.keyExists(backgroundShellKey)) {
             new WinRegistry().exportKey(backgroundShellKey, backupLog);
-        } else {
+        } else if (skipWinRegistryOperations || !registryOps.keyExists(backgroundShellKey)) {
             backupLogOut.println(";CREATE " + backgroundShellKey);
             backupLogOut.flush();
         }
@@ -735,7 +744,7 @@ public class InstallWindowsRegistry {
         deleteUninstallEntry();
         deleteRegistryKey();
 
-        if (backupLogFile != null && backupLogFile.exists()) {
+        if (!skipWinRegistryOperations && backupLogFile != null && backupLogFile.exists()) {
             new WinRegistry().regImport(backupLogFile);
         }
 
@@ -800,8 +809,7 @@ public class InstallWindowsRegistry {
     public void register() throws IOException {
         WinRegistry registry = new WinRegistry();
         String capabilitiesPath = getCapabilitiesPath();
-        if (registryOps.keyExists(getRegistryPath())) {
-
+        if (!skipWinRegistryOperations && registryOps.keyExists(getRegistryPath())) {
             registry.exportKey(getRegistryPath(), backupLog);
         }
         createKeyRecursive(capabilitiesPath);
@@ -860,8 +868,9 @@ public class InstallWindowsRegistry {
             throw new RuntimeException("Cannot find installer path.");
         }
 
-
-        registry.notifyFileAssociationsChanged();
+        if (!skipWinRegistryOperations) {
+            registry.notifyFileAssociationsChanged();
+        }
 
 
 

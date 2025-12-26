@@ -70,6 +70,9 @@ public class InstallWindowsRegistryIntegrationTest {
         registryOps = new InMemoryRegistryOperations();
         ByteArrayOutputStream backupLog = new ByteArrayOutputStream();
         installer = new InstallWindowsRegistry(appInfo, exeFile, iconFile, backupLog, registryOps);
+        
+        // Skip WinRegistry operations when testing with in-memory registry
+        installer.setSkipWinRegistryOperations(true);
     }
 
     @AfterEach
