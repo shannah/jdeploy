@@ -16,6 +16,8 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Abstract base class for Unix-like (macOS and Linux) CLI command installation.
@@ -26,6 +28,17 @@ import java.util.List;
  * script generation.
  */
 public abstract class AbstractUnixCliCommandInstaller implements CliCommandInstaller {
+
+    private CollisionHandler collisionHandler = new DefaultCollisionHandler();
+
+    /**
+     * Sets the collision handler for detecting and resolving command name conflicts.
+     * 
+     * @param collisionHandler the handler to use for collision resolution
+     */
+    public void setCollisionHandler(CollisionHandler collisionHandler) {
+        this.collisionHandler = collisionHandler != null ? collisionHandler : new DefaultCollisionHandler();
+    }
 
     /**
      * Determines the binary directory where CLI commands will be installed.
@@ -220,8 +233,26 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
             String cmdName = command.getName();
             File scriptPath = new File(binDir, cmdName);
 
-            // Remove existing script if present
+            // Check for collision with existing script
             if (scriptPath.exists()) {
+                String existingLauncherPath = extractLauncherPathFromScript(scriptPath);
+                
+                if (existingLauncherPath != null && !existingLauncherPath.equals(launcherPath.getAbsolutePath())) {
+                    // Different app owns this command - invoke collision handler
+                    CollisionAction action = collisionHandler.handleCollision(
+                        cmdName, 
+                        existingLauncherPath, 
+                        launcherPath.getAbsolutePath()
+                    );
+                    
+                    if (action == CollisionAction.SKIP) {
+                        System.out.println("Skipping command '" + cmdName + "' - already owned by another app");
+                        continue;
+                    }
+                    // OVERWRITE - fall through to delete and recreate
+                    System.out.println("Overwriting command '" + cmdName + "' from another app");
+                }
+                // Same app or couldn't parse - silently overwrite
                 try {
                     scriptPath.delete();
                 } catch (Exception e) {
@@ -314,5 +345,30 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
                     .replaceAll("[^a-z0-9\\-]", "");
         }
         return "app";
+    }
+
+    /**
+     * Extracts the launcher path from an existing shell script.
+     * Parses the script looking for the exec line with --jdeploy:command pattern.
+     * 
+     * @param scriptPath the path to the existing script
+     * @return the launcher path if found, or null if parsing fails
+     */
+    protected String extractLauncherPathFromScript(File scriptPath) {
+        try {
+            String content = new String(Files.readAllBytes(scriptPath.toPath()), StandardCharsets.UTF_8);
+            // Pattern matches: exec "path/to/launcher" --jdeploy:command=...
+            // or: "path/to/launcher" --jdeploy:command=...
+            Pattern pattern = Pattern.compile(
+                "(?:exec\\s+)?\"([^\"]+)\"\\s+--jdeploy:command="
+            );
+            Matcher matcher = pattern.matcher(content);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        } catch (IOException e) {
+            System.err.println("Warning: Failed to read existing script " + scriptPath + ": " + e.getMessage());
+        }
+        return null;
     }
 }

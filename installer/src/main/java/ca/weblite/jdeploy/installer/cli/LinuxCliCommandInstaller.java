@@ -20,6 +20,15 @@ import java.util.List;
 public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
 
     /**
+     * Sets the collision handler for detecting and resolving command name conflicts.
+     * 
+     * @param collisionHandler the handler to use for collision resolution
+     */
+    public void setCollisionHandler(CollisionHandler collisionHandler) {
+        super.setCollisionHandler(collisionHandler);
+    }
+
+    /**
      * Installs CLI commands for the given launcher executable.
      *
      * @param launcherPath the path to the main launcher executable

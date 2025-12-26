@@ -20,6 +20,15 @@ import java.util.List;
  */
 public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
 
+    /**
+     * Sets the collision handler for detecting and resolving command name conflicts.
+     * 
+     * @param collisionHandler the handler to use for collision resolution
+     */
+    public void setCollisionHandler(CollisionHandler collisionHandler) {
+        super.setCollisionHandler(collisionHandler);
+    }
+
     @Override
     public List<File> installCommands(File launcherPath, List<CommandSpec> commands, InstallationSettings settings) {
         List<File> createdFiles = new ArrayList<>();
