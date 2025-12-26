@@ -184,7 +184,6 @@ Uninstall:
     set "LAUNCHER=%USERPROFILE%\.jdeploy\apps\MyApp\Client4JLauncher.exe"
     "%LAUNCHER%" --jdeploy:command=myapp-cli %*
     ```
-  - Alternatively, a small native launcher (EXE) could be used, but `.cmd` wrappers are simple and sufficient.
 - PATH management:
   - Installer should add the per-user bin directory to the user's PATH via the HKCU\Environment `PATH` registry value.
   - When adding an entry to PATH, preserve the rest of the user's PATH value and only append/prepend the directory. Record that the installer modified PATH so the uninstaller can revert.
