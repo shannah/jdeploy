@@ -461,6 +461,7 @@ public class LinuxCliCommandInstallerTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     public void testInstallLauncherCreatesSymlink() throws IOException {
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(binDir.getAbsolutePath());

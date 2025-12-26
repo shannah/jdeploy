@@ -76,6 +76,7 @@ public class MacCliCommandInstallerTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     public void testInstallCommandsWithCliLauncher() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
         commands.add(new CommandSpec("mycmd", new ArrayList<>()));
@@ -96,6 +97,7 @@ public class MacCliCommandInstallerTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     public void testInstallCommandsWithBothOptions() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
         commands.add(new CommandSpec("mycmd", new ArrayList<>()));
@@ -343,6 +345,7 @@ public class MacCliCommandInstallerTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     public void testDeriveCommandNameFromAppInfo() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
 
