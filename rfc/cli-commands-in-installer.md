@@ -13,26 +13,44 @@ Non-goals:
 - System-wide installations (this RFC targets per-user installs).
 - Changing runtime behavior beyond a simple invocation contract (`--jdeploy:command=...`).
 
+## CLI Launcher vs CLI Commands
+
+This RFC addresses two distinct but related features:
+
+**CLI Launcher** (`jdeploy.command` - singular):
+- A single command derived from the package configuration that launches the app in CLI mode
+- Pre-dates this RFC; originally used on Linux to support launching GUI apps from the command-line
+- The command name is derived in this order:
+  1. The `jdeploy.command` property (if specified)
+  2. The key from the `bin` object that maps to `jdeploy-bundle/jdeploy.js`
+  3. The package `name` property
+- Controlled by the `installCliLauncher` setting
+
+**CLI Commands** (`jdeploy.commands` - plural):
+- Additional named commands defined in the `jdeploy.commands` object
+- Each command can have custom static arguments
+- Controlled by the `installCliCommands` setting
+- This is the primary focus of this RFC
+
+Both features share the same underlying mechanism (wrapper scripts invoking the launcher with `--jdeploy:command=<name>`), but serve different purposes.
+
 ## Configuration schema
 
-Add an optional `jdeploy.commands` array to `package.json`. Each entry is an object with the following properties:
+Add an optional `jdeploy.commands` object to `package.json` where command names are keys and each command spec is an object with the following properties:
 
-- `name` (string, required): the command name that will be added to the user's PATH.
 - `args` (array of strings, optional): extra static arguments to pass to the launcher when this command is invoked (commonly JVM properties like `-D...` or app-specific flags).
 
 Example:
 ```json
 "jdeploy": {
-  "commands": [
-    {
-      "name": "myapp-cli",
+  "commands": {
+    "myapp-cli": {
       "args": [
         "-Dmy.system.prop=foo",
         "--my-app-arg=bar"
       ]
     },
-    {
-      "name": "myapp-admin",
+    "myapp-admin": {
       "args": [
         "--mode=admin"
       ]
@@ -42,15 +60,16 @@ Example:
 ```
 
 Validation rules:
-- `name` MUST be present and MUST match the regex: `^[A-Za-z0-9._-]{1,255}$`.
+- Command names (object keys) MUST match the regex: `^[A-Za-z0-9._-]{1,255}$`.
   - This allows letters, digits, dot, underscore, and hyphen.
-  - It MUST NOT contain path separators (`/` or `\`) or control characters.
+  - They MUST NOT contain path separators (`/` or `\`) or control characters.
   - This prevents attempts to place commands into arbitrary paths or overwrite paths by containing `../`.
-- Command names MUST be unique within the array.
 - `args` if present MUST be an array of strings. Empty arrays are allowed.
+- The `commands` object itself may be empty (`"commands": {}` is valid and results in no CLI command wrappers being installed).
 - The installer should validate this schema at bundle/installer build-time and reject invalid configs (or warn + skip installing bad entries).
 
 Rationale:
+- Using an object (instead of an array) makes command lookup more efficient and prevents name duplication by design.
 - Restricting characters avoids filesystem/path injection and cross-platform portability issues.
 - Max length prevents weird OS-specific name truncation behavior.
 
@@ -59,8 +78,8 @@ Rationale:
 Scripts/wrappers installed by the installer will invoke the packaged launcher with:
 
 - a required argument: `--jdeploy:command=<name>` where `<name>` is the `name` from `jdeploy.commands`.
-- the configured `args` from the command entry will be injected before the user's runtime arguments.
-- any command-line arguments supplied by the user at runtime will be appended and passed through unchanged.
+- the configured `args` from the command entry will be injected before the user's runtime arguments by the launcher.  How those are injected is outside the scope of this RFC.  The launcher, which is developed in a different project, will have its own direct access to the package.json file and will know how to load and inject the arguments for the provided command name into the JVM launch.
+- any command-line arguments supplied by the user at runtime will be appended and passed through unchanged to the launcher after a `--` separator to avoid ambiguity.
 
 Examples:
 
@@ -81,12 +100,11 @@ The launcher (binary) MUST interpret the presence of `--jdeploy:command=<name>` 
 
 If the launcher receives `--jdeploy:command` it must stop any GUI bootstrap early to avoid creating GUI resources on headless invocations.
 
+NOTE: The launcher is a black box to this project.  We include these specifications here to ensure the installer and packaging work correctly with the launcher behavior.
+
 ## Platform behaviors
 
 High-level goal: CLI command scripts/wrappers are installed per-user, in a user-writable directory that is on (or added to) the user's PATH.
-
-### Common packaging note
-The bundler/publisher must embed `jdeploy.commands` data into the installer metadata so the installer knows what commands to create on install. The installer must then create wrapper scripts mapped to actual installed launcher binaries.
 
 ### Linux
 
@@ -181,6 +199,10 @@ Uninstall:
 - Sanitize command names:
   - Reject names containing path separators or shell metacharacters during install-time validation.
   - Use a strict regex (recommended: `^[A-Za-z0-9._-]{1,255}$`) and treat any deviation as a validation failure.
+- Sanitize command args:
+  - Reject args containing dangerous shell metacharacters that could enable command injection.
+  - Forbidden characters: `;` (command chaining), `|` (piping), `&` (background execution), `` ` `` (backtick command substitution), `$(` (command substitution).
+  - Use regex pattern: `[;|&`]|\$\(` to detect and reject dangerous args.
 - Avoid shell injection:
   - Installer-generated shell scripts should avoid composing commands via unescaped string concatenation. Each configured arg must be written as a separate literal in the script (or quoted properly).
   - On Linux/macOS, prefer to use `exec` with quoted arguments and `"$@"` to pass user args safely.
@@ -237,6 +259,57 @@ Uninstall:
 
 ## Implementation notes (non-normative)
 
+### Dependency Chain
+
+The CLI commands feature requires coordination between multiple components:
+
+1. **Packager** (at publish time):
+   - Author defines `commands` in `package.json`
+   - Packager validates the schema and embeds `jdeploy.commands` into installer metadata
+
+2. **Bundler** (at install time, invoked by installer):
+   - Creates the app bundle including launcher binaries
+   - On macOS: Creates `Client4JLauncher-cli` when `BundlerSettings.isCliCommandsEnabled()` is true
+
+3. **Installer** (at install time, after bundler):
+   - Reads command specs from installer metadata
+   - Creates per-command wrapper scripts in the user's bin directory
+   - Updates PATH if needed and records changes in install manifest
+
+4. **Uninstaller**:
+   - Reads install manifest
+   - Removes created scripts
+   - Reverts PATH modifications
+
+### Bundler/Installer Relationship
+
+**Important**: The bundler is run **at install time** by the installer. The installer:
+1. Invokes the bundler to create the app (including `Client4JLauncher-cli` on macOS when CLI commands are enabled)
+2. Creates wrapper shell scripts pointing to the launcher binary built by the bundler
+
+The `Client4JLauncher-cli` binary on macOS is created by the bundler (`MacBundler.maybeCreateCliLauncher()`) when `BundlerSettings.isCliCommandsEnabled()` is true.
+
+### Install Manifest Format
+
+The installer persists metadata about installed CLI commands in a JSON file located in the app directory:
+
+```json
+{
+  "createdFiles": ["/home/user/.local/bin/myapp-cli", "/home/user/.local/bin/myapp-admin"],
+  "pathUpdated": true,
+  "binDir": "/home/user/.local/bin",
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+Fields:
+- `createdFiles`: Array of absolute paths to created script/wrapper files
+- `pathUpdated`: Boolean indicating if the installer modified the user's PATH
+- `binDir`: The bin directory where scripts were installed
+- `timestamp`: ISO 8601 timestamp of installation
+
+### General Implementation Notes
+
 - Bundler/packager must include `jdeploy.commands` verbatim in installer metadata.
 - Installer runtime must:
   - Read command specs from installer metadata.
@@ -275,15 +348,97 @@ set "LAUNCHER=%USERPROFILE%\.jdeploy\apps\MyApp\Client4JLauncher.exe"
 "%LAUNCHER%" --jdeploy:command=myapp-cli %*
 ```
 
+## Auto-Update Behavior
+
+CLI command scripts reference the launcher by absolute path. The auto-update mechanism works as follows:
+
+- **Scripts continue working after auto-update**: The location of installed apps does not change during auto-update, so existing scripts remain valid.
+- **No script reinstallation needed**: Auto-updates replace the launcher binary in-place; wrapper scripts pointing to it continue to function.
+- **Publisher changes to commands**: If a publisher modifies the `jdeploy.commands` configuration (e.g., adds new commands), they should set the `minInitialAppVersion` property in the package version. This signals that users need a full launcher update, which triggers the full installer to run and recreate/update CLI command scripts.
+- **Admin mode**: CLI commands will support admin mode in the future but do not currently. This is planned for a future RFC update.
+
+## Edge Cases and Error Handling
+
+**Bin directory creation:**
+The installer MUST create the bin directory (e.g., `~/.local/bin`) if it does not exist.
+
+**Empty commands object:**
+An empty `commands` object (`"commands": {}`) is valid and results in no CLI command wrappers being installed.
+
+**Script creation failure:**
+On script creation failure (permission denied, disk full, path too long), the installer MUST:
+1. Log the error with the specific command name and path
+2. Continue attempting to install remaining commands
+3. Report all failures to the user at the end
+4. NOT mark the overall installation as failed if only CLI command installation fails (the GUI app should still work)
+
+**Partial uninstall state:**
+Uninstall operations SHOULD be idempotent. If a file is already missing, skip it without error. The uninstaller should process all entries in the manifest and report any failures at the end.
+
+**Launcher binary naming:**
+The launcher binary names (`Client4JLauncher`, `Client4JLauncher-cli`) are defined by constants in the codebase. Implementations should reference these constants rather than hardcoding names.
+
+## UI Specification
+
+When `jdeploy.commands` contains at least one command, the installation form SHOULD include:
+
+**Checkbox:**
+- Label: "Add command-line tools to PATH"
+- Default state: Selected (checked)
+- Info icon with tooltip listing the commands that will be added (e.g., "Commands: myapp-cli, myapp-admin")
+
+**Behavior:**
+- If unchecked, CLI command scripts are still created but PATH is not modified
+- The checkbox controls both CLI Launcher and CLI Commands PATH addition
+
+**Error handling:**
+- If PATH modification fails, log the error to STDERR
+- Do not display an error dialog to the user (the GUI app installation succeeded)
+- The installer is a GUI application; terminal-specific instructions (like "restart your terminal") are not appropriate
+
+**Installation feedback:**
+- CLI command installation is fast enough that progress feedback is not required
+- No need for "Installing CLI commands..." progress messages
+
+## Verification Checklist
+
+| Criterion | Verification Method |
+|-----------|---------------------|
+| Command scripts created in correct location | Check `~/.local/bin/` (Unix) or `%USERPROFILE%\.jdeploy\bin\` (Windows) |
+| Scripts are executable | `stat` shows 0755 permissions on Unix |
+| Commands invoke launcher with `--jdeploy:command=<name>` | Inspect script content |
+| User args passed after `--` separator | Test: `myapp-cli foo bar` passes `foo bar` to app |
+| Uninstall removes only installer-created files | Metadata file tracks created files |
+| PATH modifications are reversible | Uninstall restores original PATH |
+| Empty commands object results in no scripts | Install with `"commands": {}` creates no wrappers |
+| Invalid command names rejected | Names with `/`, `\`, or control chars fail validation |
+
+### Recommended Test Cases
+
+1. ✅ Script creation with valid commands
+2. ✅ Script content escaping (quotes, special chars in paths)
+3. ✅ `addToPath` for bash/zsh/fish shells
+4. ✅ Uninstall removes scripts
+5. ✅ Metadata persistence and loading
+6. ✅ Command name collision detection
+7. ✅ PATH restoration on uninstall
+8. ✅ Handling of missing bin directory (should create it)
+9. ✅ Partial failure handling (some commands fail, others succeed)
+10. ✅ Idempotent uninstall (missing files don't cause errors)
+
 ## Summary / Recommendation
 
-- Add an optional `jdeploy.commands` array to `package.json` to let package authors declare per-user CLI commands.
+- Add an optional `jdeploy.commands` object to `package.json` to let package authors declare per-user CLI commands.
 - Installer will create per-command wrappers that invoke the packaged launcher with `--jdeploy:command=<name>` and the declared `args`, forwarding user arguments.
 - Platform specifics:
   - Linux: install scripts in `~/.local/bin`.
   - macOS: create a second binary `Contents/MacOS/Client4JLauncher-cli` and install scripts in `~/.local/bin` (or optionally `~/Library/Application Support/jdeploy/bin`); recommend `~/.local/bin`.
   - Windows: install `.cmd` wrappers in `%USERPROFILE%\.jdeploy\bin` and add that directory to HKCU\Environment PATH.
 - Prefer the macOS dual-binary strategy to avoid GUI init side-effects; revisit later if launcher codebase can guarantee early CLI-only startup.
+
+## Backward Compatibility
+
+The `jdeploy.command` property (singular) predates this RFC and controls the CLI Launcher feature. It is unaffected by the addition of `jdeploy.commands` (plural). Packages can use both properties independently.
 
 ## Open items for implementation
 
