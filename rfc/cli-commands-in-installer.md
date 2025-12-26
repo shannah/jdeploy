@@ -117,8 +117,16 @@ High-level goal: CLI command scripts/wrappers are installed per-user, in a user-
   - Example:
     ```sh
     #!/usr/bin/env sh
-    exec "/home/alice/.jdeploy/apps/MyApp/Client4JLauncher" --jdeploy:command=myapp-cli -- "$@"
+    exec "/home/alice/.jdeploy/apps/my-npm-package/my-app" --jdeploy:command=myapp-cli -- "$@"
     ```
+- Path construction:
+  - App directory: `~/.jdeploy/apps/{fullyQualifiedPackageName}/`
+    - For NPM-released apps: `fullyQualifiedPackageName` = the npm package name (e.g., `my-npm-package`)
+    - For GitHub-released apps: `fullyQualifiedPackageName` = `{MD5(npmSource)}.{npmPackageName}` (e.g., `a1b2c3d4.my-app`)
+  - Binary name: derived from the app title by converting to lowercase, replacing spaces with hyphens, and removing non-alphanumeric characters (except hyphens)
+    - Example: app title "My App" → binary name `my-app`
+  - Branch suffix: for `0.0.0-{branch}` versions (e.g., GitHub branch builds), the branch name is appended with a hyphen
+    - Example: version `0.0.0-main` with title "My App" → binary name `my-app-main`
 - Quoting: pass user args via `-- "$@"` so user args are forwarded safely and unambiguously.
 - Uninstall: remove the script file(s) and if the install directory was created by the installer and is now empty, optionally remove it. Do not touch unrelated files or user-owned content.
 
@@ -324,7 +332,7 @@ Linux shell script (example):
 ```sh
 #!/usr/bin/env sh
 # Installed at: ~/.local/bin/myapp-cli
-exec "/home/alice/.jdeploy/apps/MyApp/Client4JLauncher" \
+exec "/home/alice/.jdeploy/apps/my-npm-package/my-app" \
   --jdeploy:command=myapp-cli \
   -- \
   "$@"
