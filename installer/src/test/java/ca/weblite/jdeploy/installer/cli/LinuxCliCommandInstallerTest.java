@@ -706,7 +706,9 @@ public class LinuxCliCommandInstallerTest {
         
         // File should now point to new launcher
         String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
-        assertTrue(content.contains(launcherPath.getAbsolutePath()), "Script should now point to new launcher");
-        assertFalse(content.contains(differentLauncher.getAbsolutePath()), "Script should not contain old launcher path");
+        String expectedPath = launcherPath.getAbsolutePath().replace("\\", "\\\\");
+        assertTrue(content.contains(expectedPath), "Script should now point to new launcher");
+        String expectedOldPath = differentLauncher.getAbsolutePath().replace("\\", "\\\\");
+        assertFalse(content.contains(expectedOldPath), "Script should not contain old launcher path");
     }
 }
