@@ -177,7 +177,7 @@ Uninstall:
     @echo off
     REM Path to installed exe
     set "LAUNCHER=%USERPROFILE%\.jdeploy\apps\MyApp\Client4JLauncher.exe"
-    "%LAUNCHER%" --jdeploy:command=myapp-cli %*
+    "%LAUNCHER%" --jdeploy:command=myapp-cli -- %*
     ```
 - PATH management:
   - Installer should add the per-user bin directory to the user's PATH via the HKCU\Environment `PATH` registry value.
@@ -275,11 +275,35 @@ The installer persists metadata about installed CLI commands in a JSON file loca
 }
 ```
 
+**File location:** The metadata file is stored in the application installation directory:
+- Linux: `~/.jdeploy/apps/{fullyQualifiedPackageName}/.jdeploy-cli.json`
+- macOS: `~/Applications/{AppName}.app/Contents/MacOS/.jdeploy-cli.json` (or in bin directory as fallback)
+- Windows: `%USERPROFILE%\.jdeploy\apps\{AppName}\.jdeploy-cli.json`
+
 Fields:
 - `createdFiles`: Array of absolute paths to created script/wrapper files
 - `pathUpdated`: Boolean indicating if the installer modified the user's PATH
 - `binDir`: The bin directory where scripts were installed
 - `timestamp`: ISO 8601 timestamp of installation
+
+### Implementation Constants
+
+The following constants are defined in `CliInstallerConstants.java` and should be used consistently across all platform implementations:
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `CLI_METADATA_FILE` | `.jdeploy-cli.json` | Metadata file name for tracking CLI installation state |
+| `CREATED_WRAPPERS_KEY` | `createdWrappers` | JSON key for array of created wrapper file names |
+| `PATH_UPDATED_KEY` | `pathUpdated` | JSON key for boolean flag indicating PATH modification |
+| `JDEPLOY_COMMAND_ARG_PREFIX` | `--jdeploy:command=` | Command-line argument prefix for command dispatch |
+| `CLI_LAUNCHER_NAME` | `Client4JLauncher-cli` | Name of CLI-dedicated launcher binary on macOS |
+
+### Default Collision Handling
+
+When a command name collision is detected and no UI is available for user prompting:
+- The `DefaultCollisionHandler` returns `SKIP` action
+- This prevents accidental overwrites in headless/automated scenarios
+- GUI installers use `UIAwareCollisionHandler` which prompts the user interactively
 
 ### General Implementation Notes
 
@@ -318,7 +342,7 @@ Windows `.cmd` wrapper (example):
 @echo off
 REM Installed at: %USERPROFILE%\.jdeploy\bin\myapp-cli.cmd
 set "LAUNCHER=%USERPROFILE%\.jdeploy\apps\MyApp\Client4JLauncher.exe"
-"%LAUNCHER%" --jdeploy:command=myapp-cli %*
+"%LAUNCHER%" --jdeploy:command=myapp-cli -- %*
 ```
 
 ## Auto-Update Behavior

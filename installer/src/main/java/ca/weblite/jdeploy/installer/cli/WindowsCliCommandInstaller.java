@@ -191,7 +191,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
             // Windows batch wrapper: invoke the launcher with --jdeploy:command=<name> and forward all args
             String content = "@echo off\r\n\"" + launcherPath.getAbsolutePath() + "\" " + 
-                           CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX + name + " %*\r\n";
+                           CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX + name + " -- %*\r\n";
 
             FileUtils.writeStringToFile(wrapper, content, "UTF-8");
             wrapper.setExecutable(true, false);

@@ -21,6 +21,11 @@ public interface CliInstallerConstants {
     String PATH_UPDATED_KEY = "pathUpdated";
 
     /**
+     * JSON key for the bin directory path where scripts were installed.
+     */
+    String BIN_DIR_KEY = "binDir";
+
+    /**
      * Command-line argument prefix for specifying which command to invoke.
      * Example: --jdeploy:command=mycommand
      */
