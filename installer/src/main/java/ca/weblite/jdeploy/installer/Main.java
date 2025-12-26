@@ -32,6 +32,7 @@ import ca.weblite.jdeploy.installer.cli.CliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.MacCliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.LinuxCliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
+import ca.weblite.jdeploy.installer.cli.UIAwareCollisionHandler;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
 import org.apache.commons.io.FileUtils;
@@ -804,6 +805,8 @@ public class Main implements Runnable, Constants {
                 File launcherPath = installedApp;
                 List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
                 WindowsCliCommandInstaller windowsCliInstaller = new WindowsCliCommandInstaller();
+                // Wire collision handler for GUI-aware prompting
+                windowsCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
                 windowsCliInstaller.installCommands(launcherPath, commands, installationSettings);
             }
         } else if (Platform.getSystemPlatform().isMac()) {
@@ -933,6 +936,8 @@ public class Main implements Runnable, Constants {
 
                 List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
                 MacCliCommandInstaller macCliInstaller = new MacCliCommandInstaller();
+                // Wire collision handler for GUI-aware prompting
+                macCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
                 macCliInstaller.installCommands(cliLauncher, commands, installationSettings);
             }
         } else if (Platform.getSystemPlatform().isLinux()) {
@@ -1262,6 +1267,8 @@ public class Main implements Runnable, Constants {
         if (installationSettings.isInstallCliCommands() || installationSettings.isInstallCliLauncher()) {
             List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
             LinuxCliCommandInstaller linuxCliInstaller = new LinuxCliCommandInstaller();
+            // Wire collision handler for GUI-aware prompting
+            linuxCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
             linuxCliInstaller.installCommands(launcherFile, commands, installationSettings);
         } else {
             System.out.println("Skipping CLI command and launcher installation (user opted out)");
