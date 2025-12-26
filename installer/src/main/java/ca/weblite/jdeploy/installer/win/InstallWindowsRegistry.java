@@ -622,14 +622,26 @@ public class InstallWindowsRegistry {
         }
     }
 
+    /**
+     * Unregisters URL schemes associated with the application.
+     * Removes entries from both the application's capabilities and the global URL scheme registration in HKCU\Software\Classes.
+     */
     private void unregisterUrlSchemes() {
-        if (registryOps.keyExists(getURLAssociationsPath())) {
-            deleteKeyRecursive(getURLAssociationsPath());
+        // Remove from capabilities first
+        String urlAssocPath = getURLAssociationsPath();
+        if (registryOps.keyExists(urlAssocPath)) {
+            deleteKeyRecursive(urlAssocPath);
         }
+        
+        // Remove from HKCU\Software\Classes
         for (String scheme : appInfo.getUrlSchemes()) {
-            String schemeKey = getURLSchemeRegistryKey(scheme);
-            if (registryOps.keyExists(schemeKey)) {
-                deleteKeyRecursive(schemeKey);
+            // Only delete the scheme class registration if we have permission to change/delete it
+            // (e.g. we don't want to delete the 'http' scheme if it was associated)
+            if (canChangeURLSchemeEntry(scheme)) {
+                String schemeKey = getURLSchemeRegistryKey(scheme);
+                if (registryOps.keyExists(schemeKey)) {
+                    deleteKeyRecursive(schemeKey);
+                }
             }
         }
     }
