@@ -1,7 +1,10 @@
 package ca.weblite.jdeploy.installer.cli;
 
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
+import ca.weblite.jdeploy.installer.cli.CollisionAction;
+import ca.weblite.jdeploy.installer.cli.CollisionHandler;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
+import ca.weblite.jdeploy.models.CommandSpec;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -12,6 +15,8 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -80,6 +85,11 @@ public class WindowsCliCommandInstallerTest {
             removeFromPathCalled = false;
             removeFromPathArg = null;
             removeFromPathCallCount = 0;
+        }
+
+        @Override
+        public void setCollisionHandler(CollisionHandler handler) {
+            super.setCollisionHandler(handler);
         }
 
         @Override
@@ -308,5 +318,140 @@ public class WindowsCliCommandInstallerTest {
         // Note: Current implementation does not delete metadata file, only uses it
         // This test documents the current behavior; if deletion is added later, update this test
         assertTrue("Metadata file still exists after uninstall (by design)", metadataFile.exists());
+    }
+
+    @Test
+    public void testSameAppCollision_silentOverwrite() throws IOException {
+        // Arrange
+        File appDir = new File(tempBaseDir, "app-collision-same");
+        appDir.mkdirs();
+        File binDir = getBinDir();
+        binDir.mkdirs();
+        
+        File launcherPath = new File(appDir, "MyLauncher.exe");
+        launcherPath.createNewFile();
+
+        // Create existing .cmd pointing to the same launcher
+        File cmdFile = new File(binDir, "mycmd.cmd");
+        String existingContent = "@echo off\r\n\"" + launcherPath.getAbsolutePath() + "\" --jdeploy:command=mycmd %*\r\n";
+        FileUtils.writeStringToFile(cmdFile, existingContent, "UTF-8");
+
+        // Track if collision handler is called
+        final boolean[] handlerCalled = {false};
+        TestableWindowsCliCommandInstaller installer = new TestableWindowsCliCommandInstaller();
+        installer.setCollisionHandler((cmdName, existingPath, newPath) -> {
+            handlerCalled[0] = true;
+            return CollisionAction.SKIP;
+        });
+
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+
+        // Act
+        List<File> created = installer.writeCommandWrappersForTest(binDir, launcherPath, commands);
+
+        // Assert
+        // Handler should NOT be called for same-app collision
+        assertFalse("CollisionHandler should not be called for same-app collision", handlerCalled[0]);
+        // File should still be created (overwritten)
+        assertEquals(1, created.size());
+        assertTrue(cmdFile.exists());
+    }
+
+    @Test
+    public void testDifferentAppCollision_skip() throws IOException {
+        // Arrange
+        File appDir = new File(tempBaseDir, "app-collision-skip");
+        appDir.mkdirs();
+        File binDir = getBinDir();
+        binDir.mkdirs();
+        
+        File launcherPath = new File(appDir, "MyLauncher.exe");
+        launcherPath.createNewFile();
+        
+        // Create existing .cmd pointing to a DIFFERENT launcher
+        File differentLauncher = new File(tempBaseDir, "other-app/OtherLauncher.exe");
+        differentLauncher.getParentFile().mkdirs();
+        differentLauncher.createNewFile();
+        
+        File cmdFile = new File(binDir, "mycmd.cmd");
+        String existingContent = "@echo off\r\n\"" + differentLauncher.getAbsolutePath() + "\" --jdeploy:command=mycmd %*\r\n";
+        FileUtils.writeStringToFile(cmdFile, existingContent, "UTF-8");
+
+        // Handler returns SKIP
+        final String[] capturedParams = new String[3];
+        TestableWindowsCliCommandInstaller installer = new TestableWindowsCliCommandInstaller();
+        installer.setCollisionHandler((cmdName, existingPath, newPath) -> {
+            capturedParams[0] = cmdName;
+            capturedParams[1] = existingPath;
+            capturedParams[2] = newPath;
+            return CollisionAction.SKIP;
+        });
+
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+
+        // Act
+        List<File> created = installer.writeCommandWrappersForTest(binDir, launcherPath, commands);
+
+        // Assert
+        // Handler should be called with correct parameters
+        assertEquals("mycmd", capturedParams[0]);
+        assertEquals(differentLauncher.getAbsolutePath(), capturedParams[1]);
+        assertEquals(launcherPath.getAbsolutePath(), capturedParams[2]);
+        
+        // File should NOT be in created list (was skipped)
+        assertEquals(0, created.size());
+        
+        // Original file should be preserved
+        String content = FileUtils.readFileToString(cmdFile, "UTF-8");
+        assertTrue("Original .cmd should be preserved", content.contains(differentLauncher.getAbsolutePath()));
+    }
+
+    @Test
+    public void testDifferentAppCollision_overwrite() throws IOException {
+        // Arrange
+        File appDir = new File(tempBaseDir, "app-collision-overwrite");
+        appDir.mkdirs();
+        File binDir = getBinDir();
+        binDir.mkdirs();
+        
+        File launcherPath = new File(appDir, "MyLauncher.exe");
+        launcherPath.createNewFile();
+        
+        // Create existing .cmd pointing to a DIFFERENT launcher
+        File differentLauncher = new File(tempBaseDir, "other-app2/OtherLauncher.exe");
+        differentLauncher.getParentFile().mkdirs();
+        differentLauncher.createNewFile();
+        
+        File cmdFile = new File(binDir, "mycmd.cmd");
+        String existingContent = "@echo off\r\n\"" + differentLauncher.getAbsolutePath() + "\" --jdeploy:command=mycmd %*\r\n";
+        FileUtils.writeStringToFile(cmdFile, existingContent, "UTF-8");
+
+        // Handler returns OVERWRITE
+        final boolean[] handlerCalled = {false};
+        TestableWindowsCliCommandInstaller installer = new TestableWindowsCliCommandInstaller();
+        installer.setCollisionHandler((cmdName, existingPath, newPath) -> {
+            handlerCalled[0] = true;
+            return CollisionAction.OVERWRITE;
+        });
+
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+
+        // Act
+        List<File> created = installer.writeCommandWrappersForTest(binDir, launcherPath, commands);
+
+        // Assert
+        // Handler should be called
+        assertTrue("CollisionHandler should be called for different-app collision", handlerCalled[0]);
+        
+        // File should be in created list (was overwritten)
+        assertEquals(1, created.size());
+        
+        // File should now point to new launcher
+        String content = FileUtils.readFileToString(cmdFile, "UTF-8");
+        assertTrue("Cmd should now point to new launcher", content.contains(launcherPath.getAbsolutePath()));
+        assertFalse("Cmd should not contain old launcher path", content.contains(differentLauncher.getAbsolutePath()));
     }
 }

@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.installer.cli;
 
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.installer.cli.CollisionAction;
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.models.CommandSpec;
 import org.apache.commons.io.FileUtils;
@@ -593,5 +594,119 @@ public class LinuxCliCommandInstallerTest {
         
         // Metadata should list created wrappers
         assertTrue(metadata.has(CliInstallerConstants.CREATED_WRAPPERS_KEY));
+    }
+
+    @Test
+    public void testSameAppCollision_silentOverwrite() throws IOException {
+        // Create existing script pointing to the same launcher
+        File scriptFile = new File(binDir, "mycmd");
+        String existingContent = "#!/bin/sh\nexec \"" + launcherPath.getAbsolutePath() + "\" --jdeploy:command=mycmd -- \"$@\"\n";
+        Files.write(scriptFile.toPath(), existingContent.getBytes(StandardCharsets.UTF_8));
+        scriptFile.setExecutable(true);
+
+        // Track if collision handler is called
+        final boolean[] handlerCalled = {false};
+        installer.setCollisionHandler((cmdName, existingPath, newPath) -> {
+            handlerCalled[0] = true;
+            return CollisionAction.SKIP;
+        });
+
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
+
+        List<File> created = installer.installCommands(launcherPath, commands, settings);
+
+        // Handler should NOT be called for same-app collision
+        assertFalse(handlerCalled[0], "CollisionHandler should not be called for same-app collision");
+        // File should still be created (overwritten)
+        assertEquals(1, created.size());
+        assertTrue(scriptFile.exists());
+    }
+
+    @Test
+    public void testDifferentAppCollision_skip() throws IOException {
+        // Create existing script pointing to a DIFFERENT launcher
+        File differentLauncher = new File(tempDir, "other-app/launcher");
+        differentLauncher.getParentFile().mkdirs();
+        differentLauncher.createNewFile();
+        
+        File scriptFile = new File(binDir, "mycmd");
+        String existingContent = "#!/bin/sh\nexec \"" + differentLauncher.getAbsolutePath() + "\" --jdeploy:command=mycmd -- \"$@\"\n";
+        Files.write(scriptFile.toPath(), existingContent.getBytes(StandardCharsets.UTF_8));
+        scriptFile.setExecutable(true);
+
+        // Handler returns SKIP
+        final String[] capturedParams = new String[3];
+        installer.setCollisionHandler((cmdName, existingPath, newPath) -> {
+            capturedParams[0] = cmdName;
+            capturedParams[1] = existingPath;
+            capturedParams[2] = newPath;
+            return CollisionAction.SKIP;
+        });
+
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
+
+        // Small delay to ensure modification time would differ if file was changed
+        try { Thread.sleep(100); } catch (InterruptedException e) {}
+
+        List<File> created = installer.installCommands(launcherPath, commands, settings);
+
+        // Handler should be called with correct parameters
+        assertEquals("mycmd", capturedParams[0]);
+        assertEquals(differentLauncher.getAbsolutePath(), capturedParams[1]);
+        assertEquals(launcherPath.getAbsolutePath(), capturedParams[2]);
+        
+        // File should NOT be in created list (was skipped)
+        assertEquals(0, created.size());
+        
+        // Original file should be preserved
+        String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
+        assertTrue(content.contains(differentLauncher.getAbsolutePath()), "Original script should be preserved");
+    }
+
+    @Test
+    public void testDifferentAppCollision_overwrite() throws IOException {
+        // Create existing script pointing to a DIFFERENT launcher
+        File differentLauncher = new File(tempDir, "other-app/launcher");
+        differentLauncher.getParentFile().mkdirs();
+        differentLauncher.createNewFile();
+        
+        File scriptFile = new File(binDir, "mycmd");
+        String existingContent = "#!/bin/sh\nexec \"" + differentLauncher.getAbsolutePath() + "\" --jdeploy:command=mycmd -- \"$@\"\n";
+        Files.write(scriptFile.toPath(), existingContent.getBytes(StandardCharsets.UTF_8));
+        scriptFile.setExecutable(true);
+
+        // Handler returns OVERWRITE
+        final boolean[] handlerCalled = {false};
+        installer.setCollisionHandler((cmdName, existingPath, newPath) -> {
+            handlerCalled[0] = true;
+            return CollisionAction.OVERWRITE;
+        });
+
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setCommandLinePath(binDir.getAbsolutePath());
+
+        List<File> created = installer.installCommands(launcherPath, commands, settings);
+
+        // Handler should be called
+        assertTrue(handlerCalled[0], "CollisionHandler should be called for different-app collision");
+        
+        // File should be in created list (was overwritten)
+        assertEquals(1, created.size());
+        
+        // File should now point to new launcher
+        String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
+        assertTrue(content.contains(launcherPath.getAbsolutePath()), "Script should now point to new launcher");
+        assertFalse(content.contains(differentLauncher.getAbsolutePath()), "Script should not contain old launcher path");
     }
 }
