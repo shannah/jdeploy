@@ -3,6 +3,7 @@ package ca.weblite.jdeploy.installer.cli;
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
+import ca.weblite.jdeploy.installer.win.RegistryOperations;
 import ca.weblite.jdeploy.models.CommandSpec;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONArray;
@@ -26,6 +27,7 @@ import java.util.regex.Pattern;
 public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
     private CollisionHandler collisionHandler = new DefaultCollisionHandler();
+    private RegistryOperations registryOperations;
 
     /**
      * Sets the collision handler for detecting and resolving command name conflicts.
@@ -34,6 +36,16 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
      */
     public void setCollisionHandler(CollisionHandler collisionHandler) {
         this.collisionHandler = collisionHandler != null ? collisionHandler : new DefaultCollisionHandler();
+    }
+
+    /**
+     * Sets the registry operations implementation for testing or custom scenarios.
+     * If not set, JnaRegistryOperations will be used by default.
+     * 
+     * @param registryOperations the RegistryOperations implementation to use
+     */
+    public void setRegistryOperations(RegistryOperations registryOperations) {
+        this.registryOperations = registryOperations;
     }
 
     @Override
@@ -251,6 +263,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
     /**
      * Creates an InstallWindowsRegistry instance for registry operations.
+     * Uses injected RegistryOperations if available, otherwise uses JnaRegistryOperations.
      * This method can be overridden in tests.
      * 
      * @return a new InstallWindowsRegistry with minimal configuration
@@ -258,6 +271,9 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
     protected InstallWindowsRegistry createRegistryHelper() {
         // Create a registry helper with no AppInfo or backup logging
         // for PATH-only operations
+        if (registryOperations != null) {
+            return new InstallWindowsRegistry(null, null, null, null, registryOperations);
+        }
         return new InstallWindowsRegistry(null, null, null, null);
     }
 }
