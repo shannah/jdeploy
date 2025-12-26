@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.win;
 
+import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
 import ca.weblite.jdeploy.models.CommandSpec;
 import org.junit.Test;
 
@@ -24,7 +25,8 @@ public class InstallWindowsCmdWrapperTest {
                 new CommandSpec("world", null)
         );
 
-        List<java.io.File> created = InstallWindows.writeCommandWrappers(tmp, exe, commands);
+        WindowsCliCommandInstaller installer = new WindowsCliCommandInstaller();
+        List<java.io.File> created = installer.writeCommandWrappersForTest(tmp, exe, commands);
         assertNotNull(created);
         assertEquals(2, created.size());
 
