@@ -1,8 +1,13 @@
 package ca.weblite.jdeploy.installer.cli;
 
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.installer.win.InMemoryRegistryOperations;
+import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
+import ca.weblite.jdeploy.installer.win.RegistryOperations;
 import ca.weblite.jdeploy.models.CommandSpec;
 import org.apache.commons.io.FileUtils;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,6 +15,8 @@ import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -193,5 +200,257 @@ public class CliCommandInstallerIntegrationTest {
      */
     private void assertGreater(int actual, int expected, String message) {
         assertTrue(actual > expected, message + " (expected > " + expected + ", got " + actual + ")");
+    }
+
+    /**
+     * Testable subclass of WindowsCliCommandInstaller that:
+     * - Uses a configurable bin directory instead of hardcoded ~/.jdeploy/bin
+     * - Uses injected InMemoryRegistryOperations for testing
+     */
+    private static class TestableWindowsCliCommandInstaller extends WindowsCliCommandInstaller {
+        private final File customBinDir;
+        private final RegistryOperations registryOps;
+
+        TestableWindowsCliCommandInstaller(File customBinDir, RegistryOperations registryOps) {
+            this.customBinDir = customBinDir;
+            this.registryOps = registryOps;
+            setRegistryOperations(registryOps);
+        }
+
+        @Override
+        public List<File> installCommands(File launcherPath, List<CommandSpec> commands, InstallationSettings settings) {
+            List<File> createdFiles = new java.util.ArrayList<>();
+
+            if (commands == null || commands.isEmpty()) {
+                return createdFiles;
+            }
+
+            try {
+                // Write .cmd wrappers using custom bin directory
+                List<File> wrapperFiles = writeCommandWrappersForTest(customBinDir, launcherPath, commands);
+                createdFiles.addAll(wrapperFiles);
+
+                // Update user PATH via registry
+                boolean pathUpdated = addToPath(customBinDir);
+
+                // Persist metadata for uninstall in the app directory
+                File appDir = launcherPath.getParentFile();
+                persistMetadata(appDir, wrapperFiles, pathUpdated);
+
+            } catch (IOException e) {
+                System.err.println("Warning: Failed to install CLI commands: " + e.getMessage());
+            }
+
+            return createdFiles;
+        }
+
+        @Override
+        public void uninstallCommands(File appDir) {
+            if (appDir == null || !appDir.exists()) {
+                return;
+            }
+
+            // Read metadata file
+            File metadataFile = new File(appDir, ".jdeploy-cli-metadata.json");
+            if (!metadataFile.exists()) {
+                return;
+            }
+
+            try {
+                String metadataContent = FileUtils.readFileToString(metadataFile, "UTF-8");
+                JSONObject metadata = new JSONObject(metadataContent);
+
+                // Clean up wrapper files
+                JSONArray wrappersArray = metadata.optJSONArray("createdWrappers");
+                if (wrappersArray != null) {
+                    for (int i = 0; i < wrappersArray.length(); i++) {
+                        String wrapperName = wrappersArray.getString(i);
+                        File wrapperFile = new File(customBinDir, wrapperName);
+                        if (wrapperFile.exists() && !wrapperFile.delete()) {
+                            System.err.println("Warning: Failed to delete wrapper file: " + wrapperFile.getAbsolutePath());
+                        }
+                    }
+                }
+
+                // Remove from PATH if it was added
+                boolean pathWasUpdated = metadata.optBoolean("pathUpdated", false);
+                if (pathWasUpdated) {
+                    removeFromUserPath(customBinDir);
+                }
+
+                // Delete metadata file
+                if (!metadataFile.delete()) {
+                    System.err.println("Warning: Failed to delete metadata file: " + metadataFile.getAbsolutePath());
+                }
+
+            } catch (IOException e) {
+                System.err.println("Warning: Failed to uninstall CLI commands: " + e.getMessage());
+            }
+        }
+
+        @Override
+        protected InstallWindowsRegistry createRegistryHelper() {
+            return new InstallWindowsRegistry(null, null, null, null, registryOps);
+        }
+
+        /**
+         * Public accessor for removeFromUserPath for testing.
+         */
+        public boolean removeFromUserPath(File binDir) {
+            if (binDir == null) {
+                return false;
+            }
+
+            try {
+                InstallWindowsRegistry registry = createRegistryHelper();
+                return registry.removeFromUserPath(binDir);
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to remove from user PATH: " + e.getMessage());
+                return false;
+            }
+        }
+
+        /**
+         * Helper to persist metadata to file.
+         */
+        private void persistMetadata(File appDir, List<File> createdWrappers, boolean pathUpdated) throws IOException {
+            JSONObject metadata = new JSONObject();
+
+            // Store list of created wrapper file names
+            JSONArray wrappersArray = new JSONArray();
+            for (File wrapper : createdWrappers) {
+                wrappersArray.put(wrapper.getName());
+            }
+            metadata.put("createdWrappers", wrappersArray);
+
+            // Store whether PATH was updated
+            metadata.put("pathUpdated", pathUpdated);
+
+            // Write metadata file
+            File metadataFile = new File(appDir, ".jdeploy-cli-metadata.json");
+            FileUtils.writeStringToFile(metadataFile, metadata.toString(), "UTF-8");
+        }
+    }
+
+    @Test
+    @DisabledOnOs({OS.MAC, OS.LINUX})
+    public void testWindowsInstallVerifyUninstallCycle() throws Exception {
+        // Arrange
+        InMemoryRegistryOperations registryOps = new InMemoryRegistryOperations();
+        File customBinDir = tempDir.resolve("custom-bin").toFile();
+        customBinDir.mkdirs();
+
+        TestableWindowsCliCommandInstaller windowsInstaller =
+                new TestableWindowsCliCommandInstaller(customBinDir, registryOps);
+
+        List<CommandSpec> commands = Arrays.asList(
+                new CommandSpec("myapp", Arrays.asList("--verbose")),
+                new CommandSpec("myapp-admin", Arrays.asList("--admin", "--debug"))
+        );
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setInstallCliCommands(true);
+        settings.setCommandLinePath(customBinDir.getAbsolutePath());
+
+        // Act - Install commands
+        List<File> installedFiles = windowsInstaller.installCommands(launcherPath, commands, settings);
+
+        // Assert - Verify installation
+        assertNotNull(installedFiles, "installCommands should return a list of installed files");
+        assertFalse(installedFiles.isEmpty(), "Should have installed at least one command script");
+
+        // Verify wrapper files exist
+        for (File scriptFile : installedFiles) {
+            assertTrue(scriptFile.exists(), "Installed wrapper should exist: " + scriptFile.getAbsolutePath());
+            assertTrue(scriptFile.getName().endsWith(".cmd"), "Windows wrapper should be .cmd file");
+            
+            // Verify wrapper contains launcher path reference
+            String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
+            assertTrue(content.contains(launcherPath.getAbsolutePath()), 
+                "Wrapper should reference launcher path");
+        }
+
+        // Verify PATH updated in registry
+        assertTrue(registryOps.keyExists("Environment"), "Environment key should be created in registry");
+        String pathValue = registryOps.getStringValue("Environment", "Path");
+        assertNotNull(pathValue, "Path value should be set in registry");
+        assertTrue(pathValue.contains(customBinDir.getAbsolutePath()), 
+            "Registry PATH should contain the bin directory");
+
+        // Verify metadata file created and contains correct data
+        File metadataFile = new File(launcherDir, ".jdeploy-cli-metadata.json");
+        assertTrue(metadataFile.exists(), "Metadata file should be created");
+        
+        String metadataContent = FileUtils.readFileToString(metadataFile, "UTF-8");
+        JSONObject metadata = new JSONObject(metadataContent);
+        
+        JSONArray wrappersArray = metadata.getJSONArray("createdWrappers");
+        assertEquals(commands.size(), wrappersArray.length(), 
+            "Metadata should list all created wrappers");
+        
+        for (int i = 0; i < wrappersArray.length(); i++) {
+            String wrapperName = wrappersArray.getString(i);
+            assertTrue(wrapperName.endsWith(".cmd"), "Wrapper names should have .cmd extension");
+        }
+        
+        assertTrue(metadata.getBoolean("pathUpdated"), 
+            "Metadata should indicate PATH was updated");
+
+        // Act - Uninstall commands
+        windowsInstaller.uninstallCommands(launcherDir);
+
+        // Assert - Verify cleanup
+        // Wrapper files should be removed
+        File[] remainingWrappers = customBinDir.listFiles((dir, name) -> name.endsWith(".cmd"));
+        assertEquals(0, (remainingWrappers != null ? remainingWrappers.length : 0),
+            "All .cmd wrappers should be removed after uninstall");
+
+        // Metadata file should be deleted
+        assertFalse(metadataFile.exists(), "Metadata file should be deleted after uninstall");
+    }
+
+    @Test
+    @DisabledOnOs({OS.MAC, OS.LINUX})
+    public void testWindowsPathUpdateInRegistry() throws Exception {
+        // Arrange
+        InMemoryRegistryOperations registryOps = new InMemoryRegistryOperations();
+        File customBinDir = tempDir.resolve("registry-test-bin").toFile();
+        customBinDir.mkdirs();
+
+        TestableWindowsCliCommandInstaller windowsInstaller =
+                new TestableWindowsCliCommandInstaller(customBinDir, registryOps);
+
+        // Act - Add to PATH first time
+        boolean firstChange = windowsInstaller.addToPath(customBinDir);
+
+        // Assert - Should report change
+        assertTrue(firstChange, "First addToPath should return true");
+        assertTrue(registryOps.keyExists("Environment"), "Environment key should exist");
+        String pathValue = registryOps.getStringValue("Environment", "Path");
+        assertNotNull(pathValue, "Path value should be set");
+        assertTrue(pathValue.contains(customBinDir.getAbsolutePath()), 
+            "PATH should contain the bin directory");
+
+        // Act - Add to PATH second time (same directory)
+        boolean secondChange = windowsInstaller.addToPath(customBinDir);
+
+        // Assert - Should not report change (idempotent)
+        assertFalse(secondChange, "Second addToPath of same directory should return false");
+        String pathValueAfterSecond = registryOps.getStringValue("Environment", "Path");
+        assertEquals(pathValue, pathValueAfterSecond, 
+            "PATH should not change when adding duplicate");
+
+        // Act - Add a different directory
+        File anotherBinDir = tempDir.resolve("another-bin").toFile();
+        anotherBinDir.mkdirs();
+        boolean thirdChange = windowsInstaller.addToPath(anotherBinDir);
+
+        // Assert - Should report change
+        assertTrue(thirdChange, "Adding different directory should return true");
+        String pathValueAfterThird = registryOps.getStringValue("Environment", "Path");
+        assertTrue(pathValueAfterThird.contains(customBinDir.getAbsolutePath()),
+            "First bin dir should still be in PATH");
+        assertTrue(pathValueAfterThird.contains(anotherBinDir.getAbsolutePath()),
+            "Second bin dir should be in PATH");
     }
 }
