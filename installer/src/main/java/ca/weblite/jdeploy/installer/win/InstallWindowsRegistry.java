@@ -370,10 +370,23 @@ public class InstallWindowsRegistry {
      * Registers a file extension
      * @param ext The file extension (with no leading dot).
      */
+    /**
+     * Creates a registry key and all its parent keys if they don't exist.
+     * Uses the injected RegistryOperations to support testing with in-memory implementations.
+     */
+    private void createKeyRecursive(String key) {
+        if (key.contains("\\")) {
+            String parent = key.substring(0, key.lastIndexOf("\\"));
+            createKeyRecursive(parent);
+        }
+        if (!registryOps.keyExists(key)) {
+            registryOps.createKey(key);
+        }
+    }
+
     private void registerFileExtension(String ext) {
         // NOTE: Not backing up to the backup log, because this can be reverted cleanly by
         // simply removing ourself from the OpenWithProgIds key.
-        WinRegistry registry = new WinRegistry();
         String mimetype = appInfo.getMimetype(ext);
         if (!ext.startsWith(".")) {
             ext = "." + ext;
@@ -383,7 +396,7 @@ public class InstallWindowsRegistry {
         if (!registryOps.keyExists(key)) {
             backupLogOut.println(";CREATE "+key);
             backupLogOut.flush();
-            registry.createRegistryKeyRecursive(key);
+            createKeyRecursive(key);
             registryOps.setStringValue(key, null, getProgId());
             if (mimetype != null) {
                 registryOps.setStringValue(key, "ContentType", mimetype);
@@ -416,7 +429,7 @@ public class InstallWindowsRegistry {
         if (registryOps.keyExists(getFileAssociationsPath())) {
             deleteKeyRecursive(getFileAssociationsPath());
         }
-        new WinRegistry().createRegistryKeyRecursive(getFileAssociationsPath());
+        createKeyRecursive(getFileAssociationsPath());
         for (String ext : appInfo.getExtensions()) {
             if (!ext.startsWith(".")) {
                 ext = "." + ext;
@@ -525,7 +538,7 @@ public class InstallWindowsRegistry {
         if (!registryOps.keyExists(schemeKey)) {
             backupLogOut.println(";CREATE "+schemeKey);
             backupLogOut.flush();
-            registryOps.createKey(schemeKey);
+            createKeyRecursive(schemeKey);
         }
         registryOps.setStringValue(schemeKey, null, "URL:"+scheme);
         registryOps.setStringValue(schemeKey, "URL Protocol", "");
@@ -594,7 +607,7 @@ public class InstallWindowsRegistry {
         if (registryOps.keyExists(getURLAssociationsPath())) {
             deleteKeyRecursive(getURLAssociationsPath());
         }
-        new WinRegistry().createRegistryKeyRecursive(getURLAssociationsPath());
+        createKeyRecursive(getURLAssociationsPath());
         for (String scheme : appInfo.getUrlSchemes()) {
             registryOps.setStringValue(getURLAssociationsPath(), scheme, getProgId());
             registerCustomScheme(scheme);
@@ -791,7 +804,7 @@ public class InstallWindowsRegistry {
 
             registry.exportKey(getRegistryPath(), backupLog);
         }
-        registry.createRegistryKeyRecursive(capabilitiesPath);
+        createKeyRecursive(capabilitiesPath);
         registryOps.setStringValue(capabilitiesPath, "ApplicationName", appInfo.getTitle());
         registryOps.setStringValue(capabilitiesPath, "ApplicationDescription", appInfo.getDescription());
         if (icon != null && icon.exists()) {
@@ -824,7 +837,7 @@ public class InstallWindowsRegistry {
 
         // Now to register the uninstaller
 
-        registry.createRegistryKeyRecursive(getUninstallKey());
+        createKeyRecursive(getUninstallKey());
         if (icon != null && icon.exists()) {
             registryOps.setStringValue(getUninstallKey(), "DisplayIcon", icon.getAbsolutePath() + ",0");
         }
