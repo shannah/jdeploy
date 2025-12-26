@@ -1,9 +1,10 @@
 package ca.weblite.jdeploy.installer.win;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.HashMap;
 
 /**
  * In-memory implementation of RegistryOperations for testing purposes.
@@ -12,7 +13,13 @@ import java.util.Set;
  */
 public class InMemoryRegistryOperations implements RegistryOperations {
 
-    private final Map<String, Map<String, Object>> registry = new HashMap<>();
+    private static final String DEFAULT_VALUE_NAME = "__DEFAULT__";
+
+    private final Map<String, Map<String, Object>> registry = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+
+    private String normalizeValueName(String valueName) {
+        return valueName == null ? DEFAULT_VALUE_NAME : valueName;
+    }
 
     /**
      * Clears all registry data. Useful for test isolation.
@@ -55,7 +62,7 @@ public class InMemoryRegistryOperations implements RegistryOperations {
         if (values == null) {
             return false;
         }
-        return values.containsKey(valueName);
+        return values.containsKey(normalizeValueName(valueName));
     }
 
     @Override
@@ -64,20 +71,20 @@ public class InMemoryRegistryOperations implements RegistryOperations {
         if (values == null) {
             return null;
         }
-        Object value = values.get(valueName);
+        Object value = values.get(normalizeValueName(valueName));
         return value == null ? null : value.toString();
     }
 
     @Override
     public void setStringValue(String key, String valueName, String value) {
         ensureKeyExists(key);
-        registry.get(key).put(valueName, value);
+        registry.get(key).put(normalizeValueName(valueName), value);
     }
 
     @Override
     public void setLongValue(String key, long value) {
         ensureKeyExists(key);
-        registry.get(key).put(null, value);
+        registry.get(key).put(normalizeValueName(null), value);
     }
 
     @Override
@@ -94,7 +101,7 @@ public class InMemoryRegistryOperations implements RegistryOperations {
     public void deleteValue(String key, String valueName) {
         Map<String, Object> values = registry.get(key);
         if (values != null) {
-            values.remove(valueName);
+            values.remove(normalizeValueName(valueName));
         }
     }
 
@@ -119,10 +126,11 @@ public class InMemoryRegistryOperations implements RegistryOperations {
     @Override
     public Map<String, Object> getValues(String key) {
         Map<String, Object> values = registry.get(key);
-        if (values == null) {
-            return new HashMap<>();
+        TreeMap<String, Object> copy = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        if (values != null) {
+            copy.putAll(values);
         }
-        return new HashMap<>(values);
+        return copy;
     }
 
     /**
@@ -134,12 +142,17 @@ public class InMemoryRegistryOperations implements RegistryOperations {
     private void ensureKeyExists(String key) {
         if (key == null || key.isEmpty()) return;
 
-        if (!registry.containsKey(key)) {
-            int lastBackslash = key.lastIndexOf('\\');
-            if (lastBackslash != -1) {
-                ensureKeyExists(key.substring(0, lastBackslash));
+        String[] parts = key.split("\\\\");
+        StringBuilder currentPath = new StringBuilder();
+        for (int i = 0; i < parts.length; i++) {
+            if (i > 0) {
+                currentPath.append("\\");
             }
-            registry.put(key, new HashMap<>());
+            currentPath.append(parts[i]);
+            String path = currentPath.toString();
+            if (!registry.containsKey(path)) {
+                registry.put(path, new TreeMap<>(String.CASE_INSENSITIVE_ORDER));
+            }
         }
     }
 }

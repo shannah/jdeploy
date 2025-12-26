@@ -372,4 +372,21 @@ public class InstallWindowsRegistryIntegrationTest {
         String result = InstallWindowsRegistry.computePathWithRemoved("C:\\BIN;C:\\WINDOWS", "c:\\bin");
         assertEquals("C:\\WINDOWS", result, "Should remove entry with case-insensitive comparison");
     }
+
+    @Test
+    void testRecursiveKeyCreation() {
+        String deepKey = "Software\\A\\B\\C";
+        registryOps.createKey(deepKey);
+
+        assertTrue(registryOps.keyExists("Software"), "Parent key 'Software' should exist");
+        assertTrue(registryOps.keyExists("Software\\A"), "Parent key 'Software\\A' should exist");
+        assertTrue(registryOps.keyExists("Software\\A\\B"), "Parent key 'Software\\A\\B' should exist");
+        assertTrue(registryOps.keyExists("Software\\A\\B\\C"), "Key 'Software\\A\\B\\C' should exist");
+
+        Set<String> softwareSubkeys = registryOps.getKeys("Software");
+        assertTrue(softwareSubkeys.contains("A"), "Software subkeys should contain 'A'");
+        
+        Set<String> aSubkeys = registryOps.getKeys("Software\\A");
+        assertTrue(aSubkeys.contains("B"), "Software\\A subkeys should contain 'B'");
+    }
 }
