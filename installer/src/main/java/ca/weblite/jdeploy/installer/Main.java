@@ -774,7 +774,7 @@ public class Main implements Runnable, Constants {
 
         // Enable CLI launcher creation if user requested CLI commands or launcher installation
         bundlerSettings.setCliCommandsEnabled(
-            installationSettings.isInstallCliCommands() || installationSettings.isInstallCliLauncher()
+            installationSettings.isInstallCliCommands()
         );
 
         // Set launcher version from system property if available (installer context only)
