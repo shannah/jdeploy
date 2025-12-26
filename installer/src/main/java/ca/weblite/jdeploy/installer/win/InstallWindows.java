@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.win;
 
 import ca.weblite.jdeploy.app.AppInfo;
+import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.InstallationContext;
 import ca.weblite.jdeploy.installer.Main;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
@@ -29,6 +30,19 @@ public class InstallWindows {
             InstallationSettings installationSettings,
             String fullyQualifiedPackageName,
             File tmpBundles
+    ) throws Exception {
+        return install(context, installationSettings, fullyQualifiedPackageName, tmpBundles, null);
+    }
+
+    /**
+     * Overload that accepts the NPMPackageVersion so we can enumerate CLI commands for wrapper generation.
+     */
+    public File install(
+            InstallationContext context,
+            InstallationSettings installationSettings,
+            String fullyQualifiedPackageName,
+            File tmpBundles,
+            ca.weblite.jdeploy.installer.npm.NPMPackageVersion npmPackageVersion
     ) throws Exception {
         AppInfo appInfo = installationSettings.getAppInfo();
         File tmpExePath = findTmpExeFile(tmpBundles);
@@ -112,6 +126,14 @@ public class InstallWindows {
         try (FileOutputStream fos = new FileOutputStream(registryBackupLog)) {
             InstallWindowsRegistry registryInstaller = new InstallWindowsRegistry(appInfo, exePath, icoPath, fos);
             registryInstaller.register();
+
+            // Install CLI commands if user requested
+            List<ca.weblite.jdeploy.models.CommandSpec> commands = npmPackageVersion != null ? npmPackageVersion.getCommands() : null;
+            if (installationSettings.isInstallCliCommands() && commands != null && !commands.isEmpty()) {
+                ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller cliInstaller = 
+                    new ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller();
+                cliInstaller.installCommands(exePath, commands, installationSettings);
+            }
 
             //Try to copy the uninstaller
             File uninstallerPath = registryInstaller.getUninstallerPath();

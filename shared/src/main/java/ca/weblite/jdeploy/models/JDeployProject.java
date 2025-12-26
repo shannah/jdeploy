@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.models;
 
 import ca.weblite.jdeploy.io.FileSystemInterface;
 import org.apache.commons.io.FileUtils;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -10,6 +11,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
 
+/**
+ * Project model backed by package.json (JSONObject).
+ */
 public class JDeployProject {
     private Path packageJSONFile;
     private JSONObject packageJSON;
@@ -63,10 +67,10 @@ public class JDeployProject {
      */
     public String getPackageName(Platform platform) {
         if (platform == null) return null;
-        
+
         JSONObject jdeployConfig = getJDeployConfig();
         String propertyName = platform.getPackagePropertyName();
-        
+
         if (jdeployConfig.has(propertyName)) {
             return jdeployConfig.getString(propertyName);
         }
@@ -80,13 +84,37 @@ public class JDeployProject {
      */
     public List<Platform> getPlatformsWithNpmPackageNames() {
         List<Platform> result = new ArrayList<>();
-        
+
         for (Platform platform : Platform.values()) {
             if (getPackageName(platform) != null) {
                 result.add(platform);
             }
         }
-        
+
         return result;
+    }
+
+    /**
+     * Parses and returns the list of CommandSpec objects declared in package.json under jdeploy.commands.
+     * The returned list is sorted by command name to ensure deterministic ordering.
+     *
+     * @return list of CommandSpec (empty list if none configured)
+     * @throws IllegalArgumentException if invalid command entries are encountered
+     */
+    public List<CommandSpec> getCommandSpecs() {
+        return CommandSpecParser.parseCommands(getJDeployConfig());
+    }
+
+    /**
+     * Returns a CommandSpec by name if present.
+     * @param name command name
+     * @return Optional CommandSpec
+     */
+    public Optional<CommandSpec> getCommandSpec(String name) {
+        if (name == null) return Optional.empty();
+        for (CommandSpec cs : getCommandSpecs()) {
+            if (name.equals(cs.getName())) return Optional.of(cs);
+        }
+        return Optional.empty();
     }
 }

@@ -5,6 +5,7 @@ public class BundlerSettings {
     private String bundleVersion;
     private boolean compressBundles;
     private boolean isAutoUpdateEnabled = true;
+    private boolean cliCommandsEnabled;
 
     private boolean doNotZipExeInstaller;
 
@@ -46,5 +47,13 @@ public class BundlerSettings {
 
     public void setAutoUpdateEnabled(boolean isAutoUpdateEnabled) {
         this.isAutoUpdateEnabled = isAutoUpdateEnabled;
+    }
+
+    public boolean isCliCommandsEnabled() {
+        return cliCommandsEnabled;
+    }
+
+    public void setCliCommandsEnabled(boolean cliCommandsEnabled) {
+        this.cliCommandsEnabled = cliCommandsEnabled;
     }
 }

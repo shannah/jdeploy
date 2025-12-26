@@ -11,7 +11,8 @@ public class InstallationSettings {
     private boolean addToPrograms=true;
     private boolean addToStartMenu=true;
     private boolean addToDock=true;
-    private boolean installCliCommand=true;
+    private boolean installCliLauncher=true;
+    private boolean installCliCommands=true;
     private boolean alreadyAddedToDock=false;
     private boolean prerelease=false;
     private boolean overwriteApp=true;
@@ -171,11 +172,19 @@ public class InstallationSettings {
         this.addedToPath = addedToPath;
     }
 
-    public boolean isInstallCliCommand() {
-        return installCliCommand;
+    public boolean isInstallCliLauncher() {
+        return installCliLauncher;
     }
 
-    public void setInstallCliCommand(boolean installCliCommand) {
-        this.installCliCommand = installCliCommand;
+    public void setInstallCliLauncher(boolean installCliLauncher) {
+        this.installCliLauncher = installCliLauncher;
+    }
+
+    public boolean isInstallCliCommands() {
+        return installCliCommands;
+    }
+
+    public void setInstallCliCommands(boolean installCliCommands) {
+        this.installCliCommands = installCliCommands;
     }
 }
