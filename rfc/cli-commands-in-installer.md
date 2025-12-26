@@ -136,34 +136,29 @@ Challenges:
 - GUI macOS apps are typically packaged as `.app` bundles. Launching from the terminal should avoid the macOS GUI app life-cycle that would attempt to spawn an AppKit application (or pop UI).
 - On macOS, calling the same launcher inside a `.app` bundle can sometimes trigger GUI initialization or behave differently when invoked from the command line.
 
-Proposal (recommended):
-- When `jdeploy.commands` is present, the bundler should create a second binary in the app bundle at:
+Solution (dual-binary approach):
+- When `jdeploy.commands` is present, the bundler creates a second binary in the app bundle at:
   ```
   MyApp.app/Contents/MacOS/Client4JLauncher-cli
   ```
-  This file is a byte-identical copy of the GUI launcher binary (or equivalent wrapper) but named differently. The reason for a second binary is:
+  This file is a byte-identical copy of the GUI launcher binary (or equivalent wrapper) but named differently. The reasons for a second binary are:
   - macOS processes often treat `argv[0]` or the executable name specially (AppKit/NSApplication behavior can be influenced by program name).
   - Avoids accidental GUI initialization caused by frameworks that inspect the process name or bundle context on startup.
   - Keeps the GUI launcher unchanged; the CLI-entry binary can be treated as the CLI entrypoint that purposely avoids GUI initialization.
-- Install per-command scripts (shell scripts) in a user-local bin directory (recommendation below) that call `.../MyApp.app/Contents/MacOS/Client4JLauncher-cli`.
+- Install per-command scripts (shell scripts) in `~/.local/bin` that call `.../MyApp.app/Contents/MacOS/Client4JLauncher-cli`.
   - Example script:
     ```sh
     #!/usr/bin/env sh
     exec "/Users/alice/Applications/MyApp.app/Contents/MacOS/Client4JLauncher-cli" --jdeploy:command=myapp-cli -- "$@"
     ```
 
-Per-user script location recommendations:
-- Preferred: `~/.local/bin`
-  - Rationale: follows Linux/XDG conventions, is simple, and already used by many tools; users can add it to PATH in their shell config if necessary.
-- Alternative: `~/Library/Application Support/jdeploy/bin`
-  - Rationale: keeps all jdeploy-provided files fully under `~/Library/Application Support` which is macOS-standard for app data. If using this location, the installer should add it to PATH (via modifying shell rc or by printing instructions), which is intrusive.
-Recommendation: use `~/.local/bin` as the default install location for CLI scripts on macOS (and Linux) because it is least surprising and encourages cross-platform consistency. If the user chooses to keep all jdeploy assets under `~/Library/Application Support/jdeploy`, the installer can support that as an opt-in alternative.
+Per-user script location:
+- Scripts are installed in `~/.local/bin` to follow Linux/XDG conventions and encourage cross-platform consistency. This location is simple and already used by many tools; users can add it to PATH in their shell config if necessary.
 
 PATH management:
-- Installer should attempt to detect whether the chosen script directory is already on PATH (by checking shell config or current environment) and if not:
-  - Add an informative message to the user with instructions to add it to PATH, and/or
-  - Optionally (with consent) append a shell profile snippet to `~/.profile` / `~/.bash_profile` / `~/.zprofile` depending on the user's shell to add the directory.
-- The installer must not silently modify all shell configs; prefer a minimal change (e.g., `~/.profile`) or ask user.
+- Installer detects whether the script directory (`~/.local/bin`) is already on PATH (by checking shell config or current environment).
+- If not on PATH, the installer appends a shell profile snippet to `~/.profile` / `~/.bash_profile` / `~/.zprofile` (depending on the user's shell) to add the directory. This is a minimal, non-intrusive change.
+- The installer does not ask for user consent for this modification (it is a standard practice and reversal is straightforward).
 
 Uninstall:
 - Remove the scripts and the `Client4JLauncher-cli` file in the `.app` bundle (if the app bundle itself is being removed).
@@ -221,12 +216,9 @@ Uninstall:
   - Stick to per-user locations to avoid requiring elevated privileges that could otherwise be exploited.
 - Integrity:
   - Consider recording metadata about the created scripts (e.g., manifest file with checksums) so the uninstaller can detect tampering; optional for initial implementation.
-- Path collisions:
-  - If a command name already exists on PATH and is not owned by this install, the installer should warn the user and offer options:
-    - Skip installation of that command.
-    - Overwrite (replace) the existing command (not recommended without explicit user consent).
-    - Install under a different name.
-  - By default, prefer to fail/ask rather than overwrite silently.
+- Command name collisions:
+  - **Same-app collisions** (reinstalling the same app): if a command name is already present from a previous installation of the same app, it is silently overwritten. The installer records which files it creates, enabling clean removal during uninstall.
+  - **Different-app collisions** (different app claims the same command name): the installer detects this and prompts the user interactively (if GUI installer) to skip installation of that command, overwrite the existing command, or install under a different name. Headless installers abort with a clear error message unless a CLI flag indicates "overwrite".
 
 ## Backward compatibility
 
@@ -236,33 +228,7 @@ Uninstall:
 
 ## Open questions and alternatives
 
-1. Dual binary vs single binary with early `--jdeploy:command` check (macOS):
-   - Dual-binary approach (recommended):
-     - Pros: lowest risk; some frameworks perform behavior based on `argv[0]` or binary name; copying the launcher and naming it `*-cli` is an easy way to avoid unexpected GUI framework interactions.
-     - Cons: slightly larger app bundle (extra binary copy), small maintenance cost if the launcher binary is regenerated.
-   - Single-binary approach (alternative):
-     - Have the launcher check `argv` early and if `--jdeploy:command` is present, avoid importing or initializing GUI frameworks (do minimal startup).
-     - Pros: no duplicate binary.
-     - Cons: requires discipline to ensure that no static initializers, library loads, or framework calls occur prior to the early check, which can be brittle and platform-dependent. Some frameworks may initialize during static init or via native libraries, which is risky.
-   - Recommendation: implement dual binary for macOS to minimize risk and implementation complexity. Consider revisiting single-binary approach if the codebase proves safe after audit.
-
-2. Using symlinks vs scripts on Linux:
-   - If the launcher can detect invoked name (`argv[0]`) to determine which command was requested, installing per-command symlinks to the same executable could be an option (symlink named `myapp-cli` pointing to launcher).
-   - Pros: simpler; no wrapper script.
-   - Cons: requires the launcher to map `argv[0]` to command names and might be less flexible for injecting per-command `args`.
-   - Recommendation: prefer explicit shell scripts that call the launcher with `--jdeploy:command` and configured args. Consider symlink support as an optimization only if the launcher can reliably inspect `argv[0]`.
-
-3. Windows PATH update semantics:
-   - HKCU\Environment changes may not take effect immediately for existing consoles.
-   - Alternative: modify current process environment for the installer, and notify the user to restart their shell.
-   - Recommendation: update HKCU\Environment (user PATH) and clearly inform the user that they may need to re-open consoles.
-
-4. Handling name collisions across different installed apps:
-   - The installer should detect if a requested `name` is already present on PATH.
-   - The behavior could be:
-     - Prompt user to skip/rename/overwrite.
-     - Automatically install with a suffix (not desirable).
-   - Recommendation: ask the user interactively (if GUI installer) or abort with a clear error (if headless), unless a CLI flag indicates "overwrite".
+(No open questions at this time. Key design decisions have been resolved and documented in the main RFC body.)
 
 ## Implementation notes (non-normative)
 
@@ -447,14 +413,17 @@ When `jdeploy.commands` contains at least one command, the installation form SHO
 
 The `jdeploy.command` property (singular) predates this RFC and controls the CLI Launcher feature. It is unaffected by the addition of `jdeploy.commands` (plural). Packages can use both properties independently.
 
-## Open items for implementation
-
-- Decide exact per-user script directory on macOS (default proposed: `~/.local/bin`).
-- Decide interactive vs headless behavior when a command name already exists on PATH.
-- Decide whether the installer auto-applies PATH modifications or only prints instructions and asks for consent.
+## Implementation roadmap
 
 If this RFC is accepted, next steps are:
+
 1. Add model/parser support for `jdeploy.commands` to the bundler and packager.
 2. Ensure packaging embeds `jdeploy.commands` into installer metadata.
-3. Implement installer logic for creating/removing per-command wrappers and PATH/profile management.
-4. Add tests for schema validation, script generation, and uninstall manifest handling.
+3. Implement bundler logic:
+   - On macOS: create `Client4JLauncher-cli` when `BundlerSettings.isCliCommandsEnabled()` is true.
+4. Implement installer logic for creating/removing per-command wrappers and PATH/profile management:
+   - Linux: create shell scripts in `~/.local/bin`.
+   - macOS: create shell scripts in `~/.local/bin` that reference `Client4JLauncher-cli`.
+   - Windows: create `.cmd` wrappers in `%USERPROFILE%\.jdeploy\bin` and update HKCU\Environment PATH.
+   - Implement collision detection and handling (same-app silent overwrite, different-app user prompt).
+5. Add tests for schema validation, script generation, uninstall manifest handling, and PATH management.
