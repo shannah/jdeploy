@@ -101,10 +101,12 @@ public class InMemoryRegistryOperations implements RegistryOperations {
     @Override
     public Set<String> getKeys(String key) {
         Set<String> subkeys = new HashSet<>();
-        String prefix = key + "\\";
+        if (key == null) return subkeys;
+        String prefix = key.isEmpty() ? "" : (key.endsWith("\\") ? key : key + "\\");
         for (String registryKey : registry.keySet()) {
-            if (registryKey.startsWith(prefix)) {
+            if (registryKey.regionMatches(true, 0, prefix, 0, prefix.length()) && !registryKey.equalsIgnoreCase(key)) {
                 String remainder = registryKey.substring(prefix.length());
+                if (remainder.isEmpty()) continue;
                 // Extract the immediate subkey (first component after prefix)
                 int nextBackslash = remainder.indexOf('\\');
                 String subkey = nextBackslash == -1 ? remainder : remainder.substring(0, nextBackslash);
@@ -125,11 +127,18 @@ public class InMemoryRegistryOperations implements RegistryOperations {
 
     /**
      * Ensures that the given key exists in the registry, creating it if necessary.
+     * This implementation creates parent keys recursively.
      *
      * @param key the registry key path
      */
     private void ensureKeyExists(String key) {
+        if (key == null || key.isEmpty()) return;
+
         if (!registry.containsKey(key)) {
+            int lastBackslash = key.lastIndexOf('\\');
+            if (lastBackslash != -1) {
+                ensureKeyExists(key.substring(0, lastBackslash));
+            }
             registry.put(key, new HashMap<>());
         }
     }

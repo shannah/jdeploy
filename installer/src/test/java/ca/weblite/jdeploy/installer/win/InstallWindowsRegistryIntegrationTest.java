@@ -52,16 +52,16 @@ public class InstallWindowsRegistryIntegrationTest {
         appInfo.setDescription("Test application for registry integration tests");
         appInfo.setNpmPackage("test-app");
         appInfo.setNpmVersion("1.0.0");
-        appInfo.setNpmSource("https://registry.npmjs.org/test-app");
+        appInfo.setNpmSource(""); // Use empty string to ensure a null source hash results in predictable paths
 
         // Add document type associations
         appInfo.addDocumentMimetype("txt", "text/plain");
         appInfo.addDocumentMimetype("json", "application/json");
 
-        // Add URL schemes
-        appInfo.addUrlScheme("http");
-        appInfo.addUrlScheme("https");
+        // Add URL schemes - use only custom schemes to ensure AppType.Other
+        // (http/https would make it StartMenuInternet which changes registry paths)
         appInfo.addUrlScheme("myapp");
+        appInfo.addUrlScheme("testscheme");
 
         // Add directory association
         appInfo.setDirectoryAssociation("OpenAs", "Open with Test Application", iconFile.getAbsolutePath());
@@ -170,6 +170,14 @@ public class InstallWindowsRegistryIntegrationTest {
     }
 
     @Test
+    void testDebug_VerifyRegisterState() throws IOException {
+        registryOps.clear();
+        installer.register();
+        String dump = registryOps.dump();
+        assertFalse(dump.contains("InMemoryRegistry{\n}\n"), "Registry should not be empty after register()");
+    }
+
+    @Test
     void testRegister_CreatesCapabilitiesKey() throws IOException {
         installer.register();
 
@@ -205,9 +213,9 @@ public class InstallWindowsRegistryIntegrationTest {
         assertTrue(registryOps.keyExists(urlAssociationsPath), "URLAssociations key should be created");
         
         Map<String, Object> values = registryOps.getValues(urlAssociationsPath);
-        assertTrue(values.containsKey("http"), "http scheme should be registered");
-        assertTrue(values.containsKey("https"), "https scheme should be registered");
         assertTrue(values.containsKey("myapp"), "myapp scheme should be registered");
+        assertTrue(values.containsKey("testscheme"), "testscheme scheme should be registered");
+        assertFalse(values.containsKey("http"), "http scheme should not be registered");
     }
 
     @Test

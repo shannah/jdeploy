@@ -172,24 +172,16 @@ public class InstallWindowsRegistry {
     private static final String REGISTRY_KEY_SOFTWARE = "Software";
     private static final String REGISTRY_KEY_CLIENTS = REGISTRY_KEY_SOFTWARE + "\\Clients";
 
-    public static enum AppType {
+    public enum AppType {
         Mail,
         Media,
         Contact,
         StartMenuInternet,
         Other;
 
-
-
         public String getFullRegistryPath() {
-            switch (this) {
-                case Other:
-                    return REGISTRY_KEY_SOFTWARE;
-                default:
-                    return REGISTRY_KEY_CLIENTS + "\\" +this.name();
-            }
+            return REGISTRY_KEY_CLIENTS + "\\" + this.name();
         }
-
     }
 
     public InstallWindowsRegistry(
@@ -228,9 +220,11 @@ public class InstallWindowsRegistry {
 
     public File getUninstallerPath() {
         String suffix = "";
-        if (appInfo.getNpmVersion().startsWith("0.0.0-")) {
+        if (appInfo.getNpmVersion() != null && appInfo.getNpmVersion().startsWith("0.0.0-")) {
             String v = appInfo.getNpmVersion();
-            suffix = "-" + v.substring(v.indexOf("-")+1);
+            if (v.contains("-")) {
+                suffix = "-" + v.substring(v.indexOf("-") + 1);
+            }
         }
         return new File(System.getProperty("user.home") + File.separator +
                 ".jdeploy" + File.separator +
@@ -242,13 +236,15 @@ public class InstallWindowsRegistry {
 
     public String getFullyQualifiedPackageName() {
         String sourceHash = getSourceHash();
-        if (sourceHash == null) {
-            return appInfo.getNpmPackage();
-        }
         String suffix = "";
-        if (appInfo.getNpmVersion().startsWith("0.0.0-")) {
+        if (appInfo.getNpmVersion() != null && appInfo.getNpmVersion().startsWith("0.0.0-")) {
             String v = appInfo.getNpmVersion();
-            suffix = "." + v.substring(v.indexOf("-")+1);
+            if (v.contains("-")) {
+                suffix = "." + v.substring(v.indexOf("-") + 1);
+            }
+        }
+        if (sourceHash == null || sourceHash.isEmpty()) {
+            return appInfo.getNpmPackage() + suffix;
         }
         return sourceHash + "." + appInfo.getNpmPackage() + suffix;
     }
@@ -280,14 +276,15 @@ public class InstallWindowsRegistry {
 
     public String getRegisteredAppName() {
         String sourceHash = getSourceHash();
-        if (sourceHash == null) {
-            return "jdeploy." + appInfo.getNpmPackage();
-        }
-
         String suffix = "";
-        if (appInfo.getNpmVersion().startsWith("0.0.0-")) {
+        if (appInfo.getNpmVersion() != null && appInfo.getNpmVersion().startsWith("0.0.0-")) {
             String v = appInfo.getNpmVersion();
-            suffix = "." + v.substring(v.indexOf("-")+1);
+            if (v.contains("-")) {
+                suffix = "." + v.substring(v.indexOf("-") + 1);
+            }
+        }
+        if (sourceHash == null || sourceHash.isEmpty()) {
+            return "jdeploy." + appInfo.getNpmPackage() + suffix;
         }
         return "jdeploy." + sourceHash + "." + appInfo.getNpmPackage() + suffix;
     }
@@ -296,7 +293,6 @@ public class InstallWindowsRegistry {
         if (appInfo.getNpmSource() == null || appInfo.getNpmSource().isEmpty()) {
             return null;
         }
-
         return MD5.getMd5(appInfo.getNpmSource());
     }
 
@@ -344,16 +340,16 @@ public class InstallWindowsRegistry {
      */
     private String getProgId() {
         String sourceHash = getSourceHash();
-        if (sourceHash == null) {
-            return "jdeploy." + appInfo.getNpmPackage() + ".file";
-        }
-
         String suffix = "";
-        if (appInfo.getNpmVersion().startsWith("0.0.0-")) {
+        if (appInfo.getNpmVersion() != null && appInfo.getNpmVersion().startsWith("0.0.0-")) {
             String v = appInfo.getNpmVersion();
-            suffix = "." + v.substring(v.indexOf("-")+1);
+            if (v.contains("-")) {
+                suffix = "." + v.substring(v.indexOf("-") + 1);
+            }
         }
-
+        if (sourceHash == null || sourceHash.isEmpty()) {
+            return "jdeploy." + appInfo.getNpmPackage() + suffix + ".file";
+        }
         return "jdeploy." + sourceHash + "." + appInfo.getNpmPackage() + suffix + ".file";
     }
 
@@ -466,6 +462,10 @@ public class InstallWindowsRegistry {
      * @param scheme
      */
     private boolean canChangeURLSchemeEntry(String scheme) {
+        if (skipWinRegistryOperations) {
+            return true;
+        }
+
         // Note: HKEY_CLASSES_ROOT checks are done via static JNA calls for system-wide checks
         // This method doesn't use registryOps as it checks HKEY_CLASSES_ROOT, not HKEY_CURRENT_USER
         if (!com.sun.jna.platform.win32.Advapi32Util.registryKeyExists(com.sun.jna.platform.win32.WinReg.HKEY_CLASSES_ROOT, scheme)) {
@@ -613,13 +613,26 @@ public class InstallWindowsRegistry {
 
 
     private void registerUrlSchemes() throws IOException {
+        String urlAssocPath = getURLAssociationsPath();
+        if (registryOps.keyExists(urlAssocPath)) {
+            deleteKeyRecursive(urlAssocPath);
+        }
+        createKeyRecursive(urlAssocPath);
+        for (String scheme : appInfo.getUrlSchemes()) {
+            registryOps.setStringValue(urlAssocPath, scheme, getProgId());
+            registerCustomScheme(scheme);
+        }
+    }
+
+    private void unregisterUrlSchemes() {
         if (registryOps.keyExists(getURLAssociationsPath())) {
             deleteKeyRecursive(getURLAssociationsPath());
         }
-        createKeyRecursive(getURLAssociationsPath());
         for (String scheme : appInfo.getUrlSchemes()) {
-            registryOps.setStringValue(getURLAssociationsPath(), scheme, getProgId());
-            registerCustomScheme(scheme);
+            String schemeKey = getURLSchemeRegistryKey(scheme);
+            if (registryOps.keyExists(schemeKey)) {
+                deleteKeyRecursive(schemeKey);
+            }
         }
     }
 
@@ -715,16 +728,10 @@ public class InstallWindowsRegistry {
         String progId = getProgId();
 
         String directoryShellKey = "Software\\Classes\\Directory\\shell\\" + progId;
-        if (registryOps.keyExists(directoryShellKey)) {
-            System.out.println("Deleting directory association key: " + directoryShellKey);
-            deleteKeyRecursive(directoryShellKey);
-        }
+        deleteKeyRecursive(directoryShellKey);
 
         String backgroundShellKey = "Software\\Classes\\Directory\\Background\\shell\\" + progId;
-        if (registryOps.keyExists(backgroundShellKey)) {
-            System.out.println("Deleting directory background association key: " + backgroundShellKey);
-            deleteKeyRecursive(backgroundShellKey);
-        }
+        deleteKeyRecursive(backgroundShellKey);
     }
 
     public void unregister(File backupLogFile) throws IOException {
@@ -751,16 +758,19 @@ public class InstallWindowsRegistry {
     }
 
     public void deleteRegistryKey() {
-        if (registryOps.keyExists(getRegistryPath())) {
-            System.out.println("Deleting registry key "+getRegistryPath());
-            deleteKeyRecursive(getRegistryPath());
+        String registryPath = getRegistryPath();
+        if (registryOps.keyExists(registryPath)) {
+            System.out.println("Deleting registry key " + registryPath);
+            deleteKeyRecursive(registryPath);
+        }
+
+        // Also remove from RegisteredApplications
+        String registeredAppsKey = "Software\\RegisteredApplications";
+        if (registryOps.keyExists(registeredAppsKey)) {
+            registryOps.deleteValue(registeredAppsKey, getRegisteredAppName());
         }
     }
 
-
-    private void unregisterUrlSchemes() {
-
-    }
 
     private void unregisterFileExtensions() {
         for (String ext : appInfo.getExtensions()) {
@@ -808,10 +818,15 @@ public class InstallWindowsRegistry {
 
     public void register() throws IOException {
         WinRegistry registry = new WinRegistry();
+        String registryPath = getRegistryPath();
         String capabilitiesPath = getCapabilitiesPath();
-        if (!skipWinRegistryOperations && registryOps.keyExists(getRegistryPath())) {
-            registry.exportKey(getRegistryPath(), backupLog);
+        if (!skipWinRegistryOperations && registryOps.keyExists(registryPath)) {
+            registry.exportKey(registryPath, backupLog);
         }
+
+        // Ensure the base registry path exists for the application
+        createKeyRecursive(registryPath);
+
         createKeyRecursive(capabilitiesPath);
         registryOps.setStringValue(capabilitiesPath, "ApplicationName", appInfo.getTitle());
         registryOps.setStringValue(capabilitiesPath, "ApplicationDescription", appInfo.getDescription());
@@ -819,13 +834,14 @@ public class InstallWindowsRegistry {
             registryOps.setStringValue(capabilitiesPath, "ApplicationIcon", icon.getAbsolutePath()+",0");
         }
 
-        if (appInfo.hasDocumentTypes() || appInfo.hasUrlSchemes()) {
-            // Register file extensions individually in Classes
-            registerFileExtensions();
-
+        if (appInfo.hasDocumentTypes() || appInfo.hasUrlSchemes() || appInfo.hasDirectoryAssociation()) {
             // Register application file type entry which is referenced.
             registerFileTypeEntry();
 
+            // Register file extensions individually in Classes
+            if (appInfo.hasDocumentTypes()) {
+                registerFileExtensions();
+            }
         }
 
         if (appInfo.hasUrlSchemes()) {
@@ -837,8 +853,12 @@ public class InstallWindowsRegistry {
         }
 
         // Register the application
+        String registeredAppsKey = "Software\\RegisteredApplications";
+        if (!registryOps.keyExists(registeredAppsKey)) {
+            createKeyRecursive(registeredAppsKey);
+        }
         registryOps.setStringValue(
-                "Software\\RegisteredApplications",
+                registeredAppsKey,
                 getRegisteredAppName(),
                 getCapabilitiesPath()
         );
@@ -912,13 +932,17 @@ public class InstallWindowsRegistry {
         if (binPath == null || binPath.isEmpty()) return currentPath;
         String[] parts = currentPath.split(";");
         StringBuilder sb = new StringBuilder();
+        boolean changed = false;
         for (String p : parts) {
             if (p.isEmpty()) continue;
-            if (p.equalsIgnoreCase(binPath)) continue;
+            if (p.equalsIgnoreCase(binPath)) {
+                changed = true;
+                continue;
+            }
             if (sb.length() > 0) sb.append(";");
             sb.append(p);
         }
-        return sb.toString();
+        return changed ? sb.toString() : currentPath;
     }
 
     /**
