@@ -253,6 +253,74 @@ public class UnixPathManagerTest {
     }
 
     @Test
+    public void testAddToPathNonExistentBinDir() throws IOException {
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+        File nonExistentBinDir = new File(tempDir, "nonexistent-bin");
+        // Do not create the directory - it should not exist
+        assertFalse(nonExistentBinDir.exists());
+
+        boolean result = UnixPathManager.addToPath(nonExistentBinDir, shell, pathEnv, homeDir);
+
+        assertFalse(result, "addToPath should return false when binDir does not exist");
+        // Verify no config file was created
+        File profile = new File(homeDir, ".profile");
+        assertFalse(profile.exists(), "Config file should not be created when binDir does not exist");
+    }
+
+    @Test
+    public void testAddToPathBinDirIsFile() throws IOException {
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+        File fileMasqueradingAsBinDir = new File(tempDir, "not-a-directory");
+        // Create a file instead of a directory
+        fileMasqueradingAsBinDir.createNewFile();
+        assertTrue(fileMasqueradingAsBinDir.exists());
+        assertFalse(fileMasqueradingAsBinDir.isDirectory());
+
+        boolean result = UnixPathManager.addToPath(fileMasqueradingAsBinDir, shell, pathEnv, homeDir);
+
+        assertFalse(result, "addToPath should return false when binDir is a file, not a directory");
+        // Verify no config file was created
+        File profile = new File(homeDir, ".profile");
+        assertFalse(profile.exists(), "Config file should not be created when binDir is not a directory");
+    }
+
+    @Test
+    public void testAddToPathNullBinDir() {
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        boolean result = UnixPathManager.addToPath(null, shell, pathEnv, homeDir);
+
+        assertFalse(result, "addToPath should return false when binDir is null");
+        // Verify no config file was created
+        File profile = new File(homeDir, ".profile");
+        assertFalse(profile.exists(), "Config file should not be created when binDir is null");
+    }
+
+    @Test
+    public void testAddToPathExistingConfigNotModifiedWhenBinDirMissing() throws IOException {
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+        File nonExistentBinDir = new File(tempDir, "nonexistent-bin");
+        assertFalse(nonExistentBinDir.exists());
+
+        // Pre-create a config file with existing content
+        File profile = new File(homeDir, ".profile");
+        String originalContent = "# Existing content\nexport FOO=bar\n";
+        Files.write(profile.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
+        assertTrue(profile.exists());
+
+        boolean result = UnixPathManager.addToPath(nonExistentBinDir, shell, pathEnv, homeDir);
+
+        assertFalse(result, "addToPath should return false when binDir does not exist");
+        // Verify config file was not modified
+        String contentAfter = IOUtil.readToString(new FileInputStream(profile));
+        assertEquals(originalContent, contentAfter, "Config file should not be modified when binDir does not exist");
+    }
+
+    @Test
     public void testAddToPathWithExistingContent() throws IOException {
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:/bin";

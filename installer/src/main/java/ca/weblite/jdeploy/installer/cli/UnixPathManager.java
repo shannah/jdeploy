@@ -30,6 +30,13 @@ public class UnixPathManager {
      */
     public static boolean addToPath(File binDir, String shell, String pathEnv, File homeDir) {
         try {
+            // Verify binDir exists and is a directory before modifying shell config
+            if (binDir == null || !binDir.exists() || !binDir.isDirectory()) {
+                System.err.println("Warning: Cannot add to PATH - directory does not exist: " + 
+                    (binDir != null ? binDir.getAbsolutePath() : "null"));
+                return false;
+            }
+
             // Detect the user's shell; default to bash when unknown
             if (shell == null || shell.isEmpty()) {
                 shell = "/bin/bash";
