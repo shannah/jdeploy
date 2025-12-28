@@ -31,6 +31,14 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
     }
 
     @Override
+    protected File getBinDir(InstallationSettings settings) {
+        if (settings != null && settings.getCommandLinePath() != null && !settings.getCommandLinePath().isEmpty()) {
+            return new File(settings.getCommandLinePath());
+        }
+        return new File(System.getProperty("user.home"), "bin");
+    }
+
+    @Override
     public List<File> installCommands(File launcherPath, List<CommandSpec> commands, InstallationSettings settings) {
         List<File> createdFiles = new ArrayList<>();
 
