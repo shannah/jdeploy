@@ -286,6 +286,27 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
     protected abstract void writeCommandScript(File scriptPath, String launcherPath, String commandName, List<String> args) throws IOException;
 
     /**
+     * Computes a user-friendly display path (using ~ for home directory).
+     *
+     * @param binDir  the binary directory
+     * @param homeDir the user's home directory
+     * @return the display path string
+     */
+    private String computeDisplayPath(File binDir, File homeDir) {
+        String homePath = homeDir.getAbsolutePath();
+        String binPath = binDir.getAbsolutePath();
+
+        if (binPath.startsWith(homePath)) {
+            String relativePath = binPath.substring(homePath.length());
+            if (relativePath.startsWith(File.separator)) {
+                relativePath = relativePath.substring(1);
+            }
+            return "~/" + relativePath.replace(File.separatorChar, '/');
+        }
+        return binPath;
+    }
+
+    /**
      * Creates the bin directory if it doesn't exist.
      * Ensures the directory structure is ready for installing scripts.
      *
@@ -300,6 +321,8 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
             System.err.println("Warning: Failed to create bin directory - path is null");
             return false;
         }
+        
+        String displayPath = computeDisplayPath(binDir, new File(System.getProperty("user.home")));
         
         if (!binDir.exists()) {
             DebugLogger.log("binDir does not exist, attempting to create: " + binDir.getAbsolutePath());
@@ -322,7 +345,7 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
                 // Check if it was created by another process (race condition)
                 if (binDir.exists() && binDir.isDirectory()) {
                     DebugLogger.log("Directory now exists (created by another process)");
-                    System.out.println("Created ~/.local/bin directory");
+                    System.out.println("Created " + displayPath + " directory");
                     return true;
                 }
                 
@@ -335,11 +358,11 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
                     DebugLogger.log("  Parent now canWrite: " + parent.canWrite());
                 }
                 
-                System.err.println("Warning: Failed to create ~/.local/bin directory");
+                System.err.println("Warning: Failed to create " + displayPath + " directory");
                 return false;
             }
             DebugLogger.log("Successfully created directory: " + binDir.getAbsolutePath());
-            System.out.println("Created ~/.local/bin directory");
+            System.out.println("Created " + displayPath + " directory");
         } else {
             DebugLogger.log("binDir already exists: " + binDir.getAbsolutePath());
             DebugLogger.log("  isDirectory: " + binDir.isDirectory());
@@ -347,7 +370,7 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
             
             if (!binDir.isDirectory()) {
                 DebugLogger.log("ensureBinDirExists() failed: path exists but is not a directory");
-                System.err.println("Warning: ~/.local/bin exists but is not a directory");
+                System.err.println("Warning: " + displayPath + " exists but is not a directory");
                 return false;
             }
         }
