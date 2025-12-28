@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.installer.cli;
 
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.installer.util.DebugLogger;
 import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.tools.io.IOUtil;
 import org.json.JSONArray;
@@ -292,12 +293,63 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
      * @return true if the directory exists or was successfully created, false otherwise
      */
     protected boolean ensureBinDirExists(File binDir) {
+        DebugLogger.log("ensureBinDirExists() called with: " + (binDir != null ? binDir.getAbsolutePath() : "null"));
+        
+        if (binDir == null) {
+            DebugLogger.log("ensureBinDirExists() failed: binDir is null");
+            System.err.println("Warning: Failed to create bin directory - path is null");
+            return false;
+        }
+        
         if (!binDir.exists()) {
-            if (!binDir.mkdirs()) {
+            DebugLogger.log("binDir does not exist, attempting to create: " + binDir.getAbsolutePath());
+            
+            // Log parent directory status for debugging
+            File parent = binDir.getParentFile();
+            if (parent != null) {
+                DebugLogger.log("  Parent directory: " + parent.getAbsolutePath());
+                DebugLogger.log("  Parent exists: " + parent.exists());
+                DebugLogger.log("  Parent isDirectory: " + parent.isDirectory());
+                DebugLogger.log("  Parent canWrite: " + parent.canWrite());
+            } else {
+                DebugLogger.log("  Parent directory is null");
+            }
+            
+            boolean created = binDir.mkdirs();
+            DebugLogger.log("mkdirs() returned: " + created);
+            
+            if (!created) {
+                // Check if it was created by another process (race condition)
+                if (binDir.exists() && binDir.isDirectory()) {
+                    DebugLogger.log("Directory now exists (created by another process)");
+                    System.out.println("Created ~/.local/bin directory");
+                    return true;
+                }
+                
+                // Log additional diagnostics on failure
+                DebugLogger.log("Failed to create directory. Diagnostics:");
+                DebugLogger.log("  binDir.exists(): " + binDir.exists());
+                DebugLogger.log("  binDir.isDirectory(): " + binDir.isDirectory());
+                if (parent != null) {
+                    DebugLogger.log("  Parent now exists: " + parent.exists());
+                    DebugLogger.log("  Parent now canWrite: " + parent.canWrite());
+                }
+                
                 System.err.println("Warning: Failed to create ~/.local/bin directory");
                 return false;
             }
+            DebugLogger.log("Successfully created directory: " + binDir.getAbsolutePath());
             System.out.println("Created ~/.local/bin directory");
+        } else {
+            DebugLogger.log("binDir already exists: " + binDir.getAbsolutePath());
+            DebugLogger.log("  isDirectory: " + binDir.isDirectory());
+            DebugLogger.log("  canWrite: " + binDir.canWrite());
+            
+            if (!binDir.isDirectory()) {
+                DebugLogger.log("ensureBinDirExists() failed: path exists but is not a directory");
+                System.err.println("Warning: ~/.local/bin exists but is not a directory");
+                return false;
+            }
         }
         return true;
     }
