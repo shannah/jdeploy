@@ -889,15 +889,6 @@ public class InstallWindowsRegistry {
                 "\"" + getUninstallerPath().getAbsolutePath() + "\" uninstall"
         );
 
-        String installerPath = System.getProperty("client4j.launcher.path");
-        if (installerPath == null) {
-            throw new RuntimeException("No client4j.launcher.path property found");
-        }
-        File installerExe = new File(installerPath);
-        if (!installerExe.exists()) {
-            throw new RuntimeException("Cannot find installer path.");
-        }
-
         if (!skipWinRegistryOperations) {
             registry.notifyFileAssociationsChanged();
         }
