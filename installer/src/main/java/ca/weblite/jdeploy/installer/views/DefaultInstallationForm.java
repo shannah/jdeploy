@@ -25,6 +25,7 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
     private InstallationFormEventDispatcher dispatcher;
     private JButton installButton;
     private JProgressBar progressBar;
+    private JCheckBox cliCommandsCheckBox;
 
 
     private void fireEvent(InstallationFormEvent event) {
@@ -214,7 +215,6 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         if (installationSettings.getNpmPackageVersion() != null) {
             commands = installationSettings.getNpmPackageVersion().getCommands();
         }
-        final JCheckBox cliCommandsCheckBox;
         if (!commands.isEmpty()) {
             cliCommandsCheckBox = new JCheckBox("Add command-line tools to PATH");
             cliCommandsCheckBox.setSelected(installationSettings.isInstallCliCommands());
@@ -230,7 +230,6 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
             cliCommandsCheckBox.addActionListener(evt->{
                 boolean selected = cliCommandsCheckBox.isSelected();
                 installationSettings.setInstallCliCommands(selected);
-                installationSettings.setInstallCliLauncher(selected);
             });
         } else {
             cliCommandsCheckBox = null;
