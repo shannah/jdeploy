@@ -47,18 +47,33 @@ public class UnixPathManagerTest {
         File configFile = UnixPathManager.selectConfigFile("/bin/bash", homeDir);
 
         assertNotNull(configFile);
-        assertEquals(".profile", configFile.getName());
+        assertEquals(".bashrc", configFile.getName());
     }
 
     @Test
     public void testSelectConfigFileBashWithBashProfile() {
         File bashProfile = new File(homeDir, ".bash_profile");
-        assertFalse(bashProfile.exists());
+        bashProfile.getParentFile().mkdirs();
+        try {
+            bashProfile.createNewFile();
+        } catch (IOException ignored) { }
 
         File configFile = UnixPathManager.selectConfigFile("/bin/bash", homeDir);
 
         assertNotNull(configFile);
-        assertEquals(".profile", configFile.getName());
+        assertEquals(".bash_profile", configFile.getName());
+    }
+
+    @Test
+    public void testSelectConfigFileBashNoExistingConfig() {
+        // Neither .bashrc nor .bash_profile exist
+        assertFalse(new File(homeDir, ".bashrc").exists());
+        assertFalse(new File(homeDir, ".bash_profile").exists());
+
+        File configFile = UnixPathManager.selectConfigFile("/bin/bash", homeDir);
+
+        assertNotNull(configFile);
+        assertEquals(".bashrc", configFile.getName());
     }
 
     @Test
@@ -66,7 +81,7 @@ public class UnixPathManagerTest {
         File configFile = UnixPathManager.selectConfigFile("/bin/zsh", homeDir);
 
         assertNotNull(configFile);
-        assertEquals(".profile", configFile.getName());
+        assertEquals(".zshrc", configFile.getName());
     }
 
     @Test
@@ -93,9 +108,9 @@ public class UnixPathManagerTest {
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        File profile = new File(homeDir, ".profile");
-        assertTrue(profile.exists());
-        String content = IOUtil.readToString(new FileInputStream(profile));
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists());
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
         assertTrue(content.contains("$HOME/.local/bin"));
     }
 
@@ -107,9 +122,9 @@ public class UnixPathManagerTest {
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        File profile = new File(homeDir, ".profile");
-        assertTrue(profile.exists());
-        String content = IOUtil.readToString(new FileInputStream(profile));
+        File zshrc = new File(homeDir, ".zshrc");
+        assertTrue(zshrc.exists());
+        String content = IOUtil.readToString(new FileInputStream(zshrc));
         assertTrue(content.contains("$HOME/.local/bin"));
     }
 
@@ -145,9 +160,9 @@ public class UnixPathManagerTest {
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        // Should default to bash and create .profile
-        File profile = new File(homeDir, ".profile");
-        assertTrue(profile.exists());
+        // Should default to bash and create .bashrc
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists());
     }
 
     @Test
@@ -167,17 +182,17 @@ public class UnixPathManagerTest {
     public void testAddToPathAlreadyInConfig() throws IOException {
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:/bin";
-        File profile = new File(homeDir, ".profile");
-        profile.createNewFile();
+        File bashrc = new File(homeDir, ".bashrc");
+        bashrc.createNewFile();
 
-        // Pre-populate profile with the path
-        Files.write(profile.toPath(), ("export PATH=\"$HOME/.local/bin:$PATH\"\n").getBytes(StandardCharsets.UTF_8));
+        // Pre-populate bashrc with the path
+        Files.write(bashrc.toPath(), ("export PATH=\"$HOME/.local/bin:$PATH\"\n").getBytes(StandardCharsets.UTF_8));
 
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
         // Should not append again; file should not be modified beyond original content
-        String content = IOUtil.readToString(new FileInputStream(profile));
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
         int occurrences = countOccurrences(content, "$HOME/.local/bin");
         assertEquals(1, occurrences, "PATH should appear exactly once");
     }
@@ -186,17 +201,17 @@ public class UnixPathManagerTest {
     public void testAddToPathWithAbsolutePathInConfig() throws IOException {
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:/bin";
-        File profile = new File(homeDir, ".profile");
-        profile.createNewFile();
+        File bashrc = new File(homeDir, ".bashrc");
+        bashrc.createNewFile();
 
-        // Pre-populate profile with absolute path
+        // Pre-populate bashrc with absolute path
         String absolutePath = binDir.getAbsolutePath();
-        Files.write(profile.toPath(), ("export PATH=\"" + absolutePath + ":$PATH\"\n").getBytes(StandardCharsets.UTF_8));
+        Files.write(bashrc.toPath(), ("export PATH=\"" + absolutePath + ":$PATH\"\n").getBytes(StandardCharsets.UTF_8));
 
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        String content = IOUtil.readToString(new FileInputStream(profile));
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
         int occurrences = countOccurrences(content, absolutePath);
         assertEquals(1, occurrences, "Absolute path should appear exactly once");
     }
@@ -210,19 +225,19 @@ public class UnixPathManagerTest {
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, nonExistentHome);
 
         assertTrue(result);
-        File profile = new File(nonExistentHome, ".profile");
-        assertTrue(profile.exists());
+        File bashrc = new File(nonExistentHome, ".bashrc");
+        assertTrue(bashrc.exists());
     }
 
     @Test
     public void testAddToPathAppendFormat() throws IOException {
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:/bin";
-        File profile = new File(homeDir, ".profile");
+        File bashrc = new File(homeDir, ".bashrc");
 
         UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
-        String content = IOUtil.readToString(new FileInputStream(profile));
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
         assertTrue(content.contains("# Added by jDeploy installer"));
         assertTrue(content.contains("export PATH=\"$HOME/.local/bin:$PATH\""));
     }
@@ -235,9 +250,9 @@ public class UnixPathManagerTest {
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        // Should default to bash and create .profile
-        File profile = new File(homeDir, ".profile");
-        assertTrue(profile.exists());
+        // Should default to bash and create .bashrc
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists());
     }
 
     @Test
@@ -248,8 +263,8 @@ public class UnixPathManagerTest {
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        File profile = new File(homeDir, ".profile");
-        assertTrue(profile.exists());
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists());
     }
 
     @Test
@@ -307,16 +322,16 @@ public class UnixPathManagerTest {
         assertFalse(nonExistentBinDir.exists());
 
         // Pre-create a config file with existing content
-        File profile = new File(homeDir, ".profile");
+        File bashrc = new File(homeDir, ".bashrc");
         String originalContent = "# Existing content\nexport FOO=bar\n";
-        Files.write(profile.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
-        assertTrue(profile.exists());
+        Files.write(bashrc.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
+        assertTrue(bashrc.exists());
 
         boolean result = UnixPathManager.addToPath(nonExistentBinDir, shell, pathEnv, homeDir);
 
         assertFalse(result, "addToPath should return false when binDir does not exist");
         // Verify config file was not modified
-        String contentAfter = IOUtil.readToString(new FileInputStream(profile));
+        String contentAfter = IOUtil.readToString(new FileInputStream(bashrc));
         assertEquals(originalContent, contentAfter, "Config file should not be modified when binDir does not exist");
     }
 
@@ -324,15 +339,15 @@ public class UnixPathManagerTest {
     public void testAddToPathWithExistingContent() throws IOException {
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:/bin";
-        File profile = new File(homeDir, ".profile");
-        profile.createNewFile();
+        File bashrc = new File(homeDir, ".bashrc");
+        bashrc.createNewFile();
 
         // Pre-populate with other content
-        Files.write(profile.toPath(), ("# Some existing comment\nexport FOO=bar\n").getBytes(StandardCharsets.UTF_8));
+        Files.write(bashrc.toPath(), ("# Some existing comment\nexport FOO=bar\n").getBytes(StandardCharsets.UTF_8));
 
         UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
-        String content = IOUtil.readToString(new FileInputStream(profile));
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
         assertTrue(content.contains("export FOO=bar"));
         assertTrue(content.contains("export PATH=\"$HOME/.local/bin:$PATH\""));
     }
@@ -346,9 +361,9 @@ public class UnixPathManagerTest {
         boolean result1 = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
         assertTrue(result1);
 
-        File profile = new File(homeDir, ".profile");
-        assertTrue(profile.exists());
-        String contentAfterFirstCall = IOUtil.readToString(new FileInputStream(profile));
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists());
+        String contentAfterFirstCall = IOUtil.readToString(new FileInputStream(bashrc));
         int occurrencesAfterFirst = countOccurrences(contentAfterFirstCall, "$HOME/.local/bin");
         assertEquals(1, occurrencesAfterFirst, "PATH should appear exactly once after first call");
 
@@ -356,7 +371,7 @@ public class UnixPathManagerTest {
         boolean result2 = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
         assertTrue(result2);
 
-        String contentAfterSecondCall = IOUtil.readToString(new FileInputStream(profile));
+        String contentAfterSecondCall = IOUtil.readToString(new FileInputStream(bashrc));
         int occurrencesAfterSecond = countOccurrences(contentAfterSecondCall, "$HOME/.local/bin");
         assertEquals(1, occurrencesAfterSecond, "PATH should still appear exactly once after second call (idempotent)");
     }
