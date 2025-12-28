@@ -68,7 +68,8 @@ public class UnixPathManager {
             // If PATH already contains binDir, nothing to do
             if (pathEnv != null && pathEnv.contains(binDir.getAbsolutePath())) {
                 DebugLogger.log("Early return: binDir already in PATH environment variable");
-                System.out.println("~/.local/bin is already in PATH");
+                String displayPath = computeDisplayPath(binDir, homeDir);
+                System.out.println(displayPath + " is already in PATH");
                 return true;
             }
 
@@ -90,31 +91,81 @@ public class UnixPathManager {
                 DebugLogger.log("Config file already exists: " + configFile.getAbsolutePath());
                 // Check file contents to avoid duplicate entries
                 String content = IOUtil.readToString(new FileInputStream(configFile));
-                if (content.contains("$HOME/.local/bin") || content.contains(binDir.getAbsolutePath())) {
+                String pathExportString = computePathExportString(binDir, homeDir);
+                if (content.contains(pathExportString) || content.contains(binDir.getAbsolutePath())) {
                     DebugLogger.log("Early return: PATH entry already exists in config file");
-                    System.out.println("~/.local/bin is already in PATH configuration");
+                    String displayPath = computeDisplayPath(binDir, homeDir);
+                    System.out.println(displayPath + " is already in PATH configuration");
                     return true;
                 }
             }
 
             // Append PATH export to the config file
             DebugLogger.log("Writing PATH export to config file: " + configFile.getAbsolutePath());
-            String pathExport = "\n# Added by jDeploy installer\nexport PATH=\"$HOME/.local/bin:$PATH\"\n";
+            String pathExportString = computePathExportString(binDir, homeDir);
+            String pathExport = "\n# Added by jDeploy installer\nexport PATH=\"" + pathExportString + ":$PATH\"\n";
             try (FileOutputStream fos = new FileOutputStream(configFile, true)) {
                 fos.write(pathExport.getBytes(StandardCharsets.UTF_8));
                 DebugLogger.log("Successfully wrote PATH export to: " + configFile.getAbsolutePath());
             }
 
-            System.out.println("Added ~/.local/bin to PATH in " + configFile.getName());
+            String displayPath = computeDisplayPath(binDir, homeDir);
+            System.out.println("Added " + displayPath + " to PATH in " + configFile.getName());
             System.out.println("Please restart your terminal or run: source " + configFile.getAbsolutePath());
             return true;
 
         } catch (Exception e) {
             DebugLogger.log("Exception occurred in addToPath: " + e.getClass().getSimpleName() + " - " + e.getMessage());
-            System.err.println("Warning: Failed to add ~/.local/bin to PATH: " + e.getMessage());
-            System.out.println("You may need to manually add ~/.local/bin to your PATH");
+            String displayPath = computeDisplayPath(binDir, homeDir);
+            System.err.println("Warning: Failed to add " + displayPath + " to PATH: " + e.getMessage());
+            System.out.println("You may need to manually add " + displayPath + " to your PATH");
             return false;
         }
+    }
+
+    /**
+     * Computes the path string to use in shell config exports.
+     * If binDir is under homeDir, returns a $HOME-relative path (e.g., "$HOME/bin" or "$HOME/.local/bin").
+     * Otherwise returns the absolute path.
+     *
+     * @param binDir  the binary directory
+     * @param homeDir the user's home directory
+     * @return the path string to use in export statements
+     */
+    private static String computePathExportString(File binDir, File homeDir) {
+        String homePath = homeDir.getAbsolutePath();
+        String binPath = binDir.getAbsolutePath();
+
+        if (binPath.startsWith(homePath)) {
+            // Remove homeDir prefix and leading separator
+            String relativePath = binPath.substring(homePath.length());
+            if (relativePath.startsWith(File.separator)) {
+                relativePath = relativePath.substring(1);
+            }
+            return "$HOME/" + relativePath.replace(File.separatorChar, '/');
+        }
+        return binPath;
+    }
+
+    /**
+     * Computes a user-friendly display path (using ~ for home directory).
+     *
+     * @param binDir  the binary directory
+     * @param homeDir the user's home directory
+     * @return the display path string
+     */
+    private static String computeDisplayPath(File binDir, File homeDir) {
+        String homePath = homeDir.getAbsolutePath();
+        String binPath = binDir.getAbsolutePath();
+
+        if (binPath.startsWith(homePath)) {
+            String relativePath = binPath.substring(homePath.length());
+            if (relativePath.startsWith(File.separator)) {
+                relativePath = relativePath.substring(1);
+            }
+            return "~/" + relativePath.replace(File.separatorChar, '/');
+        }
+        return binPath;
     }
 
     /**

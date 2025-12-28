@@ -111,7 +111,8 @@ public class UnixPathManagerTest {
         File bashrc = new File(homeDir, ".bashrc");
         assertTrue(bashrc.exists());
         String content = IOUtil.readToString(new FileInputStream(bashrc));
-        assertTrue(content.contains("$HOME/.local/bin"));
+        // binDir is not under homeDir (it's in tempDir), so absolute path should be used
+        assertTrue(content.contains(binDir.getAbsolutePath()));
     }
 
     @Test
@@ -125,7 +126,8 @@ public class UnixPathManagerTest {
         File zshrc = new File(homeDir, ".zshrc");
         assertTrue(zshrc.exists());
         String content = IOUtil.readToString(new FileInputStream(zshrc));
-        assertTrue(content.contains("$HOME/.local/bin"));
+        // binDir is not under homeDir (it's in tempDir), so absolute path should be used
+        assertTrue(content.contains(binDir.getAbsolutePath()));
     }
 
     @Test
@@ -214,6 +216,9 @@ public class UnixPathManagerTest {
         String content = IOUtil.readToString(new FileInputStream(bashrc));
         int occurrences = countOccurrences(content, absolutePath);
         assertEquals(1, occurrences, "Absolute path should appear exactly once");
+        // Should not append again since path already exists
+        String contentAfter = IOUtil.readToString(new FileInputStream(bashrc));
+        assertEquals(countOccurrences(contentAfter, "Added by jDeploy installer"), 0, "Should not add comment again");
     }
 
     @Test
@@ -239,7 +244,8 @@ public class UnixPathManagerTest {
 
         String content = IOUtil.readToString(new FileInputStream(bashrc));
         assertTrue(content.contains("# Added by jDeploy installer"));
-        assertTrue(content.contains("export PATH=\"$HOME/.local/bin:$PATH\""));
+        // binDir is not under homeDir, so absolute path should be used
+        assertTrue(content.contains("export PATH=\"" + binDir.getAbsolutePath() + ":$PATH\""));
     }
 
     @Test
@@ -349,7 +355,8 @@ public class UnixPathManagerTest {
 
         String content = IOUtil.readToString(new FileInputStream(bashrc));
         assertTrue(content.contains("export FOO=bar"));
-        assertTrue(content.contains("export PATH=\"$HOME/.local/bin:$PATH\""));
+        // binDir is not under homeDir, so absolute path should be used
+        assertTrue(content.contains("export PATH=\"" + binDir.getAbsolutePath() + ":$PATH\""));
     }
 
     @Test
@@ -364,7 +371,9 @@ public class UnixPathManagerTest {
         File bashrc = new File(homeDir, ".bashrc");
         assertTrue(bashrc.exists());
         String contentAfterFirstCall = IOUtil.readToString(new FileInputStream(bashrc));
-        int occurrencesAfterFirst = countOccurrences(contentAfterFirstCall, "$HOME/.local/bin");
+        // binDir is not under homeDir, so absolute path should be used
+        String absolutePath = binDir.getAbsolutePath();
+        int occurrencesAfterFirst = countOccurrences(contentAfterFirstCall, absolutePath);
         assertEquals(1, occurrencesAfterFirst, "PATH should appear exactly once after first call");
 
         // Second call to addToPath
@@ -372,7 +381,90 @@ public class UnixPathManagerTest {
         assertTrue(result2);
 
         String contentAfterSecondCall = IOUtil.readToString(new FileInputStream(bashrc));
-        int occurrencesAfterSecond = countOccurrences(contentAfterSecondCall, "$HOME/.local/bin");
+        int occurrencesAfterSecond = countOccurrences(contentAfterSecondCall, absolutePath);
+        assertEquals(1, occurrencesAfterSecond, "PATH should still appear exactly once after second call (idempotent)");
+    }
+
+    @Test
+    public void testAddToPathWithHomeBinDir() throws IOException {
+        // Create binDir directly under homeDir (simulating ~/bin)
+        File homeBinDir = new File(homeDir, "bin");
+        homeBinDir.mkdirs();
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        boolean result = UnixPathManager.addToPath(homeBinDir, shell, pathEnv, homeDir);
+
+        assertTrue(result);
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists());
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
+        // Should use $HOME/bin since it's directly under home
+        assertTrue(content.contains("$HOME/bin"), "Expected $HOME/bin in PATH export but got: " + content);
+        assertTrue(content.contains("export PATH=\"$HOME/bin:$PATH\""));
+    }
+
+    @Test
+    public void testAddToPathWithLocalBinDir() throws IOException {
+        // Create binDir at ~/.local/bin (simulating the Linux default)
+        File localDir = new File(homeDir, ".local");
+        File localBinDir = new File(localDir, "bin");
+        localBinDir.mkdirs();
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        boolean result = UnixPathManager.addToPath(localBinDir, shell, pathEnv, homeDir);
+
+        assertTrue(result);
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists());
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
+        // Should use $HOME/.local/bin
+        assertTrue(content.contains("$HOME/.local/bin"), "Expected $HOME/.local/bin in PATH export but got: " + content);
+        assertTrue(content.contains("export PATH=\"$HOME/.local/bin:$PATH\""));
+    }
+
+    @Test
+    public void testAddToPathWithAbsoluteDir() throws IOException {
+        // binDir is NOT under homeDir, so absolute path should be used
+        // The existing binDir from setUp() is under tempDir, not homeDir
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+
+        assertTrue(result);
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists());
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
+        // Should use absolute path since binDir is not under homeDir
+        assertTrue(content.contains(binDir.getAbsolutePath()), "Expected absolute path in PATH export but got: " + content);
+        assertTrue(content.contains("export PATH=\"" + binDir.getAbsolutePath() + ":$PATH\""));
+    }
+
+    @Test
+    public void testAddToPathIdempotencyWithHomeBinDir() throws IOException {
+        File homeBinDir = new File(homeDir, "bin");
+        homeBinDir.mkdirs();
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        // First call to addToPath
+        boolean result1 = UnixPathManager.addToPath(homeBinDir, shell, pathEnv, homeDir);
+        assertTrue(result1);
+
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists());
+        String contentAfterFirstCall = IOUtil.readToString(new FileInputStream(bashrc));
+        int occurrencesAfterFirst = countOccurrences(contentAfterFirstCall, "$HOME/bin");
+        assertEquals(1, occurrencesAfterFirst, "PATH should appear exactly once after first call");
+
+        // Second call to addToPath
+        boolean result2 = UnixPathManager.addToPath(homeBinDir, shell, pathEnv, homeDir);
+        assertTrue(result2);
+
+        String contentAfterSecondCall = IOUtil.readToString(new FileInputStream(bashrc));
+        int occurrencesAfterSecond = countOccurrences(contentAfterSecondCall, "$HOME/bin");
         assertEquals(1, occurrencesAfterSecond, "PATH should still appear exactly once after second call (idempotent)");
     }
 
