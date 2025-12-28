@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.cli;
 
+import ca.weblite.jdeploy.installer.util.DebugLogger;
 import ca.weblite.tools.io.IOUtil;
 
 import java.io.File;
@@ -30,8 +31,20 @@ public class UnixPathManager {
      */
     public static boolean addToPath(File binDir, String shell, String pathEnv, File homeDir) {
         try {
+            // Log input parameters
+            DebugLogger.log("UnixPathManager.addToPath() called with:");
+            DebugLogger.log("  binDir: " + (binDir != null ? binDir.getAbsolutePath() : "null"));
+            DebugLogger.log("  shell: " + (shell != null && !shell.isEmpty() ? shell : "(null or empty, will default to /bin/bash)"));
+            DebugLogger.log("  homeDir: " + (homeDir != null ? homeDir.getAbsolutePath() : "null"));
+
             // Verify binDir exists and is a directory before modifying shell config
             if (binDir == null || !binDir.exists() || !binDir.isDirectory()) {
+                DebugLogger.log("Early return: binDir validation failed");
+                DebugLogger.log("  binDir null: " + (binDir == null));
+                if (binDir != null) {
+                    DebugLogger.log("  binDir exists: " + binDir.exists());
+                    DebugLogger.log("  binDir isDirectory: " + binDir.isDirectory());
+                }
                 System.err.println("Warning: Cannot add to PATH - directory does not exist: " + 
                     (binDir != null ? binDir.getAbsolutePath() : "null"));
                 return false;
@@ -39,42 +52,57 @@ public class UnixPathManager {
 
             // Detect the user's shell; default to bash when unknown
             if (shell == null || shell.isEmpty()) {
+                DebugLogger.log("Shell is null or empty, defaulting to /bin/bash");
                 shell = "/bin/bash";
+            } else {
+                DebugLogger.log("Detected shell: " + shell);
             }
 
             File configFile = selectConfigFile(shell, homeDir);
+            DebugLogger.log("Selected config file: " + (configFile != null ? configFile.getAbsolutePath() : "null"));
             if (configFile == null) {
+                DebugLogger.log("Early return: config file selection failed");
                 return false;
             }
 
             // If PATH already contains binDir, nothing to do
             if (pathEnv != null && pathEnv.contains(binDir.getAbsolutePath())) {
+                DebugLogger.log("Early return: binDir already in PATH environment variable");
                 System.out.println("~/.local/bin is already in PATH");
                 return true;
             }
 
             // Ensure configFile exists (create if necessary)
             if (!configFile.exists()) {
+                DebugLogger.log("Config file does not exist, creating: " + configFile.getAbsolutePath());
                 File parent = configFile.getParentFile();
                 if (parent != null && !parent.exists()) {
+                    DebugLogger.log("Creating parent directories: " + parent.getAbsolutePath());
                     parent.mkdirs();
                 }
                 try {
                     configFile.createNewFile();
-                } catch (Exception ignored) { }
+                    DebugLogger.log("Successfully created config file: " + configFile.getAbsolutePath());
+                } catch (Exception ignored) {
+                    DebugLogger.log("Failed to create config file: " + configFile.getAbsolutePath());
+                }
             } else {
+                DebugLogger.log("Config file already exists: " + configFile.getAbsolutePath());
                 // Check file contents to avoid duplicate entries
                 String content = IOUtil.readToString(new FileInputStream(configFile));
                 if (content.contains("$HOME/.local/bin") || content.contains(binDir.getAbsolutePath())) {
+                    DebugLogger.log("Early return: PATH entry already exists in config file");
                     System.out.println("~/.local/bin is already in PATH configuration");
                     return true;
                 }
             }
 
             // Append PATH export to the config file
+            DebugLogger.log("Writing PATH export to config file: " + configFile.getAbsolutePath());
             String pathExport = "\n# Added by jDeploy installer\nexport PATH=\"$HOME/.local/bin:$PATH\"\n";
             try (FileOutputStream fos = new FileOutputStream(configFile, true)) {
                 fos.write(pathExport.getBytes(StandardCharsets.UTF_8));
+                DebugLogger.log("Successfully wrote PATH export to: " + configFile.getAbsolutePath());
             }
 
             System.out.println("Added ~/.local/bin to PATH in " + configFile.getName());
@@ -82,6 +110,7 @@ public class UnixPathManager {
             return true;
 
         } catch (Exception e) {
+            DebugLogger.log("Exception occurred in addToPath: " + e.getClass().getSimpleName() + " - " + e.getMessage());
             System.err.println("Warning: Failed to add ~/.local/bin to PATH: " + e.getMessage());
             System.out.println("You may need to manually add ~/.local/bin to your PATH");
             return false;
