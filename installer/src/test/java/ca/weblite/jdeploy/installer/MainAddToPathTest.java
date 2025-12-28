@@ -42,29 +42,29 @@ public class MainAddToPathTest {
     public void testBashChooseProfileFile() throws Exception {
         File home = Files.createTempDirectory("home-bash").toFile();
         tempDirs.add(home);
-        File profile = new File(home, ".profile");
+        File bashrc = new File(home, ".bashrc");
         File localBin = new File(home, ".local/bin");
         assertTrue(localBin.mkdirs());
 
         boolean ok = LinuxCliCommandInstaller.addToPath(localBin, "/bin/bash", "", home);
         assertTrue(ok);
 
-        String content = new String(Files.readAllBytes(profile.toPath()));
+        String content = new String(Files.readAllBytes(bashrc.toPath()));
         assertTrue(content.contains("$HOME/.local/bin") || content.contains(localBin.getAbsolutePath()));
     }
 
     @Test
-    public void testZshUsesProfile() throws Exception {
+    public void testZshUsesZshrc() throws Exception {
         File home = Files.createTempDirectory("home-zsh").toFile();
         tempDirs.add(home);
-        File profile = new File(home, ".profile");
+        File zshrc = new File(home, ".zshrc");
         File localBin = new File(home, ".local/bin");
         assertTrue(localBin.mkdirs());
 
         boolean ok = LinuxCliCommandInstaller.addToPath(localBin, "/bin/zsh", "", home);
         assertTrue(ok);
 
-        String content = new String(Files.readAllBytes(profile.toPath()));
+        String content = new String(Files.readAllBytes(zshrc.toPath()));
         assertTrue(content.contains("$HOME/.local/bin") || content.contains(localBin.getAbsolutePath()));
     }
 }

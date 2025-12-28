@@ -318,25 +318,24 @@ public class LinuxCliCommandInstallerTest {
     public void testAddToPathBash() {
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:/bin";
-        File profile = new File(homeDir, ".profile");
+        File bashrc = new File(homeDir, ".bashrc");
 
         boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        // UnixPathManager always uses .profile for POSIX compatibility
-        assertTrue(profile.exists(), "profile was not created");
+        assertTrue(bashrc.exists(), "bashrc was not created");
     }
 
     @Test
     public void testAddToPathZsh() {
         String shell = "/bin/zsh";
         String pathEnv = "/usr/bin:/bin";
-        File profile = new File(homeDir, ".profile");
+        File zshrc = new File(homeDir, ".zshrc");
 
         boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        assertTrue(profile.exists());
+        assertTrue(zshrc.exists());
     }
 
     @Test
@@ -374,7 +373,7 @@ public class LinuxCliCommandInstallerTest {
         boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        assertTrue(profile.exists());
+        assertTrue(profile.exists(), "Fish shell should use .profile for POSIX compatibility");
     }
 
     @Test
@@ -386,7 +385,7 @@ public class LinuxCliCommandInstallerTest {
         boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        assertTrue(profile.exists());
+        assertTrue(profile.exists(), "Unknown shell should use .profile for POSIX compatibility");
     }
 
     @Test
