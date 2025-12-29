@@ -45,11 +45,6 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             return createdFiles;
         }
 
-        // Return empty if no commands provided
-        if (commands == null || commands.isEmpty()) {
-            return createdFiles;
-        }
-
         File localBinDir = getBinDir(settings);
 
         // Create ~/.local/bin if it doesn't exist
@@ -57,16 +52,42 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             return createdFiles;
         }
 
+        boolean anyCreated = false;
+
         // Create command scripts using common helper
-        createdFiles.addAll(installCommandScripts(launcherPath, commands, localBinDir));
+        if (settings.isInstallCliCommands() && commands != null && !commands.isEmpty()) {
+            createdFiles.addAll(installCommandScripts(launcherPath, commands, localBinDir));
+            anyCreated = !createdFiles.isEmpty();
+        }
+
+        // Create CLI launcher symlink if requested
+        if (settings.isInstallCliLauncher()) {
+            String commandName = deriveCommandName(settings);
+            File symlinkPath = new File(localBinDir, commandName);
+
+            if (symlinkPath.exists()) {
+                symlinkPath.delete();
+            }
+
+            try {
+                Files.createSymbolicLink(symlinkPath.toPath(), launcherPath.toPath());
+                System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+                settings.setCommandLineSymlinkCreated(true);
+                createdFiles.add(symlinkPath);
+                anyCreated = true;
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+            }
+        }
 
         // Update PATH and save metadata if any files were created
-        if (!createdFiles.isEmpty()) {
+        if (anyCreated) {
             boolean pathUpdated = addToPath(localBinDir);
             File appDir = launcherPath.getParentFile();
             // Save metadata to launcher's parent directory if it differs from bin, otherwise use bin
             File metadataDir = (appDir != null && !appDir.equals(localBinDir)) ? appDir : localBinDir;
             saveMetadata(metadataDir, createdFiles, pathUpdated, localBinDir);
+            settings.setAddedToPath(pathUpdated);
         }
 
         return createdFiles;
