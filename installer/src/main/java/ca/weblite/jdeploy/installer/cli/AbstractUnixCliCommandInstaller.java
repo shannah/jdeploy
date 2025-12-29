@@ -50,7 +50,7 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
      */
     protected File getBinDir(InstallationSettings settings) {
         if (settings != null && settings.getCommandLinePath() != null && !settings.getCommandLinePath().isEmpty()) {
-            return new File(settings.getCommandLinePath());
+            return new File(settings.getCommandLinePath()).getParentFile();
         }
         return new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
     }
