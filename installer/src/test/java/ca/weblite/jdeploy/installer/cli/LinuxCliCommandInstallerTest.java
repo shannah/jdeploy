@@ -65,6 +65,7 @@ public class LinuxCliCommandInstallerTest {
         commands.add(new CommandSpec("othercmd", new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
+        settings.setInstallCliLauncher(false);
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
@@ -80,6 +81,7 @@ public class LinuxCliCommandInstallerTest {
     public void testInstallCommandsWithEmptyList() {
         List<CommandSpec> commands = new ArrayList<>();
         InstallationSettings settings = new InstallationSettings();
+        settings.setInstallCliLauncher(false);
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
@@ -90,6 +92,7 @@ public class LinuxCliCommandInstallerTest {
     @Test
     public void testInstallCommandsWithNullList() {
         InstallationSettings settings = new InstallationSettings();
+        settings.setInstallCliLauncher(false);
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         List<File> created = installer.installCommands(launcherPath, null, settings);
@@ -103,6 +106,7 @@ public class LinuxCliCommandInstallerTest {
         commands.add(new CommandSpec("testcmd", new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
+        settings.setInstallCliLauncher(false);
         // Don't set commandLinePath, should use ~/.local/bin
         settings.setCommandLinePath(null);
 
@@ -407,6 +411,7 @@ public class LinuxCliCommandInstallerTest {
         commands.add(new CommandSpec("cmd2", new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
+        settings.setInstallCliLauncher(false);
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
@@ -443,6 +448,7 @@ public class LinuxCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
+        settings.setInstallCliLauncher(false);
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         installer.installCommands(launcherPath, commands, settings);
@@ -498,6 +504,7 @@ public class LinuxCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
+        settings.setInstallCliLauncher(false);
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         // Create initial script
@@ -573,6 +580,7 @@ public class LinuxCliCommandInstallerTest {
         commands.add(new CommandSpec("testcmd", new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
+        settings.setInstallCliLauncher(false);
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
@@ -615,6 +623,7 @@ public class LinuxCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
+        settings.setInstallCliLauncher(false);
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
@@ -651,6 +660,7 @@ public class LinuxCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
+        settings.setInstallCliLauncher(false);
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         // Small delay to ensure modification time would differ if file was changed
@@ -694,6 +704,7 @@ public class LinuxCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
+        settings.setInstallCliLauncher(false);
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
