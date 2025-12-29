@@ -6,9 +6,11 @@ import ca.weblite.jdeploy.installer.npm.NPMPackage;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.awt.*;
 import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -26,6 +28,10 @@ public class DefaultInstallationFormCheckboxTest {
 
     @BeforeEach
     public void setUp() {
+        Assumptions.assumeFalse(
+                GraphicsEnvironment.isHeadless(),
+                "Test requires a display environment"
+        );
         settings = new InstallationSettings();
 
         // Setup minimal AppInfo
