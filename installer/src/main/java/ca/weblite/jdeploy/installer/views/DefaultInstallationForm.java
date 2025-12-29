@@ -201,7 +201,7 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
             installationSettings.setAddToStartMenu(addToStartMenuCheckBox.isSelected());
         });
 
-        JCheckBox installCliCheckBox = new JCheckBox("Install CLI Command");
+        JCheckBox installCliCheckBox = new JCheckBox("Add command-line launcher");
         if (Platform.getSystemPlatform().isLinux() && installationSettings.getCommandLinePath() != null) {
             installCliCheckBox.setSelected(installationSettings.isInstallCliLauncher());
             installCliCheckBox.setToolTipText(installationSettings.getCommandLinePath());
@@ -216,11 +216,14 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
             commands = installationSettings.getNpmPackageVersion().getCommands();
         }
         if (!commands.isEmpty()) {
-            cliCommandsCheckBox = new JCheckBox("Add command-line tools to PATH");
+            cliCommandsCheckBox = new JCheckBox("Add command-line tools");
             cliCommandsCheckBox.setSelected(installationSettings.isInstallCliCommands());
 
             // Build tooltip with command names
             StringBuilder tooltipBuilder = new StringBuilder("Commands: ");
+            if (Platform.getSystemPlatform().isLinux() && installationSettings.getCommandLinePath() != null) {
+                tooltipBuilder.append(new File(installationSettings.getCommandLinePath()).getName()).append(", ");
+            }
             for (int i = 0; i < commands.size(); i++) {
                 if (i > 0) tooltipBuilder.append(", ");
                 tooltipBuilder.append(commands.get(i).getName());
@@ -230,6 +233,9 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
             cliCommandsCheckBox.addActionListener(evt->{
                 boolean selected = cliCommandsCheckBox.isSelected();
                 installationSettings.setInstallCliCommands(selected);
+                if (Platform.getSystemPlatform().isLinux() && installationSettings.getCommandLinePath() != null) {
+                    installationSettings.setInstallCliLauncher(selected);
+                }
             });
         } else {
             cliCommandsCheckBox = null;
@@ -243,14 +249,14 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         }
         checkboxesPanel.add(desktopCheckbox);
 
-        // Add CLI checkbox for Linux
-        if (Platform.getSystemPlatform().isLinux() && installationSettings.getCommandLinePath() != null) {
-            checkboxesPanel.add(installCliCheckBox);
-        }
-
         // Add CLI commands checkbox if it was created
         if (cliCommandsCheckBox != null) {
             checkboxesPanel.add(cliCommandsCheckBox);
+        } else {
+            // Add CLI checkbox for Linux
+            if (Platform.getSystemPlatform().isLinux() && installationSettings.getCommandLinePath() != null) {
+                checkboxesPanel.add(installCliCheckBox);
+            }
         }
 
         JPanel southPanel = new JPanel();
