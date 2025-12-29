@@ -70,7 +70,7 @@ public class CliCommandInstallerIntegrationTest {
 
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliCommands(true);
-        settings.setCommandLinePath(binDir.getAbsolutePath());
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         // Act - Install commands
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
@@ -122,7 +122,7 @@ public class CliCommandInstallerIntegrationTest {
         );
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(binDir.getAbsolutePath());
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         // Act
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
@@ -147,7 +147,7 @@ public class CliCommandInstallerIntegrationTest {
         );
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(binDir.getAbsolutePath());
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
 
         assertTrue(!installedFiles.isEmpty(), "Commands should be installed");
@@ -350,7 +350,7 @@ public class CliCommandInstallerIntegrationTest {
 
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliCommands(true);
-        settings.setCommandLinePath(customBinDir.getAbsolutePath());
+        settings.setCommandLinePath(new File(customBinDir, "test-launcher").getAbsolutePath());
 
         // Act - Install commands
         List<File> installedFiles = windowsInstaller.installCommands(launcherPath, commands, settings);
