@@ -109,6 +109,7 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             // Create symlink to the launcher
             Files.createSymbolicLink(symlinkPath.toPath(), launcherPath.toPath());
             System.out.println("Created launcher symlink: " + symlinkPath.getAbsolutePath());
+            settings.setCommandLineSymlinkCreated(true);
 
             // Update PATH and save metadata
             boolean pathUpdated = addToPath(localBinDir);
