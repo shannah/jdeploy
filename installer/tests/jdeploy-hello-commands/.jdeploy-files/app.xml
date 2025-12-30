@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<app
+        package="jdeploy-hello-commands"
+        source="https://github.com/shannah/jdeploy-hello-commands"
+        version="0.1.4"
+        title="Hello Commands"
+/>

@@ -42,6 +42,29 @@ if [ ! -d "$PROJECT_PATH" ]; then
     exit 1
 fi
 
+function compute_md5() {
+  local input="$1"
+  if [ "$PLATFORM" == "mac" ]; then
+    echo -n "$input" | md5
+  else
+    echo -n "$input" | md5sum | cut -d' ' -f1
+  fi
+}
+
+function get_qualified_project_name() {
+  local package_name="$1"
+  local source="$2"
+
+  # If source is a GitHub URL, compute hash prefix
+  if [[ "$source" == https://github.com/* ]]; then
+    local source_hash=$(compute_md5 "$source")
+    echo "${source_hash}.${package_name}"
+  else
+    # NPM package - no hash prefix
+    echo "$package_name"
+  fi
+}
+
 function load_project_details() {
   local projectDetailsPath="$PROJECT_PATH/test.env"
   if [ -f "$projectDetailsPath" ]; then
@@ -65,15 +88,19 @@ function load_project_details() {
   else
     USE_PRIVATE_JRE="false"
   fi
+
+  # Compute qualified project name (with hash prefix for GitHub projects)
+  QUALIFIED_PROJECT_NAME=$(get_qualified_project_name "$PROJECT_NAME" "$PROJECT_SOURCE")
+  echo "Project name: $PROJECT_NAME"
+  echo "Project source: $PROJECT_SOURCE"
+  echo "Qualified project name: $QUALIFIED_PROJECT_NAME"
 }
 
 load_project_details
 
 function build_project() {
-  cd "$SCRIPT_PATH/../shared"
-  mvn package
-  cd ../installer
-  mvn package
+  cd "$SCRIPT_PATH"/..
+  mvn package -DskipTests
 }
 
 function smoke_test() {
@@ -94,12 +121,12 @@ function smoke_test() {
 function smoke_test_windows() {
   echo "Running Smoke Test..."
   local UNINSTALLERS_PATH="$HOME/.jdeploy/uninstallers"
-  local PROJECT_UNINSTALLER_PATH="$UNINSTALLERS_PATH/$PROJECT_NAME"
+  local PROJECT_UNINSTALLER_PATH="$UNINSTALLERS_PATH/$QUALIFIED_PROJECT_NAME"
   if [ ! -d "$PROJECT_UNINSTALLER_PATH" ]; then
-    echo "Smoke Test Failure: Uninstaller for $PROJECT_NAME not found at $PROJECT_UNINSTALLER_PATH"
+    echo "Smoke Test Failure: Uninstaller for $QUALIFIED_PROJECT_NAME not found at $PROJECT_UNINSTALLER_PATH"
     exit 1
   else
-    echo "Found uninstaller for $PROJECT_NAME at $PROJECT_UNINSTALLER_PATH"
+    echo "Found uninstaller for $QUALIFIED_PROJECT_NAME at $PROJECT_UNINSTALLER_PATH"
   fi
 
   local UNINSTALLER_FILES="$PROJECT_UNINSTALLER_PATH/.jdeploy-files"
@@ -127,15 +154,15 @@ function smoke_test_windows() {
   done
 
   local expectedAppFiles=(
-    "$HOME/.jdeploy/apps/$PROJECT_NAME/icon.ico"
-    "$HOME/.jdeploy/apps/$PROJECT_NAME/icon.png"
-    "$HOME/.jdeploy/apps/$PROJECT_NAME/$PROJECT_TITLE.exe"
+    "$HOME/.jdeploy/apps/$QUALIFIED_PROJECT_NAME/icon.ico"
+    "$HOME/.jdeploy/apps/$QUALIFIED_PROJECT_NAME/icon.png"
+    "$HOME/.jdeploy/apps/$QUALIFIED_PROJECT_NAME/$PROJECT_TITLE.exe"
   )
 
   local expectedAppFilesWhenUsingPrivateJRE=(
-    "$HOME/.jdeploy/apps/$PROJECT_NAME/icon.ico"
-    "$HOME/.jdeploy/apps/$PROJECT_NAME/icon.png"
-    "$HOME/.jdeploy/apps/$PROJECT_NAME/bin/$PROJECT_TITLE.exe"
+    "$HOME/.jdeploy/apps/$QUALIFIED_PROJECT_NAME/icon.ico"
+    "$HOME/.jdeploy/apps/$QUALIFIED_PROJECT_NAME/icon.png"
+    "$HOME/.jdeploy/apps/$QUALIFIED_PROJECT_NAME/bin/$PROJECT_TITLE.exe"
   )
 
   if [ "$USE_PRIVATE_JRE" == "true" ]; then
@@ -181,11 +208,11 @@ function uninstall_project() {
 }
 
 function uninstall_project_windows() {
-  echo "Uninstalling $PROJECT_NAME"
+  echo "Uninstalling $QUALIFIED_PROJECT_NAME"
   local UNINSTALLERS_PATH="$HOME/.jdeploy/uninstallers"
-  local PROJECT_UNINSTALLER_PATH="$UNINSTALLERS_PATH/$PROJECT_NAME"
+  local PROJECT_UNINSTALLER_PATH="$UNINSTALLERS_PATH/$QUALIFIED_PROJECT_NAME"
   if [ ! -d "$PROJECT_UNINSTALLER_PATH" ]; then
-    echo "Uninstaller for $PROJECT_NAME not found at $PROJECT_UNINSTALLER_PATH"
+    echo "Uninstaller for $QUALIFIED_PROJECT_NAME not found at $PROJECT_UNINSTALLER_PATH"
     exit 1
   fi
 
@@ -195,7 +222,7 @@ function uninstall_project_windows() {
     exit 1
   fi
 
-  echo "Uninstalling $PROJECT_NAME"
+  echo "Uninstalling $QUALIFIED_PROJECT_NAME"
   "$PROJECT_UNINSTALLER_PATH/$PROJECT_NAME-uninstall.exe" uninstall
 }
 
@@ -213,8 +240,8 @@ function uninstall_project_linux() {
 function uninstall_smoke_test_windows() {
   echo "Running Uninstall Smoke Test..."
   local UNINSTALLERS_PATH="$HOME/.jdeploy/uninstallers"
-  local PROJECT_UNINSTALLER_PATH="$UNINSTALLERS_PATH/$PROJECT_NAME"
-  local APP_PATH="$HOME/.jdeploy/apps/$PROJECT_NAME"
+  local PROJECT_UNINSTALLER_PATH="$UNINSTALLERS_PATH/$QUALIFIED_PROJECT_NAME"
+  local APP_PATH="$HOME/.jdeploy/apps/$QUALIFIED_PROJECT_NAME"
 
   # The uninstaller won't have been removed in this test because it runs delayed via the cmd command
   # and for some reason this doesn't work in the tests.  You need to manually uninstall via Add/Remove Programs

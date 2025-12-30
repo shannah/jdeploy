@@ -20,6 +20,13 @@ if ! [ -f ~/.jdeploy/.env.dev ] && [ -z "$JDEPLOY_IS_PIPELINE" ]; then
   exit 1
 fi
 
+if ! [ -z "$JDEPLOY_IS_PIPELINE" ]; then
+  echo "JDEPLOY_IS_PIPELINE is set, skipping loading of ~/.jdeploy/.env.dev"
+else
+  # load the ~/.jdeploy/.env.dev file
+  source ~/.jdeploy/.env.dev
+fi
+
 # verify that JAVA_HOME exists
 if [ -z "$JAVA_HOME" ]; then
   echo "Error: The JAVA_HOME environment variable is not set."
