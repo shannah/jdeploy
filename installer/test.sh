@@ -11,6 +11,11 @@ function test_snapcodejava() {
   bash test_install_single_project.sh snapcodejava --smoke --uninstall --uninstall-smoke
 }
 
+function test_hello_commands() {
+  cd $SCRIPTPATH
+  bash test_install_single_project.sh jdeploy-hello-commands --build --smoke --uninstall --uninstall-smoke
+}
+
 if [ -z "$JDEPLOY_PROJECT_PATH" ]; then
   export JDEPLOY_PROJECT_PATH="$( cd "$(dirname "$SCRIPTPATH")" ; pwd -P )"
 fi
@@ -18,3 +23,4 @@ export JDEPLOY_IS_PIPELINE=true
 echo "Running jDeploy installer tests with JDEPLOY_PROJECT_PATH=$JDEPLOY_PROJECT_PATH"
 test_shellmarks
 test_snapcodejava
+test_hello_commands

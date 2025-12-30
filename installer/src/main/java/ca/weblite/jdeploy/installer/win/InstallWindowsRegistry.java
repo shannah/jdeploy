@@ -5,10 +5,9 @@ import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.tools.io.MD5;
 import org.apache.commons.io.FileUtils;
 
-import static com.sun.jna.platform.win32.Advapi32Util.*;
-import static com.sun.jna.platform.win32.WinReg.*;
-
 import java.io.*;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
@@ -21,6 +20,8 @@ public class InstallWindowsRegistry {
 
     private AppInfo appInfo;
     private File icon, exe;
+    private RegistryOperations registryOps;
+    private boolean skipWinRegistryOperations = false;
     private static final Set<String> contactExtensions = new HashSet<>();
     private static final Set<String> mediaExtensions = new HashSet<>();
 
@@ -171,24 +172,16 @@ public class InstallWindowsRegistry {
     private static final String REGISTRY_KEY_SOFTWARE = "Software";
     private static final String REGISTRY_KEY_CLIENTS = REGISTRY_KEY_SOFTWARE + "\\Clients";
 
-    public static enum AppType {
+    public enum AppType {
         Mail,
         Media,
         Contact,
         StartMenuInternet,
         Other;
 
-
-
         public String getFullRegistryPath() {
-            switch (this) {
-                case Other:
-                    return REGISTRY_KEY_SOFTWARE;
-                default:
-                    return REGISTRY_KEY_CLIENTS + "\\" +this.name();
-            }
+            return REGISTRY_KEY_CLIENTS + "\\" + this.name();
         }
-
     }
 
     public InstallWindowsRegistry(
@@ -197,20 +190,41 @@ public class InstallWindowsRegistry {
             File icon,
             OutputStream backupLog
     ) {
+        this(appInfo, exe, icon, backupLog, new JnaRegistryOperations());
+    }
+
+    public InstallWindowsRegistry(
+            AppInfo appInfo,
+            File exe,
+            File icon,
+            OutputStream backupLog,
+            RegistryOperations registryOps
+    ) {
         this.appInfo = appInfo;
         this.exe = exe;
         this.icon = icon;
+        this.registryOps = registryOps;
         if (backupLog != null) {
             this.backupLog = backupLog;
             this.backupLogOut = new PrintStream(backupLog);
         }
     }
 
+    /**
+     * Sets whether to skip WinRegistry operations (exportKey, notifyFileAssociationsChanged, regImport).
+     * This is useful when testing with in-memory registry implementations.
+     */
+    public void setSkipWinRegistryOperations(boolean skip) {
+        this.skipWinRegistryOperations = skip;
+    }
+
     public File getUninstallerPath() {
         String suffix = "";
-        if (appInfo.getNpmVersion().startsWith("0.0.0-")) {
+        if (appInfo.getNpmVersion() != null && appInfo.getNpmVersion().startsWith("0.0.0-")) {
             String v = appInfo.getNpmVersion();
-            suffix = "-" + v.substring(v.indexOf("-")+1);
+            if (v.contains("-")) {
+                suffix = "-" + v.substring(v.indexOf("-") + 1);
+            }
         }
         return new File(System.getProperty("user.home") + File.separator +
                 ".jdeploy" + File.separator +
@@ -221,16 +235,7 @@ public class InstallWindowsRegistry {
     }
 
     public String getFullyQualifiedPackageName() {
-        String sourceHash = getSourceHash();
-        if (sourceHash == null) {
-            return appInfo.getNpmPackage();
-        }
-        String suffix = "";
-        if (appInfo.getNpmVersion().startsWith("0.0.0-")) {
-            String v = appInfo.getNpmVersion();
-            suffix = "." + v.substring(v.indexOf("-")+1);
-        }
-        return sourceHash + "." + appInfo.getNpmPackage() + suffix;
+        return getHashedName(null);
     }
 
     private Set<AppType> getAppTypes() {
@@ -259,24 +264,13 @@ public class InstallWindowsRegistry {
 
 
     public String getRegisteredAppName() {
-        String sourceHash = getSourceHash();
-        if (sourceHash == null) {
-            return "jdeploy." + appInfo.getNpmPackage();
-        }
-
-        String suffix = "";
-        if (appInfo.getNpmVersion().startsWith("0.0.0-")) {
-            String v = appInfo.getNpmVersion();
-            suffix = "." + v.substring(v.indexOf("-")+1);
-        }
-        return "jdeploy." + sourceHash + "." + appInfo.getNpmPackage() + suffix;
+        return getHashedName("jdeploy");
     }
 
     private String getSourceHash() {
         if (appInfo.getNpmSource() == null || appInfo.getNpmSource().isEmpty()) {
             return null;
         }
-
         return MD5.getMd5(appInfo.getNpmSource());
     }
 
@@ -323,18 +317,38 @@ public class InstallWindowsRegistry {
      * @return
      */
     private String getProgId() {
+        return getHashedName("jdeploy") + ".file";
+    }
+
+    private String getHashedName(String prefix) {
         String sourceHash = getSourceHash();
-        if (sourceHash == null) {
-            return "jdeploy." + appInfo.getNpmPackage() + ".file";
-        }
-
         String suffix = "";
-        if (appInfo.getNpmVersion().startsWith("0.0.0-")) {
+        if (appInfo.getNpmVersion() != null && appInfo.getNpmVersion().startsWith("0.0.0-")) {
             String v = appInfo.getNpmVersion();
-            suffix = "." + v.substring(v.indexOf("-")+1);
+            if (v.contains("-")) {
+                suffix = "." + v.substring(v.indexOf("-") + 1);
+            }
         }
 
-        return "jdeploy." + sourceHash + "." + appInfo.getNpmPackage() + suffix + ".file";
+        StringBuilder sb = new StringBuilder();
+        if (prefix != null && !prefix.isEmpty()) {
+            sb.append(prefix).append(".");
+        }
+        if (sourceHash != null && !sourceHash.isEmpty()) {
+            sb.append(sourceHash).append(".");
+        }
+        sb.append(appInfo.getNpmPackage());
+        
+        if (suffix != null && !suffix.isEmpty()) {
+            // Suffix logic above ensures it starts with a dot (e.g. ".alpha")
+            // if it was derived from a 0.0.0- prerelease version.
+            if (!suffix.startsWith(".")) {
+                sb.append(".");
+            }
+            sb.append(suffix.startsWith(".") ? suffix : suffix);
+        }
+
+        return sb.toString();
     }
 
     /**
@@ -359,26 +373,38 @@ public class InstallWindowsRegistry {
      * Registers a file extension
      * @param ext The file extension (with no leading dot).
      */
+    /**
+     * Creates a registry key and all its parent keys if they don't exist.
+     * Uses the injected RegistryOperations to support testing with in-memory implementations.
+     */
+    private void createKeyRecursive(String key) {
+        if (key.contains("\\")) {
+            String parent = key.substring(0, key.lastIndexOf("\\"));
+            createKeyRecursive(parent);
+        }
+        if (!registryOps.keyExists(key)) {
+            registryOps.createKey(key);
+        }
+    }
+
     private void registerFileExtension(String ext) {
         // NOTE: Not backing up to the backup log, because this can be reverted cleanly by
         // simply removing ourself from the OpenWithProgIds key.
-        WinRegistry registry = new WinRegistry();
         String mimetype = appInfo.getMimetype(ext);
         if (!ext.startsWith(".")) {
             ext = "." + ext;
 
         }
         String key = "Software\\Classes\\"+ext;
-        if (!registryKeyExists(HKEY_CURRENT_USER, key)) {
+        if (!registryOps.keyExists(key)) {
             backupLogOut.println(";CREATE "+key);
             backupLogOut.flush();
-            registry.createRegistryKeyRecursive(key);
-            registrySetStringValue(HKEY_CURRENT_USER, key, null, getProgId());
+            createKeyRecursive(key);
+            registryOps.setStringValue(key, null, getProgId());
             if (mimetype != null) {
-                registrySetStringValue(HKEY_CURRENT_USER, key, "ContentType", mimetype);
+                registryOps.setStringValue(key, "ContentType", mimetype);
                 if (mimetype.contains("/")) {
-                    registrySetStringValue(
-                            HKEY_CURRENT_USER,
+                    registryOps.setStringValue(
                             key,
                             "PerceivedType",
                             mimetype.substring(0, mimetype.indexOf("/")
@@ -390,10 +416,10 @@ public class InstallWindowsRegistry {
 
         // Add ourselves to the OpenWithProgIds list so that we will be able to open files of this type.
         String progIdsKey = key + "\\OpenWithProgIds";
-        if (!registryKeyExists(HKEY_CURRENT_USER, progIdsKey)) {
-            registryCreateKey(HKEY_CURRENT_USER, progIdsKey);
+        if (!registryOps.keyExists(progIdsKey)) {
+            registryOps.createKey(progIdsKey);
         }
-        registrySetStringValue(HKEY_CURRENT_USER, progIdsKey, getProgId(), "");
+        registryOps.setStringValue(progIdsKey, getProgId(), "");
     }
 
     /**
@@ -403,15 +429,15 @@ public class InstallWindowsRegistry {
         for (String ext : appInfo.getExtensions()) {
             registerFileExtension(ext);
         }
-        if (registryKeyExists(HKEY_CURRENT_USER, getFileAssociationsPath())) {
+        if (registryOps.keyExists(getFileAssociationsPath())) {
             deleteKeyRecursive(getFileAssociationsPath());
         }
-        new WinRegistry().createRegistryKeyRecursive(getFileAssociationsPath());
+        createKeyRecursive(getFileAssociationsPath());
         for (String ext : appInfo.getExtensions()) {
             if (!ext.startsWith(".")) {
                 ext = "." + ext;
             }
-            registrySetStringValue(HKEY_CURRENT_USER, getFileAssociationsPath(), ext, getProgId());
+            registryOps.setStringValue(getFileAssociationsPath(), ext, getProgId());
 
         }
     }
@@ -434,19 +460,25 @@ public class InstallWindowsRegistry {
      * @param scheme
      */
     private boolean canChangeURLSchemeEntry(String scheme) {
-        if (!registryKeyExists(HKEY_CLASSES_ROOT, scheme)) {
+        if (skipWinRegistryOperations) {
+            return true;
+        }
+
+        // Note: HKEY_CLASSES_ROOT checks are done via static JNA calls for system-wide checks
+        // This method doesn't use registryOps as it checks HKEY_CLASSES_ROOT, not HKEY_CURRENT_USER
+        if (!com.sun.jna.platform.win32.Advapi32Util.registryKeyExists(com.sun.jna.platform.win32.WinReg.HKEY_CLASSES_ROOT, scheme)) {
             // If the key doesn't exist yet at all
             // then we can change it.
             return true;
         }
 
-        if (!registryKeyExists(HKEY_CLASSES_ROOT, scheme + "\\shell\\open\\command")) {
+        if (!com.sun.jna.platform.win32.Advapi32Util.registryKeyExists(com.sun.jna.platform.win32.WinReg.HKEY_CLASSES_ROOT, scheme + "\\shell\\open\\command")) {
             // If there is no shell setting yet
             // then we can't screw stuff up - so we'll proceed
             return true;
         }
 
-        String currentExe = registryGetStringValue(HKEY_CLASSES_ROOT, scheme + "\\shell\\open\\command", null);
+        String currentExe = com.sun.jna.platform.win32.Advapi32Util.registryGetStringValue(com.sun.jna.platform.win32.WinReg.HKEY_CLASSES_ROOT, scheme + "\\shell\\open\\command", null);
         if (currentExe == null || currentExe.contains(".jdeploy")) {
             // The current exe is a .jdeploy one, so we'll commandeer it.
             return true;
@@ -461,17 +493,35 @@ public class InstallWindowsRegistry {
      * @throws IOException If there is a problem.
      */
     public static void rollback(File backupLog) throws IOException {
+        RegistryOperations registryOps = new JnaRegistryOperations();
         Scanner scanner = new Scanner(backupLog, "UTF-8");
         while (scanner.hasNextLine()) {
             String line = scanner.nextLine();
             // If we added a key, we wrote them to the log file as comments of the form
             // ;CREATE key where key is like Software\Classes\...
             if (line.startsWith(";CREATE ")) {
-                deleteKeyRecursive(line.substring(line.indexOf(" ")+1));
+                deleteKeyRecursiveStatic(line.substring(line.indexOf(" ")+1), registryOps);
             }
         }
         new WinRegistry().regImport(backupLog);
 
+    }
+
+    /**
+     * Static helper for deleting registry keys recursively.
+     * Used by the static rollback method and the instance deleteKeyRecursive method.
+     */
+    private static void deleteKeyRecursiveStatic(String key, RegistryOperations registryOps) {
+        if (!registryOps.keyExists(key)) {
+            return;
+        }
+        for (String subkey : registryOps.getKeys(key)) {
+            deleteKeyRecursiveStatic(key + "\\" + subkey, registryOps);
+        }
+        for (String valueKey : registryOps.getValues(key).keySet()) {
+            registryOps.deleteValue(key, valueKey);
+        }
+        registryOps.deleteKey(key);
     }
 
     /**
@@ -487,37 +537,37 @@ public class InstallWindowsRegistry {
         }
         String schemeKey = getURLSchemeRegistryKey(scheme);
 
-        if (registryKeyExists(HKEY_CURRENT_USER, schemeKey)) {
+        if (!skipWinRegistryOperations && registryOps.keyExists(schemeKey)) {
             // NOTE: We back up the old key to the backup log so that we can revert on uninstall.
             new WinRegistry().exportKey(schemeKey, backupLog);
         }
 
-        if (!registryKeyExists(HKEY_CURRENT_USER, schemeKey)) {
+        if (!registryOps.keyExists(schemeKey)) {
             backupLogOut.println(";CREATE "+schemeKey);
             backupLogOut.flush();
-            registryCreateKey(HKEY_CURRENT_USER, schemeKey);
+            createKeyRecursive(schemeKey);
         }
-        registrySetStringValue(HKEY_CURRENT_USER, schemeKey, null, "URL:"+scheme);
-        registrySetStringValue(HKEY_CURRENT_USER, schemeKey, "URL Protocol", "");
+        registryOps.setStringValue(schemeKey, null, "URL:"+scheme);
+        registryOps.setStringValue(schemeKey, "URL Protocol", "");
         String shellKey = schemeKey + "\\shell";
-        if (!registryKeyExists(HKEY_CURRENT_USER, shellKey)) {
-            registryCreateKey(HKEY_CURRENT_USER, shellKey);
+        if (!registryOps.keyExists(shellKey)) {
+            registryOps.createKey(shellKey);
         }
         String openKey = shellKey + "\\open";
-        if (!registryKeyExists(HKEY_CURRENT_USER, openKey)) {
-            registryCreateKey(HKEY_CURRENT_USER, openKey);
+        if (!registryOps.keyExists(openKey)) {
+            registryOps.createKey(openKey);
         }
 
-        if (icon != null && icon.exists() && !registryValueExists(HKEY_CURRENT_USER, openKey, "Icon")) {
-            registrySetStringValue(HKEY_CURRENT_USER, openKey, "Icon", icon.getAbsolutePath()+",0");
+        if (icon != null && icon.exists() && !registryOps.valueExists(openKey, "Icon")) {
+            registryOps.setStringValue(openKey, "Icon", icon.getAbsolutePath()+",0");
         }
 
         String commandKey = openKey + "\\command";
-        if (!registryKeyExists(HKEY_CURRENT_USER, commandKey)) {
-            registryCreateKey(HKEY_CURRENT_USER, commandKey);
+        if (!registryOps.keyExists(commandKey)) {
+            registryOps.createKey(commandKey);
         }
 
-        registrySetStringValue(HKEY_CURRENT_USER, commandKey, null, "\""+exe.getAbsolutePath()+"\" \"%1\"");
+        registryOps.setStringValue(commandKey, null, "\""+exe.getAbsolutePath()+"\" \"%1\"");
 
     }
 
@@ -527,47 +577,72 @@ public class InstallWindowsRegistry {
     private void registerFileTypeEntry() {
         String basekey = getProgBaseKey();
 
-        if (!registryKeyExists(HKEY_CURRENT_USER, basekey)) {
-            registryCreateKey(HKEY_CURRENT_USER, basekey);
+        if (!registryOps.keyExists(basekey)) {
+            registryOps.createKey(basekey);
         }
-        registrySetStringValue(HKEY_CURRENT_USER, basekey, null, getHumanReadableFileType());
+        registryOps.setStringValue(basekey, null, getHumanReadableFileType());
         if (icon != null && icon.exists()) {
             String iconKey = basekey + "\\DefaultIcon";
-            if (!registryKeyExists(HKEY_CURRENT_USER, iconKey)) {
-                registryCreateKey(HKEY_CURRENT_USER, iconKey);
+            if (!registryOps.keyExists(iconKey)) {
+                registryOps.createKey(iconKey);
             }
-            registrySetStringValue(HKEY_CURRENT_USER, iconKey, null, icon.getAbsolutePath()+",0");
+            registryOps.setStringValue(iconKey, null, icon.getAbsolutePath()+",0");
         }
 
         String shellKey = basekey + "\\shell";
-        if (!registryKeyExists(HKEY_CURRENT_USER, shellKey)) {
-            registryCreateKey(HKEY_CURRENT_USER, shellKey);
+        if (!registryOps.keyExists(shellKey)) {
+            registryOps.createKey(shellKey);
         }
         String openKey = shellKey + "\\open";
-        if (!registryKeyExists(HKEY_CURRENT_USER, openKey)) {
-            registryCreateKey(HKEY_CURRENT_USER, openKey);
+        if (!registryOps.keyExists(openKey)) {
+            registryOps.createKey(openKey);
         }
         if (icon != null && icon.exists()) {
-            registrySetStringValue(HKEY_CURRENT_USER, openKey, "Icon", icon.getAbsolutePath()+",0");
+            registryOps.setStringValue(openKey, "Icon", icon.getAbsolutePath()+",0");
         }
         String commandKey = openKey + "\\command";
-        if (!registryKeyExists(HKEY_CURRENT_USER, commandKey)) {
-            registryCreateKey(HKEY_CURRENT_USER, commandKey);
+        if (!registryOps.keyExists(commandKey)) {
+            registryOps.createKey(commandKey);
         }
 
-        registrySetStringValue(HKEY_CURRENT_USER, commandKey, null, "\""+exe.getAbsolutePath()+"\" \"%1\"");
+        registryOps.setStringValue(commandKey, null, "\""+exe.getAbsolutePath()+"\" \"%1\"");
     }
 
 
 
     private void registerUrlSchemes() throws IOException {
-        if (registryKeyExists(HKEY_CURRENT_USER, getURLAssociationsPath())) {
-            deleteKeyRecursive(getURLAssociationsPath());
+        String urlAssocPath = getURLAssociationsPath();
+        if (registryOps.keyExists(urlAssocPath)) {
+            deleteKeyRecursive(urlAssocPath);
         }
-        new WinRegistry().createRegistryKeyRecursive(getURLAssociationsPath());
+        createKeyRecursive(urlAssocPath);
         for (String scheme : appInfo.getUrlSchemes()) {
-            registrySetStringValue(HKEY_CURRENT_USER, getURLAssociationsPath(), scheme, getProgId());
+            registryOps.setStringValue(urlAssocPath, scheme, getProgId());
             registerCustomScheme(scheme);
+        }
+    }
+
+    /**
+     * Unregisters URL schemes associated with the application.
+     * Removes entries from both the application's capabilities and the global URL scheme registration in HKCU\Software\Classes.
+     */
+    private void unregisterUrlSchemes() {
+        // Remove from capabilities first
+        String urlAssocPath = getURLAssociationsPath();
+        if (registryOps.keyExists(urlAssocPath)) {
+            deleteKeyRecursive(urlAssocPath);
+        }
+        
+        // Remove from HKCU\Software\Classes
+        for (String scheme : appInfo.getUrlSchemes()) {
+            // Only delete the scheme class registration if we have permission to change/delete it
+            // (e.g. we don't want to delete the 'http' scheme if it was associated)
+            if (canChangeURLSchemeEntry(scheme)) {
+                String schemeKey = getURLSchemeRegistryKey(scheme);
+                if (registryOps.keyExists(schemeKey)) {
+                    deleteKeyRecursive(schemeKey);
+                }
+            }
         }
     }
 
@@ -590,65 +665,65 @@ public class InstallWindowsRegistry {
         // Register in HKEY_CURRENT_USER\Software\Classes\Directory\shell
         String directoryShellKey = "Software\\Classes\\Directory\\shell\\" + progId;
 
-        if (registryKeyExists(HKEY_CURRENT_USER, directoryShellKey)) {
+        if (!skipWinRegistryOperations && registryOps.keyExists(directoryShellKey)) {
             // Backup existing key
             new WinRegistry().exportKey(directoryShellKey, backupLog);
-        } else {
+        } else if (skipWinRegistryOperations || !registryOps.keyExists(directoryShellKey)) {
             backupLogOut.println(";CREATE " + directoryShellKey);
             backupLogOut.flush();
         }
 
-        if (!registryKeyExists(HKEY_CURRENT_USER, directoryShellKey)) {
-            registryCreateKey(HKEY_CURRENT_USER, directoryShellKey);
+        if (!registryOps.keyExists(directoryShellKey)) {
+            registryOps.createKey(directoryShellKey);
         }
 
         // Set the display name for the context menu
-        registrySetStringValue(HKEY_CURRENT_USER, directoryShellKey, null, menuText);
+        registryOps.setStringValue(directoryShellKey, null, menuText);
 
         // Set icon if available
         if (icon != null && icon.exists()) {
-            registrySetStringValue(HKEY_CURRENT_USER, directoryShellKey, "Icon",
+            registryOps.setStringValue(directoryShellKey, "Icon",
                 icon.getAbsolutePath() + ",0");
         }
 
         // Create command key
         String commandKey = directoryShellKey + "\\command";
-        if (!registryKeyExists(HKEY_CURRENT_USER, commandKey)) {
-            registryCreateKey(HKEY_CURRENT_USER, commandKey);
+        if (!registryOps.keyExists(commandKey)) {
+            registryOps.createKey(commandKey);
         }
 
         // Set command to launch app with directory path
-        registrySetStringValue(HKEY_CURRENT_USER, commandKey, null,
+        registryOps.setStringValue(commandKey, null,
             "\"" + exe.getAbsolutePath() + "\" \"%1\"");
 
         // Also register for Directory\Background\shell for "Open folder with..." in empty space
         String backgroundShellKey = "Software\\Classes\\Directory\\Background\\shell\\" + progId;
 
-        if (registryKeyExists(HKEY_CURRENT_USER, backgroundShellKey)) {
+        if (!skipWinRegistryOperations && registryOps.keyExists(backgroundShellKey)) {
             new WinRegistry().exportKey(backgroundShellKey, backupLog);
-        } else {
+        } else if (skipWinRegistryOperations || !registryOps.keyExists(backgroundShellKey)) {
             backupLogOut.println(";CREATE " + backgroundShellKey);
             backupLogOut.flush();
         }
 
-        if (!registryKeyExists(HKEY_CURRENT_USER, backgroundShellKey)) {
-            registryCreateKey(HKEY_CURRENT_USER, backgroundShellKey);
+        if (!registryOps.keyExists(backgroundShellKey)) {
+            registryOps.createKey(backgroundShellKey);
         }
 
-        registrySetStringValue(HKEY_CURRENT_USER, backgroundShellKey, null, menuText);
+        registryOps.setStringValue(backgroundShellKey, null, menuText);
 
         if (icon != null && icon.exists()) {
-            registrySetStringValue(HKEY_CURRENT_USER, backgroundShellKey, "Icon",
+            registryOps.setStringValue(backgroundShellKey, "Icon",
                 icon.getAbsolutePath() + ",0");
         }
 
         String backgroundCommandKey = backgroundShellKey + "\\command";
-        if (!registryKeyExists(HKEY_CURRENT_USER, backgroundCommandKey)) {
-            registryCreateKey(HKEY_CURRENT_USER, backgroundCommandKey);
+        if (!registryOps.keyExists(backgroundCommandKey)) {
+            registryOps.createKey(backgroundCommandKey);
         }
 
         // Use %V for background shell - represents the current directory
-        registrySetStringValue(HKEY_CURRENT_USER, backgroundCommandKey, null,
+        registryOps.setStringValue(backgroundCommandKey, null,
             "\"" + exe.getAbsolutePath() + "\" \"%V\"");
     }
 
@@ -663,16 +738,10 @@ public class InstallWindowsRegistry {
         String progId = getProgId();
 
         String directoryShellKey = "Software\\Classes\\Directory\\shell\\" + progId;
-        if (registryKeyExists(HKEY_CURRENT_USER, directoryShellKey)) {
-            System.out.println("Deleting directory association key: " + directoryShellKey);
-            deleteKeyRecursive(directoryShellKey);
-        }
+        deleteKeyRecursive(directoryShellKey);
 
         String backgroundShellKey = "Software\\Classes\\Directory\\Background\\shell\\" + progId;
-        if (registryKeyExists(HKEY_CURRENT_USER, backgroundShellKey)) {
-            System.out.println("Deleting directory background association key: " + backgroundShellKey);
-            deleteKeyRecursive(backgroundShellKey);
-        }
+        deleteKeyRecursive(backgroundShellKey);
     }
 
     public void unregister(File backupLogFile) throws IOException {
@@ -692,23 +761,26 @@ public class InstallWindowsRegistry {
         deleteUninstallEntry();
         deleteRegistryKey();
 
-        if (backupLogFile != null && backupLogFile.exists()) {
+        if (!skipWinRegistryOperations && backupLogFile != null && backupLogFile.exists()) {
             new WinRegistry().regImport(backupLogFile);
         }
 
     }
 
     public void deleteRegistryKey() {
-        if (registryKeyExists(HKEY_CURRENT_USER, getRegistryPath())) {
-            System.out.println("Deleting registry key "+getRegistryPath());
-            deleteKeyRecursive(getRegistryPath());
+        String registryPath = getRegistryPath();
+        if (registryOps.keyExists(registryPath)) {
+            System.out.println("Deleting registry key " + registryPath);
+            deleteKeyRecursive(registryPath);
+        }
+
+        // Also remove from RegisteredApplications
+        String registeredAppsKey = "Software\\RegisteredApplications";
+        if (registryOps.keyExists(registeredAppsKey)) {
+            registryOps.deleteValue(registeredAppsKey, getRegisteredAppName());
         }
     }
 
-
-    private void unregisterUrlSchemes() {
-
-    }
 
     private void unregisterFileExtensions() {
         for (String ext : appInfo.getExtensions()) {
@@ -719,7 +791,7 @@ public class InstallWindowsRegistry {
     }
 
     private void deleteUninstallEntry() {
-        if (registryKeyExists(HKEY_CURRENT_USER, getUninstallKey())) {
+        if (registryOps.keyExists(getUninstallKey())) {
             System.out.println("Deleting uninstall key: "+getUninstallKey());
             deleteKeyRecursive(getUninstallKey());
         }
@@ -735,7 +807,7 @@ public class InstallWindowsRegistry {
         }
         String key = "Software\\Classes\\"+ext+"\\OpenWithProgIds";
 
-        if (!registryKeyExists(HKEY_CURRENT_USER, key)) {
+        if (!registryOps.keyExists(key)) {
             return;
         }
         System.out.println("Deleting registry value for key "+key+" vaue="+getProgId());
@@ -746,7 +818,7 @@ public class InstallWindowsRegistry {
     private void deleteFileTypeEntry() {
         String basekey = getProgBaseKey();
         System.out.println("Deleting file type entry "+basekey);
-        if (!registryKeyExists(HKEY_CURRENT_USER, basekey)) {
+        if (!registryOps.keyExists(basekey)) {
             return;
         }
         System.out.println("Deleting registry key: "+basekey);
@@ -756,25 +828,30 @@ public class InstallWindowsRegistry {
 
     public void register() throws IOException {
         WinRegistry registry = new WinRegistry();
+        String registryPath = getRegistryPath();
         String capabilitiesPath = getCapabilitiesPath();
-        if (registryKeyExists(HKEY_CURRENT_USER, getRegistryPath())) {
-
-            registry.exportKey(getRegistryPath(), backupLog);
+        if (!skipWinRegistryOperations && registryOps.keyExists(registryPath)) {
+            registry.exportKey(registryPath, backupLog);
         }
-        registry.createRegistryKeyRecursive(capabilitiesPath);
-        registrySetStringValue(HKEY_CURRENT_USER, capabilitiesPath, "ApplicationName", appInfo.getTitle());
-        registrySetStringValue(HKEY_CURRENT_USER, capabilitiesPath, "ApplicationDescription", appInfo.getDescription());
+
+        // Ensure the base registry path exists for the application
+        createKeyRecursive(registryPath);
+
+        createKeyRecursive(capabilitiesPath);
+        registryOps.setStringValue(capabilitiesPath, "ApplicationName", appInfo.getTitle());
+        registryOps.setStringValue(capabilitiesPath, "ApplicationDescription", appInfo.getDescription());
         if (icon != null && icon.exists()) {
-            registrySetStringValue(HKEY_CURRENT_USER, capabilitiesPath, "ApplicationIcon", icon.getAbsolutePath()+",0");
+            registryOps.setStringValue(capabilitiesPath, "ApplicationIcon", icon.getAbsolutePath()+",0");
         }
 
-        if (appInfo.hasDocumentTypes() || appInfo.hasUrlSchemes()) {
-            // Register file extensions individually in Classes
-            registerFileExtensions();
-
+        if (appInfo.hasDocumentTypes() || appInfo.hasUrlSchemes() || appInfo.hasDirectoryAssociation()) {
             // Register application file type entry which is referenced.
             registerFileTypeEntry();
 
+            // Register file extensions individually in Classes
+            if (appInfo.hasDocumentTypes()) {
+                registerFileExtensions();
+            }
         }
 
         if (appInfo.hasUrlSchemes()) {
@@ -786,60 +863,244 @@ public class InstallWindowsRegistry {
         }
 
         // Register the application
-        registrySetStringValue(
-                HKEY_CURRENT_USER,
-                "Software\\RegisteredApplications",
+        String registeredAppsKey = "Software\\RegisteredApplications";
+        if (!registryOps.keyExists(registeredAppsKey)) {
+            createKeyRecursive(registeredAppsKey);
+        }
+        registryOps.setStringValue(
+                registeredAppsKey,
                 getRegisteredAppName(),
                 getCapabilitiesPath()
         );
 
         // Now to register the uninstaller
 
-        registry.createRegistryKeyRecursive(getUninstallKey());
+        createKeyRecursive(getUninstallKey());
         if (icon != null && icon.exists()) {
-            registrySetStringValue(HKEY_CURRENT_USER, getUninstallKey(), "DisplayIcon", icon.getAbsolutePath() + ",0");
+            registryOps.setStringValue(getUninstallKey(), "DisplayIcon", icon.getAbsolutePath() + ",0");
         }
-        registrySetStringValue(HKEY_CURRENT_USER, getUninstallKey(), "DisplayName", appInfo.getTitle());
-        registrySetStringValue(HKEY_CURRENT_USER, getUninstallKey(), "DisplayVersion", appInfo.getVersion());
-        registrySetLongValue(HKEY_CURRENT_USER, getUninstallKey(), 1);
-        registrySetStringValue(HKEY_CURRENT_USER, getUninstallKey(), "Publisher", appInfo.getVendor());
-        registrySetStringValue(
-                HKEY_CURRENT_USER,
+        registryOps.setStringValue(getUninstallKey(), "DisplayName", appInfo.getTitle());
+        registryOps.setStringValue(getUninstallKey(), "DisplayVersion", appInfo.getVersion());
+        registryOps.setLongValue(getUninstallKey(), 1);
+        registryOps.setStringValue(getUninstallKey(), "Publisher", appInfo.getVendor());
+        registryOps.setStringValue(
                 getUninstallKey(),
                 "UninstallString",
                 "\"" + getUninstallerPath().getAbsolutePath() + "\" uninstall"
         );
 
-        String installerPath = System.getProperty("client4j.launcher.path");
-        if (installerPath == null) {
-            throw new RuntimeException("No client4j.launcher.path property found");
+        if (!skipWinRegistryOperations) {
+            registry.notifyFileAssociationsChanged();
         }
-        File installerExe = new File(installerPath);
-        if (!installerExe.exists()) {
-            throw new RuntimeException("Cannot find installer path.");
-        }
-
-
-        registry.notifyFileAssociationsChanged();
 
 
 
     }
 
 
-    private static void deleteKeyRecursive(String key) {
-        if (!registryKeyExists(HKEY_CURRENT_USER, key)) {
-            return;
-        }
-        for (String subkey : registryGetKeys(HKEY_CURRENT_USER, key)) {
-            deleteKeyRecursive(key + "\\" + subkey);
-        }
-        for (String valueKey : registryGetValues(HKEY_CURRENT_USER, key).keySet()) {
-            registryDeleteValue(HKEY_CURRENT_USER, key, valueKey);
-        }
-        registryDeleteKey(HKEY_CURRENT_USER, key);
+    private void deleteKeyRecursive(String key) {
+        deleteKeyRecursiveStatic(key, registryOps);
     }
 
+    /**
+     * Compute a new PATH string that contains binPath. If binPath is already present,
+     * the original value is returned unchanged.
+     *
+     * This is pure utility (no registry access) to make logic testable.
+     */
+    public static String computePathWithAdded(String currentPath, String binPath) {
+        if (binPath == null || binPath.isEmpty()) return currentPath;
+        if (currentPath == null || currentPath.isEmpty()) return binPath;
+        String[] parts = currentPath.split(";");
+        for (String p : parts) {
+            if (p.equalsIgnoreCase(binPath)) {
+                return currentPath;
+            }
+        }
+        // Append to end to avoid interfering with other entries
+        return currentPath + ";" + binPath;
+    }
 
+    /**
+     * Compute a new PATH string with all occurrences of binPath removed.
+     * Returns empty string if no entries remain. Returns the original string
+     * if binPath is not present.
+     *
+     * Pure utility for testing.
+     */
+    public static String computePathWithRemoved(String currentPath, String binPath) {
+        if (currentPath == null || currentPath.isEmpty()) return currentPath;
+        if (binPath == null || binPath.isEmpty()) return currentPath;
+        String[] parts = currentPath.split(";");
+        StringBuilder sb = new StringBuilder();
+        boolean changed = false;
+        for (String p : parts) {
+            if (p.isEmpty()) continue;
+            if (p.equalsIgnoreCase(binPath)) {
+                changed = true;
+                continue;
+            }
+            if (sb.length() > 0) sb.append(";");
+            sb.append(p);
+        }
+        return changed ? sb.toString() : currentPath;
+    }
+
+    /**
+     * Adds the provided binDir to the user's HKCU\Environment\Path if not already present.
+     * Returns true if the registry value was changed, false if the directory was already present.
+     * Uses file-based locking to prevent race conditions when multiple processes update PATH simultaneously.
+     */
+    public boolean addToUserPath(File binDir) {
+        if (binDir == null) return false;
+        
+        try (PathUpdateLock lock = new PathUpdateLock()) {
+            lock.acquire(30000); // 30 second timeout
+            
+            String binPath = binDir.getAbsolutePath();
+            String key = "Environment";
+            String curr = null;
+            boolean hadRegistryValue = false;
+            if (registryOps.keyExists(key) && registryOps.valueExists(key, "Path")) {
+                curr = registryOps.getStringValue(key, "Path");
+                hadRegistryValue = true;
+            } else {
+                curr = System.getenv("PATH");
+            }
+            String newPath = computePathWithAdded(curr, binPath);
+            if (newPath == null) newPath = binPath;
+            if (curr != null && curr.equals(newPath)) {
+                return false;
+            }
+            if (!registryOps.keyExists(key)) {
+                registryOps.createKey(key);
+            }
+            registryOps.setStringValue(key, "Path", newPath);
+            return true;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to acquire PATH update lock", e);
+        }
+    }
+
+    /**
+     * Removes the provided binDir from the user's HKCU\Environment\Path.
+     * Returns true if the registry value was changed (or set) and false if no change was needed.
+     * Uses file-based locking to prevent race conditions when multiple processes update PATH simultaneously.
+     */
+    public boolean removeFromUserPath(File binDir) {
+        if (binDir == null) return false;
+        
+        try (PathUpdateLock lock = new PathUpdateLock()) {
+            lock.acquire(30000); // 30 second timeout
+            
+            String binPath = binDir.getAbsolutePath();
+            String key = "Environment";
+            String curr = null;
+            boolean hadRegistryValue = false;
+            if (registryOps.keyExists(key) && registryOps.valueExists(key, "Path")) {
+                curr = registryOps.getStringValue(key, "Path");
+                hadRegistryValue = true;
+            } else {
+                curr = System.getenv("PATH");
+            }
+            String newPath = computePathWithRemoved(curr, binPath);
+            if (newPath == null) newPath = "";
+            if (curr != null && curr.equals(newPath)) {
+                return false;
+            }
+            if (!registryOps.keyExists(key)) {
+                registryOps.createKey(key);
+            }
+            registryOps.setStringValue(key, "Path", newPath);
+            return true;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to acquire PATH update lock", e);
+        }
+    }
+
+    /**
+     * Helper class to manage file-based locking for PATH updates.
+     * Uses an exclusive lock on %USERPROFILE%\.jdeploy\path.lock to coordinate
+     * read-modify-write operations across multiple processes.
+     */
+    static class PathUpdateLock implements AutoCloseable {
+        private File lockFile;
+        private RandomAccessFile lockFileHandle;
+        private FileLock fileLock;
+
+        PathUpdateLock() throws IOException {
+            String userHome = System.getProperty("user.home");
+            File jdeployDir = new File(userHome, ".jdeploy");
+            if (!jdeployDir.exists()) {
+                jdeployDir.mkdirs();
+            }
+            this.lockFile = new File(jdeployDir, "path.lock");
+            this.lockFileHandle = new RandomAccessFile(lockFile, "rw");
+        }
+
+        /**
+         * Acquires an exclusive lock on the PATH lock file.
+         *
+         * @param timeoutMs Maximum time to wait for the lock in milliseconds.
+         * @throws IOException If the lock cannot be acquired within the timeout.
+         */
+        void acquire(long timeoutMs) throws IOException {
+            long startTime = System.currentTimeMillis();
+            while (true) {
+                try {
+                    // Try to acquire an exclusive lock (second parameter: shared=false)
+                    fileLock = lockFileHandle.getChannel().tryLock();
+                    if (fileLock != null) {
+                        // Lock acquired successfully
+                        return;
+                    }
+                } catch (IOException e) {
+                    // tryLock() threw an exception; may be due to unsupported operation
+                    // In that case, we'll retry or timeout
+                }
+
+                long elapsedTime = System.currentTimeMillis() - startTime;
+                if (elapsedTime >= timeoutMs) {
+                    throw new IOException(
+                        "Failed to acquire PATH update lock within " + timeoutMs + "ms. " +
+                        "Lock file: " + lockFile.getAbsolutePath()
+                    );
+                }
+
+                // Back off briefly before retrying
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while waiting for PATH update lock", e);
+                }
+            }
+        }
+
+        /**
+         * Releases the lock and closes the lock file handle.
+         */
+        @Override
+        public void close() {
+            if (fileLock != null) {
+                try {
+                    fileLock.release();
+                } catch (IOException e) {
+                    // Log or handle, but don't throw from close()
+                    System.err.println("Warning: Failed to release PATH update lock: " + e.getMessage());
+                }
+                fileLock = null;
+            }
+            if (lockFileHandle != null) {
+                try {
+                    lockFileHandle.close();
+                } catch (IOException e) {
+                    // Log or handle, but don't throw from close()
+                    System.err.println("Warning: Failed to close PATH update lock file: " + e.getMessage());
+                }
+                lockFileHandle = null;
+            }
+        }
+    }
 
 }

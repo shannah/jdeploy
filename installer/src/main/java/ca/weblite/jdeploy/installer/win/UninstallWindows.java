@@ -1,6 +1,8 @@
 package ca.weblite.jdeploy.installer.win;
 
+import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.util.PackagePathResolver;
+import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
 import ca.weblite.tools.io.MD5;
 import org.apache.commons.io.FileUtils;
 
@@ -233,6 +235,16 @@ public class UninstallWindows {
         cleanupPackageDir();
         deleteApp();
         installWindowsRegistry.unregister(null);
+
+        // Delegate CLI command cleanup to WindowsCliCommandInstaller
+        File appDir = getAppDirPath();
+        try {
+            WindowsCliCommandInstaller cliInstaller = new WindowsCliCommandInstaller();
+            cliInstaller.uninstallCommands(appDir);
+        } catch (Exception ex) {
+            System.err.println("Warning: Failed to uninstall CLI commands: " + ex.getMessage());
+        }
+
         File uninstallerJDeployFiles = new File(getUninstallerPath().getParentFile(), ".jdeploy-files");
         if (uninstallerJDeployFiles.exists()) {
             FileUtils.deleteDirectory(uninstallerJDeployFiles);

@@ -7,7 +7,7 @@ package com.joshondesign.appbundler.win;
 
 import ca.weblite.jdeploy.appbundler.*;
 import ca.weblite.jdeploy.helpers.LauncherWriterHelper;
-
+import ca.weblite.jdeploy.installer.CliInstallerConstants;
 
 import java.io.*;
 
@@ -63,7 +63,8 @@ public class WindowsBundler2 {
         releaseFileName = releaseFileName.replaceAll("\\s+", ".");
         File releaseFile = new File(winReleaseDir, releaseFileName);
         out.setOutputFile(exeFile);
-        new WindowsBundler2().writeLauncher(app, targetArchitecture, exeFile);
+        WindowsBundler2 bundler = new WindowsBundler2();
+        bundler.writeLauncher(app, targetArchitecture, exeFile);
         Util.compressAsZip(releaseFile, exeFile);
         out.addReleaseFile(releaseFile);
         return out;
@@ -94,9 +95,5 @@ public class WindowsBundler2 {
             default:
                 throw new IllegalArgumentException("Target architecture " + targetArchitecture + " not supported");
         }
-    }
-    
-    private static void p(String s) {
-        System.out.println(s);
     }
 }

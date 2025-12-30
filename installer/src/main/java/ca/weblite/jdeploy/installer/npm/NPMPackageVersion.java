@@ -1,6 +1,8 @@
 package ca.weblite.jdeploy.installer.npm;
 
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
+import ca.weblite.jdeploy.models.CommandSpec;
+import ca.weblite.jdeploy.models.CommandSpecParser;
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.app.permissions.PermissionRequest;
@@ -9,7 +11,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class NPMPackageVersion {
@@ -179,5 +183,16 @@ public class NPMPackageVersion {
         }
 
         return null;
+    }
+
+    /**
+     * Parses and returns the list of CommandSpec objects declared in package.json under jdeploy.commands.
+     * The returned list is sorted by command name to ensure deterministic ordering.
+     *
+     * @return list of CommandSpec (empty list if none configured)
+     * @throws IllegalArgumentException if invalid command entries are encountered
+     */
+    public List<CommandSpec> getCommands() {
+        return CommandSpecParser.parseCommands(jdeploy());
     }
 }

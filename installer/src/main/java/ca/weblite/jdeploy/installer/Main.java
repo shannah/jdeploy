@@ -27,6 +27,12 @@ import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.UninstallWindows;
 
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
+import ca.weblite.jdeploy.models.CommandSpec;
+import ca.weblite.jdeploy.installer.cli.CliCommandInstaller;
+import ca.weblite.jdeploy.installer.cli.MacCliCommandInstaller;
+import ca.weblite.jdeploy.installer.cli.LinuxCliCommandInstaller;
+import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
+import ca.weblite.jdeploy.installer.cli.UIAwareCollisionHandler;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
 import org.apache.commons.io.FileUtils;
@@ -37,6 +43,8 @@ import java.awt.Desktop;
 import java.io.*;
 import java.net.URL;
 import java.util.*;
+import java.util.Collections;
+import java.util.List;
 import static ca.weblite.tools.io.IOUtil.copyResourceToFile;
 
 public class Main implements Runnable, Constants {
@@ -764,6 +772,11 @@ public class Main implements Runnable, Constants {
             fullyQualifiedPackageName = sourceHash + "." + fullyQualifiedPackageName;
         }
 
+        // Enable CLI launcher creation if user requested CLI commands or launcher installation
+        bundlerSettings.setCliCommandsEnabled(
+            installationSettings.isInstallCliCommands()
+        );
+
         // Set launcher version from system property if available (installer context only)
         String launcherVersion = System.getProperty("jdeploy.app.version");
         if (launcherVersion != null && !launcherVersion.isEmpty()) {
@@ -783,7 +796,9 @@ public class Main implements Runnable, Constants {
                     installationContext,
                     installationSettings,
                     fullyQualifiedPackageName,
-                    tmpBundles
+                    tmpBundles,
+                    npmPackageVersion(),
+                    new UIAwareCollisionHandler(uiFactory, installationForm)
             );
         } else if (Platform.getSystemPlatform().isMac()) {
             File jdeployAppsDir = new File(System.getProperty("user.home") + File.separator + "Applications");
@@ -898,6 +913,23 @@ public class Main implements Runnable, Constants {
                 }
                 shellScript.setExecutable(true, false);
                 Runtime.getRuntime().exec(shellScript.getAbsolutePath());
+            }
+
+            // Install CLI scripts/launchers on macOS (in ~/.local/bin) if the user requested either feature.
+            if (installationSettings.isInstallCliCommands() || installationSettings.isInstallCliLauncher()) {
+                File cliLauncher = new File(installAppPath, "Contents" + File.separator + "MacOS" + File.separator + CliInstallerConstants.CLI_LAUNCHER_NAME);
+                if (!cliLauncher.exists()) {
+                    File fallback = new File(installAppPath, "Contents" + File.separator + "MacOS" + File.separator + "Client4JLauncher");
+                    if (fallback.exists()) {
+                        cliLauncher = fallback;
+                    }
+                }
+
+                List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
+                MacCliCommandInstaller macCliInstaller = new MacCliCommandInstaller();
+                // Wire collision handler for GUI-aware prompting
+                macCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
+                macCliInstaller.installCommands(cliLauncher, commands, installationSettings);
             }
         } else if (Platform.getSystemPlatform().isLinux()) {
             File tmpExePath = null;
@@ -1222,121 +1254,15 @@ public class Main implements Runnable, Constants {
             System.out.println("No desktop environment detected. Skipping desktop shortcuts and mimetype registration.");
         }
 
-        // Install command-line symlink in ~/.local/bin if user requested it
-        if (installationSettings.isInstallCliCommand()) {
-            File localBinDir = new File(System.getProperty("user.home"), ".local"+File.separator+"bin");
-
-            // Create ~/.local/bin if it doesn't exist
-            if (!localBinDir.exists()) {
-                if (!localBinDir.mkdirs()) {
-                    System.err.println("Warning: Failed to create ~/.local/bin directory");
-                    return;
-                }
-                System.out.println("Created ~/.local/bin directory");
-            }
-
-            String commandName = deriveCommandName();
-            File symlinkPath = new File(localBinDir, commandName);
-
-            // Remove existing symlink if it exists
-            if (symlinkPath.exists()) {
-                symlinkPath.delete();
-            }
-
-            try {
-                // Create symlink using ln -s
-                Process p = Runtime.getRuntime().exec(new String[]{"ln", "-s", launcherFile.getAbsolutePath(), symlinkPath.getAbsolutePath()});
-                int result = p.waitFor();
-                if (result == 0) {
-                    System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
-                    installationSettings.setCommandLineSymlinkCreated(true);
-
-                    // Check if ~/.local/bin is in PATH
-                    String path = System.getenv("PATH");
-                    String localBinPath = localBinDir.getAbsolutePath();
-                    if (path == null || !path.contains(localBinPath)) {
-                        // Add ~/.local/bin to PATH by updating shell config
-                        boolean pathUpdated = addToPath(localBinDir);
-                        installationSettings.setAddedToPath(pathUpdated);
-                    } else {
-                        // Already in PATH
-                        installationSettings.setAddedToPath(true);
-                    }
-                } else {
-                    System.err.println("Warning: Failed to create command-line symlink. Exit code "+result);
-                }
-            } catch (Exception e) {
-                System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
-            }
+        // Install command-line scripts and/or symlink in ~/.local/bin if user requested either feature
+        if (installationSettings.isInstallCliCommands() || installationSettings.isInstallCliLauncher()) {
+            List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
+            LinuxCliCommandInstaller linuxCliInstaller = new LinuxCliCommandInstaller();
+            // Wire collision handler for GUI-aware prompting
+            linuxCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
+            linuxCliInstaller.installCommands(launcherFile, commands, installationSettings);
         } else {
-            System.out.println("Skipping CLI command installation (user opted out)");
-        }
-    }
-
-    /**
-     * Adds ~/.local/bin to the user's PATH by updating their shell configuration file.
-     * This method detects the user's shell and appends the PATH export to the appropriate config file.
-     *
-     * @param localBinDir The ~/.local/bin directory to add to PATH
-     * @return true if PATH was successfully updated or already contains the directory, false otherwise
-     */
-    private boolean addToPath(File localBinDir) {
-        try {
-            // Detect the user's shell
-            String shell = System.getenv("SHELL");
-            if (shell == null || shell.isEmpty()) {
-                shell = "/bin/bash"; // Default to bash
-            }
-
-            File configFile = null;
-            String shellName = new File(shell).getName();
-
-            // Determine which config file to update based on the shell
-            File homeDir = new File(System.getProperty("user.home"));
-            switch (shellName) {
-                case "bash":
-                    // For bash, prefer .bashrc, but use .bash_profile if .bashrc doesn't exist
-                    File bashrc = new File(homeDir, ".bashrc");
-                    File bashProfile = new File(homeDir, ".bash_profile");
-                    configFile = bashrc.exists() ? bashrc : bashProfile;
-                    break;
-                case "zsh":
-                    configFile = new File(homeDir, ".zshrc");
-                    break;
-                case "fish":
-                    // Fish uses a different syntax, skip for now
-                    System.out.println("Note: Fish shell detected. Please manually add ~/.local/bin to your PATH:");
-                    System.out.println("  set -U fish_user_paths ~/.local/bin $fish_user_paths");
-                    return false;
-                default:
-                    // For unknown shells, try .profile as a fallback
-                    configFile = new File(homeDir, ".profile");
-                    break;
-            }
-
-            // Check if the PATH export already exists in the config file
-            if (configFile.exists()) {
-                String content = IOUtil.readToString(new FileInputStream(configFile));
-                if (content.contains("$HOME/.local/bin") || content.contains(localBinDir.getAbsolutePath())) {
-                    System.out.println("~/.local/bin is already in PATH configuration");
-                    return true;
-                }
-            }
-
-            // Append PATH export to the config file
-            String pathExport = "\n# Added by jDeploy installer\nexport PATH=\"$HOME/.local/bin:$PATH\"\n";
-            try (FileOutputStream fos = new FileOutputStream(configFile, true)) {
-                fos.write(pathExport.getBytes());
-            }
-
-            System.out.println("Added ~/.local/bin to PATH in " + configFile.getName());
-            System.out.println("Please restart your terminal or run: source " + configFile.getAbsolutePath());
-            return true;
-
-        } catch (Exception e) {
-            System.err.println("Warning: Failed to add ~/.local/bin to PATH: " + e.getMessage());
-            System.out.println("You may need to manually add ~/.local/bin to your PATH");
-            return false;
+            System.out.println("Skipping CLI command and launcher installation (user opted out)");
         }
     }
 

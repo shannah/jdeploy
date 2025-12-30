@@ -1,6 +1,7 @@
 package com.joshondesign.appbundler.mac;
 
 import ca.weblite.jdeploy.appbundler.*;
+import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.IOUtil;
 import ca.weblite.tools.io.URLUtil;
@@ -89,6 +90,11 @@ public class MacBundler {
         Bundler.copyStream(stub_path,new FileOutputStream(stub_dest));
 
         stub_dest.setExecutable(true, false);
+
+        // If the packaging flow indicates that CLI commands should be installed for this app,
+        // emit a second, byte-identical launcher named "Client4JLauncher-cli" next to the GUI
+        // launcher.
+        maybeCreateCliLauncher(bundlerSettings, contentsDir, stub_dest);
 
         SigningRequest signingRequest = new SigningRequest(
                 app.getMacDeveloperID(),
@@ -230,6 +236,27 @@ public class MacBundler {
                 return MacBundler.class.getResourceAsStream("arm64/Client4JLauncher");
             default:
                 throw new IllegalArgumentException("Target architecture " + targetArchitecture + " not supported");
+        }
+    }
+    
+    /**
+     * If CLI commands are enabled in the bundler settings, emit a second executable
+     * named "Client4JLauncher-cli" next to the GUI launcher. The copied file is
+     * byte-identical to the GUI launcher and is marked executable.
+     *
+     * This helper is public to allow focused unit tests to exercise only the launcher-copy
+     * behavior without running the full bundling pipeline.
+     *
+     * @param bundlerSettings the bundler settings containing the CLI commands enabled flag
+     * @param contentsDir the Contents directory of the .app bundle
+     * @param guiLauncher the file of the GUI launcher that was written to Contents/MacOS/Client4JLauncher
+     * @throws IOException if copying fails
+     */
+    public static void maybeCreateCliLauncher(BundlerSettings bundlerSettings, File contentsDir, File guiLauncher) throws IOException {
+        if (bundlerSettings.isCliCommandsEnabled()) {
+            File cliDest = new File(contentsDir, "MacOS/" + CliInstallerConstants.CLI_LAUNCHER_NAME);
+            FileUtils.copyFile(guiLauncher, cliDest);
+            cliDest.setExecutable(true, false);
         }
     }
     
