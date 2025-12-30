@@ -4,6 +4,7 @@ import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.npm.NPMPackage;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
+import ca.weblite.tools.platform.Platform;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Assumptions;
@@ -54,6 +55,8 @@ public class DefaultInstallationFormCheckboxTest {
 
     @Test
     public void testCliCommandsCheckboxAffectsBothFlagsOnLinux() {
+        Assumptions.assumeTrue(Platform.getSystemPlatform().isLinux(), "Test only runs on Linux");
+        
         // Set initial state
         settings.setInstallCliCommands(false);
         settings.setInstallCliLauncher(false);
@@ -68,6 +71,8 @@ public class DefaultInstallationFormCheckboxTest {
 
     @Test
     public void testCliCommandsCheckboxUncheckedAffectsBothFlagsOnLinux() {
+        Assumptions.assumeTrue(Platform.getSystemPlatform().isLinux(), "Test only runs on Linux");
+        
         // Set initial state
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(true);
@@ -82,6 +87,8 @@ public class DefaultInstallationFormCheckboxTest {
 
     @Test
     public void testCliCommandsCheckboxControlsBothFlagsOnLinux() {
+        Assumptions.assumeTrue(Platform.getSystemPlatform().isLinux(), "Test only runs on Linux");
+        
         // Test combinations to ensure coupling
         testCombination(true, true);
         testCombination(false, false);
