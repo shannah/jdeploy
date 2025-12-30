@@ -317,22 +317,28 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
     }
 
     /**
-     * Adds the bin directory to the Git Bash path by modifying .bashrc or .bash_profile.
-     * 
+     * Adds the bin directory to the Git Bash path by modifying BOTH .bashrc AND .bash_profile.
+     *
      * @param binDir the directory to add to the path
-     * @return true if the path was updated, false otherwise
+     * @return true if the path was updated in at least one file, false otherwise
      */
     private boolean addToGitBashPath(File binDir) {
         File homeDir = new File(System.getProperty("user.home"));
-        // Git Bash uses bash as the shell
-        File configFile = UnixPathManager.selectConfigFile("bash", homeDir);
-        
-        // If UnixPathManager didn't find a config file, we don't proceed.
-        // It typically looks for .bashrc or .bash_profile.
-        if (configFile == null) {
-            return false;
-        }
+        String msysPath = convertToMsysPath(binDir);
 
+        File bashProfile = new File(homeDir, ".bash_profile");
+        File bashrc = new File(homeDir, ".bashrc");
+
+        boolean profileUpdated = addPathToGitBashConfigFile(bashProfile, msysPath);
+        boolean bashrcUpdated = addPathToGitBashConfigFile(bashrc, msysPath);
+
+        return profileUpdated || bashrcUpdated;
+    }
+
+    /**
+     * Helper to add a path to a specific Git Bash config file.
+     */
+    private boolean addPathToGitBashConfigFile(File configFile, String msysPath) {
         try {
             String content = "";
             if (configFile.exists()) {
@@ -343,64 +349,66 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 }
             }
 
-            String msysPath = convertToMsysPath(binDir);
-            String exportLine = "export PATH=\"$PATH:" + msysPath + "\"";
-
             if (content.contains(msysPath)) {
-                return false; // Already in path
+                return true; // Already present
             }
 
+            String exportLine = "export PATH=\"$PATH:" + msysPath + "\"";
             StringBuilder sb = new StringBuilder(content);
             if (!content.isEmpty() && !content.endsWith("\n")) {
                 sb.append("\n");
             }
             sb.append(exportLine).append("\n");
-            
+
             FileUtils.writeStringToFile(configFile, sb.toString(), "UTF-8");
             return true;
         } catch (IOException e) {
-            System.err.println("Warning: Failed to update Git Bash config: " + e.getMessage());
+            System.err.println("Warning: Failed to update Git Bash config " + configFile.getName() + ": " + e.getMessage());
             return false;
         }
     }
 
     /**
-     * Removes the bin directory from Git Bash configuration.
-     * 
+     * Removes the bin directory from Git Bash configuration (.bashrc and .bash_profile).
+     *
      * @param binDir the directory to remove
      * @return true if successfully processed
      */
     private boolean removeFromGitBashPath(File binDir) {
         File homeDir = new File(System.getProperty("user.home"));
-        File configFile = UnixPathManager.selectConfigFile("bash", homeDir);
-        if (configFile == null || !configFile.exists()) {
+        String msysPath = convertToMsysPath(binDir);
+
+        boolean profileUpdated = removeFromGitBashConfigFile(new File(homeDir, ".bash_profile"), msysPath);
+        boolean bashrcUpdated = removeFromGitBashConfigFile(new File(homeDir, ".bashrc"), msysPath);
+
+        return profileUpdated || bashrcUpdated;
+    }
+
+    /**
+     * Helper to remove a path from a specific Git Bash config file.
+     */
+    private boolean removeFromGitBashConfigFile(File configFile, String msysPath) {
+        if (!configFile.exists()) {
             return false;
         }
 
         try {
             String content = FileUtils.readFileToString(configFile, "UTF-8");
-            String msysPath = convertToMsysPath(binDir);
-            
-            // Look for the export line pattern
+            if (!content.contains(msysPath)) {
+                return false;
+            }
+
             String exportLine = "export PATH=\"$PATH:" + msysPath + "\"";
-            
-            if (content.contains(msysPath)) {
-                // Remove the specific export line if found
-                String newContent = content.replace(exportLine + "\r\n", "")
-                                           .replace(exportLine + "\n", "")
-                                           .replace(exportLine, "");
-                
-                // Fallback: if the exact exportLine wasn't found but the path is there, 
-                // it might be formatted differently. However, since we controlled the 
-                // insertion in addToGitBashPath, this should be sufficient.
-                
-                if (!newContent.equals(content)) {
-                    FileUtils.writeStringToFile(configFile, newContent.trim(), "UTF-8");
-                    return true;
-                }
+            String newContent = content.replace(exportLine + "\r\n", "")
+                                       .replace(exportLine + "\n", "")
+                                       .replace(exportLine, "");
+
+            if (!newContent.equals(content)) {
+                FileUtils.writeStringToFile(configFile, newContent.trim(), "UTF-8");
+                return true;
             }
         } catch (IOException e) {
-            System.err.println("Warning: Failed to remove from Git Bash config: " + e.getMessage());
+            System.err.println("Warning: Failed to remove from Git Bash config " + configFile.getName() + ": " + e.getMessage());
         }
         return false;
     }

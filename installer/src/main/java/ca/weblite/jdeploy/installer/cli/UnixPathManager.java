@@ -30,95 +30,98 @@ public class UnixPathManager {
      * @return true if PATH was updated or already contained the directory, false otherwise
      */
     public static boolean addToPath(File binDir, String shell, String pathEnv, File homeDir) {
-        try {
-            // Log input parameters
-            DebugLogger.log("UnixPathManager.addToPath() called with:");
-            DebugLogger.log("  binDir: " + (binDir != null ? binDir.getAbsolutePath() : "null"));
-            DebugLogger.log("  shell: " + (shell != null && !shell.isEmpty() ? shell : "(null or empty, will default to /bin/bash)"));
-            DebugLogger.log("  homeDir: " + (homeDir != null ? homeDir.getAbsolutePath() : "null"));
+        // Log input parameters
+        DebugLogger.log("UnixPathManager.addToPath() called with:");
+        DebugLogger.log("  binDir: " + (binDir != null ? binDir.getAbsolutePath() : "null"));
+        DebugLogger.log("  shell: " + (shell != null && !shell.isEmpty() ? shell : "(null or empty, will default to /bin/bash)"));
+        DebugLogger.log("  homeDir: " + (homeDir != null ? homeDir.getAbsolutePath() : "null"));
 
-            // Verify binDir exists and is a directory before modifying shell config
-            if (binDir == null || !binDir.exists() || !binDir.isDirectory()) {
-                DebugLogger.log("Early return: binDir validation failed");
-                DebugLogger.log("  binDir null: " + (binDir == null));
-                if (binDir != null) {
-                    DebugLogger.log("  binDir exists: " + binDir.exists());
-                    DebugLogger.log("  binDir isDirectory: " + binDir.isDirectory());
-                }
-                System.err.println("Warning: Cannot add to PATH - directory does not exist: " + 
+        // Verify binDir exists and is a directory before modifying shell config
+        if (binDir == null || !binDir.exists() || !binDir.isDirectory()) {
+            DebugLogger.log("Early return: binDir validation failed");
+            System.err.println("Warning: Cannot add to PATH - directory does not exist: " +
                     (binDir != null ? binDir.getAbsolutePath() : "null"));
-                return false;
-            }
+            return false;
+        }
 
-            // Detect the user's shell; default to bash when unknown
-            if (shell == null || shell.isEmpty()) {
-                DebugLogger.log("Shell is null or empty, defaulting to /bin/bash");
-                shell = "/bin/bash";
-            } else {
-                DebugLogger.log("Detected shell: " + shell);
-            }
+        // If PATH already contains binDir, nothing to do
+        if (pathEnv != null && pathEnv.contains(binDir.getAbsolutePath())) {
+            DebugLogger.log("Early return: binDir already in PATH environment variable");
+            String displayPath = computeDisplayPath(binDir, homeDir);
+            System.out.println(displayPath + " is already in PATH");
+            return true;
+        }
 
-            File configFile = selectConfigFile(shell, homeDir);
-            DebugLogger.log("Selected config file: " + (configFile != null ? configFile.getAbsolutePath() : "null"));
-            if (configFile == null) {
-                DebugLogger.log("Early return: config file selection failed");
-                return false;
-            }
+        // Detect the user's shell; default to bash when unknown
+        if (shell == null || shell.isEmpty()) {
+            DebugLogger.log("Shell is null or empty, defaulting to /bin/bash");
+            shell = "/bin/bash";
+        }
 
-            // If PATH already contains binDir, nothing to do
-            if (pathEnv != null && pathEnv.contains(binDir.getAbsolutePath())) {
-                DebugLogger.log("Early return: binDir already in PATH environment variable");
-                String displayPath = computeDisplayPath(binDir, homeDir);
-                System.out.println(displayPath + " is already in PATH");
+        String shellName = new File(shell).getName();
+        if ("bash".equals(shellName)) {
+            // For bash, write to BOTH .bash_profile and .bashrc to handle login and non-login shells
+            File bashProfile = new File(homeDir, ".bash_profile");
+            File bashrc = new File(homeDir, ".bashrc");
+
+            boolean profileUpdated = addPathToConfigFile(bashProfile, binDir, homeDir);
+            boolean bashrcUpdated = addPathToConfigFile(bashrc, binDir, homeDir);
+
+            if (profileUpdated || bashrcUpdated) {
+                System.out.println("Please restart your terminal or source your shell configuration.");
                 return true;
             }
+            return false;
+        } else {
+            File configFile = selectConfigFile(shell, homeDir);
+            if (configFile == null) {
+                return false;
+            }
+            return addPathToConfigFile(configFile, binDir, homeDir);
+        }
+    }
+
+    /**
+     * Internal helper to add a PATH export to a specific configuration file.
+     *
+     * @param configFile the file to update
+     * @param binDir     the binary directory to add
+     * @param homeDir    the user's home directory
+     * @return true if the file was updated or already contained the entry, false on error
+     */
+    private static boolean addPathToConfigFile(File configFile, File binDir, File homeDir) {
+        try {
+            String pathExportString = computePathExportString(binDir, homeDir);
+            String displayPath = computeDisplayPath(binDir, homeDir);
 
             // Ensure configFile exists (create if necessary)
             if (!configFile.exists()) {
                 DebugLogger.log("Config file does not exist, creating: " + configFile.getAbsolutePath());
                 File parent = configFile.getParentFile();
                 if (parent != null && !parent.exists()) {
-                    DebugLogger.log("Creating parent directories: " + parent.getAbsolutePath());
                     parent.mkdirs();
                 }
-                try {
-                    configFile.createNewFile();
-                    DebugLogger.log("Successfully created config file: " + configFile.getAbsolutePath());
-                } catch (Exception ignored) {
-                    DebugLogger.log("Failed to create config file: " + configFile.getAbsolutePath());
-                }
+                configFile.createNewFile();
             } else {
-                DebugLogger.log("Config file already exists: " + configFile.getAbsolutePath());
                 // Check file contents to avoid duplicate entries
                 String content = IOUtil.readToString(new FileInputStream(configFile));
-                String pathExportString = computePathExportString(binDir, homeDir);
                 if (content.contains(pathExportString) || content.contains(binDir.getAbsolutePath())) {
-                    DebugLogger.log("Early return: PATH entry already exists in config file");
-                    String displayPath = computeDisplayPath(binDir, homeDir);
-                    System.out.println(displayPath + " is already in PATH configuration");
+                    DebugLogger.log("PATH entry already exists in: " + configFile.getAbsolutePath());
                     return true;
                 }
             }
 
             // Append PATH export to the config file
-            DebugLogger.log("Writing PATH export to config file: " + configFile.getAbsolutePath());
-            String pathExportString = computePathExportString(binDir, homeDir);
+            DebugLogger.log("Writing PATH export to: " + configFile.getAbsolutePath());
             String pathExport = "\n# Added by jDeploy installer\nexport PATH=\"" + pathExportString + ":$PATH\"\n";
             try (FileOutputStream fos = new FileOutputStream(configFile, true)) {
                 fos.write(pathExport.getBytes(StandardCharsets.UTF_8));
-                DebugLogger.log("Successfully wrote PATH export to: " + configFile.getAbsolutePath());
             }
 
-            String displayPath = computeDisplayPath(binDir, homeDir);
             System.out.println("Added " + displayPath + " to PATH in " + configFile.getName());
-            System.out.println("Please restart your terminal or run: source " + configFile.getAbsolutePath());
             return true;
-
         } catch (Exception e) {
-            DebugLogger.log("Exception occurred in addToPath: " + e.getClass().getSimpleName() + " - " + e.getMessage());
-            String displayPath = computeDisplayPath(binDir, homeDir);
-            System.err.println("Warning: Failed to add " + displayPath + " to PATH: " + e.getMessage());
-            System.out.println("You may need to manually add " + displayPath + " to your PATH");
+            DebugLogger.log("Failed to update config file " + configFile.getAbsolutePath() + ": " + e.getMessage());
             return false;
         }
     }
