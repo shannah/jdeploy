@@ -34,6 +34,7 @@ public class CliCommandInstallerIntegrationTest {
     private File launcherDir;
     private File binDir;
     private File launcherPath;
+    private File mockHome;
     private CliCommandInstaller installer;
 
     @BeforeEach
@@ -43,14 +44,18 @@ public class CliCommandInstallerIntegrationTest {
         binDir = tempDir.resolve("bin").toFile();
         launcherPath = tempDir.resolve("launcher").resolve("jdeploy-launcher").toFile();
 
+        // Create mock home directory to prevent polluting real shell profiles
+        mockHome = tempDir.resolve("mock-home").toFile();
+        mockHome.mkdirs();
+
         launcherDir.mkdirs();
         binDir.mkdirs();
 
         // Create a mock launcher file
         assertTrue(launcherPath.createNewFile(), "Failed to create launcher file");
 
-        // Use Linux installer for testing (most portable)
-        installer = new LinuxCliCommandInstaller();
+        // Use testable Linux installer with mock home directory
+        installer = new TestableLinuxCliCommandInstaller(mockHome);
     }
 
     @AfterEach
@@ -179,8 +184,7 @@ public class CliCommandInstallerIntegrationTest {
         // Arrange
         File pathBinDir = new File(binDir, "path-test");
         pathBinDir.mkdirs();
-        File mockHome = tempDir.resolve("mock-home").toFile();
-        mockHome.mkdirs();
+        // mockHome already created in setUp()
 
         // Act
         // Use the static testable overload to avoid polluting the real user's home directory
@@ -204,6 +208,23 @@ public class CliCommandInstallerIntegrationTest {
      */
     private void assertGreater(int actual, int expected, String message) {
         assertTrue(actual > expected, message + " (expected > " + expected + ", got " + actual + ")");
+    }
+
+    /**
+     * Testable subclass of LinuxCliCommandInstaller that uses a custom home directory
+     * to prevent polluting real shell profile files during tests.
+     */
+    private static class TestableLinuxCliCommandInstaller extends LinuxCliCommandInstaller {
+        private final File customHomeDir;
+
+        TestableLinuxCliCommandInstaller(File customHomeDir) {
+            this.customHomeDir = customHomeDir;
+        }
+
+        @Override
+        protected File getHomeDir() {
+            return customHomeDir;
+        }
     }
 
     /**

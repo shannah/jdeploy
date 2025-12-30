@@ -183,6 +183,15 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
     }
 
     /**
+     * Returns the user's home directory. Protected to allow test overrides.
+     *
+     * @return the home directory
+     */
+    protected File getHomeDir() {
+        return new File(System.getProperty("user.home"));
+    }
+
+    /**
      * Adds a directory to the system PATH environment variable.
      * Updates shell configuration files (.bashrc, .zshrc, etc.) to persist the change.
      * Delegates to UnixPathManager for the actual implementation.
@@ -194,7 +203,7 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
     public boolean addToPath(File binDir) {
         String shell = System.getenv("SHELL");
         String pathEnv = System.getenv("PATH");
-        File homeDir = new File(System.getProperty("user.home"));
+        File homeDir = getHomeDir();
         return UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
     }
 
