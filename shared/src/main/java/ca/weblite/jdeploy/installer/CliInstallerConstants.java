@@ -36,4 +36,10 @@ public interface CliInstallerConstants {
      * This launcher copy is dedicated to CLI usage (vs. GUI launching).
      */
     String CLI_LAUNCHER_NAME = "Client4JLauncher-cli";
+
+    /**
+     * Suffix appended to the application name to create the CLI launcher filename.
+     * Example: "MyApp" + CLI_LAUNCHER_SUFFIX + ".exe" → "MyApp-cli.exe"
+     */
+    String CLI_LAUNCHER_SUFFIX = "-cli";
 }
