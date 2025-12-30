@@ -187,13 +187,23 @@ Uninstall:
   - This CLI variant has its PE subsystem modified from GUI (2) to Console (3), ensuring Windows creates a console window when launched from the command line.
   - The `.cmd` wrapper scripts invoke this CLI launcher instead of the main GUI executable.
   - This mirrors the macOS dual-binary approach where `Client4JLauncher-cli` is created for CLI invocations.
-- PATH management:
+- PATH management (CMD/PowerShell):
   - Installer should add the per-user bin directory to the user's PATH via the HKCU\Environment `PATH` registry value.
   - When adding an entry to PATH, preserve the rest of the user's PATH value and only append/prepend the directory. Record that the installer modified PATH so the uninstaller can revert.
   - Note: Updating HKCU\Environment PATH does not immediately change PATH in existing console windows; the user may need to log out/log in or restart shells. The installer should notify the user about this.
+
+- Git Bash / MSYS2 Support:
+  - Windows users often use Git Bash (MSYS2-based). To support this, the installer employs a dual-script approach.
+  - For every command, the installer creates two files in the bin directory:
+    1. A `.cmd` wrapper for CMD/PowerShell.
+    2. An extensionless POSIX shell script for Git Bash.
+  - MSYS2 Path Conversion: Since Git Bash expects POSIX-style paths (e.g., `/c/Users/` instead of `C:\Users\`), the installer converts Windows absolute paths to MSYS2 format for use inside the shell scripts.
+  - Git Bash PATH Management: The installer detects the user's Git Bash configuration (preferring `.bash_profile` or `.bashrc`) and appends an `export PATH="$PATH:/msys/path/to/bin"` line.
+
 - Uninstall:
-  - Remove the generated `.cmd` files.
-  - Remove the PATH modification that the installer added. If PATH was modified to include only the per-user bin, remove that segment and restore the previous PATH value stored during install.
+  - Remove the generated `.cmd` and extensionless shell script files.
+  - Remove the Windows Registry PATH modification.
+  - Remove the `export` line from Git Bash configuration files if it was added.
   - Ensure the uninstaller only removes entries it created (do not remove the entire PATH).
 
 ## Uninstall behavior (cross-platform)
@@ -409,11 +419,13 @@ When `jdeploy.commands` contains at least one command, the installation form SHO
 | Criterion | Verification Method |
 |-----------|---------------------|
 | Command scripts created in correct location | Check `~/.local/bin/` (Unix) or `%USERPROFILE%\.jdeploy\bin\` (Windows) |
+| Dual-scripts on Windows | Verify both `.cmd` and extensionless files exist in bin directory |
+| MSYS2 Path Conversion | Verify Windows shell scripts use `/c/path` style paths |
 | Scripts are executable | `stat` shows 0755 permissions on Unix |
 | Commands invoke launcher with `--jdeploy:command=<name>` | Inspect script content |
 | User args passed after `--` separator | Test: `myapp-cli foo bar` passes `foo bar` to app |
 | Uninstall removes only installer-created files | Metadata file tracks created files |
-| PATH modifications are reversible | Uninstall restores original PATH |
+| PATH modifications are reversible | Uninstall restores original PATH and removes Git Bash config lines |
 | Empty commands object results in no scripts | Install with `"commands": {}` creates no wrappers |
 | Invalid command names rejected | Names with `/`, `\`, or control chars fail validation |
 
@@ -422,13 +434,15 @@ When `jdeploy.commands` contains at least one command, the installation form SHO
 1. ✅ Script creation with valid commands
 2. ✅ Script content escaping (quotes, special chars in paths)
 3. ✅ `addToPath` for bash/zsh/fish shells
-4. ✅ Uninstall removes scripts
-5. ✅ Metadata persistence and loading
-6. ✅ Command name collision detection
-7. ✅ PATH restoration on uninstall
-8. ✅ Handling of missing bin directory (should create it)
-9. ✅ Partial failure handling (some commands fail, others succeed)
-10. ✅ Idempotent uninstall (missing files don't cause errors)
+4. ✅ Windows Git Bash `.bashrc` / `.bash_profile` modification
+5. ✅ Windows MSYS2 path conversion logic (`C:\` -> `/c/`)
+6. ✅ Uninstall removes scripts (including Windows shell wrappers)
+7. ✅ Metadata persistence and loading
+8. ✅ Command name collision detection
+9. ✅ PATH restoration on uninstall
+10. ✅ Handling of missing bin directory (should create it)
+11. ✅ Partial failure handling (some commands fail, others succeed)
+12. ✅ Idempotent uninstall (missing files don't cause errors)
 
 ## Summary / Recommendation
 
