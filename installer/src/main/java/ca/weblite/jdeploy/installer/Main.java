@@ -797,18 +797,9 @@ public class Main implements Runnable, Constants {
                     installationSettings,
                     fullyQualifiedPackageName,
                     tmpBundles,
-                    npmPackageVersion()
+                    npmPackageVersion(),
+                    new UIAwareCollisionHandler(uiFactory, installationForm)
             );
-
-            // Install CLI commands on Windows if the user requested either feature.
-            if (installationSettings.isInstallCliCommands() || installationSettings.isInstallCliLauncher()) {
-                File launcherPath = installedApp;
-                List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
-                WindowsCliCommandInstaller windowsCliInstaller = new WindowsCliCommandInstaller();
-                // Wire collision handler for GUI-aware prompting
-                windowsCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
-                windowsCliInstaller.installCommands(launcherPath, commands, installationSettings);
-            }
         } else if (Platform.getSystemPlatform().isMac()) {
             File jdeployAppsDir = new File(System.getProperty("user.home") + File.separator + "Applications");
             if (!jdeployAppsDir.exists()) {

@@ -4,10 +4,13 @@ import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.InstallationContext;
 import ca.weblite.jdeploy.installer.Main;
+import ca.weblite.jdeploy.installer.cli.CollisionHandler;
+import ca.weblite.jdeploy.installer.cli.UIAwareCollisionHandler;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
 import ca.weblite.tools.io.FileUtil;
 import com.izforge.izpack.util.os.ShellLink;
+import com.joshondesign.appbundler.win.WindowsPESubsystemModifier;
 import net.coobird.thumbnailator.Thumbnails;
 import net.sf.image4j.codec.ico.ICOEncoder;
 import org.apache.commons.io.FileUtils;
@@ -29,9 +32,10 @@ public class InstallWindows {
             InstallationContext context,
             InstallationSettings installationSettings,
             String fullyQualifiedPackageName,
-            File tmpBundles
+            File tmpBundles,
+            CollisionHandler collisionHandler
     ) throws Exception {
-        return install(context, installationSettings, fullyQualifiedPackageName, tmpBundles, null);
+        return install(context, installationSettings, fullyQualifiedPackageName, tmpBundles, null, collisionHandler);
     }
 
     /**
@@ -42,7 +46,8 @@ public class InstallWindows {
             InstallationSettings installationSettings,
             String fullyQualifiedPackageName,
             File tmpBundles,
-            ca.weblite.jdeploy.installer.npm.NPMPackageVersion npmPackageVersion
+            ca.weblite.jdeploy.installer.npm.NPMPackageVersion npmPackageVersion,
+            CollisionHandler collisionHandler
     ) throws Exception {
         AppInfo appInfo = installationSettings.getAppInfo();
         File tmpExePath = findTmpExeFile(tmpBundles);
@@ -75,13 +80,10 @@ public class InstallWindows {
             
             // Copy CLI launcher if CLI commands will be installed
             if (installationSettings.isInstallCliCommands()) {
-                File tmpCliExePath = findTmpCliExeFile(tmpBundles);
-                if (tmpCliExePath != null) {
-                    cliExePath = new File(exePath.getParentFile(), 
+                cliExePath = new File(exePath.getParentFile(),
                         exePath.getName().replace(".exe", CliInstallerConstants.CLI_LAUNCHER_SUFFIX + ".exe"));
-                    FileUtil.copy(tmpCliExePath, cliExePath);
-                    cliExePath.setExecutable(true, false);
-                }
+                WindowsPESubsystemModifier.copyAndModifySubsystem(exePath, cliExePath);
+                cliExePath.setExecutable(true, false);
             }
         } catch (IOException e) {
             String logPath = System.getProperty("user.home") + "\\.jdeploy\\log\\jdeploy-installer.log";
@@ -144,6 +146,7 @@ public class InstallWindows {
             if (installationSettings.isInstallCliCommands() && commands != null && !commands.isEmpty()) {
                 ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller cliInstaller = 
                     new ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller();
+                cliInstaller.setCollisionHandler(collisionHandler);
                 File launcherForCommands = cliExePath != null ? cliExePath : exePath;
                 cliInstaller.installCommands(launcherForCommands, commands, installationSettings);
             }

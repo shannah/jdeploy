@@ -65,11 +65,6 @@ public class WindowsBundler2 {
         out.setOutputFile(exeFile);
         WindowsBundler2 bundler = new WindowsBundler2();
         bundler.writeLauncher(app, targetArchitecture, exeFile);
-        
-        // If CLI commands are enabled, create a console-subsystem variant of the launcher
-        if (!installer) {
-            bundler.maybeCreateCliLauncher(bundlerSettings, winDir, app.getName(), exeFile);
-        }
         Util.compressAsZip(releaseFile, exeFile);
         out.addReleaseFile(releaseFile);
         return out;
@@ -100,38 +95,5 @@ public class WindowsBundler2 {
             default:
                 throw new IllegalArgumentException("Target architecture " + targetArchitecture + " not supported");
         }
-    }
-    
-    /**
-     * If CLI commands are enabled in the bundler settings, creates a console-subsystem variant
-     * of the GUI launcher by copying the GUI EXE and modifying its PE header subsystem.
-     * 
-     * The CLI launcher is named "{appname}-cli.exe" and is placed in the same directory
-     * as the GUI launcher. It is byte-identical to the GUI launcher except for the PE
-     * subsystem field, which is changed from GUI (2) to Console (3).
-     *
-     * This method is public to allow focused unit tests to exercise only the launcher-copy
-     * behavior without running the full bundling pipeline.
-     *
-     * @param bundlerSettings the bundler settings containing the CLI commands enabled flag
-     * @param winDir the Windows output directory where the launcher EXE resides
-     * @param appName the application name (used to derive the CLI launcher filename)
-     * @param guiLauncher the file of the GUI launcher that was written
-     * @throws IOException if copying or PE modification fails
-     * @throws IllegalArgumentException if the source EXE is not a valid PE executable
-     */
-    public static void maybeCreateCliLauncher(BundlerSettings bundlerSettings, File winDir, String appName, File guiLauncher) 
-            throws IOException, IllegalArgumentException {
-        if (bundlerSettings.isCliCommandsEnabled()) {
-            File cliDest = new File(winDir, appName + CliInstallerConstants.CLI_LAUNCHER_SUFFIX + ".exe");
-            WindowsPESubsystemModifier.copyAndModifySubsystem(guiLauncher, cliDest);
-            if (verboseLevel > 0) {
-                System.out.println("Created CLI launcher: " + cliDest);
-            }
-        }
-    }
-
-    private static void p(String s) {
-        System.out.println(s);
     }
 }
