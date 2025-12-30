@@ -114,27 +114,34 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
             // Clean up wrapper files
             JSONArray wrappersArray = metadata.optJSONArray(CliInstallerConstants.CREATED_WRAPPERS_KEY);
+            File userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
             if (wrappersArray != null) {
-                File userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
                 for (int i = 0; i < wrappersArray.length(); i++) {
                     String wrapperName = wrappersArray.getString(i);
                     File wrapperFile = new File(userBinDir, wrapperName);
                     if (wrapperFile.exists() && !wrapperFile.delete()) {
                         System.err.println("Warning: Failed to delete wrapper file: " + wrapperFile.getAbsolutePath());
                     }
+
+                    // Also attempt to delete the extensionless version (for Git Bash)
+                    String shWrapperName = wrapperName.endsWith(".cmd")
+                            ? wrapperName.substring(0, wrapperName.length() - 4)
+                            : wrapperName;
+
+                    File shWrapperFile = new File(userBinDir, shWrapperName);
+                    if (shWrapperFile.exists() && !shWrapperFile.delete()) {
+                        System.err.println("Warning: Failed to delete shell wrapper file: " + shWrapperFile.getAbsolutePath());
+                    }
                 }
             }
 
             // Remove from PATH if it was added
-            boolean pathWasUpdated = metadata.optBoolean(CliInstallerConstants.PATH_UPDATED_KEY, false);
-            File userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
-            if (pathWasUpdated) {
+            if (metadata.optBoolean(CliInstallerConstants.PATH_UPDATED_KEY, false)) {
                 removeFromPath(userBinDir);
             }
 
             // Remove from Git Bash path if it was added
-            boolean gitBashPathWasUpdated = metadata.optBoolean(CliInstallerConstants.GIT_BASH_PATH_UPDATED_KEY, false);
-            if (gitBashPathWasUpdated) {
+            if (metadata.optBoolean(CliInstallerConstants.GIT_BASH_PATH_UPDATED_KEY, false)) {
                 removeFromGitBashPath(userBinDir);
             }
 
@@ -246,7 +253,6 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             
             FileUtils.writeStringToFile(shWrapper, shContent, "UTF-8");
             shWrapper.setExecutable(true, false);
-            created.add(shWrapper);
         }
 
         return created;
@@ -374,16 +380,24 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
         try {
             String content = FileUtils.readFileToString(configFile, "UTF-8");
             String msysPath = convertToMsysPath(binDir);
+            
+            // Look for the export line pattern
             String exportLine = "export PATH=\"$PATH:" + msysPath + "\"";
             
-            if (content.contains(exportLine)) {
-                // Remove the line and ensure the file remains clean
-                content = content.replace(exportLine + "\r\n", "");
-                content = content.replace(exportLine + "\n", "");
-                content = content.replace(exportLine, "");
+            if (content.contains(msysPath)) {
+                // Remove the specific export line if found
+                String newContent = content.replace(exportLine + "\r\n", "")
+                                           .replace(exportLine + "\n", "")
+                                           .replace(exportLine, "");
                 
-                FileUtils.writeStringToFile(configFile, content.trim(), "UTF-8");
-                return true;
+                // Fallback: if the exact exportLine wasn't found but the path is there, 
+                // it might be formatted differently. However, since we controlled the 
+                // insertion in addToGitBashPath, this should be sufficient.
+                
+                if (!newContent.equals(content)) {
+                    FileUtils.writeStringToFile(configFile, newContent.trim(), "UTF-8");
+                    return true;
+                }
             }
         } catch (IOException e) {
             System.err.println("Warning: Failed to remove from Git Bash config: " + e.getMessage());
