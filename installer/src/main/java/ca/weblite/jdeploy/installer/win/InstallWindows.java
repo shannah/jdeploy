@@ -68,18 +68,19 @@ public class InstallWindows {
             exePath = new File(appBinDir, exeName);
         }
 
+        File cliExePath = null;
         try {
             FileUtil.copy(tmpExePath, exePath);
             exePath.setExecutable(true, false);
             
             // Copy CLI launcher if CLI commands will be installed
             if (installationSettings.isInstallCliCommands()) {
-                File cliExePath = findTmpCliExeFile(tmpBundles);
-                if (cliExePath != null) {
-                    File targetCliExePath = new File(exePath.getParentFile(), 
+                File tmpCliExePath = findTmpCliExeFile(tmpBundles);
+                if (tmpCliExePath != null) {
+                    cliExePath = new File(exePath.getParentFile(), 
                         exePath.getName().replace(".exe", CliInstallerConstants.CLI_LAUNCHER_SUFFIX + ".exe"));
-                    FileUtil.copy(cliExePath, targetCliExePath);
-                    targetCliExePath.setExecutable(true, false);
+                    FileUtil.copy(tmpCliExePath, cliExePath);
+                    cliExePath.setExecutable(true, false);
                 }
             }
         } catch (IOException e) {
@@ -143,7 +144,8 @@ public class InstallWindows {
             if (installationSettings.isInstallCliCommands() && commands != null && !commands.isEmpty()) {
                 ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller cliInstaller = 
                     new ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller();
-                cliInstaller.installCommands(exePath, commands, installationSettings);
+                File launcherForCommands = cliExePath != null ? cliExePath : exePath;
+                cliInstaller.installCommands(launcherForCommands, commands, installationSettings);
             }
 
             //Try to copy the uninstaller
