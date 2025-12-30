@@ -179,13 +179,17 @@ public class CliCommandInstallerIntegrationTest {
         // Arrange
         File pathBinDir = new File(binDir, "path-test");
         pathBinDir.mkdirs();
+        File mockHome = tempDir.resolve("mock-home").toFile();
+        mockHome.mkdirs();
 
         // Act
-        boolean pathAdded = installer.addToPath(pathBinDir);
+        // Use the static testable overload to avoid polluting the real user's home directory
+        boolean pathAdded = AbstractUnixCliCommandInstaller.addToPath(pathBinDir, "/bin/bash", "", mockHome);
 
         // Assert - path addition behavior depends on shell environment
-        // Just verify the method executes without throwing
-        assertTrue(true, "addToPath should execute without exception");
+        // Just verify the method executes without throwing and created the file in mock home
+        assertTrue(pathAdded, "addToPath should return true");
+        assertTrue(new File(mockHome, ".bashrc").exists(), ".bashrc should be created in mock home");
     }
 
     /**
