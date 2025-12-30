@@ -13,6 +13,7 @@ import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
 import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
 import ca.weblite.jdeploy.gui.tabs.PermissionsPanel;
 import ca.weblite.jdeploy.gui.tabs.PublishSettingsPanel;
+import ca.weblite.jdeploy.gui.tabs.SplashScreensPanel;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.ideInterop.IdeInteropInterface;
 import ca.weblite.jdeploy.ideInterop.IdeInteropService;
@@ -95,6 +96,7 @@ public class JDeployProjectEditor {
     private PermissionsPanel permissionsPanel;
     private BundleFiltersPanel bundleFiltersPanel;
     private PublishSettingsPanel publishSettingsPanel;
+    private SplashScreensPanel splashScreensPanel;
 
     private NPM npm = null;
 
@@ -118,10 +120,9 @@ public class JDeployProjectEditor {
 
         private JCheckBox javafx, jdk;
         private JComboBox javaVersion, jdkProvider, jbrVariant;
-        private JButton icon, installSplash, splash, selectJar;
+        private JButton icon, selectJar;
         private JButton verifyHomepageButton;
         private JLabel homepageVerifiedLabel;
-
 
     }
 
@@ -250,36 +251,6 @@ public class JDeployProjectEditor {
 
     private File getIconFile() {
         return new File(packageJSONFile.getAbsoluteFile().getParentFile(), "icon.png");
-    }
-
-    private File getInstallSplashFile() {
-        return new File(packageJSONFile.getAbsoluteFile().getParentFile(), "installsplash.png");
-    }
-
-    private File getSplashFile(String extension) {
-        File absRoot = packageJSONFile.getAbsoluteFile().getParentFile();
-        if (extension == null) {
-            File out = new File(absRoot, "splash.png");
-            if (out.exists()) return out;
-            out = new File(absRoot, "splash.jpg");
-            if (out.exists()) return out;
-            out = new File(absRoot, "splash.gif");
-            if (out.exists()) return out;
-            return new File(absRoot, "splash.png");
-
-        }
-        if (extension.charAt(0) != '.') {
-            extension = "." + extension;
-        }
-        return new File(absRoot, "splash"+extension);
-    }
-
-    private static String getExtension(File f) {
-        String name = f.getName();
-        if (name.contains(".")) {
-            return name.substring(name.lastIndexOf(".")+1);
-        }
-        return null;
     }
 
     public JDeployProjectEditor(File packageJSONFile, JSONObject packageJSON) {
@@ -939,76 +910,9 @@ public class JDeployProjectEditor {
         });
 
 
-        mainFields.splash = new JButton();
-        if (getSplashFile(null) != null && getSplashFile(null).exists()) {
-            try {
-                mainFields.splash.setIcon(
-                        new ImageIcon(Thumbnails.of(getSplashFile(null)).height(200).asBufferedImage())
-                );
-            } catch (Exception ex) {
-                System.err.println("Failed to read splash image from "+getSplashFile(null));
-                ex.printStackTrace(System.err);
-            }
-
-        } else {
-            mainFields.splash.setText("Select splashscreen image...");
-        }
-        mainFields.splash.addActionListener(evt->{
-            File selected = showFileChooser("Select Splash Image", "png", "jpg", "gif");
-            if (selected == null) return;
-            String extension = getExtension(selected);
-            if (extension == null) {
-                return;
-            }
-            try {
-                if (getSplashFile(null).exists()) {
-                    getSplashFile(null).delete();
-                }
-                FileUtils.copyFile(selected, getSplashFile(extension));
-                mainFields.splash.setText("");
-                mainFields.splash.setIcon(
-                        new ImageIcon(Thumbnails.of(getSplashFile(extension)).height(200).asBufferedImage())
-                );
-            } catch (Exception ex) {
-                System.err.println("Error while copying icon file");
-                ex.printStackTrace(System.err);
-                showError("Failed to select icon", ex);
-
-            }
-        });
-
-        mainFields.installSplash = new JButton();
-        if (getInstallSplashFile().exists()) {
-            try {
-                mainFields.installSplash.setIcon(
-                        new ImageIcon(Thumbnails.of(getInstallSplashFile()).height(200).asBufferedImage())
-                );
-            } catch (Exception ex) {
-                System.err.println("Failed to read splash image from "+getInstallSplashFile());
-                ex.printStackTrace(System.err);
-            }
-
-        } else {
-            mainFields.installSplash.setText("Select install splashscreen image...");
-        }
-        mainFields.installSplash.addActionListener(evt->{
-            File selected = showFileChooser("Select Install Splash Image", "png");
-            if (selected == null) return;
-
-            try {
-
-                FileUtils.copyFile(selected, getInstallSplashFile());
-                mainFields.installSplash.setText("");
-                mainFields.installSplash.setIcon(
-                        new ImageIcon(Thumbnails.of(getInstallSplashFile()).height(200).asBufferedImage())
-                );
-            } catch (Exception ex) {
-                System.err.println("Error while copying icon file");
-                ex.printStackTrace(System.err);
-                showError("Failed to select icon", ex);
-
-            }
-        });
+        // Splash screens are now handled by SplashScreensPanel
+        splashScreensPanel = new SplashScreensPanel(packageJSONFile.getAbsoluteFile().getParentFile(), frame);
+        splashScreensPanel.addChangeListener(evt -> setModified());
         mainFields.icon = detailsPanel.getIcon();
         if (getIconFile().exists()) {
             try {
@@ -1549,28 +1453,24 @@ public class JDeployProjectEditor {
 
         tabs.addTab("Details", detailWrapper);
 
-        JComponent imagesPanel = PanelMatic.begin()
-
-                .add("Install Splash Screen", mainFields.installSplash)
-                .add("Splash Screen", mainFields.splash)
-                .get();
-        JPanel imagesPanelWrapper = new JPanel();
-        imagesPanelWrapper.setLayout(new BorderLayout());
-        imagesPanelWrapper.setOpaque(false);
-        imagesPanelWrapper.add(imagesPanel, BorderLayout.CENTER);
-        JPanel imagesHelpPanel = new JPanel();
-        imagesHelpPanel.setOpaque(false);
-        imagesHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        imagesHelpPanel.add(
+        JPanel splashScreensWrapper = new JPanel();
+        splashScreensWrapper.setLayout(new BorderLayout());
+        splashScreensWrapper.setOpaque(false);
+        splashScreensWrapper.add(splashScreensPanel.getRoot(), BorderLayout.CENTER);
+        
+        JPanel splashScreensHelpPanel = new JPanel();
+        splashScreensHelpPanel.setOpaque(false);
+        splashScreensHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
+        splashScreensHelpPanel.add(
                 createHelpButton(
                         JDEPLOY_WEBSITE_URL + "docs/help/#splashscreens",
                         "",
                         "Learn more about this panel, and how splash screen images are used in jDeploy."
                 )
         );
-
-        imagesPanelWrapper.add(imagesHelpPanel, BorderLayout.NORTH);
-        tabs.add("Splash Screens", imagesPanelWrapper);
+        
+        splashScreensWrapper.add(splashScreensHelpPanel, BorderLayout.NORTH);
+        tabs.add("Splash Screens", splashScreensWrapper);
 
 
         tabs.add("Filetypes", doctypesPanelWrapper);
