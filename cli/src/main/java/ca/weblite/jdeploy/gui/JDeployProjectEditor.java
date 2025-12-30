@@ -15,6 +15,7 @@ import ca.weblite.jdeploy.gui.tabs.FiletypesPanel;
 import ca.weblite.jdeploy.gui.tabs.PermissionsPanel;
 import ca.weblite.jdeploy.gui.tabs.PublishSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.SplashScreensPanel;
+import ca.weblite.jdeploy.gui.tabs.UrlSchemesPanel;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.ideInterop.IdeInteropInterface;
 import ca.weblite.jdeploy.ideInterop.IdeInteropService;
@@ -97,6 +98,7 @@ public class JDeployProjectEditor {
     private PublishSettingsPanel publishSettingsPanel;
     private SplashScreensPanel splashScreensPanel;
     private FiletypesPanel filetypesPanel;
+    private UrlSchemesPanel urlSchemesPanel;
 
     private NPM npm = null;
 
@@ -114,7 +116,7 @@ public class JDeployProjectEditor {
     }
 
     private class MainFields {
-        private JTextField name, title, version, iconUrl, jar, urlSchemes, author,
+        private JTextField name, title, version, iconUrl, jar, author,
                 repository, repositoryDirectory, command, license, homepage;
         private JTextArea description, runArgs;
 
@@ -888,32 +890,11 @@ public class JDeployProjectEditor {
         // Set initial visibility
         updateJbrVariantVisibility();
 
-        mainFields.urlSchemes = new JTextField();
-        mainFields.urlSchemes.setToolTipText("Comma-delimited list of URL schemes to associate with your application.");
-        if (jdeploy.has("urlSchemes")) {
-            JSONArray schemes = jdeploy.getJSONArray("urlSchemes");
-            int len = schemes.length();
-            StringBuilder sb = new StringBuilder();
-            for (int i=0; i<len; i++) {
-                if (sb.length() > 0) {
-                    sb.append(", ");
-                }
-                sb.append(schemes.getString(i).trim());
-            }
-            mainFields.urlSchemes.setText(sb.toString());
-        }
-        addChangeListenerTo(mainFields.urlSchemes, ()->{
-            String[] schemesArr = mainFields.urlSchemes.getText().split(",");
-            int len = schemesArr.length;
-            JSONArray arr = new JSONArray();
-            int idx = 0;
-            for (int i=0; i<len; i++) {
-                if (schemesArr[i].trim().isEmpty()) {
-                    continue;
-                }
-                arr.put(idx++, schemesArr[i].trim());
-            }
-            jdeploy.put("urlSchemes", arr);
+        // URL schemes are now handled by UrlSchemesPanel
+        urlSchemesPanel = new UrlSchemesPanel();
+        urlSchemesPanel.load(jdeploy);
+        urlSchemesPanel.addChangeListener(evt -> {
+            urlSchemesPanel.save(jdeploy);
             setModified();
         });
 
@@ -1147,49 +1128,26 @@ public class JDeployProjectEditor {
 
         tabs.add("Filetypes", filetypesPanelWrapper);
 
-        JPanel urlsPanel = new JPanel();
-        urlsPanel.setOpaque(false);
-
-        JTextArea urlSchemesHelp = new JTextArea();
-        urlSchemesHelp.setEditable(false);
-        urlSchemesHelp.setOpaque(false);
-        urlSchemesHelp.setLineWrap(true);
-        urlSchemesHelp.setWrapStyleWord(true);
-        urlSchemesHelp.setText(
-                "Create one or more custom URL schemes that will trigger your app to launch when users try to open a " +
-                        "link in their web browser with one of them.\nEnter one or more URL schemes separated by commas " +
-                        "in the field below." +
-                "\n\nFor example, if you want links like mynews:foobarfoo and mymusic:fuzzbazz to launch your app, then " +
-                "add 'mynews, mymusic' to the field below."
-        );
-        urlSchemesHelp.setMaximumSize(new Dimension(600, 150));
-        urlsPanel.setLayout(new BoxLayout(urlsPanel, BoxLayout.Y_AXIS));
-
-        JPanel urlsHelpPanelWrapper = new JPanel();
-        urlsHelpPanelWrapper.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        urlsHelpPanelWrapper.setOpaque(false);
-        urlsHelpPanelWrapper.add(
+        // URLs tab is now handled by UrlSchemesPanel
+        JPanel urlsPanelWrapper = new JPanel();
+        urlsPanelWrapper.setLayout(new BorderLayout());
+        urlsPanelWrapper.setOpaque(false);
+        
+        JPanel urlsHelpPanel = new JPanel();
+        urlsHelpPanel.setOpaque(false);
+        urlsHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
+        urlsHelpPanel.add(
                 createHelpButton(
                         JDEPLOY_WEBSITE_URL + "docs/help/#_the_urls_tab",
                         "",
                         "Learn more about custom URL schemes in jDeploy"
                 )
         );
-        urlsHelpPanelWrapper.setMaximumSize(new Dimension(10000, urlsHelpPanelWrapper.getPreferredSize().height));
-        urlsPanel.add(urlsHelpPanelWrapper);
-        urlsPanel.add(urlSchemesHelp);
-        urlsPanel.add(mainFields.urlSchemes);
-        mainFields.urlSchemes.setMaximumSize(new Dimension(400, mainFields.urlSchemes.getPreferredSize().height));
-        Box.Filler urlSchemesFiller = new Box.Filler(
-                new Dimension(0, 0),
-                new Dimension(0, 0),
-                new Dimension(100, 1000)
-        );
-        urlSchemesFiller.setOpaque(false);
-        urlsPanel.add(urlSchemesFiller);
-
-        //urlsHelpPanelWrapper.add(urlsPanel, BorderLayout.CENTER);
-        tabs.add("URLs", urlsPanel);
+        
+        urlsPanelWrapper.add(urlsHelpPanel, BorderLayout.NORTH);
+        urlsPanelWrapper.add(urlSchemesPanel.getRoot(), BorderLayout.CENTER);
+        
+        tabs.add("URLs", urlsPanelWrapper);
 
         JPanel cliPanel = new JPanel();
         cliPanel.setOpaque(false);
@@ -1862,6 +1820,11 @@ public class JDeployProjectEditor {
                     }
                 }
                 filetypesPanel.save(jdeploy);
+            }
+            
+            // Save URL schemes panel
+            if (urlSchemesPanel != null) {
+                urlSchemesPanel.save(jdeploy);
             }
 
             FileUtil.writeStringToFile(packageJSON.toString(4), packageJSONFile);
