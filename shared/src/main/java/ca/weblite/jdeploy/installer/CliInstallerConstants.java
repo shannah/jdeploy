@@ -49,4 +49,9 @@ public interface CliInstallerConstants {
      * so it can be properly cleaned up during uninstallation.
      */
     String CLI_EXE_KEY = "cliExe";
+
+    /**
+     * JSON key for boolean flag indicating if Git Bash shell config was updated.
+     */
+    String GIT_BASH_PATH_UPDATED_KEY = "gitBashPathUpdated";
 }

@@ -67,6 +67,9 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             // Update user PATH via registry
             boolean pathUpdated = addToPath(userBinDir);
 
+            // Update Git Bash path if applicable
+            boolean gitBashPathUpdated = addToGitBashPath(userBinDir);
+
             // Determine if the launcher is the CLI variant
             File cliExePath = null;
             if (launcherPath.getName().contains(CliInstallerConstants.CLI_LAUNCHER_SUFFIX)) {
@@ -75,7 +78,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
             // Persist metadata for uninstall in the app directory
             File appDir = launcherPath.getParentFile();
-            persistMetadata(appDir, wrapperFiles, pathUpdated, cliExePath);
+            persistMetadata(appDir, wrapperFiles, pathUpdated, gitBashPathUpdated, cliExePath);
 
         } catch (IOException e) {
             System.err.println("Warning: Failed to install CLI commands: " + e.getMessage());
@@ -124,9 +127,15 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
             // Remove from PATH if it was added
             boolean pathWasUpdated = metadata.optBoolean(CliInstallerConstants.PATH_UPDATED_KEY, false);
+            File userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
             if (pathWasUpdated) {
-                File userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
                 removeFromPath(userBinDir);
+            }
+
+            // Remove from Git Bash path if it was added
+            boolean gitBashPathWasUpdated = metadata.optBoolean(CliInstallerConstants.GIT_BASH_PATH_UPDATED_KEY, false);
+            if (gitBashPathWasUpdated) {
+                removeFromGitBashPath(userBinDir);
             }
 
         } catch (IOException e) {
@@ -256,10 +265,11 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
      * @param appDir the application directory where metadata will be stored
      * @param createdWrappers list of created wrapper files
      * @param pathUpdated whether the PATH was updated
+     * @param gitBashPathUpdated whether the Git Bash path was updated
      * @param cliExePath the CLI launcher executable file, or null if not created
      * @throws IOException if metadata file write fails
      */
-    private void persistMetadata(File appDir, List<File> createdWrappers, boolean pathUpdated, File cliExePath) throws IOException {
+    private void persistMetadata(File appDir, List<File> createdWrappers, boolean pathUpdated, boolean gitBashPathUpdated, File cliExePath) throws IOException {
         JSONObject metadata = new JSONObject();
 
         // Store list of created wrapper file names
@@ -272,6 +282,9 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
         // Store whether PATH was updated
         metadata.put(CliInstallerConstants.PATH_UPDATED_KEY, pathUpdated);
 
+        // Store whether Git Bash path was updated
+        metadata.put(CliInstallerConstants.GIT_BASH_PATH_UPDATED_KEY, gitBashPathUpdated);
+
         // Store CLI exe path if it exists
         if (cliExePath != null) {
             metadata.put(CliInstallerConstants.CLI_EXE_KEY, cliExePath.getName());
@@ -280,6 +293,101 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
         // Write metadata file
         File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
         FileUtils.writeStringToFile(metadataFile, metadata.toString(), "UTF-8");
+    }
+
+    /**
+     * Adds the bin directory to the Git Bash path by modifying .bashrc or .bash_profile.
+     * 
+     * @param binDir the directory to add to the path
+     * @return true if the path was updated, false otherwise
+     */
+    private boolean addToGitBashPath(File binDir) {
+        File homeDir = new File(System.getProperty("user.home"));
+        File configFile = UnixPathManager.selectConfigFile("bash", homeDir);
+        if (configFile == null) {
+            return false;
+        }
+
+        try {
+            if (!configFile.exists()) {
+                if (configFile.getParentFile() != null) {
+                    configFile.getParentFile().mkdirs();
+                }
+                configFile.createNewFile();
+            }
+
+            String content = FileUtils.readFileToString(configFile, "UTF-8");
+            String msysPath = convertToMsysPath(binDir);
+            String exportLine = "export PATH=\"$PATH:" + msysPath + "\"";
+
+            if (content.contains(msysPath)) {
+                return false; // Already in path
+            }
+
+            if (!content.isEmpty() && !content.endsWith("\n")) {
+                content += "\n";
+            }
+            content += exportLine + "\n";
+            FileUtils.writeStringToFile(configFile, content, "UTF-8");
+            return true;
+        } catch (IOException e) {
+            System.err.println("Warning: Failed to update Git Bash config: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Removes the bin directory from Git Bash configuration.
+     * 
+     * @param binDir the directory to remove
+     * @return true if successfully processed
+     */
+    private boolean removeFromGitBashPath(File binDir) {
+        File homeDir = new File(System.getProperty("user.home"));
+        File configFile = UnixPathManager.selectConfigFile("bash", homeDir);
+        if (configFile == null || !configFile.exists()) {
+            return false;
+        }
+
+        try {
+            String content = FileUtils.readFileToString(configFile, "UTF-8");
+            String msysPath = convertToMsysPath(binDir);
+            String exportLine = "export PATH=\"$PATH:" + msysPath + "\"";
+            
+            if (content.contains(exportLine)) {
+                // Remove the line and a trailing newline if it exists
+                // We handle both \n and \r\n to be safe on Windows
+                content = content.replace(exportLine + "\r\n", "");
+                content = content.replace(exportLine + "\n", "");
+                content = content.replace(exportLine, "");
+                FileUtils.writeStringToFile(configFile, content.trim(), "UTF-8");
+                return true;
+            }
+        } catch (IOException e) {
+            System.err.println("Warning: Failed to remove from Git Bash config: " + e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Converts a Windows file path to MSYS2/Git Bash format.
+     * E.g., C:\Users\Name -> /c/Users/Name
+     * 
+     * @param windowsPath the Windows file path
+     * @return the MSYS2 formatted path
+     */
+    protected String convertToMsysPath(File windowsPath) {
+        String path = windowsPath.getAbsolutePath();
+        // Replace backslashes with forward slashes
+        path = path.replace('\\', '/');
+        
+        // Convert "C:/" to "/c/"
+        if (path.length() >= 2 && path.charAt(1) == ':') {
+            char drive = Character.toLowerCase(path.charAt(0));
+            path = "/" + drive + path.substring(2);
+        }
+        
+        return path;
     }
 
     /**
