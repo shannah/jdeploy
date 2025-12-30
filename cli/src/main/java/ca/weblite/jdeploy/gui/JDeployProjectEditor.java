@@ -7,6 +7,7 @@ import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
 import ca.weblite.jdeploy.gui.services.ProjectFileWatcher;
+import ca.weblite.jdeploy.gui.services.PublishingCoordinator;
 import ca.weblite.jdeploy.gui.services.SwingOneTimePasswordProvider;
 import ca.weblite.jdeploy.gui.tabs.BundleFiltersPanel;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
@@ -68,9 +69,6 @@ import java.util.*;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.jar.Attributes;
-import java.util.jar.JarFile;
-import java.util.stream.Collectors;
 
 import static ca.weblite.jdeploy.PathUtil.fromNativePath;
 import static ca.weblite.jdeploy.PathUtil.toNativePath;
@@ -255,6 +253,7 @@ public class JDeployProjectEditor {
         }
         this.packageJSONFile = packageJSONFile;
         this.packageJSON = packageJSON;
+        this.publishingCoordinator = new PublishingCoordinator(packageJSONFile, packageJSON);
         try {
             this.fileWatcher = new ProjectFileWatcher(
                     packageJSONFile.getAbsoluteFile().getParentFile(),
@@ -734,7 +733,10 @@ public class JDeployProjectEditor {
                 return;
             }
             try {
-                validateJar(jarFile);
+                PublishingCoordinator.ValidationResult jarValidation = publishingCoordinator.validateJar(jarFile);
+                if (!jarValidation.isValid()) {
+                    throw new ValidationException(jarValidation.getErrorMessage());
+                }
             } catch (ValidationException ex) {
                 showError(ex.getMessage(), ex);
                 return;
@@ -1244,7 +1246,7 @@ public class JDeployProjectEditor {
         publish.setDefaultCapable(true);
 
         publish.addActionListener(evt->{
-            String publishTargetName = getPublishTargetNames();
+            String publishTargetName = publishingCoordinator.getPublishTargetNames();
             String downloadPageUrl = getDownloadPageUrl();
             int result = JOptionPane.showConfirmDialog(
                     frame,
@@ -1722,22 +1724,9 @@ public class JDeployProjectEditor {
         }
     }
 
-    private void validateJar(File jar) throws ValidationException {
-        try {
-            JarFile jarFile = new JarFile(jar);
-            if(jarFile.getManifest().getMainAttributes().getValue(Attributes.Name.MAIN_CLASS) != null) {
-                return;
-            }
-            throw new ValidationException(
-                    "Selected jar file is not an executable Jar file.  " +
-                            "\nPlease see " + MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/manual/#_appendix_building_executable_jar_file"
-            );
-        } catch (IOException ex) {
-            throw new ValidationException("Failed to load jar file", ex);
-        }
-    }
 
     private boolean publishInProgress = false;
+    private PublishingCoordinator publishingCoordinator;
 
     private void handlePublish() {
         if (publishInProgress) return;
@@ -1823,54 +1812,6 @@ public class JDeployProjectEditor {
         exportIdentityService.exportIdentityToFile(dest[0]);
     }
 
-    private boolean isNpmPublishingEnabled() {
-        try {
-            return DIContext.get(PublishTargetServiceInterface.class)
-                    .getTargetsForProject(
-                            packageJSONFile
-                                    .getAbsoluteFile()
-                                    .getParentFile()
-                                    .getAbsolutePath(),
-                            true
-                    ).stream()
-                    .anyMatch(t -> t.getType() == PublishTargetType.NPM);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private boolean isGitHubPublishingEnabled() {
-        try {
-            return DIContext.get(PublishTargetServiceInterface.class)
-                    .getTargetsForProject(
-                            packageJSONFile
-                                    .getAbsoluteFile()
-                                    .getParentFile()
-                                    .getAbsolutePath(),
-                            true
-                    ).stream()
-                    .anyMatch(t -> t.getType() == PublishTargetType.GITHUB);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private String getPublishTargetNames() {
-        try {
-            return DIContext.get(PublishTargetServiceInterface.class)
-                    .getTargetsForProject(
-                            packageJSONFile
-                                    .getAbsoluteFile()
-                                    .getParentFile()
-                                    .getAbsolutePath(),
-                            true
-                    ).stream()
-                    .map(t -> t.getType().name())
-                    .collect(Collectors.joining(", "));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     private String getDownloadPageUrl() {
         try {
@@ -1902,178 +1843,64 @@ public class JDeployProjectEditor {
     private void handlePublish0() throws ValidationException {
         if (!EventQueue.isDispatchThread()) {
             // We don't prompt on the dispatch thread because promptForNpmToken blocks
-            if (isNpmPublishingEnabled() && !context.promptForNpmToken(frame)) {
+            if (publishingCoordinator.isNpmPublishingEnabled() && !context.promptForNpmToken(frame)) {
                 return;
             }
-            if (isGitHubPublishingEnabled() && !context.promptForGithubToken(frame)) {
+            if (publishingCoordinator.isGitHubPublishingEnabled() && !context.promptForGithubToken(frame)) {
                 return;
             }
+        }
+
+        // Use PublishingCoordinator to validate all preconditions
+        PublishingCoordinator.ValidationResult validationResult = publishingCoordinator.validateForPublishing();
+        if (!validationResult.isValid()) {
+            throw new ValidationException(
+                    validationResult.getErrorMessage(),
+                    validationResult.getErrorType(),
+                    validationResult.getLogFile()
+            );
         }
 
         File absDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
-        String[] requiredFields = new String[]{
-                "name",
-                "author",
-                "description",
-                "version"
-        };
-        for (String field : requiredFields) {
-            if (!packageJSON.has(field) || packageJSON.getString(field).isEmpty()) {
-                throw new ValidationException("The " + field + " field is required for publishing.");
-            }
-        }
-
-        if (!packageJSON.has("jdeploy")) {
-            throw new ValidationException("This package.json is missing the jdeploy object which is required.");
-        }
-        JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
-        if (!jdeploy.has("jar")) {
-            throw new ValidationException("Please select a jar file before publishing.");
-        }
-        File jarFile = new File(absDirectory, toNativePath(jdeploy.getString("jar")));
-        if (!jarFile.getName().endsWith(".jar")) {
-            throw new ValidationException(
-                    "The selected jar file is not a jar file.  Jar files must have the .jar extension"
-            );
-        }
-
-        ProjectBuilderService projectBuilderService = DIContext.get(ProjectBuilderService.class);
-        PackagingPreferencesService packagingPreferencesService = DIContext.get(PackagingPreferencesService.class);
-        PackagingPreferences packagingPreferences = packagingPreferencesService.getPackagingPreferences(packageJSONFile.getAbsolutePath());
+        PackagingPreferences packagingPreferences = publishingCoordinator.getBuildPreferences();
         boolean buildRequired = packagingPreferences.isBuildProjectBeforePackaging();
-        PackagingContext buildContext = PackagingContext.builder()
-                .directory(absDirectory)
-                .exitOnFail(false)
-                .isBuildRequired(buildRequired)
-                .build();
-
-        if (!jarFile.exists()) {
-            // If the jar file doesn't exist, then we need to build the project.
-            if (projectBuilderService.isBuildSupported(buildContext)) {
-                try {
-                    File buildLogFile = File.createTempFile("jdeploy-build-log", ".txt");
-                    final JDialog[] buildProgressDialog = new JDialog[1];
-                    try {
-
-                        EventQueue.invokeLater(() -> {
-                            buildProgressDialog[0] = createProgressDialog(
-                                    "Building Project",
-                                    "Building project.  Please wait..."
-                            );
-                            buildProgressDialog[0].setVisible(true);
-                        });
-                        projectBuilderService.buildProject(buildContext, buildLogFile);
-                        buildRequired = false;
-                    } catch (Exception ex) {
-                        ex.printStackTrace(System.err);
-                        throw new ValidationException(
-                                "Failed to build project before publishing.  See build log at "
-                                        + buildLogFile.getAbsolutePath(),
-                                ex,
-                                buildLogFile
-                        );
-                    } finally {
-                        EventQueue.invokeLater(()-> {
-                            if (buildProgressDialog[0] != null) {
-                                buildProgressDialog[0].setVisible(false);
-                                buildProgressDialog[0].dispose();
-                            }
-                        });
-                    }
-                } catch (IOException ex) {
-                    ex.printStackTrace(System.err);
-                    throw new ValidationException("Failed to create build log file", ex);
-                }
-
-            }
-        }
-        if (!jarFile.exists()) {
-            throw new ValidationException(
-                    "The selected jar file does not exist.  Please check the selected jar file and try again."
-            );
-        }
-        // This validates that the jar file is an executable jar file.
-        validateJar(jarFile);
-
-        // Now let's make sure that this version isn't already published.
-        String rawVersion = packageJSON.getString("version");
-        String version = VersionCleaner.cleanVersion(packageJSON.getString("version"));
-        String packageName = packageJSON.getString("name");
-        String source = packageJSON.has("source") ? packageJSON.getString("source") : "";
-        if (isNpmPublishingEnabled()) {
-            if (getNPM().isVersionPublished(packageName, version, source)) {
-                throw new ValidationException(
-                        "The package " + packageName + " already has a published version " + version + ".  " +
-                                "Please increment the version number and try to publish again."
-                );
-            }
-            if (!getNPM().isLoggedIn()) {
-                throw new ValidationException("You must be logged into NPM in order to publish", NOT_LOGGED_IN);
-            }
-        }
-
-        if (isGitHubPublishingEnabled()) {
-            GitHubPublishDriver gitHubPublishDriver = DIContext.get(GitHubPublishDriver.class);
-            try {
-                PublishTargetInterface githubTarget = DIContext.get(PublishTargetServiceInterface.class)
-                        .getTargetsForProject(absDirectory.getAbsolutePath(), true)
-                        .stream()
-                        .filter(t -> t.getType() == PublishTargetType.GITHUB)
-                        .findFirst()
-                        .orElse(null);
-                if (
-                        gitHubPublishDriver.isVersionPublished(packageName, version, githubTarget)
-                        || gitHubPublishDriver.isVersionPublished(packageName, rawVersion, githubTarget)
-                ) {
-                    throw new ValidationException(
-                            "The package " + packageName + " already has a published version " + version + " on Github.  " +
-                                    "Please increment the version number and try to publish again."
-                    );
-                }
-            } catch (IOException ex) {
-                throw new ValidationException("Failed to load github publish target", ex);
-            }
-        }
-
-        // Let's check to see if we're logged into
-
 
         ProgressDialog progressDialog = new ProgressDialog(packageJSON.getString("name"), getDownloadPageUrl());
 
         PackagingContext packagingContext = PackagingContext.builder()
-                .directory(packageJSONFile.getAbsoluteFile().getParentFile())
+                .directory(absDirectory)
                 .out(new PrintStream(progressDialog.createOutputStream()))
                 .err(new PrintStream(progressDialog.createOutputStream()))
                 .exitOnFail(false)
                 .isBuildRequired(buildRequired)
                 .build();
-        JDeploy jdeployObject = new JDeploy(packageJSONFile.getAbsoluteFile().getParentFile(), false);
+        JDeploy jdeployObject = new JDeploy(absDirectory, false);
         jdeployObject.setOut(packagingContext.out);
         jdeployObject.setErr(packagingContext.err);
         jdeployObject.setNpmToken(context.getNpmToken());
         jdeployObject.setUseManagedNode(context.useManagedNode());
         EventQueue.invokeLater(()->{
             progressDialog.show(frame, "Publishing in Progress...");
-            progressDialog.setMessage1("Publishing "+packageJSON.get("name")+" to " + getPublishTargetNames()+".  Please wait...");
+            progressDialog.setMessage1("Publishing "+packageJSON.get("name")+" to " + publishingCoordinator.getPublishTargetNames()+".  Please wait...");
             progressDialog.setMessage2("");
 
         });
         try {
             handleSave();
-            PublishingContext publishingContext = PublishingContext
-                    .builder()
-                    .setPackagingContext(packagingContext)
-                    .setNPM(jdeployObject.getNPM())
-                    .setGithubToken(context.getGithubToken())
-                    .build();
-            jdeployObject.publish(
-                    publishingContext,
-                    new SwingOneTimePasswordProvider(frame)
+            publishingCoordinator.publish(
+                    packagingContext,
+                    jdeployObject,
+                    new SwingOneTimePasswordProvider(frame),
+                    progress -> {
+                        EventQueue.invokeLater(() -> {
+                            if (progress.isComplete()) {
+                                progressDialog.setComplete();
+                            } else if (progress.isFailed()) {
+                                progressDialog.setFailed();
+                            }
+                        });
+                    }
             );
-            EventQueue.invokeLater(()->{
-                progressDialog.setComplete();
-
-            });
         } catch (Exception ex) {
             packagingContext.err.println("An error occurred during publishing");
             ex.printStackTrace(packagingContext.err);
