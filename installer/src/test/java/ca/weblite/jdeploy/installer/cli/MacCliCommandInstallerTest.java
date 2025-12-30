@@ -35,7 +35,6 @@ public class MacCliCommandInstallerTest {
 
     @BeforeEach
     public void setUp() throws IOException {
-        installer = new MacCliCommandInstaller();
         tempDir = Files.createTempDirectory("jdeploy-mac-test-").toFile();
         launcherDir = new File(tempDir, "app");
         launcherDir.mkdirs();
@@ -48,6 +47,24 @@ public class MacCliCommandInstallerTest {
 
         homeDir = new File(tempDir, "home");
         homeDir.mkdirs();
+        installer = new TestableMacCliCommandInstaller(homeDir);
+    }
+
+    /**
+     * Testable subclass of MacCliCommandInstaller that uses a custom home directory
+     * to prevent polluting real shell profile files during tests.
+     */
+    private static class TestableMacCliCommandInstaller extends MacCliCommandInstaller {
+        private final File customHomeDir;
+
+        TestableMacCliCommandInstaller(File customHomeDir) {
+            this.customHomeDir = customHomeDir;
+        }
+
+        @Override
+        protected File getHomeDir() {
+            return customHomeDir;
+        }
     }
 
     @AfterEach

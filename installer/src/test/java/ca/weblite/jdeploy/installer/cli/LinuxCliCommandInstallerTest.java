@@ -36,7 +36,6 @@ public class LinuxCliCommandInstallerTest {
 
     @BeforeEach
     public void setUp() throws IOException {
-        installer = new LinuxCliCommandInstaller();
         tempDir = Files.createTempDirectory("jdeploy-test-").toFile();
         launcherDir = new File(tempDir, "app");
         launcherDir.mkdirs();
@@ -49,6 +48,24 @@ public class LinuxCliCommandInstallerTest {
 
         homeDir = new File(tempDir, "home");
         homeDir.mkdirs();
+        installer = new TestableLinuxCliCommandInstaller(homeDir);
+    }
+
+    /**
+     * Testable subclass of LinuxCliCommandInstaller that uses a custom home directory
+     * to prevent polluting real shell profile files during tests.
+     */
+    private static class TestableLinuxCliCommandInstaller extends LinuxCliCommandInstaller {
+        private final File customHomeDir;
+
+        TestableLinuxCliCommandInstaller(File customHomeDir) {
+            this.customHomeDir = customHomeDir;
+        }
+
+        @Override
+        protected File getHomeDir() {
+            return customHomeDir;
+        }
     }
 
     @AfterEach
