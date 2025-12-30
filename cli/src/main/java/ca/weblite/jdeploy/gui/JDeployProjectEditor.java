@@ -10,6 +10,7 @@ import ca.weblite.jdeploy.gui.services.ProjectFileWatcher;
 import ca.weblite.jdeploy.gui.services.SwingOneTimePasswordProvider;
 import ca.weblite.jdeploy.gui.tabs.BundleFiltersPanel;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
+import ca.weblite.jdeploy.gui.tabs.CliSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
 import ca.weblite.jdeploy.gui.tabs.FiletypesPanel;
 import ca.weblite.jdeploy.gui.tabs.PermissionsPanel;
@@ -99,6 +100,7 @@ public class JDeployProjectEditor {
     private SplashScreensPanel splashScreensPanel;
     private FiletypesPanel filetypesPanel;
     private UrlSchemesPanel urlSchemesPanel;
+    private CliSettingsPanel cliSettingsPanel;
 
     private NPM npm = null;
 
@@ -660,20 +662,6 @@ public class JDeployProjectEditor {
 
         boolean includeCommandField = true;
         mainFields.command = new JTextField();
-        if (packageJSON.has("bin")) {
-            JSONObject bin = packageJSON.getJSONObject("bin");
-            if (bin.keySet().size() > 1) {
-                includeCommandField = false;
-            } else if (bin.keySet().size() == 1){
-                mainFields.command.setText(bin.keySet().iterator().next());
-            }
-        }
-        addChangeListenerTo(mainFields.command, ()->{
-            JSONObject bin = new JSONObject();
-            bin.put(mainFields.command.getText(), "jdeploy-bundle/jdeploy.js");
-            packageJSON.put("bin", bin);
-            setModified();
-        });
 
         mainFields.verifyHomepageButton = detailsPanel.getVerifyButton();
         mainFields.verifyHomepageButton.setToolTipText("Verify that you own this page");
@@ -1149,31 +1137,11 @@ public class JDeployProjectEditor {
         
         tabs.add("URLs", urlsPanelWrapper);
 
-        JPanel cliPanel = new JPanel();
-        cliPanel.setOpaque(false);
-        cliPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
-        cliPanel.setLayout(new BoxLayout(cliPanel, BoxLayout.Y_AXIS));
-
-        JPanel cliHelpPanel = new JPanel();
-        cliHelpPanel.setOpaque(false);
-        cliHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        cliHelpPanel.add(createHelpButton(
-                JDEPLOY_WEBSITE_URL + "docs/help/#cli",
-                "",
-                "Learn more about this tab in the help guide."
-        ));
-        cliHelpPanel.setMaximumSize(new Dimension(10000, cliHelpPanel.getPreferredSize().height));
-        cliPanel.add(cliHelpPanel);
-        cliPanel.add(new JLabel(
-                "<html>" +
-                        "<p style='width:400px'>" +
-                        "Your app will also be installable and runnable as a command-line app using npm/npx.  " +
-                        "See the CLI tutorialfor more details" +
-                        "</p>" +
-                        "</html>"
-        ));
-        JButton viewCLITutorial = new JButton("Open CLI Tutorial");
-        viewCLITutorial.addActionListener(evt->{
+        // CLI settings panel
+        cliSettingsPanel = new CliSettingsPanel();
+        cliSettingsPanel.load(jdeploy);
+        cliSettingsPanel.addChangeListener(evt -> setModified());
+        cliSettingsPanel.getTutorialButton().addActionListener(evt -> {
             try {
                 context.browse(new URI(JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/"));
             } catch (Exception ex) {
@@ -1193,22 +1161,8 @@ public class JDeployProjectEditor {
                         JOptionPane.ERROR_MESSAGE);
             }
         });
-        viewCLITutorial.setMaximumSize(viewCLITutorial.getPreferredSize());
-        cliPanel.add(Box.createVerticalStrut(10));
-        cliPanel.add(viewCLITutorial);
-        cliPanel.add(Box.createVerticalStrut(10));
-        cliPanel.add(new JLabel("" +
-                "<html>" +
-                "<p style='width:400px'>" +
-                "The following field allows you to specify the command name for your app.  " +
-                "Users will launch your app by entering this name in the command-line. " +
-                "</p>" +
-                "</html>"));
-        cliPanel.add(mainFields.command);
-        mainFields.command.setMaximumSize(new Dimension(1000, mainFields.command.getPreferredSize().height));
-        //cliPanel.add(Box.createVerticalGlue());
-        cliPanel.add(new Box.Filler(new Dimension(0, 0), new Dimension(0, 0), new Dimension(10, 1000)));
-        tabs.add("CLI", cliPanel);
+
+        tabs.add("CLI", cliSettingsPanel.getRoot());
 
 
         JPanel runargsPanel = new JPanel();
@@ -1825,6 +1779,11 @@ public class JDeployProjectEditor {
             // Save URL schemes panel
             if (urlSchemesPanel != null) {
                 urlSchemesPanel.save(jdeploy);
+            }
+
+            // Save CLI settings panel
+            if (cliSettingsPanel != null) {
+                cliSettingsPanel.save(jdeploy);
             }
 
             FileUtil.writeStringToFile(packageJSON.toString(4), packageJSONFile);
