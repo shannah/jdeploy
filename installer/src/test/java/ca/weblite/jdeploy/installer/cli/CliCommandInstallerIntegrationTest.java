@@ -251,7 +251,7 @@ public class CliCommandInstallerIntegrationTest {
             }
 
             // Read metadata file
-            File metadataFile = new File(appDir, ".jdeploy-cli-metadata.json");
+            File metadataFile = new File(appDir, ca.weblite.jdeploy.installer.CliInstallerConstants.CLI_METADATA_FILE);
             if (!metadataFile.exists()) {
                 return;
             }
@@ -261,7 +261,7 @@ public class CliCommandInstallerIntegrationTest {
                 JSONObject metadata = new JSONObject(metadataContent);
 
                 // Clean up wrapper files
-                JSONArray wrappersArray = metadata.optJSONArray("createdWrappers");
+                JSONArray wrappersArray = metadata.optJSONArray(ca.weblite.jdeploy.installer.CliInstallerConstants.CREATED_WRAPPERS_KEY);
                 if (wrappersArray != null) {
                     for (int i = 0; i < wrappersArray.length(); i++) {
                         String wrapperName = wrappersArray.getString(i);
@@ -269,13 +269,30 @@ public class CliCommandInstallerIntegrationTest {
                         if (wrapperFile.exists() && !wrapperFile.delete()) {
                             System.err.println("Warning: Failed to delete wrapper file: " + wrapperFile.getAbsolutePath());
                         }
+
+                        // Also attempt to delete the extensionless version (for Git Bash)
+                        String shWrapperName = wrapperName.endsWith(".cmd")
+                                ? wrapperName.substring(0, wrapperName.length() - 4)
+                                : wrapperName;
+
+                        File shWrapperFile = new File(customBinDir, shWrapperName);
+                        if (shWrapperFile.exists() && !shWrapperFile.delete()) {
+                            System.err.println("Warning: Failed to delete shell wrapper file: " + shWrapperFile.getAbsolutePath());
+                        }
                     }
                 }
 
                 // Remove from PATH if it was added
-                boolean pathWasUpdated = metadata.optBoolean("pathUpdated", false);
-                if (pathWasUpdated) {
+                if (metadata.optBoolean(ca.weblite.jdeploy.installer.CliInstallerConstants.PATH_UPDATED_KEY, false)) {
                     removeFromUserPath(customBinDir);
+                }
+
+                // Remove from Git Bash path if it was added
+                if (metadata.optBoolean(ca.weblite.jdeploy.installer.CliInstallerConstants.GIT_BASH_PATH_UPDATED_KEY, false)) {
+                    // Logic for removal in test (reflects WindowsCliCommandInstaller.removeFromGitBashPath)
+                    java.lang.reflect.Method removeMethod = WindowsCliCommandInstaller.class.getDeclaredMethod("removeFromGitBashPath", File.class);
+                    removeMethod.setAccessible(true);
+                    removeMethod.invoke(this, customBinDir);
                 }
 
                 // Delete metadata file
@@ -283,7 +300,7 @@ public class CliCommandInstallerIntegrationTest {
                     System.err.println("Warning: Failed to delete metadata file: " + metadataFile.getAbsolutePath());
                 }
 
-            } catch (IOException e) {
+            } catch (Exception e) {
                 System.err.println("Warning: Failed to uninstall CLI commands: " + e.getMessage());
             }
         }
@@ -321,15 +338,109 @@ public class CliCommandInstallerIntegrationTest {
             for (File wrapper : createdWrappers) {
                 wrappersArray.put(wrapper.getName());
             }
-            metadata.put("createdWrappers", wrappersArray);
+            metadata.put(ca.weblite.jdeploy.installer.CliInstallerConstants.CREATED_WRAPPERS_KEY, wrappersArray);
 
             // Store whether PATH was updated
-            metadata.put("pathUpdated", pathUpdated);
+            metadata.put(ca.weblite.jdeploy.installer.CliInstallerConstants.PATH_UPDATED_KEY, pathUpdated);
 
             // Write metadata file
-            File metadataFile = new File(appDir, ".jdeploy-cli-metadata.json");
+            File metadataFile = new File(appDir, ca.weblite.jdeploy.installer.CliInstallerConstants.CLI_METADATA_FILE);
             FileUtils.writeStringToFile(metadataFile, metadata.toString(), "UTF-8");
         }
+
+        @Override
+        public String convertToMsysPath(File windowsPath) {
+            return super.convertToMsysPath(windowsPath);
+        }
+    }
+
+    @Test
+    @DisabledOnOs({OS.MAC, OS.LINUX})
+    public void testConvertToMsysPath() {
+        WindowsCliCommandInstaller winInstaller = new WindowsCliCommandInstaller();
+        
+        assertEquals("/c/Users/Test", winInstaller.convertToMsysPath(new File("C:\\Users\\Test")));
+        assertEquals("/d/Program Files/App", winInstaller.convertToMsysPath(new File("D:\\Program Files\\App")));
+        assertEquals("/z/some/path", winInstaller.convertToMsysPath(new File("Z:/some/path")));
+    }
+
+    @Test
+    @DisabledOnOs({OS.MAC, OS.LINUX})
+    public void testWindowsGitBashPathIntegration() throws Exception {
+        // Arrange
+        File mockHome = tempDir.resolve("mock-home").toFile();
+        mockHome.mkdirs();
+        System.setProperty("user.home", mockHome.getAbsolutePath());
+        
+        File customBinDir = tempDir.resolve("gitbash-bin").toFile();
+        customBinDir.mkdirs();
+        
+        TestableWindowsCliCommandInstaller windowsInstaller = 
+                new TestableWindowsCliCommandInstaller(customBinDir, new InMemoryRegistryOperations());
+        
+        // Act - Add to Git Bash path
+        boolean added = windowsInstaller.addToPath(customBinDir); // In implementation this calls addToGitBashPath in installCommands flow
+        // For testing we call the protected/private logic via helper or direct if visible
+        // Since we want to test the specific Git Bash logic:
+        java.lang.reflect.Method addMethod = WindowsCliCommandInstaller.class.getDeclaredMethod("addToGitBashPath", File.class);
+        addMethod.setAccessible(true);
+        boolean result = (boolean) addMethod.invoke(windowsInstaller, customBinDir);
+        
+        // Assert
+        assertTrue(result, "Should return true when adding new path to .bashrc");
+        File bashrc = new File(mockHome, ".bashrc");
+        assertTrue(bashrc.exists(), ".bashrc should be created");
+        String content = FileUtils.readFileToString(bashrc, "UTF-8");
+        String expectedPath = windowsInstaller.convertToMsysPath(customBinDir);
+        assertTrue(content.contains("export PATH=\"$PATH:" + expectedPath + "\""), "Content should contain export line");
+        
+        // Act - Remove
+        java.lang.reflect.Method removeMethod = WindowsCliCommandInstaller.class.getDeclaredMethod("removeFromGitBashPath", File.class);
+        removeMethod.setAccessible(true);
+        boolean removed = (boolean) removeMethod.invoke(windowsInstaller, customBinDir);
+        
+        // Assert
+        assertTrue(removed, "Should return true when removing existing path");
+        content = FileUtils.readFileToString(bashrc, "UTF-8");
+        assertFalse(content.contains(expectedPath), "Content should no longer contain the path");
+    }
+
+    @Test
+    @DisabledOnOs({OS.MAC, OS.LINUX})
+    public void testWindowsCreatesBothCmdAndShellScripts() throws Exception {
+        // Arrange
+        InMemoryRegistryOperations registryOps = new InMemoryRegistryOperations();
+        File customBinDir = tempDir.resolve("dual-scripts-bin").toFile();
+        customBinDir.mkdirs();
+        TestableWindowsCliCommandInstaller windowsInstaller = 
+                new TestableWindowsCliCommandInstaller(customBinDir, registryOps);
+        
+        List<CommandSpec> commands = Arrays.asList(new CommandSpec("testapp", Arrays.asList()));
+        InstallationSettings settings = new InstallationSettings();
+        
+        // Act
+        windowsInstaller.installCommands(launcherPath, commands, settings);
+        
+        // Assert
+        File cmdFile = new File(customBinDir, "testapp.cmd");
+        File shFile = new File(customBinDir, "testapp");
+        
+        assertTrue(cmdFile.exists(), ".cmd wrapper should exist");
+        assertTrue(shFile.exists(), "Extensionless shell script should exist");
+        
+        String cmdContent = FileUtils.readFileToString(cmdFile, "UTF-8");
+        assertTrue(cmdContent.contains("@echo off"), "CMD should have batch header");
+        
+        String shContent = FileUtils.readFileToString(shFile, "UTF-8");
+        assertTrue(shContent.startsWith("#!/bin/sh"), "Shell script should have shebang");
+        assertTrue(shContent.contains(windowsInstaller.convertToMsysPath(launcherPath)), "Shell script should use MSYS path");
+
+        // Act - Uninstall
+        windowsInstaller.uninstallCommands(launcherDir);
+        
+        // Assert
+        assertFalse(cmdFile.exists(), ".cmd should be deleted");
+        assertFalse(shFile.exists(), "Shell script should be deleted");
     }
 
     @Test
@@ -378,13 +489,13 @@ public class CliCommandInstallerIntegrationTest {
             "Registry PATH should contain the bin directory");
 
         // Verify metadata file created and contains correct data
-        File metadataFile = new File(launcherDir, ".jdeploy-cli-metadata.json");
+        File metadataFile = new File(launcherDir, ca.weblite.jdeploy.installer.CliInstallerConstants.CLI_METADATA_FILE);
         assertTrue(metadataFile.exists(), "Metadata file should be created");
         
         String metadataContent = FileUtils.readFileToString(metadataFile, "UTF-8");
         JSONObject metadata = new JSONObject(metadataContent);
         
-        JSONArray wrappersArray = metadata.getJSONArray("createdWrappers");
+        JSONArray wrappersArray = metadata.getJSONArray(ca.weblite.jdeploy.installer.CliInstallerConstants.CREATED_WRAPPERS_KEY);
         assertEquals(commands.size(), wrappersArray.length(), 
             "Metadata should list all created wrappers");
         
@@ -393,7 +504,7 @@ public class CliCommandInstallerIntegrationTest {
             assertTrue(wrapperName.endsWith(".cmd"), "Wrapper names should have .cmd extension");
         }
         
-        assertTrue(metadata.getBoolean("pathUpdated"), 
+        assertTrue(metadata.getBoolean(ca.weblite.jdeploy.installer.CliInstallerConstants.PATH_UPDATED_KEY), 
             "Metadata should indicate PATH was updated");
 
         // Act - Uninstall commands
