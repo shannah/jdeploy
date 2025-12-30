@@ -200,11 +200,12 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
         for (CommandSpec cs : commands) {
             String name = cs.getName();
-            File wrapper = new File(binDir, name + ".cmd");
+            File cmdWrapper = new File(binDir, name + ".cmd");
+            File shWrapper = new File(binDir, name);
 
-            // Check for collision with existing wrapper
-            if (wrapper.exists()) {
-                String existingLauncherPath = extractLauncherPathFromCmdFile(wrapper);
+            // Check for collision with existing wrapper (check .cmd as the primary indicator)
+            if (cmdWrapper.exists()) {
+                String existingLauncherPath = extractLauncherPathFromCmdFile(cmdWrapper);
                 
                 if (existingLauncherPath != null && !existingLauncherPath.equals(launcherPath.getAbsolutePath())) {
                     // Different app owns this command - invoke collision handler
@@ -222,16 +223,30 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                     System.out.println("Overwriting command '" + name + "' from another app");
                 }
                 // Same app or couldn't parse - silently overwrite
-                wrapper.delete();
+                cmdWrapper.delete();
+            }
+            if (shWrapper.exists()) {
+                shWrapper.delete();
             }
 
-            // Windows batch wrapper: invoke the launcher with --jdeploy:command=<name> and forward all args
-            String content = "@echo off\r\n\"" + launcherPath.getAbsolutePath() + "\" " + 
+            // 1. Windows batch wrapper (.cmd): invoke the launcher with --jdeploy:command=<name> and forward all args
+            // We use \r\n for Windows batch files
+            String cmdContent = "@echo off\r\n\"" + launcherPath.getAbsolutePath() + "\" " + 
                            CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX + name + " -- %*\r\n";
 
-            FileUtils.writeStringToFile(wrapper, content, "UTF-8");
-            wrapper.setExecutable(true, false);
-            created.add(wrapper);
+            FileUtils.writeStringToFile(cmdWrapper, cmdContent, "UTF-8");
+            cmdWrapper.setExecutable(true, false);
+            created.add(cmdWrapper);
+
+            // 2. Extensionless shell script for Git Bash / MSYS2
+            // We use \n for shell scripts
+            String msysLauncherPath = convertToMsysPath(launcherPath);
+            String shContent = "#!/bin/sh\n\"" + msysLauncherPath + "\" " + 
+                             CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX + name + " -- \"$@\"\n";
+            
+            FileUtils.writeStringToFile(shWrapper, shContent, "UTF-8");
+            shWrapper.setExecutable(true, false);
+            created.add(shWrapper);
         }
 
         return created;
