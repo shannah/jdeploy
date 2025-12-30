@@ -71,6 +71,17 @@ public class InstallWindows {
         try {
             FileUtil.copy(tmpExePath, exePath);
             exePath.setExecutable(true, false);
+            
+            // Copy CLI launcher if CLI commands will be installed
+            if (installationSettings.isInstallCliCommands()) {
+                File cliExePath = findTmpCliExeFile(tmpBundles);
+                if (cliExePath != null) {
+                    File targetCliExePath = new File(exePath.getParentFile(), 
+                        exePath.getName().replace(".exe", CliInstallerConstants.CLI_LAUNCHER_SUFFIX + ".exe"));
+                    FileUtil.copy(cliExePath, targetCliExePath);
+                    targetCliExePath.setExecutable(true, false);
+                }
+            }
         } catch (IOException e) {
             String logPath = System.getProperty("user.home") + "\\.jdeploy\\log\\jdeploy-installer.log";
             String technicalMessage = "Failed to copy application executable to " + exePath.getAbsolutePath() + ": " + e.getMessage();
@@ -313,6 +324,21 @@ public class InstallWindows {
         }
 
         return tmpExePath;
+    }
+
+    private File findTmpCliExeFile(File tmpBundles) {
+        File windowsDir = new File(tmpBundles, "windows" + getBundlesDirExtension());
+        File[] exeFiles = windowsDir.listFiles();
+        if (exeFiles == null) {
+            return null;
+        }
+        for (File exeCandidate : exeFiles) {
+            if (exeCandidate.getName().contains(CliInstallerConstants.CLI_LAUNCHER_SUFFIX) 
+                    && exeCandidate.getName().endsWith(".exe")) {
+                return exeCandidate;
+            }
+        }
+        return null;
     }
 
     private String getBundlesDirExtension() {
