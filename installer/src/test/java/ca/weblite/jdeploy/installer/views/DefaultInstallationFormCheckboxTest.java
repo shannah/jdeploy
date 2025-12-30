@@ -18,8 +18,9 @@ import java.lang.reflect.Field;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for DefaultInstallationForm checkbox independence.
- * Verifies that installCliCommands and installCliLauncher flags are controlled independently.
+ * Unit tests for DefaultInstallationForm checkbox behavior.
+ * Verifies that on Linux, the cliCommandsCheckBox controls both installCliCommands
+ * and installCliLauncher flags to reduce UI clutter.
  */
 public class DefaultInstallationFormCheckboxTest {
 
@@ -52,21 +53,21 @@ public class DefaultInstallationFormCheckboxTest {
     }
 
     @Test
-    public void testCliCommandsCheckboxOnlyAffectsInstallCliCommands() {
+    public void testCliCommandsCheckboxAffectsBothFlagsOnLinux() {
         // Set initial state
         settings.setInstallCliCommands(false);
-        settings.setInstallCliLauncher(true);
+        settings.setInstallCliLauncher(false);
 
         // Simulate checking the CLI commands checkbox
         triggerCliCommandsCheckbox(true);
 
-        // Verify only installCliCommands changed
+        // Verify both flags changed because we are simulating Linux with a command line path
         assertTrue(settings.isInstallCliCommands(), "installCliCommands should be true");
-        assertTrue(settings.isInstallCliLauncher(), "installCliLauncher should remain true (independent)");
+        assertTrue(settings.isInstallCliLauncher(), "installCliLauncher should be true (coupled on Linux)");
     }
 
     @Test
-    public void testCliCommandsCheckboxUncheckedOnlyAffectsInstallCliCommands() {
+    public void testCliCommandsCheckboxUncheckedAffectsBothFlagsOnLinux() {
         // Set initial state
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(true);
@@ -74,32 +75,30 @@ public class DefaultInstallationFormCheckboxTest {
         // Simulate unchecking the CLI commands checkbox
         triggerCliCommandsCheckbox(false);
 
-        // Verify only installCliCommands changed
+        // Verify both flags changed
         assertFalse(settings.isInstallCliCommands(), "installCliCommands should be false");
-        assertTrue(settings.isInstallCliLauncher(), "installCliLauncher should remain true (independent)");
+        assertFalse(settings.isInstallCliLauncher(), "installCliLauncher should be false (coupled on Linux)");
     }
 
     @Test
-    public void testCliCommandsAndCliLauncherAreIndependent() {
-        // Test all combinations
+    public void testCliCommandsCheckboxControlsBothFlagsOnLinux() {
+        // Test combinations to ensure coupling
         testCombination(true, true);
-        testCombination(true, false);
-        testCombination(false, true);
         testCombination(false, false);
     }
 
-    private void testCombination(boolean cliCommands, boolean cliLauncher) {
-        settings.setInstallCliCommands(cliCommands);
-        settings.setInstallCliLauncher(cliLauncher);
+    private void testCombination(boolean initialCommands, boolean initialLauncher) {
+        settings.setInstallCliCommands(initialCommands);
+        settings.setInstallCliLauncher(initialLauncher);
 
-        // Toggle CLI commands and verify only that flag changes
-        boolean newCmdValue = !cliCommands;
+        // Toggle CLI commands and verify both flags change together
+        boolean newCmdValue = !initialCommands;
         triggerCliCommandsCheckbox(newCmdValue);
 
         assertEquals(newCmdValue, settings.isInstallCliCommands(),
             "installCliCommands should toggle");
-        assertEquals(cliLauncher, settings.isInstallCliLauncher(),
-            "installCliLauncher should remain unchanged");
+        assertEquals(newCmdValue, settings.isInstallCliLauncher(),
+            "installCliLauncher should toggle with cli commands on Linux");
     }
 
     /**
