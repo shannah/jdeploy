@@ -19,8 +19,6 @@ import ca.weblite.jdeploy.gui.tabs.RuntimeArgsPanel;
 import ca.weblite.jdeploy.gui.tabs.SplashScreensPanel;
 import ca.weblite.jdeploy.gui.tabs.UrlSchemesPanel;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
-import ca.weblite.jdeploy.ideInterop.IdeInteropInterface;
-import ca.weblite.jdeploy.ideInterop.IdeInteropService;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
@@ -78,7 +76,6 @@ import static ca.weblite.jdeploy.PathUtil.fromNativePath;
 import static ca.weblite.jdeploy.PathUtil.toNativePath;
 
 public class JDeployProjectEditor {
-    public static final String JDEPLOY_WEBSITE_URL = System.getProperty("jdeploy.website.url", "https://www.jdeploy.com/");
     private boolean modified;
     private JSONObject packageJSON;
     private File packageJSONFile;
@@ -91,9 +88,7 @@ public class JDeployProjectEditor {
 
     private JDeployProjectEditorContext context = new JDeployProjectEditorContext();
 
-    private JMenuItem generateGithubWorkflowMenuItem;
-    private JMenuItem editGithubWorkflowMenuItem;
-    
+    private MenuBarBuilder menuBarBuilder;
     private DownloadPageSettingsPanel downloadPageSettingsPanel;
     private PermissionsPanel permissionsPanel;
     private BundleFiltersPanel bundleFiltersPanel;
@@ -872,12 +867,14 @@ public class JDeployProjectEditor {
         JPanel cheerpjSettingsRoot = null;
         if (context.shouldDisplayCheerpJPanel()) {
             CheerpJSettings cheerpJSettings = new CheerpJSettings();
-            cheerpJSettings.getButtons().add(
-                    createHelpButton(
-                            JDEPLOY_WEBSITE_URL + "docs/help/#cheerpj",
-                            "",
-                            "Learn more about CheerpJ support")
-            );
+                cheerpJSettings.getButtons().add(
+                        MenuBarBuilder.createHelpButton(
+                                MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#cheerpj",
+                                "",
+                                "Learn more about CheerpJ support",
+                                context,
+                                frame)
+                );
             cheerpjSettingsRoot = cheerpJSettings.getRoot();
             cheerpJSettings.getEnableCheerpJ().setSelected(
                     jdeploy.has("cheerpj")
@@ -1056,10 +1053,12 @@ public class JDeployProjectEditor {
         JPanel helpPanel = new JPanel();
         helpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
         helpPanel.add(
-                createHelpButton(
-                        JDEPLOY_WEBSITE_URL + "docs/help/#_the_details_tab",
+                MenuBarBuilder.createHelpButton(
+                        MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#_the_details_tab",
                         "",
-                        "Learn about what these fields do."
+                        "Learn about what these fields do.",
+                        context,
+                        frame
                 )
         );
         detailWrapper.add(helpPanel, BorderLayout.NORTH);
@@ -1078,10 +1077,12 @@ public class JDeployProjectEditor {
         splashScreensHelpPanel.setOpaque(false);
         splashScreensHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
         splashScreensHelpPanel.add(
-                createHelpButton(
-                        JDEPLOY_WEBSITE_URL + "docs/help/#splashscreens",
+                MenuBarBuilder.createHelpButton(
+                        MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#splashscreens",
                         "",
-                        "Learn more about this panel, and how splash screen images are used in jDeploy."
+                        "Learn more about this panel, and how splash screen images are used in jDeploy.",
+                        context,
+                        frame
                 )
         );
         
@@ -1099,10 +1100,12 @@ public class JDeployProjectEditor {
         urlsHelpPanel.setOpaque(false);
         urlsHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
         urlsHelpPanel.add(
-                createHelpButton(
-                        JDEPLOY_WEBSITE_URL + "docs/help/#_the_urls_tab",
+                MenuBarBuilder.createHelpButton(
+                        MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#_the_urls_tab",
                         "",
-                        "Learn more about custom URL schemes in jDeploy"
+                        "Learn more about custom URL schemes in jDeploy",
+                        context,
+                        frame
                 )
         );
         
@@ -1117,7 +1120,7 @@ public class JDeployProjectEditor {
         cliSettingsPanel.addChangeListener(evt -> setModified());
         cliSettingsPanel.getTutorialButton().addActionListener(evt -> {
             try {
-                context.browse(new URI(JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/"));
+                context.browse(new URI(MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/"));
             } catch (Exception ex) {
                 System.err.println("Failed to open cli tutorial.");
                 ex.printStackTrace(System.err);
@@ -1126,7 +1129,7 @@ public class JDeployProjectEditor {
                                 "<html>" +
                                         "<p style='width:400px'>" +
                                         "Failed to open the CLI tutorial.  " +
-                                        "Try opening " + JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/ " +
+                                        "Try opening " + MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/ " +
                                         "manually in your browser." +
                                         "</p>" +
                                         "</html>"
@@ -1151,10 +1154,12 @@ public class JDeployProjectEditor {
         runtimeArgsHelpPanel.setOpaque(false);
         runtimeArgsHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
         runtimeArgsHelpPanel.add(
-                createHelpButton(
-                        JDEPLOY_WEBSITE_URL + "docs/help/#runargs",
+                MenuBarBuilder.createHelpButton(
+                        MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#runargs",
                         "",
-                        "Open run arguments help in web browser"
+                        "Open run arguments help in web browser",
+                        context,
+                        frame
                 )
         );
 
@@ -1225,7 +1230,7 @@ public class JDeployProjectEditor {
             try {
                 context.browse(new URI(getDownloadPageUrl()));
             } catch (Exception ex) {
-                showError("Failed to open download page.  "+ex.getMessage(), ex);
+                showError("Failed to open download page.  " + ex.getMessage(), ex);
             }
         });
 
@@ -1244,7 +1249,7 @@ public class JDeployProjectEditor {
             int result = JOptionPane.showConfirmDialog(
                     frame,
                     new JLabel("<html><p style='width:400px'>Are you sure you want to publish your app to " + publishTargetName + "?  " +
-                    "Once published, users will be able to download your app at " +
+                            "Once published, users will be able to download your app at " +
                             "<a href='" + downloadPageUrl + "'>" +
                             downloadPageUrl +
                             "</a>." +
@@ -1426,150 +1431,49 @@ public class JDeployProjectEditor {
 
 
     private void initMenu() {
-        JMenuBar jmb = new JMenuBar();
-        JMenu file = new JMenu("File");
+        menuBarBuilder = new MenuBarBuilder(
+                frame,
+                packageJSONFile,
+                context,
+                new MenuBarBuilder.MenuBarCallbacks() {
+                    @Override
+                    public void onSave() {
+                        handleSave();
+                    }
 
-        JMenuItem save = new JMenuItem("Save");
-        save.setAccelerator(KeyStroke.getKeyStroke('S', Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
-        save.addActionListener(evt-> handleSave());
-        file.add(save);
+                    @Override
+                    public void onOpenInTextEditor() {
+                        handleOpenInTextEditor();
+                    }
 
-        JMenuItem openInTextEditor = new JMenuItem("Open with Text Editor");
-        openInTextEditor.setToolTipText("Open the package.json file for editing in your system text editor");
+                    @Override
+                    public void onGenerateGithubWorkflow() {
+                        generateGithubWorkflow();
+                    }
 
-        openInTextEditor.addActionListener(evt-> handleOpenInTextEditor());
+                    @Override
+                    public void onEditGithubWorkflow() {
+                        editGithubWorkflow();
+                    }
 
-        JMenuItem openProjectDirectory = new JMenuItem("Open Project Directory");
-        openProjectDirectory.setToolTipText("Open the project directory in your system file manager");
-        openProjectDirectory.addActionListener(evt->{
-            if (context.getDesktopInterop().isDesktopSupported()) {
-                try {
-                    context.getDesktopInterop().openDirectory(packageJSONFile.getParentFile());
-                } catch (Exception ex) {
-                    showError("Failed to open project directory in file manager", ex);
+                    @Override
+                    public void onVerifyHomepage() {
+                        handleVerifyHomepage();
+                    }
+
+                    @Override
+                    public void onSetupClaude() {
+                        handleSetupClaude();
+                    }
+
+                    @Override
+                    public void onClose() {
+                        handleClosing();
+                    }
                 }
-            } else {
-                showError("That feature isn't supported on this platform.", null);
-            }
-        });
-
-        JMenu openInIde = new JMenu("Open in IDE");
-        IdeInteropService ideInteropService = DIContext.get(IdeInteropService.class);
-        openInIde.setToolTipText("Open the project directory in your IDE");
-        try {
-            for (IdeInteropInterface ideInterop : ideInteropService.findAll()) {
-                try {
-                    JMenuItem ideMenuItem = new JMenuItem(ideInterop.getName());
-                    ideMenuItem.setToolTipText("Open the project directory in " + ideInterop.getPath());
-                    ideMenuItem.addActionListener(evt -> {
-                        SwingWorker worker = new SwingWorker() {
-                            @Override
-                            protected Object doInBackground() throws Exception {
-                                try {
-                                    ideInterop.openProject(packageJSONFile.getParentFile().getAbsolutePath());
-                                } catch (Exception ex) {
-                                    showError("Failed to open project directory in " + ideInterop.getName(), ex);
-                                }
-                                return null;
-                            }
-                        };
-
-                        worker.execute();
-                    });
-                    openInIde.add(ideMenuItem);
-                } catch (Exception ex) {
-                    System.err.println("Failed to create menu item for IDE: " + ideInterop.getName());
-                    ex.printStackTrace(System.err);
-                }
-            }
-        } catch (Exception ideInteropException) {
-            ideInteropException.printStackTrace();
-        }
-
-        file.addSeparator();
-        file.add(openInTextEditor);
-        file.add(openProjectDirectory);
-        file.add(openInIde);
-
-        generateGithubWorkflowMenuItem = new JMenuItem("Create Github Workflow");
-        generateGithubWorkflowMenuItem.setToolTipText(
-                "Generate a Github workflow to deploy your application automatically with Github Actions"
         );
-        generateGithubWorkflowMenuItem.addActionListener(evt -> generateGithubWorkflow());
 
-        editGithubWorkflowMenuItem = new JMenuItem("Edit Github Workflow");
-        editGithubWorkflowMenuItem.setToolTipText("Edit the Github workflow file in a text editor");
-        editGithubWorkflowMenuItem.addActionListener(evt -> editGithubWorkflow());
-        file.addSeparator();
-        file.add(generateGithubWorkflowMenuItem);
-        file.add(editGithubWorkflowMenuItem);
-
-        JMenuItem verifyHomepage = new JMenuItem("Verify Homepage");
-        verifyHomepage.setToolTipText(
-                "Verify your app's homepage so that users will know that you are the developer of your app"
-        );
-        verifyHomepage.addActionListener(evt->{
-            handleVerifyHomepage();
-        });
-        
-        JMenuItem setupClaude = new JMenuItem("Setup Claude AI Assistant");
-        setupClaude.setToolTipText(
-                "Setup Claude AI assistant for this project by adding jDeploy-specific instructions to CLAUDE.md"
-        );
-        setupClaude.addActionListener(evt->{
-            handleSetupClaude();
-        });
-        
-        file.addSeparator();
-        file.add(verifyHomepage);
-        file.add(setupClaude);
-
-        if (context.shouldDisplayExitMenu()) {
-            file.addSeparator();
-            JMenuItem quit = new JMenuItem("Exit");
-            quit.setAccelerator(
-                    KeyStroke.getKeyStroke('Q', Toolkit.getDefaultToolkit().getMenuShortcutKeyMask())
-            );
-            quit.addActionListener(evt -> handleClosing());
-            file.add(quit);
-        }
-
-        JMenu help = new JMenu("Help");
-        JMenuItem jdeployHelp = createLinkItem(
-                JDEPLOY_WEBSITE_URL + "docs/help",
-                "jDeploy Help", "Open jDeploy application help in your web browser"
-        );
-        help.add(jdeployHelp);
-
-        help.addSeparator();
-        help.add(createLinkItem(
-                JDEPLOY_WEBSITE_URL,
-                "jDeploy Website",
-                "Open the jDeploy website in your web browser."
-        ));
-        help.add(createLinkItem(
-                JDEPLOY_WEBSITE_URL + "docs/manual",
-                "jDeploy Developers Guide",
-                "Open the jDeploy developers guide in your web browser."
-        ));
-        help.addSeparator();
-        help.add(createLinkItem(
-                "https://groups.google.com/g/jdeploy-developers",
-                "jDeploy Developers Mailing List",
-                "A mailing list for developers who are developing apps with jDeploy"
-        ));
-        help.add(createLinkItem(
-                "https://github.com/shannah/jdeploy/discussions",
-                "Support Forum",
-                "A place to ask questions and get help from the community"));
-        help.add(createLinkItem(
-                "https://github.com/shannah/jdeploy/issues",
-                "Issue Tracker",
-                "Find and report bugs"
-        ));
-
-        jmb.add(file);
-        jmb.add(help);
+        JMenuBar jmb = menuBarBuilder.build();
         if (context.shouldDisplayMenuBar()) {
             frame.setJMenuBar(jmb);
         }
@@ -1641,42 +1545,6 @@ public class JDeployProjectEditor {
         );
     }
 
-    private JButton createHelpButton(String url, String label, String tooltipText) {
-        JButton btn = new JButton(FontIcon.of(Material.HELP));
-        btn.setText(label);
-        btn.setToolTipText(tooltipText);
-        btn.addActionListener(evt->{
-            if (context.getDesktopInterop().isDesktopSupported()) {
-                try {
-                    context.browse(new URI(url));
-                } catch (Exception ex) {
-                    showError("Failed to open web browser to "+url, ex);
-                }
-            } else {
-                showError("Attempt to open web browser failed.  Not supported on this platform", null);
-            }
-        });
-        btn.setMaximumSize(new Dimension(btn.getPreferredSize()));
-        return btn;
-    }
-
-    private JMenuItem createLinkItem(String url, String label, String tooltipText) {
-        JMenuItem btn = new JMenuItem();
-        btn.setText(label);
-        btn.setToolTipText(tooltipText);
-        btn.addActionListener(evt->{
-            if (context.getDesktopInterop().isDesktopSupported()) {
-                try {
-                    context.browse(new URI(url));
-                } catch (Exception ex) {
-                    showError("Failed to open web browser to "+url, ex);
-                }
-            } else {
-                showError("Attempt to open web browser failed.  Not supported on this platform", null);
-            }
-        });
-        return btn;
-    }
 
     private void handleOpenInTextEditor() {
         if (context.getDesktopInterop().isDesktopSupported()) {
@@ -1862,7 +1730,7 @@ public class JDeployProjectEditor {
             }
             throw new ValidationException(
                     "Selected jar file is not an executable Jar file.  " +
-                            "\nPlease see " + JDEPLOY_WEBSITE_URL + "docs/manual/#_appendix_building_executable_jar_file"
+                            "\nPlease see " + MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/manual/#_appendix_building_executable_jar_file"
             );
         } catch (IOException ex) {
             throw new ValidationException("Failed to load jar file", ex);
@@ -2016,7 +1884,7 @@ public class JDeployProjectEditor {
                     );
             PublishTargetInterface npmTarget = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
             if (npmTarget != null) {
-                return JDEPLOY_WEBSITE_URL + "~"+packageJSON.getString("name");
+                return MenuBarBuilder.JDEPLOY_WEBSITE_URL + "~" + packageJSON.getString("name");
             }
 
             PublishTargetInterface githubTarget = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
@@ -2025,10 +1893,10 @@ public class JDeployProjectEditor {
             }
 
         } catch (IOException e) {
-            return JDEPLOY_WEBSITE_URL + "~"+packageJSON.getString("name");
+            return MenuBarBuilder.JDEPLOY_WEBSITE_URL + "~" + packageJSON.getString("name");
         }
 
-        return JDEPLOY_WEBSITE_URL + "~"+packageJSON.getString("name");
+        return MenuBarBuilder.JDEPLOY_WEBSITE_URL + "~" + packageJSON.getString("name");
     }
 
     private void handlePublish0() throws ValidationException {
