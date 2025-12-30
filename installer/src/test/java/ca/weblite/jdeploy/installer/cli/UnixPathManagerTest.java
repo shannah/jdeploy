@@ -168,16 +168,35 @@ public class UnixPathManagerTest {
     }
 
     @Test
-    public void testAddToPathAlreadyInPathEnv() {
+    public void testAddToPathAlreadyInPathEnv() throws IOException {
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:" + binDir.getAbsolutePath() + ":/bin";
 
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        // Should not create config file since already in PATH
+        // For bash, we should still create/update config files even if already in PATH env
+        // because the current PATH might come from .bashrc while .bash_profile is still missing it.
         File bashProfile = new File(homeDir, ".bash_profile");
-        assertFalse(bashProfile.exists());
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashProfile.exists(), ".bash_profile should be created even if binDir is in PATH env");
+        assertTrue(bashrc.exists(), ".bashrc should be created even if binDir is in PATH env");
+
+        String profileContent = IOUtil.readToString(new FileInputStream(bashProfile));
+        assertTrue(profileContent.contains(binDir.getAbsolutePath()));
+    }
+
+    @Test
+    public void testAddToPathAlreadyInPathEnvNonBash() {
+        String shell = "/bin/zsh";
+        String pathEnv = "/usr/bin:" + binDir.getAbsolutePath() + ":/bin";
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+
+        assertTrue(result);
+        // For non-bash shells, we optimize and skip if already in PATH env
+        File zshrc = new File(homeDir, ".zshrc");
+        assertFalse(zshrc.exists(), ".zshrc should not be created if already in PATH env for zsh");
     }
 
     @Test

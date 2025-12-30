@@ -36,6 +36,10 @@ public class MainAddToPathTest {
         String pathEnv = localBin.getAbsolutePath() + ":/usr/bin";
         boolean ok = LinuxCliCommandInstaller.addToPath(localBin, "/bin/bash", pathEnv, home);
         assertTrue(ok);
+
+        // Verify that bash config files were still created despite being in PATH
+        assertTrue(new File(home, ".bashrc").exists());
+        assertTrue(new File(home, ".bash_profile").exists());
     }
 
     @Test

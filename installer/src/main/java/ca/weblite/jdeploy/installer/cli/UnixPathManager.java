@@ -44,14 +44,6 @@ public class UnixPathManager {
             return false;
         }
 
-        // If PATH already contains binDir, nothing to do
-        if (pathEnv != null && pathEnv.contains(binDir.getAbsolutePath())) {
-            DebugLogger.log("Early return: binDir already in PATH environment variable");
-            String displayPath = computeDisplayPath(binDir, homeDir);
-            System.out.println(displayPath + " is already in PATH");
-            return true;
-        }
-
         // Detect the user's shell; default to bash when unknown
         if (shell == null || shell.isEmpty()) {
             DebugLogger.log("Shell is null or empty, defaulting to /bin/bash");
@@ -73,6 +65,13 @@ public class UnixPathManager {
             }
             return false;
         } else {
+            // For non-bash shells, we can use the PATH environment check as an optimization
+            // since we only have one configuration file to worry about.
+            if (pathEnv != null && pathEnv.contains(binDir.getAbsolutePath())) {
+                DebugLogger.log("Early return: binDir already in PATH environment variable for non-bash shell");
+                return true;
+            }
+
             File configFile = selectConfigFile(shell, homeDir);
             if (configFile == null) {
                 return false;
