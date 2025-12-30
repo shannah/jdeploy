@@ -6,6 +6,7 @@ import ca.weblite.jdeploy.factories.PublishTargetFactory;
 import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
+import ca.weblite.jdeploy.gui.services.ProjectFileWatcher;
 import ca.weblite.jdeploy.gui.services.SwingOneTimePasswordProvider;
 import ca.weblite.jdeploy.gui.tabs.BundleFiltersPanel;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
@@ -34,7 +35,6 @@ import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
 import ca.weblite.jdeploy.downloadPage.swing.DownloadPageSettingsPanel;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.MD5;
-import com.sun.nio.file.SensitivityWatchEventModifier;
 import io.codeworth.panelmatic.PanelMatic;
 import io.codeworth.panelmatic.util.Groupings;
 import net.coobird.thumbnailator.Thumbnails;
@@ -77,17 +77,14 @@ public class JDeployProjectEditor {
     private boolean modified;
     private JSONObject packageJSON;
     private File packageJSONFile;
-    private String packageJSONMD5;
-    private Map<String, String> jdpignoreFileMD5s = new HashMap<>(); // Maps filename to MD5
     private boolean processingJdpignoreChange = false;
+    private boolean processingPackageJSONChange = false;
     private MainFields mainFields;
     private ArrayList<DoctypeFields> doctypeFields;
     private ArrayList<LinkFields> linkFields;
     private DirectoryAssociationFields directoryAssociationFields;
     private JFrame frame;
-    private WatchService watchService;
-    private boolean pollWatchService = true;
-    private boolean processingPackageJSONChange = false;
+    private ProjectFileWatcher fileWatcher;
 
     private JDeployProjectEditorContext context = new JDeployProjectEditorContext();
 
@@ -128,17 +125,20 @@ public class JDeployProjectEditor {
 
     }
 
-    private void handlePackageJSONChangedOnFileSystem()  {
+    private void handleFileChanged(ProjectFileWatcher.FileChangeEvent event) {
+        if ("package.json".equals(event.filename())) {
+            handlePackageJsonChanged(event);
+        } else if (event.filename().startsWith(".jdpignore")) {
+            handleJdpignoreChanged(event);
+        }
+    }
+
+    private void handlePackageJsonChanged(ProjectFileWatcher.FileChangeEvent event) {
         if (processingPackageJSONChange) {
             return;
         }
         processingPackageJSONChange = true;
         try {
-            String hash = MD5.getMD5Checksum(packageJSONFile);
-            if (hash.equals(packageJSONMD5)) {
-                // file hasn't changed
-                return;
-            }
             if (!modified) {
                 // We haven't made any changes yet, so just reload it.
                 reloadPackageJSON();
@@ -161,114 +161,56 @@ public class JDeployProjectEditor {
         }
     }
 
-    private void handleJdpignoreFileChangedOnFileSystem(String filename) {
+    private void handleJdpignoreChanged(ProjectFileWatcher.FileChangeEvent event) {
         if (processingJdpignoreChange || bundleFiltersPanel == null) {
             return;
         }
         processingJdpignoreChange = true;
         try {
-            File jdpignoreFile = new File(packageJSONFile.getParentFile(), filename);
-            
-            // Calculate current hash
-            String currentHash = "";
-            if (jdpignoreFile.exists()) {
-                currentHash = MD5.getMD5Checksum(jdpignoreFile);
-            }
-            
-            // Get stored hash
-            String storedHash = jdpignoreFileMD5s.get(filename);
-            
-            if (currentHash.equals(storedHash)) {
-                // File hasn't actually changed
-                return;
-            }
-            
             if (!modified && !bundleFiltersPanel.hasUnsavedChanges()) {
                 // No unsaved changes, just reload
                 bundleFiltersPanel.reloadAllFiles();
-                updateJdpignoreFileMD5s();
+                try {
+                    fileWatcher.refreshChecksums();
+                } catch (java.io.IOException e) {
+                    System.err.println("Failed to refresh checksums: " + e.getMessage());
+                }
                 return;
             }
             
             int result = JOptionPane.showConfirmDialog(frame,
-                    "The " + filename + " file has been modified externally. " +
+                    "The " + event.filename() + " file has been modified externally. " +
                             "Would you like to reload it? Unsaved changes will be lost.",
-                    "Reload " + filename + "?",
+                    "Reload " + event.filename() + "?",
                     JOptionPane.YES_NO_OPTION);
 
             if (result == JOptionPane.YES_OPTION) {
                 bundleFiltersPanel.reloadAllFiles();
-                updateJdpignoreFileMD5s();
+                try {
+                    fileWatcher.refreshChecksums();
+                } catch (java.io.IOException e) {
+                    System.err.println("Failed to refresh checksums: " + e.getMessage());
+                }
             }
         } catch (Exception ex) {
-            System.err.println("A problem occurred while handling a file system change to " + filename);
+            System.err.println("A problem occurred while handling a file system change to " + event.filename());
             ex.printStackTrace(System.err);
         } finally {
             processingJdpignoreChange = false;
         }
     }
 
-    private void updateJdpignoreFileMD5s() {
-        try {
-            jdpignoreFileMD5s.clear();
-            // Track global .jdpignore file
-            File globalIgnoreFile = new File(packageJSONFile.getParentFile(), ".jdpignore");
-            if (globalIgnoreFile.exists()) {
-                jdpignoreFileMD5s.put(".jdpignore", MD5.getMD5Checksum(globalIgnoreFile));
-            }
-            
-            // Track platform-specific .jdpignore files
-            ca.weblite.jdeploy.models.Platform[] platforms = ca.weblite.jdeploy.models.Platform.values();
-            for (ca.weblite.jdeploy.models.Platform platform : platforms) {
-                if (platform == ca.weblite.jdeploy.models.Platform.DEFAULT) {
-                    continue; // Skip DEFAULT, already handled above
-                }
-                String filename = ".jdpignore." + platform.getIdentifier();
-                File platformIgnoreFile = new File(packageJSONFile.getParentFile(), filename);
-                if (platformIgnoreFile.exists()) {
-                    jdpignoreFileMD5s.put(filename, MD5.getMD5Checksum(platformIgnoreFile));
-                }
-            }
-        } catch (Exception ex) {
-            System.err.println("Failed to update .jdpignore file MD5s: " + ex.getMessage());
-        }
-    }
-
     private void reloadPackageJSON() throws IOException {
         packageJSON = new JSONObject(FileUtils.readFileToString(packageJSONFile, "UTF-8"));
-        packageJSONMD5 = MD5.getMD5Checksum(packageJSONFile);
+        try {
+            fileWatcher.refreshChecksums();
+        } catch (java.io.IOException e) {
+            System.err.println("Failed to refresh checksums after reload: " + e.getMessage());
+        }
         clearModified();
         frame.getContentPane().removeAll();
         initMainFields(frame.getContentPane());
         frame.revalidate();
-    }
-
-    private void watchPackageJSONForChanges() throws IOException, InterruptedException {
-        watchService = FileSystems.getDefault().newWatchService();
-
-        Path path = packageJSONFile.getAbsoluteFile().getParentFile().toPath();
-
-        path.register(watchService,new WatchEvent.Kind[]{StandardWatchEventKinds.ENTRY_MODIFY},  SensitivityWatchEventModifier.HIGH);
-
-        while (pollWatchService) {
-            try {
-                WatchKey key = watchService.take();
-
-                for (WatchEvent<?> event : key.pollEvents()) {
-                    String contextString = "" + event.context();
-                    if ("package.json".equals(contextString)) {
-                        EventQueue.invokeLater(() -> handlePackageJSONChangedOnFileSystem());
-                    } else if (contextString.startsWith(".jdpignore")) {
-                        // Handle .jdpignore file changes
-                        EventQueue.invokeLater(() -> handleJdpignoreFileChangedOnFileSystem(contextString));
-                    }
-                }
-
-                pollWatchService = key.reset();
-            } catch (ClosedWatchServiceException cwse) {
-                pollWatchService = false;
-            }
-        }
     }
 
     private class DoctypeFields {
@@ -355,27 +297,29 @@ public class JDeployProjectEditor {
         this.packageJSONFile = packageJSONFile;
         this.packageJSON = packageJSON;
         try {
-            this.packageJSONMD5 = MD5.getMD5Checksum(this.packageJSONFile);
+            this.fileWatcher = new ProjectFileWatcher(
+                    packageJSONFile.getAbsoluteFile().getParentFile(),
+                    packageJSONFile,
+                    event -> EventQueue.invokeLater(() -> handleFileChanged(event))
+            );
         } catch (Exception ex) {
             throw new RuntimeException(
-                    "Failed to get MD5 checksum for packageJSON file.  This is used for the watch service."
+                    "Failed to initialize file watcher for the project directory.",
+                    ex
             );
         }
     }
 
     private void initFrame() {
         frame = new JFrame("jDeploy");
-        Thread watchThread = new Thread(()->{
-            try {
-                watchPackageJSONForChanges();
-            } catch (Exception ex) {
-                System.err.println(
-                        "A problem occurred while setting up watch service on package.json.  Disabling watch service."
-                );
-                ex.printStackTrace(System.err);
-            }
-        });
-        watchThread.start();
+        try {
+            fileWatcher.startWatching();
+        } catch (Exception ex) {
+            System.err.println(
+                    "A problem occurred while setting up file watcher on the project directory.  Disabling file watcher."
+            );
+            ex.printStackTrace(System.err);
+        }
         frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         frame.addWindowListener(new WindowAdapter() {
             @Override
@@ -385,12 +329,7 @@ public class JDeployProjectEditor {
 
             @Override
             public void windowClosed(WindowEvent e) {
-                if (watchService != null) {
-                    try {
-                        watchService.close();
-                        watchService = null;
-                    } catch (Exception ex){}
-                }
+                fileWatcher.stopWatching();
             }
         });
 
@@ -1821,9 +1760,6 @@ public class JDeployProjectEditor {
         
         tabs.add("Platform-Specific Bundles", bundleFiltersPanel);
         
-        // Initialize .jdpignore file MD5 tracking
-        updateJdpignoreFileMD5s();
-
         downloadPageSettingsPanel = new DownloadPageSettingsPanel(loadDownloadPageSettings());
         downloadPageSettingsPanel.addChangeListener(evt -> {
             this.saveDownloadPageSettings(downloadPageSettingsPanel.getSettings());
@@ -2349,7 +2285,7 @@ public class JDeployProjectEditor {
             }
             if (bundleFiltersPanel != null) {
                 bundleFiltersPanel.saveConfiguration(packageJSON.getJSONObject("jdeploy"));
-                                bundleFiltersPanel.saveAllFiles();
+                bundleFiltersPanel.saveAllFiles();
             }
 
             // Validate directory association
@@ -2401,8 +2337,11 @@ public class JDeployProjectEditor {
             }
 
             FileUtil.writeStringToFile(packageJSON.toString(4), packageJSONFile);
-            packageJSONMD5 = MD5.getMD5Checksum(packageJSONFile);
-            updateJdpignoreFileMD5s(); // Update .jdpignore file MD5s after saving
+            try {
+                fileWatcher.refreshChecksums();
+            } catch (java.io.IOException e) {
+                System.err.println("Failed to refresh file checksums after save: " + e.getMessage());
+            }
             clearModified();
             context.onFileUpdated(packageJSONFile);
         } catch (Exception ex) {
