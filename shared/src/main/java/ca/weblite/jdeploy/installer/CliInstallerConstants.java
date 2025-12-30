@@ -42,4 +42,11 @@ public interface CliInstallerConstants {
      * Example: "MyApp" + CLI_LAUNCHER_SUFFIX + ".exe" → "MyApp-cli.exe"
      */
     String CLI_LAUNCHER_SUFFIX = "-cli";
+
+    /**
+     * JSON key for the CLI launcher executable filename (Windows).
+     * Stores the name of the CLI exe that was created (e.g., "MyApp-cli.exe")
+     * so it can be properly cleaned up during uninstallation.
+     */
+    String CLI_EXE_KEY = "cliExe";
 }

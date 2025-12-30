@@ -175,10 +175,18 @@ Uninstall:
   - Example `.cmd` wrapper:
     ```cmd
     @echo off
-    REM Path to installed exe
-    set "LAUNCHER=%USERPROFILE%\.jdeploy\apps\MyApp\Client4JLauncher.exe"
+    REM Path to installed CLI launcher exe
+    set "LAUNCHER=%USERPROFILE%\.jdeploy\apps\MyApp\MyApp-cli.exe"
     "%LAUNCHER%" --jdeploy:command=myapp-cli -- %*
     ```
+- CLI launcher binary:
+  - When `jdeploy.commands` is present, the bundler creates a second executable with the `-cli` suffix:
+    ```
+    %USERPROFILE%\.jdeploy\apps\MyApp\MyApp-cli.exe
+    ```
+  - This CLI variant has its PE subsystem modified from GUI (2) to Console (3), ensuring Windows creates a console window when launched from the command line.
+  - The `.cmd` wrapper scripts invoke this CLI launcher instead of the main GUI executable.
+  - This mirrors the macOS dual-binary approach where `Client4JLauncher-cli` is created for CLI invocations.
 - PATH management:
   - Installer should add the per-user bin directory to the user's PATH via the HKCU\Environment `PATH` registry value.
   - When adding an entry to PATH, preserve the rest of the user's PATH value and only append/prepend the directory. Record that the installer modified PATH so the uninstaller can revert.
@@ -192,7 +200,7 @@ Uninstall:
 
 - The uninstaller must remove only files created by the installer:
   - Remove per-command script/wrapper files.
-  - Remove CLI-specific binaries added (e.g., `Client4JLauncher-cli` in macOS app bundle) if the app bundle is removed.
+  - Remove CLI-specific executables (e.g., `MyApp-cli.exe` on Windows, `Client4JLauncher-cli` on macOS) if CLI commands were installed.
   - Revert any PATH/profile modifications the installer itself made. The installer should record the changes (e.g., a small manifest in the installation directory) so the uninstaller can undo them reliably.
 - The uninstaller should not remove user-created files or modifications outside the scope of what the installer created.
 
@@ -260,7 +268,7 @@ The CLI commands feature requires coordination between multiple components:
 1. Invokes the bundler to create the app (including `Client4JLauncher-cli` on macOS when CLI commands are enabled)
 2. Creates wrapper shell scripts pointing to the launcher binary built by the bundler
 
-The `Client4JLauncher-cli` binary on macOS is created by the bundler (`MacBundler.maybeCreateCliLauncher()`) when `BundlerSettings.isCliCommandsEnabled()` is true.
+The `Client4JLauncher-cli` binary on macOS is created by the bundler (`MacBundler.maybeCreateCliLauncher()`) when `BundlerSettings.isCliCommandsEnabled()` is true. Similarly, on Windows, `WindowsBundler2.maybeCreateCliLauncher()` creates `{appname}-cli.exe` with its PE subsystem modified to Console mode.
 
 ### Install Manifest Format
 
@@ -268,10 +276,9 @@ The installer persists metadata about installed CLI commands in a JSON file loca
 
 ```json
 {
-  "createdFiles": ["/home/user/.local/bin/myapp-cli", "/home/user/.local/bin/myapp-admin"],
+  "createdWrappers": ["myapp-cli.cmd", "myapp-admin.cmd"],
   "pathUpdated": true,
-  "binDir": "/home/user/.local/bin",
-  "timestamp": "2024-01-15T10:30:00Z"
+  "cliExe": "MyApp-cli.exe"
 }
 ```
 
@@ -281,10 +288,9 @@ The installer persists metadata about installed CLI commands in a JSON file loca
 - Windows: `%USERPROFILE%\.jdeploy\apps\{AppName}\.jdeploy-cli.json`
 
 Fields:
-- `createdFiles`: Array of absolute paths to created script/wrapper files
+- `createdWrappers`: Array of created wrapper script/file names (relative names only)
 - `pathUpdated`: Boolean indicating if the installer modified the user's PATH
-- `binDir`: The bin directory where scripts were installed
-- `timestamp`: ISO 8601 timestamp of installation
+- `cliExe`: (Windows only) Name of the CLI launcher executable (e.g., "MyApp-cli.exe") if created
 
 ### Implementation Constants
 
@@ -297,6 +303,7 @@ The following constants are defined in `CliInstallerConstants.java` and should b
 | `PATH_UPDATED_KEY` | `pathUpdated` | JSON key for boolean flag indicating PATH modification |
 | `JDEPLOY_COMMAND_ARG_PREFIX` | `--jdeploy:command=` | Command-line argument prefix for command dispatch |
 | `CLI_LAUNCHER_NAME` | `Client4JLauncher-cli` | Name of CLI-dedicated launcher binary on macOS |
+| `CLI_EXE_KEY` | `cliExe` | JSON key for CLI launcher executable path (Windows) |
 
 ### Default Collision Handling
 
@@ -341,7 +348,7 @@ Windows `.cmd` wrapper (example):
 ```cmd
 @echo off
 REM Installed at: %USERPROFILE%\.jdeploy\bin\myapp-cli.cmd
-set "LAUNCHER=%USERPROFILE%\.jdeploy\apps\MyApp\Client4JLauncher.exe"
+set "LAUNCHER=%USERPROFILE%\.jdeploy\apps\MyApp\MyApp-cli.exe"
 "%LAUNCHER%" --jdeploy:command=myapp-cli -- %*
 ```
 

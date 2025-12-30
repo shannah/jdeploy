@@ -67,9 +67,15 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             // Update user PATH via registry
             boolean pathUpdated = addToPath(userBinDir);
 
+            // Determine if the launcher is the CLI variant
+            File cliExePath = null;
+            if (launcherPath.getName().contains(CliInstallerConstants.CLI_LAUNCHER_SUFFIX)) {
+                cliExePath = launcherPath;
+            }
+
             // Persist metadata for uninstall in the app directory
             File appDir = launcherPath.getParentFile();
-            persistMetadata(appDir, wrapperFiles, pathUpdated);
+            persistMetadata(appDir, wrapperFiles, pathUpdated, cliExePath);
 
         } catch (IOException e) {
             System.err.println("Warning: Failed to install CLI commands: " + e.getMessage());
@@ -93,6 +99,15 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
         try {
             String metadataContent = FileUtils.readFileToString(metadataFile, "UTF-8");
             JSONObject metadata = new JSONObject(metadataContent);
+
+            // Clean up CLI exe if it was installed
+            String cliExeName = metadata.optString(CliInstallerConstants.CLI_EXE_KEY, null);
+            if (cliExeName != null && !cliExeName.isEmpty()) {
+                File cliExeFile = new File(appDir, cliExeName);
+                if (cliExeFile.exists() && !cliExeFile.delete()) {
+                    System.err.println("Warning: Failed to delete CLI exe: " + cliExeFile.getAbsolutePath());
+                }
+            }
 
             // Clean up wrapper files
             JSONArray wrappersArray = metadata.optJSONArray(CliInstallerConstants.CREATED_WRAPPERS_KEY);
@@ -241,9 +256,10 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
      * @param appDir the application directory where metadata will be stored
      * @param createdWrappers list of created wrapper files
      * @param pathUpdated whether the PATH was updated
+     * @param cliExePath the CLI launcher executable file, or null if not created
      * @throws IOException if metadata file write fails
      */
-    private void persistMetadata(File appDir, List<File> createdWrappers, boolean pathUpdated) throws IOException {
+    private void persistMetadata(File appDir, List<File> createdWrappers, boolean pathUpdated, File cliExePath) throws IOException {
         JSONObject metadata = new JSONObject();
 
         // Store list of created wrapper file names
@@ -255,6 +271,11 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
         // Store whether PATH was updated
         metadata.put(CliInstallerConstants.PATH_UPDATED_KEY, pathUpdated);
+
+        // Store CLI exe path if it exists
+        if (cliExePath != null) {
+            metadata.put(CliInstallerConstants.CLI_EXE_KEY, cliExePath.getName());
+        }
 
         // Write metadata file
         File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
