@@ -303,20 +303,25 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
      */
     private boolean addToGitBashPath(File binDir) {
         File homeDir = new File(System.getProperty("user.home"));
+        // Git Bash uses bash as the shell
         File configFile = UnixPathManager.selectConfigFile("bash", homeDir);
+        
+        // If UnixPathManager didn't find a config file, we don't proceed.
+        // It typically looks for .bashrc or .bash_profile.
         if (configFile == null) {
             return false;
         }
 
         try {
-            if (!configFile.exists()) {
-                if (configFile.getParentFile() != null) {
+            String content = "";
+            if (configFile.exists()) {
+                content = FileUtils.readFileToString(configFile, "UTF-8");
+            } else {
+                if (configFile.getParentFile() != null && !configFile.getParentFile().exists()) {
                     configFile.getParentFile().mkdirs();
                 }
-                configFile.createNewFile();
             }
 
-            String content = FileUtils.readFileToString(configFile, "UTF-8");
             String msysPath = convertToMsysPath(binDir);
             String exportLine = "export PATH=\"$PATH:" + msysPath + "\"";
 
@@ -324,11 +329,13 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 return false; // Already in path
             }
 
+            StringBuilder sb = new StringBuilder(content);
             if (!content.isEmpty() && !content.endsWith("\n")) {
-                content += "\n";
+                sb.append("\n");
             }
-            content += exportLine + "\n";
-            FileUtils.writeStringToFile(configFile, content, "UTF-8");
+            sb.append(exportLine).append("\n");
+            
+            FileUtils.writeStringToFile(configFile, sb.toString(), "UTF-8");
             return true;
         } catch (IOException e) {
             System.err.println("Warning: Failed to update Git Bash config: " + e.getMessage());
@@ -355,11 +362,11 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             String exportLine = "export PATH=\"$PATH:" + msysPath + "\"";
             
             if (content.contains(exportLine)) {
-                // Remove the line and a trailing newline if it exists
-                // We handle both \n and \r\n to be safe on Windows
+                // Remove the line and ensure the file remains clean
                 content = content.replace(exportLine + "\r\n", "");
                 content = content.replace(exportLine + "\n", "");
                 content = content.replace(exportLine, "");
+                
                 FileUtils.writeStringToFile(configFile, content.trim(), "UTF-8");
                 return true;
             }
@@ -381,7 +388,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
         // Replace backslashes with forward slashes
         path = path.replace('\\', '/');
         
-        // Convert "C:/" to "/c/"
+        // Convert drive letters, e.g., "C:/" to "/c/"
         if (path.length() >= 2 && path.charAt(1) == ':') {
             char drive = Character.toLowerCase(path.charAt(0));
             path = "/" + drive + path.substring(2);
