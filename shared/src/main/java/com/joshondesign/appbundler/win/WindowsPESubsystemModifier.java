@@ -14,7 +14,7 @@ public class WindowsPESubsystemModifier {
     
     private static final String PE_SIGNATURE = "PE\0\0";
     private static final int PE_SIGNATURE_OFFSET_LOCATION = 0x3C;
-    private static final int SUBSYSTEM_FIELD_OFFSET = 68; // Offset from PE signature
+    private static final int SUBSYSTEM_FIELD_OFFSET = 92; // PE sig (4) + COFF header (20) + offset in Optional Header (68)
     private static final byte SUBSYSTEM_CONSOLE = 3;
     private static final byte SUBSYSTEM_GUI = 2;
     

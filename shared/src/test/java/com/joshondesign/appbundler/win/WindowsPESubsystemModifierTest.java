@@ -53,7 +53,7 @@ class WindowsPESubsystemModifierTest {
         
         byte[] destContent = Files.readAllBytes(destExe.toPath());
         int peOffset = readInt32LittleEndian(destContent, 0x3C);
-        int subsystemOffset = peOffset + 68;
+        int subsystemOffset = peOffset + 92;
         
         assertEquals(3, destContent[subsystemOffset], 
             "Subsystem field should be modified to Console (3)");
@@ -155,7 +155,7 @@ class WindowsPESubsystemModifierTest {
             "File sizes should be equal");
         
         int peOffset = readInt32LittleEndian(destContent, 0x3C);
-        int subsystemOffset = peOffset + 68;
+        int subsystemOffset = peOffset + 92;
         
         // Verify all bytes except subsystem field are identical
         for (int i = 0; i < destContent.length; i++) {
@@ -196,8 +196,8 @@ class WindowsPESubsystemModifierTest {
         content[peOffset + 2] = 0;
         content[peOffset + 3] = 0;
         
-        // Subsystem field at PE signature + 68
-        int subsystemOffset = peOffset + 68;
+        // Subsystem field at PE signature + 92
+        int subsystemOffset = peOffset + 92;
         content[subsystemOffset] = setGUISubsystem ? (byte) 2 : (byte) 3;
         
         Files.write(file.toPath(), content);
