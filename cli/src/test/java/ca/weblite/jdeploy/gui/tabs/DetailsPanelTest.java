@@ -5,8 +5,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import javax.swing.JFrame;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.File;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -569,5 +571,22 @@ class DetailsPanelTest {
         // Default state should be Auto (Recommended) with hidden JBR Variant
         assertEquals("Auto (Recommended)", panel.getJdkProvider().getSelectedItem());
         assertFalse(panel.getJbrVariant().isVisible());
+    }
+    
+    @Test
+    @DisplayName("Should accept setParentFrame call without error")
+    void testSetParentFrame() {
+        JFrame testFrame = new JFrame("Test");
+        panel.setParentFrame(testFrame);
+        // Should not throw exception
+        testFrame.dispose();
+    }
+    
+    @Test
+    @DisplayName("Should accept setProjectDirectory call without error")
+    void testSetProjectDirectory() {
+        File testDir = new File(System.getProperty("java.io.tmpdir"));
+        panel.setProjectDirectory(testDir);
+        // Should not throw exception
     }
 }

@@ -417,7 +417,10 @@ public class JDeployProjectEditor {
         mainFields = new MainFields();
         cnt.setPreferredSize(new Dimension(1024, 768));
         DetailsPanel detailsPanel = new DetailsPanel();
-        detailsPanel.getProjectPath().setText(packageJSONFile.getAbsoluteFile().getParentFile().getAbsolutePath());
+        File projectDir = packageJSONFile.getAbsoluteFile().getParentFile();
+        detailsPanel.setParentFrame(frame);
+        detailsPanel.setProjectDirectory(projectDir);
+        detailsPanel.getProjectPath().setText(projectDir.getAbsolutePath());
         // Set a small font in the project path
         detailsPanel.getProjectPath().setFont(detailsPanel.getProjectPath().getFont().deriveFont(10f));
 
