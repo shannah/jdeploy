@@ -407,7 +407,7 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
         if (commandsArray != null) {
             for (int i = 0; i < commandsArray.length(); i++) {
                 String name = commandsArray.getString(i);
-                commands.add(new CommandSpec(name, Collections.emptyList()));
+                commands.add(new CommandSpec(name, null, Collections.emptyList()));
             }
         }
 

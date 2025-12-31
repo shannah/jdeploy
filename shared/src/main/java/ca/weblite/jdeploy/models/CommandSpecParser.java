@@ -67,6 +67,17 @@ public class CommandSpecParser {
                 throw new IllegalArgumentException("Command '" + name + "' value must be an object");
             }
             JSONObject specObj = (JSONObject) value;
+            
+            String description = null;
+            if (specObj.has("description")) {
+                Object descObj = specObj.get("description");
+                if (descObj != JSONObject.NULL && descObj instanceof String) {
+                    description = (String) descObj;
+                } else if (descObj != JSONObject.NULL) {
+                    throw new IllegalArgumentException("Command '" + name + "': 'description' must be a string");
+                }
+            }
+            
             List<String> args = new ArrayList<>();
             if (specObj.has("args")) {
                 Object argsObj = specObj.get("args");
@@ -84,7 +95,7 @@ public class CommandSpecParser {
                     args.add(argValue);
                 }
             }
-            result.add(new CommandSpec(name, args));
+            result.add(new CommandSpec(name, description, args));
         }
 
         // sort by name for deterministic order

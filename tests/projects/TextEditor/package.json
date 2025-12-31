@@ -19,10 +19,27 @@
             "name": "photos_add",
             "description": "Needs access to photos"
         }],
+        "documentTypes": [
+            {
+                "editor": true,
+                "extension": "txt",
+                "mimetype": "text/plain"
+            },
+            {
+                "editor": true,
+                "extension": "jtext",
+                "custom": true,
+                "mimetype": "application/x-jtext"
+            }
+        ],
         "jar": "target/TextEditor-1.0-SNAPSHOT.jar",
         "title": "Text Editor",
         "downloadPage": {"platforms": ["default"]},
-        "platformBundlesEnabled": false
+        "platformBundlesEnabled": false,
+        "commands": {
+            "opentxt": {"description": "Preview a text file"},
+            "previewtxt": {"description": "Open a text file"}
+        }
     },
     "dependencies": {
         "command-exists-promise": "^2.0.2",

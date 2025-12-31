@@ -78,8 +78,8 @@ public class LinuxCliCommandInstallerTest {
     @Test
     public void testInstallCommandsCreatesScripts() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
-        commands.add(new CommandSpec("othercmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
+        commands.add(new CommandSpec("othercmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliLauncher(false);
@@ -120,7 +120,7 @@ public class LinuxCliCommandInstallerTest {
     @Test
     public void testInstallCommandsCreatesDefaultBinDir() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+        commands.add(new CommandSpec("testcmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliLauncher(false);
@@ -142,7 +142,7 @@ public class LinuxCliCommandInstallerTest {
     @Test
     public void testInstallCommandsScriptContent() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+        commands.add(new CommandSpec("testcmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -162,7 +162,7 @@ public class LinuxCliCommandInstallerTest {
     @Test
     public void testInstallCommandsScriptContent_pathWithSpaces() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+        commands.add(new CommandSpec("testcmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -188,7 +188,7 @@ public class LinuxCliCommandInstallerTest {
     @Test
     public void testInstallCommandsScriptContent_pathWithSingleQuotes() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+        commands.add(new CommandSpec("testcmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -215,7 +215,7 @@ public class LinuxCliCommandInstallerTest {
     @DisabledOnOs(OS.WINDOWS)
     public void testInstallCommandsScriptContent_pathWithDoubleQuotes() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+        commands.add(new CommandSpec("testcmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -239,7 +239,7 @@ public class LinuxCliCommandInstallerTest {
     @Test
     public void testInstallCommandsScriptContent_pathWithBackticks() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+        commands.add(new CommandSpec("testcmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -263,7 +263,7 @@ public class LinuxCliCommandInstallerTest {
     @Test
     public void testInstallCommandsScriptContent_pathWithDollarSign() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+        commands.add(new CommandSpec("testcmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -287,7 +287,7 @@ public class LinuxCliCommandInstallerTest {
     @Test
     public void testInstallCommandsScriptContent_pathWithBackslash() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+        commands.add(new CommandSpec("testcmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -312,7 +312,7 @@ public class LinuxCliCommandInstallerTest {
     @DisabledOnOs(OS.WINDOWS)
     public void testInstallCommandsScriptContent_pathWithMultipleSpecialChars() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+        commands.add(new CommandSpec("testcmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -424,8 +424,8 @@ public class LinuxCliCommandInstallerTest {
     public void testUninstallCommandsRemovesScripts() throws IOException {
         // First install some commands
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("cmd1", new ArrayList<>()));
-        commands.add(new CommandSpec("cmd2", new ArrayList<>()));
+        commands.add(new CommandSpec("cmd1", null, new ArrayList<>()));
+        commands.add(new CommandSpec("cmd2", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliLauncher(false);
@@ -462,7 +462,7 @@ public class LinuxCliCommandInstallerTest {
     @Test
     public void testMetadataFileCreated() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliLauncher(false);
@@ -518,7 +518,7 @@ public class LinuxCliCommandInstallerTest {
     @Test
     public void testInstallCommandsRemovesExistingScript() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliLauncher(false);
@@ -541,7 +541,7 @@ public class LinuxCliCommandInstallerTest {
     @Test
     public void testMetadataSavedToAppDirNotBinDir() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -559,8 +559,8 @@ public class LinuxCliCommandInstallerTest {
     @Test
     public void testUninstallFromAppDirRemovesScriptsFromBinDir() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("cmd1", new ArrayList<>()));
-        commands.add(new CommandSpec("cmd2", new ArrayList<>()));
+        commands.add(new CommandSpec("cmd1", null, new ArrayList<>()));
+        commands.add(new CommandSpec("cmd2", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -594,7 +594,7 @@ public class LinuxCliCommandInstallerTest {
         // 3. Uninstall from appDir removes scripts from binDir
         
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+        commands.add(new CommandSpec("testcmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliLauncher(false);
@@ -637,7 +637,7 @@ public class LinuxCliCommandInstallerTest {
         });
 
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliLauncher(false);
@@ -674,7 +674,7 @@ public class LinuxCliCommandInstallerTest {
         });
 
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliLauncher(false);
@@ -718,7 +718,7 @@ public class LinuxCliCommandInstallerTest {
         });
 
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliLauncher(false);

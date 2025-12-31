@@ -345,7 +345,7 @@ public class WindowsCliCommandInstallerTest {
         });
 
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         // Act
         List<File> created = installer.writeCommandWrappersForTest(binDir, launcherPath, commands);
@@ -389,7 +389,7 @@ public class WindowsCliCommandInstallerTest {
         });
 
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         // Act
         List<File> created = installer.writeCommandWrappersForTest(binDir, launcherPath, commands);
@@ -437,7 +437,7 @@ public class WindowsCliCommandInstallerTest {
         });
 
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         // Act
         List<File> created = installer.writeCommandWrappersForTest(binDir, launcherPath, commands);

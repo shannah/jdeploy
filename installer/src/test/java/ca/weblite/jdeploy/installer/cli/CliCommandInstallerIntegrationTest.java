@@ -69,8 +69,8 @@ public class CliCommandInstallerIntegrationTest {
     public void testInstallVerifyUninstallCycle() throws Exception {
         // Arrange
         List<CommandSpec> commands = Arrays.asList(
-                new CommandSpec("myapp", Arrays.asList("--verbose")),
-                new CommandSpec("myapp-admin", Arrays.asList("--admin", "--debug"))
+                new CommandSpec("myapp", null, Arrays.asList("--verbose")),
+                new CommandSpec("myapp-admin", null, Arrays.asList("--admin", "--debug"))
         );
 
         InstallationSettings settings = new InstallationSettings();
@@ -121,9 +121,9 @@ public class CliCommandInstallerIntegrationTest {
     public void testInstallMultipleCommands() throws Exception {
         // Arrange
         List<CommandSpec> commands = Arrays.asList(
-                new CommandSpec("cmd1", Arrays.asList()),
-                new CommandSpec("cmd2", Arrays.asList("--flag")),
-                new CommandSpec("cmd3", Arrays.asList("--arg1", "--arg2"))
+                new CommandSpec("cmd1", null, Arrays.asList()),
+                new CommandSpec("cmd2", null, Arrays.asList("--flag")),
+                new CommandSpec("cmd3", null, Arrays.asList("--arg1", "--arg2"))
         );
 
         InstallationSettings settings = new InstallationSettings();
@@ -148,7 +148,7 @@ public class CliCommandInstallerIntegrationTest {
     public void testUninstallRemovesInstalledScripts() throws Exception {
         // Arrange
         List<CommandSpec> commands = Arrays.asList(
-                new CommandSpec("test-cmd", Arrays.asList())
+                new CommandSpec("test-cmd", null, Arrays.asList())
         );
 
         InstallationSettings settings = new InstallationSettings();
@@ -440,7 +440,7 @@ public class CliCommandInstallerIntegrationTest {
         TestableWindowsCliCommandInstaller windowsInstaller = 
                 new TestableWindowsCliCommandInstaller(customBinDir, registryOps);
         
-        List<CommandSpec> commands = Arrays.asList(new CommandSpec("testapp", Arrays.asList()));
+        List<CommandSpec> commands = Arrays.asList(new CommandSpec("testapp", null, Arrays.asList()));
         InstallationSettings settings = new InstallationSettings();
         
         // Act
@@ -480,8 +480,8 @@ public class CliCommandInstallerIntegrationTest {
                 new TestableWindowsCliCommandInstaller(customBinDir, registryOps);
 
         List<CommandSpec> commands = Arrays.asList(
-                new CommandSpec("myapp", Arrays.asList("--verbose")),
-                new CommandSpec("myapp-admin", Arrays.asList("--admin", "--debug"))
+                new CommandSpec("myapp", null, Arrays.asList("--verbose")),
+                new CommandSpec("myapp-admin", null, Arrays.asList("--admin", "--debug"))
         );
 
         InstallationSettings settings = new InstallationSettings();
