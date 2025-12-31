@@ -5,6 +5,7 @@ import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.factories.PublishTargetFactory;
 import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
+import ca.weblite.jdeploy.gui.controllers.PublishActionHandler;
 import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
 import ca.weblite.jdeploy.gui.navigation.EditorPanelRegistry;
 import ca.weblite.jdeploy.gui.navigation.NavigablePanelAdapter;
@@ -13,6 +14,7 @@ import ca.weblite.jdeploy.gui.navigation.TabbedPaneNavigationHost;
 import ca.weblite.jdeploy.gui.services.ProjectFileWatcher;
 import ca.weblite.jdeploy.gui.services.PublishingCoordinator;
 import ca.weblite.jdeploy.gui.services.SwingOneTimePasswordProvider;
+import ca.weblite.jdeploy.packaging.PackagingContext;
 import ca.weblite.jdeploy.gui.tabs.BundleFiltersPanel;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.CliSettingsPanel;
@@ -29,8 +31,6 @@ import javax.swing.JTabbedPane;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
-import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
-import ca.weblite.jdeploy.packaging.PackagingContext;
 import ca.weblite.jdeploy.packaging.PackagingPreferences;
 import ca.weblite.jdeploy.packaging.PackagingPreferencesService;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
@@ -47,15 +47,11 @@ import org.json.JSONObject;
 
 import javax.swing.*;
 import javax.swing.Timer;
-import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.StringSelection;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.*;
 import java.util.List;
 
@@ -84,6 +80,8 @@ public class JDeployProjectEditor {
     private CheerpJSettingsPanel cheerpJSettingsPanel;
     private SplashScreensPanel splashScreensPanel;
     private EditorPanelRegistry registry;
+    private PublishActionHandler publishActionHandler;
+    private PublishingCoordinator publishingCoordinator;
 
     private NPM npm = null;
 
@@ -220,6 +218,16 @@ public class JDeployProjectEditor {
 
     private void initFrame() {
         frame = new JFrame("jDeploy");
+        // Initialize the publishActionHandler with the frame reference
+        this.publishActionHandler = new PublishActionHandler(
+                frame,
+                packageJSONFile,
+                packageJSON,
+                context,
+                publishingCoordinator,
+                this::handleSave,
+                this::getDownloadPageUrl
+        );
         try {
             fileWatcher.startWatching();
         } catch (Exception ex) {
@@ -505,7 +513,7 @@ public class JDeployProjectEditor {
                 return;
             }
 
-            new Thread(this::handlePublish).start();
+            publishActionHandler.handlePublish();
         });
         return publish;
     }
@@ -828,10 +836,22 @@ public class JDeployProjectEditor {
             try {
                 context.edit(packageJSONFile);
             } catch (Exception ex) {
-                showError("Failed to open package.json in a text editor. "+ex.getMessage(), ex);
+                showError("Failed to open package.json in a text editor. " + ex.getMessage(), ex);
             }
         } else {
             showError("That feature isn't supported on this platform.", null);
+        }
+    }
+
+    private void showError(String message, Exception exception) {
+        JOptionPane.showMessageDialog(
+                frame,
+                new JLabel("<html><p style='width:400px'>" + message + "</p></html>"),
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+        );
+        if (exception != null) {
+            exception.printStackTrace(System.err);
         }
     }
 
@@ -879,136 +899,6 @@ public class JDeployProjectEditor {
         }
     }
 
-    private void showError(String message, Throwable exception) {
-        File logFile = (exception instanceof ValidationException)
-                ? ((ValidationException) exception).getLogFile()
-                : null;
-
-        JPanel dialogComponent = new JPanel();
-        dialogComponent.setLayout(new BoxLayout(dialogComponent, BoxLayout.Y_AXIS));
-        dialogComponent.setOpaque(false);
-        dialogComponent.setBorder(new EmptyBorder(10, 10, 10, 10));
-        dialogComponent.add(new JLabel(
-                "<html><p style='width:400px'>" + message + "</p></html>"
-        ));
-
-        if (logFile != null) {
-            String[] options = {"Copy Path", "OK"};
-            int choice = JOptionPane.showOptionDialog(
-                    frame,
-                    dialogComponent,
-                    "Error",
-                    JOptionPane.DEFAULT_OPTION,
-                    JOptionPane.ERROR_MESSAGE,
-                    null,
-                    options,
-                    options[1]
-            );
-
-            if (choice == 0) { // Copy Path selected
-                try {
-                    StringSelection stringSelection = new StringSelection(logFile.getAbsolutePath());
-                    Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-                    clipboard.setContents(stringSelection, null);
-                } catch (Exception ex) {
-                    showError("Failed to copy path to clipboard. " + ex.getMessage(), ex);
-                }
-            }
-        } else {
-            JOptionPane.showMessageDialog(
-                    frame,
-                    dialogComponent,
-                    "Error",
-                    JOptionPane.ERROR_MESSAGE
-            );
-        }
-
-        if (exception != null) {
-            exception.printStackTrace(System.err);
-        }
-    }
-
-
-    private static final int NOT_LOGGED_IN = 1;
-
-    private static class ValidationException extends Exception {
-        private final int type;
-
-        private final File logFile;
-
-        ValidationException(String msg, int type, File logFile) {
-            super(msg);
-            this.type = type;
-            this.logFile = logFile;
-        }
-
-        File getLogFile() {
-            return logFile;
-        }
-    }
-
-
-    private boolean publishInProgress = false;
-    private final PublishingCoordinator publishingCoordinator;
-
-    private void handlePublish() {
-        if (publishInProgress) return;
-        publishInProgress = true;
-        try {
-            handlePublish0();
-        } catch (ValidationException ex) {
-            if (ex.type == NOT_LOGGED_IN) {
-
-                try {
-                    TerminalLoginLauncher.launchLoginTerminal();
-                } catch (IOException | URISyntaxException e) {
-                    throw new RuntimeException(e);
-                }
-
-                // Create a JOptionPane with the desired message
-                JOptionPane optionPane = new JOptionPane(
-                        "<html><p style='width:400px'>You must be logged into NPM in order to publish your app. " +
-                                "We have opened a terminal window for you to login. " +
-                                "Please login to NPM in the terminal window and then try to publish again.</p></html>",
-                        JOptionPane.INFORMATION_MESSAGE,
-                        JOptionPane.DEFAULT_OPTION
-                );
-
-                // Create a JDialog from the JOptionPane
-                JDialog dialog = optionPane.createDialog(frame, "Login to NPM");
-                dialog.setModal(false); // Set to non-modal
-
-                // Display the dialog
-                dialog.setVisible(true);
-
-                new Thread(()->{
-                    NPM npm = getNPM();
-                    try {
-                        while (!npm.isLoggedIn() || !dialog.isShowing()) {
-                            try {
-                                Thread.sleep(1000);
-                            } catch (InterruptedException ex1) {
-                                throw new RuntimeException(ex1);
-                            }
-                        }
-                    } finally {
-                        EventQueue.invokeLater(()->{
-                            dialog.setVisible(false);
-                            dialog.dispose();
-                        });
-                    }
-
-                    handlePublish();
-
-                }).start();
-
-            } else {
-                showError(ex.getMessage(), ex);
-            }
-        } finally {
-            publishInProgress = false;
-        }
-    }
 
     private String getDownloadPageUrl() {
         try {
@@ -1037,72 +927,6 @@ public class JDeployProjectEditor {
         return MenuBarBuilder.JDEPLOY_WEBSITE_URL + "~" + packageJSON.getString("name");
     }
 
-    private void handlePublish0() throws ValidationException {
-        if (!EventQueue.isDispatchThread()) {
-            // We don't prompt on the dispatch thread because promptForNpmToken blocks
-            if (publishingCoordinator.isNpmPublishingEnabled() && !context.promptForNpmToken(frame)) {
-                return;
-            }
-            if (publishingCoordinator.isGitHubPublishingEnabled() && !context.promptForGithubToken(frame)) {
-                return;
-            }
-        }
-
-        // Use PublishingCoordinator to validate all preconditions
-        PublishingCoordinator.ValidationResult validationResult = publishingCoordinator.validateForPublishing();
-        if (!validationResult.isValid()) {
-            throw new ValidationException(
-                    validationResult.getErrorMessage(),
-                    validationResult.getErrorType(),
-                    validationResult.getLogFile()
-            );
-        }
-
-        File absDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
-        PackagingPreferences packagingPreferences = publishingCoordinator.getBuildPreferences();
-        boolean buildRequired = packagingPreferences.isBuildProjectBeforePackaging();
-
-        ProgressDialog progressDialog = new ProgressDialog(packageJSON.getString("name"), getDownloadPageUrl());
-
-        PackagingContext packagingContext = PackagingContext.builder()
-                .directory(absDirectory)
-                .out(new PrintStream(progressDialog.createOutputStream()))
-                .err(new PrintStream(progressDialog.createOutputStream()))
-                .exitOnFail(false)
-                .isBuildRequired(buildRequired)
-                .build();
-        JDeploy jdeployObject = new JDeploy(absDirectory, false);
-        jdeployObject.setOut(packagingContext.out);
-        jdeployObject.setErr(packagingContext.err);
-        jdeployObject.setNpmToken(context.getNpmToken());
-        jdeployObject.setUseManagedNode(context.useManagedNode());
-        EventQueue.invokeLater(()->{
-            progressDialog.show(frame, "Publishing in Progress...");
-            progressDialog.setMessage1("Publishing "+packageJSON.get("name")+" to " + publishingCoordinator.getPublishTargetNames()+".  Please wait...");
-            progressDialog.setMessage2("");
-
-        });
-        try {
-            handleSave();
-            publishingCoordinator.publish(
-                    packagingContext,
-                    jdeployObject,
-                    new SwingOneTimePasswordProvider(frame),
-                    progress -> EventQueue.invokeLater(() -> {
-                        if (progress.isComplete()) {
-                            progressDialog.setComplete();
-                        } else if (progress.isFailed()) {
-                            progressDialog.setFailed();
-                        }
-                    }),
-                    context.getGithubToken()
-            );
-        } catch (Exception ex) {
-            packagingContext.err.println("An error occurred during publishing");
-            ex.printStackTrace(packagingContext.err);
-            EventQueue.invokeLater(progressDialog::setFailed);
-        }
-    }
     
     private DownloadPageSettings loadDownloadPageSettings() {
         DownloadPageSettingsService service = DIContext.get(DownloadPageSettingsService.class);
