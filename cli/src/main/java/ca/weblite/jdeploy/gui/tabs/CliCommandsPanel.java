@@ -36,6 +36,7 @@ public class CliCommandsPanel extends JPanel {
     private JLabel validationLabel;
     private ActionListener changeListener;
     private boolean isUpdatingUI = false;
+    private java.util.Map<String, JSONObject> commandsModel = new java.util.LinkedHashMap<>();
 
     public CliCommandsPanel() {
         initializeUI();
@@ -197,6 +198,7 @@ public class CliCommandsPanel extends JPanel {
         isUpdatingUI = true;
         try {
             commandListModel.clear();
+            commandsModel.clear();
             nameField.setText("");
             descriptionField.setText("");
             argsField.setText("");
@@ -207,17 +209,11 @@ public class CliCommandsPanel extends JPanel {
                 return;
             }
 
-            try {
-                List<CommandSpec> commands = CommandSpecParser.parseCommands(jdeploy);
-                for (CommandSpec cmd : commands) {
-                    commandListModel.addElement(cmd.getName());
-                }
-            } catch (IllegalArgumentException e) {
-                // If parsing fails, try to load raw keys for recovery
-                JSONObject commandsObj = jdeploy.getJSONObject("commands");
-                for (String key : commandsObj.keySet()) {
-                    commandListModel.addElement(key);
-                }
+            JSONObject commandsObj = jdeploy.getJSONObject("commands");
+            for (String key : commandsObj.keySet()) {
+                JSONObject cmdSpec = commandsObj.getJSONObject(key);
+                commandListModel.addElement(key);
+                commandsModel.put(key, new JSONObject(cmdSpec.toString()));
             }
         } finally {
             isUpdatingUI = false;
@@ -234,7 +230,7 @@ public class CliCommandsPanel extends JPanel {
         JSONObject commands = new JSONObject();
         for (int i = 0; i < commandListModel.size(); i++) {
             String name = commandListModel.getElementAt(i);
-            JSONObject spec = buildCommandSpec(name);
+            JSONObject spec = commandsModel.getOrDefault(name, buildCommandSpec(name));
             commands.put(name, spec);
         }
 
@@ -294,8 +290,13 @@ public class CliCommandsPanel extends JPanel {
             String oldName = commandListModel.getElementAt(index);
             String newName = nameField.getText().trim();
 
-            // If name changed, update list
+            // Save current form state to model
+            JSONObject spec = buildCommandSpec(newName);
+            commandsModel.put(newName, spec);
+
+            // If name changed, update list and model
             if (!oldName.equals(newName) && !newName.isEmpty()) {
+                commandsModel.remove(oldName);
                 commandListModel.setElementAt(newName, index);
                 commandList.setSelectedIndex(index);
             }
@@ -323,6 +324,7 @@ public class CliCommandsPanel extends JPanel {
         int newIndex = commandListModel.size();
         String newName = generateUniqueName();
         commandListModel.addElement(newName);
+        commandsModel.put(newName, new JSONObject());
         commandList.setSelectedIndex(newIndex);
         nameField.requestFocus();
         fireChangeEvent();
@@ -331,7 +333,9 @@ public class CliCommandsPanel extends JPanel {
     private void removeSelectedCommand() {
         int index = commandList.getSelectedIndex();
         if (index >= 0) {
+            String name = commandListModel.getElementAt(index);
             commandListModel.removeElementAt(index);
+            commandsModel.remove(name);
             removeButton.setEnabled(false);
             nameField.setText("");
             descriptionField.setText("");
