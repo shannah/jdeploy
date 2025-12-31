@@ -42,6 +42,8 @@ import ca.weblite.jdeploy.downloadPage.swing.DownloadPageSettingsPanel;
 import ca.weblite.tools.io.FileUtil;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
+import org.kordamp.ikonli.material.Material;
+import org.kordamp.ikonli.swing.FontIcon;
 
 import javax.swing.*;
 import javax.swing.Timer;
@@ -505,6 +507,7 @@ public class JDeployProjectEditor {
         registry.register(NavigablePanelAdapter.forPackageJsonPanel(
             "Project",
             MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#_the_details_tab",
+            FontIcon.of(Material.DESCRIPTION),
             projectMetadataPanel.getRoot(),
             json -> projectMetadataPanel.load(json),
             json -> projectMetadataPanel.save(json),
@@ -515,6 +518,7 @@ public class JDeployProjectEditor {
         registry.register(NavigablePanelAdapter.forJdeployPanel(
             "Build",
             MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#_the_details_tab",
+            FontIcon.of(Material.BUILD),
             javaRuntimePanel.getRoot(),
             json -> javaRuntimePanel.load(json),
             json -> javaRuntimePanel.save(json),
@@ -525,6 +529,7 @@ public class JDeployProjectEditor {
         registry.register(NavigablePanelAdapter.forPackageJsonPanel(
             "Repository",
             MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#_the_details_tab",
+            FontIcon.of(Material.CLOUD),
             repositorySettingsPanel.getRoot(),
             json -> repositorySettingsPanel.load(json),
             json -> repositorySettingsPanel.save(json),
@@ -536,6 +541,7 @@ public class JDeployProjectEditor {
         registry.register(NavigablePanelAdapter.forJdeployPanel(
             "Splash Screens",
             MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#splashscreens",
+            FontIcon.of(Material.IMAGE),
             splashScreensPanel.getRoot(),
             json -> splashScreensPanel.load(json),
             json -> splashScreensPanel.save(json),
@@ -547,6 +553,7 @@ public class JDeployProjectEditor {
         registry.register(NavigablePanelAdapter.forJdeployPanel(
             "Filetypes",
             null,
+            FontIcon.of(Material.INSERT_DRIVE_FILE),
             filetypesPanel.getRoot(),
             json -> filetypesPanel.load(json),
             json -> filetypesPanel.save(json),
@@ -558,6 +565,7 @@ public class JDeployProjectEditor {
         registry.register(NavigablePanelAdapter.forJdeployPanel(
             "URLs",
             MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#_the_urls_tab",
+            FontIcon.of(Material.LINK),
             urlSchemesPanel.getRoot(),
             json -> urlSchemesPanel.load(json),
             json -> urlSchemesPanel.save(json),
@@ -569,6 +577,7 @@ public class JDeployProjectEditor {
         registry.register(NavigablePanelAdapter.forPackageJsonPanel(
             "CLI",
             null,
+            FontIcon.of(Material.CODE),
             cliSettingsPanel.getRoot(),
             json -> cliSettingsPanel.load(json),
             json -> cliSettingsPanel.save(json),
@@ -602,6 +611,7 @@ public class JDeployProjectEditor {
         registry.register(NavigablePanelAdapter.forJdeployPanel(
             "Runtime Args",
             MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#runargs",
+            FontIcon.of(Material.SETTINGS),
             runtimeArgsPanel.getRoot(),
             json -> runtimeArgsPanel.load(json),
             json -> runtimeArgsPanel.save(json),
@@ -614,6 +624,7 @@ public class JDeployProjectEditor {
             registry.register(NavigablePanelAdapter.forJdeployPanel(
                 "CheerpJ",
                 MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#cheerpj",
+                FontIcon.of(Material.WEB),
                 cheerpJSettingsPanel.getRoot(),
                 json -> cheerpJSettingsPanel.load(json),
                 json -> cheerpJSettingsPanel.save(json),
@@ -627,6 +638,7 @@ public class JDeployProjectEditor {
         registry.register(NavigablePanelAdapter.forPackageJsonPanel(
             "Permissions",
             null,
+            FontIcon.of(Material.SECURITY),
             permissionsPanel,
             json -> permissionsPanel.loadPermissions(json),
             json -> permissionsPanel.savePermissions(json),
@@ -639,6 +651,7 @@ public class JDeployProjectEditor {
         registry.register(NavigablePanelAdapter.forJdeployPanel(
             "Platform-Specific Bundles",
             null,
+            FontIcon.of(Material.DEVICES),
             bundleFiltersPanel.getRoot(),
             json -> bundleFiltersPanel.loadConfiguration(packageJSON),
             json -> {
@@ -655,6 +668,7 @@ public class JDeployProjectEditor {
         registry.register(NavigablePanelAdapter.forJdeployPanel(
             "Download Page",
             null,
+            FontIcon.of(Material.CLOUD_DOWNLOAD),
             downloadPageSettingsPanel,
             json -> {
                 DownloadPageSettings settings = loadDownloadPageSettings();
@@ -670,6 +684,7 @@ public class JDeployProjectEditor {
             registry.register(NavigablePanelAdapter.forPackageJsonPanel(
                 "Publish Settings",
                 null,
+                FontIcon.of(Material.CLOUD_UPLOAD),
                 publishSettingsPanel,
                 json -> publishSettingsPanel.load(json),
                 json -> {},  // PublishSettingsPanel doesn't have a save method, data is managed via UI
