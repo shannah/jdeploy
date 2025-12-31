@@ -1,9 +1,9 @@
 package ca.weblite.jdeploy.gui.tabs;
 
+import ca.weblite.jdeploy.gui.JDeployConstants;
+import ca.weblite.jdeploy.gui.util.SwingUtils;
+
 import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.text.JTextComponent;
 import java.awt.*;
 import java.awt.event.ActionListener;
 import java.net.URI;
@@ -15,8 +15,6 @@ public class CliSettingsPanel {
     private JTextField commandField;
     private JButton tutorialButton;
     private ActionListener changeListener;
-    
-    private static final String JDEPLOY_WEBSITE_URL = System.getProperty("jdeploy.website.url", "https://www.jdeploy.com/");
 
     public CliSettingsPanel() {
         initializeUI();
@@ -82,7 +80,7 @@ public class CliSettingsPanel {
         root.add(new Box.Filler(new Dimension(0, 0), new Dimension(0, 0), new Dimension(10, 1000)));
 
         // Add document listener to command field
-        addChangeListenerTo(commandField, this::fireChangeEvent);
+        SwingUtils.addChangeListenerTo(commandField, this::fireChangeEvent);
     }
 
     public JPanel getRoot() {
@@ -121,7 +119,7 @@ public class CliSettingsPanel {
             }
         } else {
             JSONObject bin = new JSONObject();
-            bin.put(command, "jdeploy-bundle/jdeploy.js");
+            bin.put(command, JDeployConstants.JDEPLOY_BUNDLE_SCRIPT_PATH);
             packageJSON.put("bin", bin);
         }
     }
@@ -134,24 +132,5 @@ public class CliSettingsPanel {
         if (changeListener != null) {
             changeListener.actionPerformed(new java.awt.event.ActionEvent(this, 0, "changed"));
         }
-    }
-
-    private static void addChangeListenerTo(JTextComponent textField, Runnable callback) {
-        textField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                callback.run();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                callback.run();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                callback.run();
-            }
-        });
     }
 }

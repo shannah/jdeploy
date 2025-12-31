@@ -9,7 +9,10 @@ import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
 import ca.weblite.jdeploy.gui.services.ProjectFileWatcher;
 import ca.weblite.jdeploy.gui.services.PublishingCoordinator;
 import ca.weblite.jdeploy.gui.services.SwingOneTimePasswordProvider;
+import ca.weblite.jdeploy.gui.util.SwingUtils;
 import ca.weblite.jdeploy.gui.tabs.BundleFiltersPanel;
+import javax.swing.event.DocumentListener;
+import javax.swing.event.DocumentEvent;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
 import ca.weblite.jdeploy.gui.tabs.CliSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
@@ -52,9 +55,6 @@ import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.MatteBorder;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.text.JTextComponent;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -214,25 +214,6 @@ public class JDeployProjectEditor {
 
     private class LinkFields {
         private JTextField url, label;
-    }
-
-    private static void addChangeListenerTo(JTextComponent textField, Runnable r) {
-        textField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                r.run();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                r.run();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                r.run();
-            }
-        });
     }
 
     private File getIconFile() {
@@ -492,7 +473,7 @@ public class JDeployProjectEditor {
         if (packageJSON.has("name")) {
             mainFields.name.setText(packageJSON.getString("name"));
         }
-        addChangeListenerTo(mainFields.name, ()->{
+        SwingUtils.addChangeListenerTo(mainFields.name, ()->{
             packageJSON.put("name", mainFields.name.getText());
             setModified();
         });
@@ -521,7 +502,7 @@ public class JDeployProjectEditor {
             }
             mainFields.author.setText(authorString);
         }
-        addChangeListenerTo(mainFields.author, ()->{
+        SwingUtils.addChangeListenerTo(mainFields.author, ()->{
             packageJSON.put("author", mainFields.author.getText());
             setModified();
         });
@@ -535,7 +516,7 @@ public class JDeployProjectEditor {
         if (packageJSON.has("description")) {
             mainFields.description.setText(packageJSON.getString("description"));
         }
-        addChangeListenerTo(mainFields.description, ()->{
+        SwingUtils.addChangeListenerTo(mainFields.description, ()->{
             packageJSON.put("description", mainFields.description.getText());
             setModified();
         });
@@ -552,7 +533,7 @@ public class JDeployProjectEditor {
         if (jdeploy.has("title")) {
             mainFields.title.setText(jdeploy.getString("title"));
         }
-        addChangeListenerTo(mainFields.title, () -> {
+        SwingUtils.addChangeListenerTo(mainFields.title, () -> {
             jdeploy.put("title", mainFields.title.getText());
 
             if (mainFields.title.getText().isEmpty()) {
@@ -565,7 +546,7 @@ public class JDeployProjectEditor {
         if (packageJSON.has("version")) {
             mainFields.version.setText(VersionCleaner.cleanVersion(packageJSON.getString("version")));
         }
-        addChangeListenerTo(mainFields.version, () -> {
+        SwingUtils.addChangeListenerTo(mainFields.version, () -> {
             String cleanVersion = VersionCleaner.cleanVersion(mainFields.version.getText());
             packageJSON.put("version", cleanVersion);
             setModified();
@@ -581,7 +562,7 @@ public class JDeployProjectEditor {
             mainFields.iconUrl.setText(jdeploy.getString("iconUrl"));
 
         }
-        addChangeListenerTo(mainFields.iconUrl, ()->{
+        SwingUtils.addChangeListenerTo(mainFields.iconUrl, ()->{
             jdeploy.put("iconUrl", mainFields.iconUrl.getText());
             setModified();
         });
@@ -617,14 +598,14 @@ public class JDeployProjectEditor {
             packageJSON.put("repository", repoObj);
             setModified();
         };
-        addChangeListenerTo(mainFields.repository, onRepoChange);
-        addChangeListenerTo(mainFields.repositoryDirectory, onRepoChange);
+        SwingUtils.addChangeListenerTo(mainFields.repository, onRepoChange);
+        SwingUtils.addChangeListenerTo(mainFields.repositoryDirectory, onRepoChange);
 
         mainFields.license = detailsPanel.getLicense();
         if (packageJSON.has("license")) {
             mainFields.license.setText(packageJSON.getString("license"));
         }
-        addChangeListenerTo(mainFields.license, ()->{
+        SwingUtils.addChangeListenerTo(mainFields.license, ()->{
             packageJSON.put("license", mainFields.license.getText());
             setModified();
         });
@@ -649,7 +630,7 @@ public class JDeployProjectEditor {
         if (packageJSON.has("homepage")) {
             mainFields.homepage.setText(packageJSON.getString("homepage"));
         }
-        addChangeListenerTo(mainFields.homepage, ()->{
+        SwingUtils.addChangeListenerTo(mainFields.homepage, ()->{
             packageJSON.put("homepage", mainFields.homepage.getText());
             setModified();
             queueHomepageVerification();
@@ -697,7 +678,7 @@ public class JDeployProjectEditor {
         if (jdeploy.has("jar")) {
             mainFields.jar.setText(jdeploy.getString("jar"));
         }
-        addChangeListenerTo(mainFields.jar, ()->{
+        SwingUtils.addChangeListenerTo(mainFields.jar, ()->{
             jdeploy.put("jar", mainFields.jar.getText());
             setModified();
         });

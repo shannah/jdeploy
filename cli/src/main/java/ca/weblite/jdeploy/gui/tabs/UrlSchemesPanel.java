@@ -1,13 +1,11 @@
 package ca.weblite.jdeploy.gui.tabs;
 
+import ca.weblite.jdeploy.gui.util.SwingUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.text.JTextComponent;
 import java.awt.*;
 import java.awt.event.ActionListener;
 
@@ -51,7 +49,7 @@ public class UrlSchemesPanel extends JPanel {
         urlSchemesField.setMaximumSize(new Dimension(400, urlSchemesField.getPreferredSize().height));
 
         // Add change listener to the text field
-        addChangeListenerTo(urlSchemesField, this::fireChangeEvent);
+        SwingUtils.addChangeListenerTo(urlSchemesField, this::fireChangeEvent);
 
         // Add components to panel
         add(helpText);
@@ -122,24 +120,5 @@ public class UrlSchemesPanel extends JPanel {
         if (changeListener != null) {
             changeListener.actionPerformed(new java.awt.event.ActionEvent(this, 0, "changed"));
         }
-    }
-
-    private static void addChangeListenerTo(JTextComponent textField, Runnable callback) {
-        textField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                callback.run();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                callback.run();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                callback.run();
-            }
-        });
     }
 }

@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.gui.tabs;
 
+import ca.weblite.jdeploy.gui.util.SwingUtils;
 import io.codeworth.panelmatic.PanelMatic;
 import io.codeworth.panelmatic.util.Groupings;
 import org.apache.commons.io.FileUtils;
@@ -11,9 +12,6 @@ import org.kordamp.ikonli.swing.FontIcon;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.MatteBorder;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.text.JTextComponent;
 import java.awt.*;
 import java.awt.event.ActionListener;
 import java.io.File;
@@ -106,7 +104,7 @@ public class FiletypesPanel extends JPanel {
         directoryAssociationFields.descriptionField.setToolTipText(
             "Text shown in context menu (e.g., 'Open folder as project')"
         );
-        addChangeListenerTo(directoryAssociationFields.descriptionField, this::fireChangeEvent);
+        SwingUtils.addChangeListenerTo(directoryAssociationFields.descriptionField, this::fireChangeEvent);
 
         // Use plain GridBagLayout
         JPanel rowPanel = new JPanel(new GridBagLayout());
@@ -267,7 +265,7 @@ public class FiletypesPanel extends JPanel {
         if (docTypeRow.has("extension")) {
             fields.extension.setText(docTypeRow.getString("extension"));
         }
-        addChangeListenerTo(fields.extension, () -> {
+        SwingUtils.addChangeListenerTo(fields.extension, () -> {
             String extVal = fields.extension.getText();
             if (extVal.startsWith(".")) {
                 extVal = extVal.substring(1);
@@ -284,7 +282,7 @@ public class FiletypesPanel extends JPanel {
         if (docTypeRow.has("mimetype")) {
             fields.mimetype.setText(docTypeRow.getString("mimetype"));
         }
-        addChangeListenerTo(fields.mimetype, () -> {
+        SwingUtils.addChangeListenerTo(fields.mimetype, () -> {
             docTypeRow.put("mimetype", fields.mimetype.getText());
             fireChangeEvent();
         });
@@ -326,25 +324,6 @@ public class FiletypesPanel extends JPanel {
         setOpaqueRecursive(pmPane, false);
 
         cnt.add(pmPane);
-    }
-
-    private static void addChangeListenerTo(JTextComponent textField, Runnable r) {
-        textField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                r.run();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                r.run();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                r.run();
-            }
-        });
     }
 
     private void setOpaqueRecursive(JComponent cnt, boolean opaque) {

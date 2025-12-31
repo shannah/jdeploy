@@ -12,7 +12,7 @@ import java.io.File;
 import java.net.URI;
 
 public class MenuBarBuilder {
-    public static final String JDEPLOY_WEBSITE_URL = System.getProperty("jdeploy.website.url", "https://www.jdeploy.com/");
+    public static final String JDEPLOY_WEBSITE_URL = JDeployConstants.JDEPLOY_WEBSITE_URL;
 
     private final JFrame frame;
     private final File packageJSONFile;

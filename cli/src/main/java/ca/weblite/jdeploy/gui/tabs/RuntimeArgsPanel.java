@@ -1,13 +1,11 @@
 package ca.weblite.jdeploy.gui.tabs;
 
+import ca.weblite.jdeploy.gui.util.SwingUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.text.JTextComponent;
 import java.awt.*;
 import java.awt.event.ActionListener;
 
@@ -143,31 +141,12 @@ public class RuntimeArgsPanel extends JPanel {
      */
     public void addChangeListener(ActionListener listener) {
         this.changeListener = listener;
-        addChangeListenerTo(argsField, this::fireChangeEvent);
+        SwingUtils.addChangeListenerTo(argsField, this::fireChangeEvent);
     }
 
     private void fireChangeEvent() {
         if (changeListener != null) {
             changeListener.actionPerformed(null);
         }
-    }
-
-    private static void addChangeListenerTo(JTextComponent textField, Runnable callback) {
-        textField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                callback.run();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                callback.run();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                callback.run();
-            }
-        });
     }
 }
