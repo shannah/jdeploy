@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.gui.navigation;
 
+import javax.swing.Icon;
 import javax.swing.JComponent;
 import java.awt.event.ActionListener;
 import org.json.JSONObject;
@@ -98,6 +99,19 @@ public interface NavigablePanel {
      */
     default boolean shouldDisplay() {
         return true;
+    }
+    
+    /**
+     * Gets the icon for this panel, if available.
+     * 
+     * <p>This icon may be displayed alongside the panel title in the navigation UI
+     * (e.g., in a side panel or tabbed pane). Implementations should return null if
+     * no icon is available. The default implementation returns null.</p>
+     * 
+     * @return the icon for this panel, or null if no icon is available
+     */
+    default Icon getIcon() {
+        return null;
     }
     
     /**
