@@ -48,6 +48,7 @@ class NavigablePanelAdapterTest {
             json -> loaderCallCount.incrementAndGet(),
             json -> saverCallCount.incrementAndGet(),
             registeredListeners::add,
+            null,
             displayConditionValue::get
         );
         
@@ -63,6 +64,7 @@ class NavigablePanelAdapterTest {
             json -> loaderCallCount.incrementAndGet(),
             json -> saverCallCount.incrementAndGet(),
             registeredListeners::add,
+            null,
             displayConditionValue::get
         );
         
@@ -78,6 +80,7 @@ class NavigablePanelAdapterTest {
             json -> loaderCallCount.incrementAndGet(),
             json -> saverCallCount.incrementAndGet(),
             registeredListeners::add,
+            null,
             displayConditionValue::get
         );
         
@@ -93,6 +96,7 @@ class NavigablePanelAdapterTest {
             json -> loaderCallCount.incrementAndGet(),
             json -> saverCallCount.incrementAndGet(),
             registeredListeners::add,
+            null,
             displayConditionValue::get
         );
         
@@ -110,6 +114,7 @@ class NavigablePanelAdapterTest {
             loadedObjects::add,
             json -> {},
             registeredListeners::add,
+            null,
             displayConditionValue::get
         );
         
@@ -133,6 +138,7 @@ class NavigablePanelAdapterTest {
             loadedObjects::add,
             json -> {},
             registeredListeners::add,
+            null,
             displayConditionValue::get
         );
         
@@ -155,6 +161,7 @@ class NavigablePanelAdapterTest {
             loadedObjects::add,
             json -> {},
             registeredListeners::add,
+            null,
             displayConditionValue::get
         );
         
@@ -174,6 +181,7 @@ class NavigablePanelAdapterTest {
             json -> {},
             savedObjects::add,
             registeredListeners::add,
+            null,
             displayConditionValue::get
         );
         
@@ -197,6 +205,7 @@ class NavigablePanelAdapterTest {
             json -> {},
             savedObjects::add,
             registeredListeners::add,
+            null,
             displayConditionValue::get
         );
         
@@ -219,6 +228,7 @@ class NavigablePanelAdapterTest {
             json -> {},
             savedObjects::add,
             registeredListeners::add,
+            null,
             displayConditionValue::get
         );
         
@@ -236,6 +246,7 @@ class NavigablePanelAdapterTest {
             json -> {},
             json -> {},
             registeredListeners::add,
+            null,
             displayConditionValue::get
         );
         
@@ -255,6 +266,7 @@ class NavigablePanelAdapterTest {
             json -> {},
             json -> {},
             registeredListeners::add,
+            null,
             displayConditionValue::get
         );
         
@@ -280,6 +292,7 @@ class NavigablePanelAdapterTest {
             json -> {},
             json -> {},
             registeredListeners::add,
+            null,
             displayConditionValue::get
         );
         
@@ -297,6 +310,7 @@ class NavigablePanelAdapterTest {
             json -> {},
             json -> {},
             registeredListeners::add,
+            null,
             displayConditionValue::get
         );
         
@@ -457,6 +471,7 @@ class NavigablePanelAdapterTest {
             listener -> {
                 // Can handle null listeners
             },
+            null,
             displayConditionValue::get
         );
         
