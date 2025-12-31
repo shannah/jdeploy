@@ -10,6 +10,7 @@ import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
 import ca.weblite.jdeploy.gui.navigation.EditorPanelRegistry;
 import ca.weblite.jdeploy.gui.navigation.NavigablePanelAdapter;
 import ca.weblite.jdeploy.gui.navigation.NavigationHost;
+import ca.weblite.jdeploy.gui.navigation.SidePanelNavigationHost;
 import ca.weblite.jdeploy.gui.navigation.TabbedPaneNavigationHost;
 import ca.weblite.jdeploy.gui.services.ProjectFileWatcher;
 import ca.weblite.jdeploy.gui.services.PublishingCoordinator;
@@ -408,7 +409,9 @@ public class JDeployProjectEditor {
         registry.loadAll(packageJSON, packageJSON.optJSONObject("jdeploy"));
         
         // Create navigation host
-        NavigationHost host = new TabbedPaneNavigationHost(context, frame);
+        NavigationHost host = context.useSideNavigation() 
+            ? new SidePanelNavigationHost(context, frame)
+            : new TabbedPaneNavigationHost(context, frame);
         registry.populateHost(host);
         
         // Setup container
