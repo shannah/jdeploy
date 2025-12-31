@@ -747,117 +747,18 @@ public class JDeployProjectEditor {
     }
 
     private Component createPublishSettingsPanel() {
-        publishSettingsPanel = new PublishSettingsPanel();
-        PublishSettingsPanel panel = publishSettingsPanel;
         PublishTargetFactory factory = DIContext.get(PublishTargetFactory.class);
         PublishTargetServiceInterface publishTargetService = DIContext.get(PublishTargetServiceInterface.class);
-        try {
-            List<PublishTargetInterface> targets = publishTargetService.getTargetsForPackageJson(packageJSON, true);
-            PublishTargetInterface npmTarget = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
-            PublishTargetInterface gitHubTarget = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
-            panel.getNpmCheckbox().setSelected(npmTarget != null);
-            panel.getGithubCheckbox().setSelected(gitHubTarget != null);
-            if (gitHubTarget != null) {
-                panel.getGithubRepositoryField().setText(gitHubTarget.getUrl());
-            }
-
-            panel.getNpmCheckbox().addActionListener(evt -> {
-                if (panel.getNpmCheckbox().isSelected()) {
-                    try {
-                        PublishTargetInterface existingNpm = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
-                        if (existingNpm == null || existingNpm.isDefault()) {
-                            if (existingNpm != null && existingNpm.isDefault()) {
-                                targets.remove(existingNpm);
-                            }
-                            targets.add(factory.createWithUrlAndName(packageJSON.getString("name"), packageJSON.getString("name")));
-                            publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
-                            setModified();
-                        }
-                    } catch (Exception ex) {
-                        showError("Failed to create NPM publish target", ex);
-                    }
-                } else {
-                    try {
-                        PublishTargetInterface existingNpm = targets.stream().filter(t -> t.getType() == PublishTargetType.NPM).findFirst().orElse(null);
-                        if (existingNpm != null) {
-                            targets.remove(existingNpm);
-                            publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
-                            setModified();
-                        }
-                    } catch (Exception ex) {
-                        showError("Failed to delete NPM publish target", ex);
-                    }
-                }
-            });
-
-            panel.getGithubCheckbox().addActionListener(evt -> {
-                if (panel.getGithubCheckbox().isSelected()) {
-                    try {
-                        PublishTargetInterface existingGithub = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
-                        if (existingGithub == null) {
-                            String githubUrl = panel.getGithubRepositoryField().getText();
-                            String name = "github: " + (githubUrl.isEmpty() ? packageJSON.getString("name") : githubUrl);
-                            targets.add(new PublishTarget(name, PublishTargetType.GITHUB, githubUrl));
-                            publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
-                            setModified();
-                        }
-                    } catch (Exception ex) {
-                        showError("Failed to create NPM publish target", ex);
-                    }
-                } else {
-                    try {
-                        PublishTargetInterface existingGithub = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
-                        if (existingGithub != null) {
-                            targets.remove(existingGithub);
-                            publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
-                            setModified();
-                        }
-                    } catch (Exception ex) {
-                        showError("Failed to delete NPM publish target", ex);
-                    }
-                }
-            });
-
-            panel.getGithubRepositoryField().getDocument().addDocumentListener(new DocumentListener() {
-                @Override
-                public void insertUpdate(DocumentEvent e) {
-                    updateGithubUrl();
-                }
-
-                @Override
-                public void removeUpdate(DocumentEvent e) {
-                    updateGithubUrl();
-                }
-
-                @Override
-                public void changedUpdate(DocumentEvent e) {
-                    updateGithubUrl();
-                }
-
-                private void updateGithubUrl() {
-                    if (!panel.getGithubCheckbox().isSelected()) {
-                        return; // Only update URL if GitHub is actually selected
-                    }
-                    try {
-                        targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().ifPresent(targets::remove);
-                        // Explicitly create GitHub target instead of relying on URL-based factory logic
-                        String githubUrl = panel.getGithubRepositoryField().getText();
-                        String name = "github: " + (githubUrl.isEmpty() ? packageJSON.getString("name") : githubUrl);
-                        PublishTargetInterface newGithub = new PublishTarget(name, PublishTargetType.GITHUB, githubUrl);
-                        targets.add(newGithub);
-                        publishTargetService.updatePublishTargetsForPackageJson(packageJSON, targets);
-                        setModified();
-                    } catch (Exception ex) {
-                        showError("Failed to update Github URL", ex);
-                    }
-                }
-            });
-        } catch (Exception ex) {
-            showError("Failed to load publish targets", ex);
-        }
-
-        return panel;
-
+        
+        publishSettingsPanel = new PublishSettingsPanel(
+            factory,
+            publishTargetService,
+            this::showError
+        );
+        publishSettingsPanel.load(packageJSON);
+        publishSettingsPanel.addChangeListener(evt -> setModified());
+        
+        return publishSettingsPanel;
     }
 
     private File showFileChooser(String... extensions) {
