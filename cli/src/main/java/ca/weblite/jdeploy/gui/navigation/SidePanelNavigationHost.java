@@ -24,18 +24,20 @@ public class SidePanelNavigationHost implements NavigationHost {
     private final JPanel cardPanel;
     private final CardLayout cardLayout;
     private final Map<String, Runnable> onSelectedCallbacks;
+    private final Map<String, Icon> panelIcons;
     private boolean isUpdatingSelection = false;
 
     public SidePanelNavigationHost(JDeployProjectEditorContext context, JFrame parentFrame) {
         this.context = context;
         this.parentFrame = parentFrame;
         this.onSelectedCallbacks = new HashMap<>();
+        this.panelIcons = new HashMap<>();
         
         // Create list model and list
         this.listModel = new DefaultListModel<>();
         this.panelList = new JList<>(listModel);
         this.panelList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        this.panelList.setCellRenderer(new IntelliJStyleListCellRenderer());
+        this.panelList.setCellRenderer(new IntelliJStyleListCellRenderer(panelIcons));
         
         // Create card layout panel
         this.cardLayout = new CardLayout();
@@ -71,6 +73,12 @@ public class SidePanelNavigationHost implements NavigationHost {
         }
         
         String title = panel.getTitle();
+        
+        // Store the panel's icon if available
+        Icon icon = panel.getIcon();
+        if (icon != null) {
+            panelIcons.put(title, icon);
+        }
         
         // Create wrapper panel with BorderLayout
         JPanel wrapper = new JPanel(new BorderLayout());
@@ -140,6 +148,11 @@ public class SidePanelNavigationHost implements NavigationHost {
     private static class IntelliJStyleListCellRenderer extends DefaultListCellRenderer {
         private static final Font REGULAR_FONT = new Font("Dialog", Font.PLAIN, 12);
         private static final Font BOLD_FONT = new Font("Dialog", Font.BOLD, 12);
+        private final Map<String, Icon> panelIcons;
+
+        IntelliJStyleListCellRenderer(Map<String, Icon> panelIcons) {
+            this.panelIcons = panelIcons;
+        }
 
         @Override
         public Component getListCellRendererComponent(
@@ -160,6 +173,14 @@ public class SidePanelNavigationHost implements NavigationHost {
                     label.setFont(BOLD_FONT);
                 } else {
                     label.setFont(REGULAR_FONT);
+                }
+                // Set the icon if available
+                if (value != null && panelIcons != null) {
+                    String title = value.toString();
+                    Icon icon = panelIcons.get(title);
+                    if (icon != null) {
+                        label.setIcon(icon);
+                    }
                 }
                 // Add some padding
                 label.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
