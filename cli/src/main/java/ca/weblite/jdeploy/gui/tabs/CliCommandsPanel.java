@@ -38,6 +38,7 @@ public class CliCommandsPanel extends JPanel {
     private boolean isUpdatingUI = false;
     private boolean currentCommandModified = false;
     private java.util.Map<String, JSONObject> commandsModel = new java.util.LinkedHashMap<>();
+    private String previouslySelectedCommand = null;
 
     public CliCommandsPanel() {
         initializeUI();
@@ -205,6 +206,7 @@ public class CliCommandsPanel extends JPanel {
             argsField.setText("");
             validationLabel.setText(" ");
             removeButton.setEnabled(false);
+            previouslySelectedCommand = null;
             currentCommandModified = false;
 
             if (jdeploy == null || !jdeploy.has("commands")) {
@@ -260,8 +262,8 @@ public class CliCommandsPanel extends JPanel {
         for (int i = 0; i < commandListModel.size(); i++) {
             if (commandListModel.getElementAt(i).equals(commandName)) {
                 // Save current command before switching if it was modified
-                if (currentCommandModified) {
-                    saveCurrentCommand();
+                if (currentCommandModified && previouslySelectedCommand != null) {
+                    saveCurrentCommand(previouslySelectedCommand);
                 }
                 // Set flag to prevent onCommandSelected from also running
                 isUpdatingUI = true;
@@ -273,6 +275,7 @@ public class CliCommandsPanel extends JPanel {
                 // Explicitly load the command to ensure UI updates in headless environments
                 loadCommandForEditing(commandName);
                 removeButton.setEnabled(true);
+                previouslySelectedCommand = commandName;
                 currentCommandModified = false;
                 return true;
             }
@@ -288,8 +291,8 @@ public class CliCommandsPanel extends JPanel {
     public void selectCommandAt(int index) {
         if (index >= 0 && index < commandListModel.size()) {
             // Save current command before switching if it was modified
-            if (currentCommandModified) {
-                saveCurrentCommand();
+            if (currentCommandModified && previouslySelectedCommand != null) {
+                saveCurrentCommand(previouslySelectedCommand);
             }
             // Set flag to prevent onCommandSelected from also running
             isUpdatingUI = true;
@@ -302,6 +305,7 @@ public class CliCommandsPanel extends JPanel {
             String commandName = commandListModel.getElementAt(index);
             loadCommandForEditing(commandName);
             removeButton.setEnabled(true);
+            previouslySelectedCommand = commandName;
             currentCommandModified = false;
         }
     }
@@ -312,8 +316,8 @@ public class CliCommandsPanel extends JPanel {
         }
 
         // Save the previously selected command if it was modified
-        if (currentCommandModified) {
-            saveCurrentCommand();
+        if (currentCommandModified && previouslySelectedCommand != null) {
+            saveCurrentCommand(previouslySelectedCommand);
         }
 
         int index = commandList.getSelectedIndex();
@@ -323,10 +327,12 @@ public class CliCommandsPanel extends JPanel {
             argsField.setText("");
             validationLabel.setText(" ");
             removeButton.setEnabled(false);
+            previouslySelectedCommand = null;
         } else {
             String commandName = commandListModel.getElementAt(index);
             loadCommandForEditing(commandName);
             removeButton.setEnabled(true);
+            previouslySelectedCommand = commandName;
         }
         currentCommandModified = false;
     }
@@ -366,17 +372,19 @@ public class CliCommandsPanel extends JPanel {
     }
 
     private void saveCurrentCommand() {
-        if (isUpdatingUI) {
+        if (previouslySelectedCommand != null) {
+            saveCurrentCommand(previouslySelectedCommand);
+        }
+    }
+
+    private void saveCurrentCommand(String commandName) {
+        if (isUpdatingUI || commandName == null) {
             return;
         }
-        int index = commandList.getSelectedIndex();
-        if (index >= 0) {
-            String currentName = commandListModel.getElementAt(index);
-            
-            // Save current form state to model
-            JSONObject spec = buildCommandSpec(currentName);
-            commandsModel.put(currentName, spec);
-        }
+
+        // Save current form state to model
+        JSONObject spec = buildCommandSpec(commandName);
+        commandsModel.put(commandName, spec);
     }
 
     private void onNameChanged() {
@@ -466,6 +474,7 @@ public class CliCommandsPanel extends JPanel {
         commandListModel.addElement(newName);
         commandsModel.put(newName, new JSONObject());
         commandList.setSelectedIndex(newIndex);
+        previouslySelectedCommand = newName;
         nameField.requestFocus();
         currentCommandModified = false;
         fireChangeEvent();
@@ -482,6 +491,7 @@ public class CliCommandsPanel extends JPanel {
             descriptionField.setText("");
             argsField.setText("");
             validationLabel.setText(" ");
+            previouslySelectedCommand = null;
             currentCommandModified = false;
             fireChangeEvent();
         }

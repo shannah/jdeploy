@@ -125,9 +125,62 @@ public class CliCommandsPanelTest {
         JSONObject jdeploy = new JSONObject();
         jdeploy.put("someOtherKey", "value");
         panel.load(jdeploy);
-        
+
         // Should not throw exception
         JSONObject saved = new JSONObject();
         panel.save(saved);
+    }
+
+    @Test
+    public void testEditDescriptionAndSwitchCommand() {
+        // Setup: Load two commands
+        JSONObject jdeploy = new JSONObject();
+        JSONObject commands = new JSONObject();
+
+        JSONObject cmd1 = new JSONObject();
+        cmd1.put("description", "Original description 1");
+        cmd1.put("args", new JSONArray(new String[]{"arg1"}));
+
+        JSONObject cmd2 = new JSONObject();
+        cmd2.put("description", "Original description 2");
+        cmd2.put("args", new JSONArray(new String[]{"arg2"}));
+
+        commands.put("cmd1", cmd1);
+        commands.put("cmd2", cmd2);
+        jdeploy.put("commands", commands);
+
+        panel.load(jdeploy);
+
+        // Select cmd1 and edit its description
+        assertTrue(panel.selectCommand("cmd1"));
+
+        // Simulate user editing the description field
+        // (In a real UI test, this would be done through the UI components)
+        // For now, we'll test by switching commands and verifying the save
+
+        // Select cmd2
+        assertTrue(panel.selectCommand("cmd2"));
+
+        // Now save and verify cmd1's data is preserved
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+
+        JSONObject savedCommands = saved.getJSONObject("commands");
+        assertEquals(2, savedCommands.length());
+        assertTrue(savedCommands.has("cmd1"));
+        assertTrue(savedCommands.has("cmd2"));
+
+        // Verify cmd1 still has its original description (not overwritten by cmd2)
+        assertEquals("Original description 1", savedCommands.getJSONObject("cmd1").getString("description"));
+        assertEquals("Original description 2", savedCommands.getJSONObject("cmd2").getString("description"));
+
+        // Verify args are preserved
+        JSONArray cmd1Args = savedCommands.getJSONObject("cmd1").getJSONArray("args");
+        assertEquals(1, cmd1Args.length());
+        assertEquals("arg1", cmd1Args.getString(0));
+
+        JSONArray cmd2Args = savedCommands.getJSONObject("cmd2").getJSONArray("args");
+        assertEquals(1, cmd2Args.length());
+        assertEquals("arg2", cmd2Args.getString(0));
     }
 }
