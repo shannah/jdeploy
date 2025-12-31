@@ -77,8 +77,8 @@ public class MacCliCommandInstallerTest {
     @Test
     public void testInstallCommandsWithCliCommands() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
-        commands.add(new CommandSpec("othercmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
+        commands.add(new CommandSpec("othercmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -96,7 +96,7 @@ public class MacCliCommandInstallerTest {
     @DisabledOnOs(OS.WINDOWS)
     public void testInstallCommandsWithCliLauncher() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -117,7 +117,7 @@ public class MacCliCommandInstallerTest {
     @DisabledOnOs(OS.WINDOWS)
     public void testInstallCommandsWithBothOptions() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -150,7 +150,7 @@ public class MacCliCommandInstallerTest {
     @Test
     public void testInstallCommandsNullLauncherPath() {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -165,7 +165,7 @@ public class MacCliCommandInstallerTest {
     @DisabledOnOs(OS.WINDOWS)
     public void testCommandScriptEscapeDoubleQuotes() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -195,7 +195,7 @@ public class MacCliCommandInstallerTest {
         args.add("value");
 
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", args));
+        commands.add(new CommandSpec("mycmd", null, args));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -300,8 +300,8 @@ public class MacCliCommandInstallerTest {
     public void testUninstallCommandsRemovesScripts() throws IOException {
         // First install some commands
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("cmd1", new ArrayList<>()));
-        commands.add(new CommandSpec("cmd2", new ArrayList<>()));
+        commands.add(new CommandSpec("cmd1", null, new ArrayList<>()));
+        commands.add(new CommandSpec("cmd2", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -339,7 +339,7 @@ public class MacCliCommandInstallerTest {
     @Test
     public void testMetadataFileCreated() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -382,7 +382,7 @@ public class MacCliCommandInstallerTest {
     @Test
     public void testCommandScriptRemovesExisting() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -406,7 +406,7 @@ public class MacCliCommandInstallerTest {
     @Test
     public void testCommandScriptExecutable() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -422,7 +422,7 @@ public class MacCliCommandInstallerTest {
     @Test
     public void testMetadataContainsTimestamp() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -442,7 +442,7 @@ public class MacCliCommandInstallerTest {
     @Test
     public void testPathUpdatePersistsInMetadata() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -461,7 +461,7 @@ public class MacCliCommandInstallerTest {
     @Test
     public void testInstallCommandsUpdateSettings() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -479,7 +479,7 @@ public class MacCliCommandInstallerTest {
     @Test
     public void testMetadataSavedToAppDirNotBinDir() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -500,8 +500,8 @@ public class MacCliCommandInstallerTest {
     @Test
     public void testUninstallFromAppDirRemovesScriptsFromBinDir() throws IOException {
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("cmd1", new ArrayList<>()));
-        commands.add(new CommandSpec("cmd2", new ArrayList<>()));
+        commands.add(new CommandSpec("cmd1", null, new ArrayList<>()));
+        commands.add(new CommandSpec("cmd2", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -537,7 +537,7 @@ public class MacCliCommandInstallerTest {
         // 3. Uninstall from appDir removes scripts from binDir
         
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("testcmd", new ArrayList<>()));
+        commands.add(new CommandSpec("testcmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -581,7 +581,7 @@ public class MacCliCommandInstallerTest {
         });
 
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -619,7 +619,7 @@ public class MacCliCommandInstallerTest {
         });
 
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
@@ -661,7 +661,7 @@ public class MacCliCommandInstallerTest {
         });
 
         List<CommandSpec> commands = new ArrayList<>();
-        commands.add(new CommandSpec("mycmd", new ArrayList<>()));
+        commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());

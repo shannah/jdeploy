@@ -21,8 +21,8 @@ public class InstallWindowsCmdWrapperTest {
         exe.deleteOnExit();
 
         List<CommandSpec> commands = Arrays.asList(
-                new CommandSpec("hello", Arrays.asList("a", "b")),
-                new CommandSpec("world", null)
+                new CommandSpec("hello", null, Arrays.asList("a", "b")),
+                new CommandSpec("world", null, null)
         );
 
         WindowsCliCommandInstaller installer = new WindowsCliCommandInstaller();
