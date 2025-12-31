@@ -13,8 +13,6 @@ import javax.swing.event.DocumentListener;
 import javax.swing.event.ListSelectionEvent;
 import java.awt.*;
 import java.awt.event.ActionListener;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Panel for managing CLI commands in a master-detail UI.
@@ -118,6 +116,12 @@ public class CliCommandsPanel extends JPanel {
         formPanel.setLayout(new BoxLayout(formPanel, BoxLayout.Y_AXIS));
         formPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
 
+        // Instructions panel
+        JPanel instructionsPanel = createInstructionsPanel();
+        instructionsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        formPanel.add(instructionsPanel);
+        formPanel.add(Box.createVerticalStrut(15));
+
         // Name field
         JPanel nameLabelPanel = new JPanel();
         nameLabelPanel.setOpaque(false);
@@ -214,6 +218,49 @@ public class CliCommandsPanel extends JPanel {
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
         panel.add(scrollPane, BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    private JPanel createInstructionsPanel() {
+        JPanel panel = new JPanel();
+        panel.setOpaque(true);
+        panel.setBackground(new Color(245, 245, 250));
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(200, 200, 210), 1),
+            new EmptyBorder(10, 10, 10, 10)
+        ));
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+
+        JLabel titleLabel = new JLabel("CLI Commands");
+        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 13f));
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(titleLabel);
+        panel.add(Box.createVerticalStrut(5));
+
+        String instructionsText = "Commands are installed as CLI tools alongside your app. " +
+                "They execute your app with the system property jdeploy.mode=command set, " +
+                "allowing you to provide CLI companion commands.\n\n" +
+                "Example: Detecting command mode in your main() method:\n" +
+                "  if (\"command\".equals(System.getProperty(\"jdeploy.mode\"))) {\n" +
+                "      // Handle CLI command logic\n" +
+                "  }";
+
+        JTextArea instructionsArea = new JTextArea(instructionsText);
+        instructionsArea.setEditable(false);
+        instructionsArea.setOpaque(false);
+        instructionsArea.setLineWrap(true);
+        instructionsArea.setWrapStyleWord(true);
+        instructionsArea.setFont(instructionsArea.getFont().deriveFont(11f));
+        instructionsArea.setBorder(null);
+        instructionsArea.setAlignmentX(Component.LEFT_ALIGNMENT);
+        instructionsArea.setFocusable(false);
+
+        // Set explicit size to prevent expansion
+        instructionsArea.setPreferredSize(new Dimension(400, 110));
+        instructionsArea.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
+
+        panel.add(instructionsArea);
 
         return panel;
     }
