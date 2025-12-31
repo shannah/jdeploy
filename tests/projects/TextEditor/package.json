@@ -1,7 +1,5 @@
 {
-    "bin": {
-        "texteditor": "jdeploy-bundle/jdeploy.js"
-    },
+    "bin": {"texteditor": "jdeploy-bundle/jdeploy.js"},
     "author": "Steve Hannah",
     "description": "A text editor",
     "main": "index.js",
@@ -10,6 +8,13 @@
     "version": "0.0.0-JDEPLOY-SNAPSHOT",
     "jdeploy": {
         "jdk": false,
+        "installers": [
+            "mac-arm64",
+            "win",
+            "linux"
+        ],
+        "fallbackToUniversal": false,
+        "publishTargets": [],
         "javaVersion": "11",
         "documentTypes": [
             {
@@ -26,17 +31,12 @@
                 "mimetype": "application/x-jdeploy-demo-texteditor-jdtext"
             }
         ],
-        "urlSchemes": [
-            "jdtext"
-        ],
+        "urlSchemes": ["jdtext"],
         "jar": "target/TextEditor-1.0-SNAPSHOT.jar",
         "javafx": true,
         "title": "Text Editor",
-        "installers": [
-            "mac-arm64",
-            "win",
-            "linux"
-        ]
+        "downloadPage": {"platforms": ["default"]},
+        "platformBundlesEnabled": false
     },
     "dependencies": {
         "command-exists-promise": "^2.0.2",
@@ -47,10 +47,6 @@
     },
     "license": "ISC",
     "name": "jdeploy-demo-texteditor",
-    "files": [
-        "jdeploy-bundle"
-    ],
-    "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
-    }
+    "files": ["jdeploy-bundle"],
+    "scripts": {"test": "echo \"Error: no test specified\" && exit 1"}
 }

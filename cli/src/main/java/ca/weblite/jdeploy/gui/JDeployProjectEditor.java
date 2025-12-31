@@ -614,6 +614,7 @@ public class JDeployProjectEditor {
             JSONObject repoObj = (repoVal instanceof JSONObject) ? (JSONObject) repoVal : new JSONObject();
             repoObj.put("url", mainFields.repository.getText());
             repoObj.put("directory", mainFields.repositoryDirectory.getText());
+            packageJSON.put("repository", repoObj);
             setModified();
         };
         addChangeListenerTo(mainFields.repository, onRepoChange);
