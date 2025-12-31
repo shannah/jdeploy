@@ -119,9 +119,18 @@ public class CliCommandsPanel extends JPanel {
         formPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
 
         // Name field
+        JPanel nameLabelPanel = new JPanel();
+        nameLabelPanel.setOpaque(false);
+        nameLabelPanel.setLayout(new BoxLayout(nameLabelPanel, BoxLayout.X_AXIS));
         JLabel nameLabel = new JLabel("Command Name");
         nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD));
-        formPanel.add(nameLabel);
+        nameLabelPanel.add(nameLabel);
+        nameLabelPanel.add(Box.createHorizontalStrut(5));
+        nameLabelPanel.add(createInfoIcon("<html>Command name added to user's PATH.<br>Users can run this command from their terminal.</html>"));
+        nameLabelPanel.add(Box.createHorizontalGlue());
+        nameLabelPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        nameLabelPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, nameLabel.getPreferredSize().height));
+        formPanel.add(nameLabelPanel);
 
         nameField = new JTextField();
         nameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, nameField.getPreferredSize().height));
@@ -141,9 +150,18 @@ public class CliCommandsPanel extends JPanel {
         formPanel.add(Box.createVerticalStrut(10));
 
         // Description field
+        JPanel descLabelPanel = new JPanel();
+        descLabelPanel.setOpaque(false);
+        descLabelPanel.setLayout(new BoxLayout(descLabelPanel, BoxLayout.X_AXIS));
         JLabel descLabel = new JLabel("Description");
         descLabel.setFont(descLabel.getFont().deriveFont(Font.BOLD));
-        formPanel.add(descLabel);
+        descLabelPanel.add(descLabel);
+        descLabelPanel.add(Box.createHorizontalStrut(5));
+        descLabelPanel.add(createInfoIcon("A short description of what this command does"));
+        descLabelPanel.add(Box.createHorizontalGlue());
+        descLabelPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        descLabelPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, descLabel.getPreferredSize().height));
+        formPanel.add(descLabelPanel);
 
         descriptionField = new JTextField();
         descriptionField.setMaximumSize(new Dimension(Integer.MAX_VALUE, descriptionField.getPreferredSize().height));
@@ -157,9 +175,20 @@ public class CliCommandsPanel extends JPanel {
         formPanel.add(Box.createVerticalStrut(10));
 
         // Arguments field
+        JPanel argsLabelPanel = new JPanel();
+        argsLabelPanel.setOpaque(false);
+        argsLabelPanel.setLayout(new BoxLayout(argsLabelPanel, BoxLayout.X_AXIS));
         JLabel argsLabel = new JLabel("Arguments (one per line)");
         argsLabel.setFont(argsLabel.getFont().deriveFont(Font.BOLD));
-        formPanel.add(argsLabel);
+        argsLabelPanel.add(argsLabel);
+        argsLabelPanel.add(Box.createHorizontalStrut(5));
+        argsLabelPanel.add(createInfoIcon("<html>Arguments prefixed with -D or -X are JVM arguments.<br>" +
+                "Others are passed to main().<br>" +
+                "User-supplied arguments append at end (or at $@ placeholder).</html>"));
+        argsLabelPanel.add(Box.createHorizontalGlue());
+        argsLabelPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        argsLabelPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, argsLabel.getPreferredSize().height));
+        formPanel.add(argsLabelPanel);
 
         argsField = new JTextArea();
         argsField.setLineWrap(false);
@@ -187,6 +216,15 @@ public class CliCommandsPanel extends JPanel {
         panel.add(scrollPane, BorderLayout.CENTER);
 
         return panel;
+    }
+
+    private JLabel createInfoIcon(String tooltipText) {
+        JLabel infoIcon = new JLabel("\u24D8"); // Unicode circled letter i
+        infoIcon.setForeground(new Color(100, 149, 237)); // Cornflower blue
+        infoIcon.setFont(infoIcon.getFont().deriveFont(Font.BOLD, 14f));
+        infoIcon.setToolTipText(tooltipText);
+        infoIcon.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return infoIcon;
     }
 
     public JPanel getRoot() {
