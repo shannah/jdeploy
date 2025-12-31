@@ -395,6 +395,8 @@ class DetailsPanelTest {
     @DisplayName("Should save jbrVariant to jdeploy object")
     void testSaveJbrVariant() {
         JSONObject packageJSON = new JSONObject();
+        // Must set JDK Provider to JBR first, otherwise jbrVariant is not saved
+        panel.getJdkProvider().setSelectedItem("JetBrains Runtime (JBR)");
         panel.getJbrVariant().setSelectedItem("JCEF");
         
         panel.save(packageJSON);
@@ -613,5 +615,423 @@ class DetailsPanelTest {
         File testDir = new File(System.getProperty("java.io.tmpdir"));
         panel.setProjectDirectory(testDir);
         // Should not throw exception
+    }
+    
+    // ========== INTEGRATION TESTS ==========
+    
+    @Test
+    @DisplayName("Integration: Load complete packageJSON, modify all fields, save, and verify persistence")
+    void testCompleteLoadModifySaveRoundTrip() {
+        // Create a comprehensive package.json
+        JSONObject original = createCompletePackageJSON();
+        
+        // Load into panel
+        panel.load(original);
+        
+        // Verify all fields are loaded correctly
+        assertEquals("test-app", panel.getName().getText());
+        assertEquals("1.0.0", panel.getVersion().getText());
+        assertEquals("Jane Doe <jane@example.com> (https://example.com)", panel.getAuthor().getText());
+        assertEquals("A test application", panel.getDescription().getText());
+        assertEquals("https://example.com", panel.getHomepage().getText());
+        assertEquals("Apache-2.0", panel.getLicense().getText());
+        assertEquals("https://github.com/user/repo", panel.getRepositoryUrl().getText());
+        assertEquals("src", panel.getRepositoryDirectory().getText());
+        assertEquals("Test App", panel.getTitle().getText());
+        assertEquals("build/libs/app.jar", panel.getJarFile().getText());
+        assertTrue(panel.getRequiresJavaFX().isSelected());
+        assertTrue(panel.getRequiresFullJDK().isSelected());
+        assertEquals("21", panel.getJavaVersion().getSelectedItem());
+        assertEquals("JetBrains Runtime (JBR)", panel.getJdkProvider().getSelectedItem());
+        assertEquals("JCEF", panel.getJbrVariant().getSelectedItem());
+        
+        // Now modify all fields
+        panel.getName().setText("modified-app");
+        panel.getVersion().setText("2.0.0");
+        panel.getAuthor().setText("John Smith");
+        panel.getDescription().setText("Modified description");
+        panel.getHomepage().setText("https://modified.com");
+        panel.getLicense().setText("MIT");
+        panel.getRepositoryUrl().setText("https://github.com/other/repo");
+        panel.getRepositoryDirectory().setText("docs");
+        panel.getTitle().setText("Modified App");
+        panel.getJarFile().setText("target/modified.jar");
+        panel.getRequiresJavaFX().setSelected(false);
+        panel.getRequiresFullJDK().setSelected(false);
+        panel.getJavaVersion().setSelectedItem("17");
+        panel.getJdkProvider().setSelectedItem("Auto (Recommended)");
+        
+        // Save to new JSON object
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+        
+        // Verify all modifications are persisted
+        assertEquals("modified-app", saved.getString("name"));
+        assertEquals("2.0.0", saved.getString("version"));
+        assertEquals("John Smith", saved.getString("author"));
+        assertEquals("Modified description", saved.getString("description"));
+        assertEquals("https://modified.com", saved.getString("homepage"));
+        assertEquals("MIT", saved.getString("license"));
+        
+        JSONObject savedRepo = saved.getJSONObject("repository");
+        assertEquals("https://github.com/other/repo", savedRepo.getString("url"));
+        assertEquals("docs", savedRepo.getString("directory"));
+        
+        JSONObject savedJdeploy = saved.getJSONObject("jdeploy");
+        assertEquals("Modified App", savedJdeploy.getString("title"));
+        assertEquals("target/modified.jar", savedJdeploy.getString("jar"));
+        assertFalse(savedJdeploy.has("javafx"));
+        assertFalse(savedJdeploy.has("jdk"));
+        assertEquals("17", savedJdeploy.getString("javaVersion"));
+        assertFalse(savedJdeploy.has("jdkProvider"));
+    }
+    
+    @Test
+    @DisplayName("Edge case: Missing jdeploy object should be created on save")
+    void testMissingJdeployObjectCreatedOnSave() {
+        JSONObject packageJSON = new JSONObject();
+        packageJSON.put("name", "test-app");
+        packageJSON.put("version", "1.0.0");
+        // No jdeploy object
+        
+        panel.load(packageJSON);
+        panel.getTitle().setText("Test Title");
+        
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+        
+        assertTrue(saved.has("jdeploy"));
+        JSONObject jdeploy = saved.getJSONObject("jdeploy");
+        assertEquals("Test Title", jdeploy.getString("title"));
+    }
+    
+    @Test
+    @DisplayName("Edge case: Empty repository fields should not be saved")
+    void testEmptyRepositoryNotSaved() {
+        JSONObject packageJSON = new JSONObject();
+        packageJSON.put("name", "test-app");
+        
+        panel.load(packageJSON);
+        
+        // Leave repository fields empty
+        panel.getRepositoryUrl().setText("");
+        panel.getRepositoryDirectory().setText("");
+        
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+        
+        assertFalse(saved.has("repository"));
+    }
+    
+    @Test
+    @DisplayName("Edge case: Repository URL only (no directory) should be saved")
+    void testRepositoryUrlOnlyWithoutDirectory() {
+        JSONObject packageJSON = new JSONObject();
+        packageJSON.put("name", "test-app");
+        
+        panel.load(packageJSON);
+        
+        panel.getRepositoryUrl().setText("https://github.com/user/repo");
+        panel.getRepositoryDirectory().setText("");
+        
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+        
+        assertTrue(saved.has("repository"));
+        JSONObject repo = saved.getJSONObject("repository");
+        assertEquals("https://github.com/user/repo", repo.getString("url"));
+        assertFalse(repo.has("directory"));
+    }
+    
+    @Test
+    @DisplayName("Edge case: Repository directory only (no URL) should be saved")
+    void testRepositoryDirectoryOnlyWithoutUrl() {
+        JSONObject packageJSON = new JSONObject();
+        packageJSON.put("name", "test-app");
+        
+        panel.load(packageJSON);
+        
+        panel.getRepositoryUrl().setText("");
+        panel.getRepositoryDirectory().setText("src");
+        
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+        
+        assertTrue(saved.has("repository"));
+        JSONObject repo = saved.getJSONObject("repository");
+        assertFalse(repo.has("url"));
+        assertEquals("src", repo.getString("directory"));
+    }
+    
+    @Test
+    @DisplayName("Edge case: Load repository as string, save as object")
+    void testRepositoryStringLoadedAsObject() {
+        JSONObject packageJSON = new JSONObject();
+        packageJSON.put("name", "test-app");
+        packageJSON.put("repository", "https://github.com/user/repo");
+        
+        panel.load(packageJSON);
+        
+        assertEquals("https://github.com/user/repo", panel.getRepositoryUrl().getText());
+        assertEquals("", panel.getRepositoryDirectory().getText());
+        
+        // Add directory
+        panel.getRepositoryDirectory().setText("docs");
+        
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+        
+        // Should be saved as object format
+        JSONObject repo = saved.getJSONObject("repository");
+        assertEquals("https://github.com/user/repo", repo.getString("url"));
+        assertEquals("docs", repo.getString("directory"));
+    }
+    
+    @Test
+    @DisplayName("Edge case: Load author as string, save as string")
+    void testAuthorStringPersistence() {
+        JSONObject packageJSON = new JSONObject();
+        packageJSON.put("name", "test-app");
+        packageJSON.put("author", "John Doe");
+        
+        panel.load(packageJSON);
+        
+        assertEquals("John Doe", panel.getAuthor().getText());
+        
+        panel.getAuthor().setText("Jane Smith");
+        
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+        
+        assertEquals("Jane Smith", saved.getString("author"));
+    }
+    
+    @Test
+    @DisplayName("Edge case: Load author as object, modify, and save as string")
+    void testAuthorObjectModifiedToString() {
+        JSONObject packageJSON = new JSONObject();
+        packageJSON.put("name", "test-app");
+        JSONObject author = new JSONObject();
+        author.put("name", "Jane Doe");
+        author.put("email", "jane@example.com");
+        author.put("url", "https://example.com");
+        packageJSON.put("author", (Object) author);
+        
+        panel.load(packageJSON);
+        
+        String loadedAuthor = panel.getAuthor().getText();
+        assertTrue(loadedAuthor.contains("Jane Doe"));
+        assertTrue(loadedAuthor.contains("jane@example.com"));
+        
+        // User modifies it to a simple string
+        panel.getAuthor().setText("Simple Author");
+        
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+        
+        // Should be saved as plain string
+        assertEquals("Simple Author", saved.getString("author"));
+    }
+    
+    @Test
+    @DisplayName("Edge case: Empty author should be removed")
+    void testEmptyAuthorRemoved() {
+        JSONObject packageJSON = new JSONObject();
+        packageJSON.put("name", "test-app");
+        packageJSON.put("author", "John Doe");
+        
+        panel.load(packageJSON);
+        panel.getAuthor().setText("");
+        
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+        
+        assertFalse(saved.has("author"));
+    }
+    
+    @Test
+    @DisplayName("Edge case: Loading with null jdeploy should not fail")
+    void testLoadWithNullJdeployField() {
+        JSONObject packageJSON = new JSONObject();
+        packageJSON.put("name", "test-app");
+        packageJSON.put("version", "1.0.0");
+        
+        // Don't add jdeploy object at all
+        panel.load(packageJSON);
+        
+        assertEquals("test-app", panel.getName().getText());
+        assertEquals("1.0.0", panel.getVersion().getText());
+        assertEquals("", panel.getTitle().getText());
+    }
+    
+    @Test
+    @DisplayName("Edge case: Selective field modification and save")
+    void testSelectiveFieldModificationAndSave() {
+        JSONObject original = createCompletePackageJSON();
+        panel.load(original);
+        
+        // Only modify specific fields
+        panel.getName().setText("new-name");
+        panel.getLicense().setText("GPL-3.0");
+        panel.getRequiresJavaFX().setSelected(false);
+        
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+        
+        // Modified fields should have new values
+        assertEquals("new-name", saved.getString("name"));
+        assertEquals("GPL-3.0", saved.getString("license"));
+        assertFalse(saved.getJSONObject("jdeploy").has("javafx"));
+        
+        // Unmodified fields should still be present
+        assertEquals("1.0.0", saved.getString("version"));
+        assertEquals("A test application", saved.getString("description"));
+        assertEquals("https://example.com", saved.getString("homepage"));
+    }
+    
+    @Test
+    @DisplayName("Edge case: Whitespace trimming during save")
+    void testWhitespaceTrimming() {
+        JSONObject packageJSON = new JSONObject();
+        
+        panel.getName().setText("  test-app  ");
+        panel.getVersion().setText(" 1.0.0 ");
+        panel.getAuthor().setText("  John Doe  ");
+        panel.getDescription().setText("  Description  ");
+        panel.getRepositoryUrl().setText("  https://github.com/user/repo  ");
+        
+        panel.save(packageJSON);
+        
+        assertEquals("test-app", packageJSON.getString("name"));
+        assertEquals("1.0.0", packageJSON.getString("version"));
+        assertEquals("John Doe", packageJSON.getString("author"));
+        assertEquals("Description", packageJSON.getString("description"));
+        assertEquals("https://github.com/user/repo", packageJSON.getJSONObject("repository").getString("url"));
+    }
+    
+    @Test
+    @DisplayName("Edge case: Boolean fields should only be saved when true")
+    void testBooleanFieldsSavedOnlyWhenTrue() {
+        JSONObject packageJSON = new JSONObject();
+        packageJSON.put("name", "test-app");
+        
+        panel.load(packageJSON);
+        
+        // Both false
+        panel.getRequiresJavaFX().setSelected(false);
+        panel.getRequiresFullJDK().setSelected(false);
+        
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+        
+        JSONObject jdeploy = saved.getJSONObject("jdeploy");
+        assertFalse(jdeploy.has("javafx"));
+        assertFalse(jdeploy.has("jdk"));
+        
+        // Now set to true
+        panel.getRequiresJavaFX().setSelected(true);
+        panel.getRequiresFullJDK().setSelected(true);
+        
+        JSONObject saved2 = new JSONObject();
+        panel.save(saved2);
+        
+        JSONObject jdeploy2 = saved2.getJSONObject("jdeploy");
+        assertTrue(jdeploy2.getBoolean("javafx"));
+        assertTrue(jdeploy2.getBoolean("jdk"));
+    }
+    
+    @Test
+    @DisplayName("Edge case: JDK Provider switch from JBR to Auto should remove jdkProvider")
+    void testJdkProviderAutoRemovesField() {
+        JSONObject packageJSON = new JSONObject();
+        packageJSON.put("name", "test-app");
+        JSONObject jdeploy = new JSONObject();
+        jdeploy.put("jdkProvider", "jbr");
+        packageJSON.put("jdeploy", (Object) jdeploy);
+        
+        panel.load(packageJSON);
+        assertEquals("JetBrains Runtime (JBR)", panel.getJdkProvider().getSelectedItem());
+        
+        // Switch to Auto
+        panel.getJdkProvider().setSelectedItem("Auto (Recommended)");
+        
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+        
+        JSONObject savedJdeploy = saved.getJSONObject("jdeploy");
+        assertFalse(savedJdeploy.has("jdkProvider"));
+    }
+    
+    @Test
+    @DisplayName("Edge case: JBR Variant should only be saved when JDK Provider is JBR")
+    void testJbrVariantOnlySavedWithJbr() {
+        JSONObject packageJSON = new JSONObject();
+        packageJSON.put("name", "test-app");
+        
+        panel.load(packageJSON);
+        
+        // First part: Auto selected with variant set - variant should NOT be saved
+        panel.getJdkProvider().setSelectedItem("Auto (Recommended)");
+        // Variant is already set to something (Default or JCEF from previous test)
+        // but it should not be saved because provider is Auto
+        
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+        
+        JSONObject jdeploy = saved.getJSONObject("jdeploy");
+        assertFalse(jdeploy.has("jbrVariant"), "jbrVariant should not be saved when provider is Auto");
+        assertFalse(jdeploy.has("jdkProvider"), "jdkProvider should not be saved when set to Auto");
+        
+        // Second part: Switch to JBR - variant should be saved
+        panel.getJdkProvider().setSelectedItem("JetBrains Runtime (JBR)");
+        panel.getJbrVariant().setSelectedItem("JCEF");
+        
+        JSONObject saved2 = new JSONObject();
+        panel.save(saved2);
+        
+        JSONObject jdeploy2 = saved2.getJSONObject("jdeploy");
+        assertEquals("jbr", jdeploy2.getString("jdkProvider"));
+        assertEquals("jcef", jdeploy2.getString("jbrVariant"));
+    }
+    
+    // ========== HELPER METHOD ==========
+    
+    /**
+     * Creates a complete package.json with all supported fields for testing.
+     */
+    private JSONObject createCompletePackageJSON() {
+        JSONObject packageJSON = new JSONObject();
+        
+        // Root level fields
+        packageJSON.put("name", "test-app");
+        packageJSON.put("version", "1.0.0");
+        
+        JSONObject author = new JSONObject();
+        author.put("name", "Jane Doe");
+        author.put("email", "jane@example.com");
+        author.put("url", "https://example.com");
+        packageJSON.put("author", (Object) author);
+        
+        packageJSON.put("description", "A test application");
+        packageJSON.put("homepage", "https://example.com");
+        packageJSON.put("license", "Apache-2.0");
+        
+        JSONObject repo = new JSONObject();
+        repo.put("url", "https://github.com/user/repo");
+        repo.put("directory", "src");
+        packageJSON.put("repository", (Object) repo);
+        
+        // jdeploy object
+        JSONObject jdeploy = new JSONObject();
+        jdeploy.put("title", "Test App");
+        jdeploy.put("jar", "build/libs/app.jar");
+        jdeploy.put("javafx", true);
+        jdeploy.put("jdk", true);
+        jdeploy.put("javaVersion", "21");
+        jdeploy.put("jdkProvider", "jbr");
+        jdeploy.put("jbrVariant", "jcef");
+        packageJSON.put("jdeploy", (Object) jdeploy);
+        
+        return packageJSON;
     }
 }

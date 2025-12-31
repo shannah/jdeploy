@@ -348,16 +348,19 @@ public class DetailsPanel {
         }
         
         Object selectedProvider = jdkProvider.getSelectedItem();
-        if ("JetBrains Runtime (JBR)".equals(selectedProvider)) {
+        boolean isJbrProvider = "JetBrains Runtime (JBR)".equals(selectedProvider);
+        
+        if (isJbrProvider) {
             jdeploy.put("jdkProvider", "jbr");
+            // Only save jbrVariant if JDK Provider is JBR
+            Object selectedVariant = jbrVariant.getSelectedItem();
+            if ("JCEF".equals(selectedVariant)) {
+                jdeploy.put("jbrVariant", "jcef");
+            } else {
+                jdeploy.remove("jbrVariant");
+            }
         } else {
             jdeploy.remove("jdkProvider");
-        }
-        
-        Object selectedVariant = jbrVariant.getSelectedItem();
-        if ("JCEF".equals(selectedVariant)) {
-            jdeploy.put("jbrVariant", "jcef");
-        } else {
             jdeploy.remove("jbrVariant");
         }
     }
