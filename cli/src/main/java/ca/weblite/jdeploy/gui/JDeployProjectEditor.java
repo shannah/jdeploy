@@ -79,7 +79,6 @@ public class JDeployProjectEditor {
     private File packageJSONFile;
     private boolean processingJdpignoreChange = false;
     private boolean processingPackageJSONChange = false;
-    private MainFields mainFields;
     private ArrayList<LinkFields> linkFields;
     private JFrame frame;
     private ProjectFileWatcher fileWatcher;
@@ -87,6 +86,7 @@ public class JDeployProjectEditor {
     private JDeployProjectEditorContext context = new JDeployProjectEditorContext();
 
     private MenuBarBuilder menuBarBuilder;
+    private DetailsPanel detailsPanel;
     private DownloadPageSettingsPanel downloadPageSettingsPanel;
     private PermissionsPanel permissionsPanel;
     private BundleFiltersPanel bundleFiltersPanel;
@@ -110,18 +110,6 @@ public class JDeployProjectEditor {
         }
 
         return npm;
-    }
-
-    private class MainFields {
-        private JTextField name, title, version, iconUrl, jar, author,
-                repository, repositoryDirectory, command, license, homepage;
-        private JTextArea description;
-
-        private JCheckBox javafx, jdk;
-        private JComboBox javaVersion, jdkProvider, jbrVariant;
-        private JButton icon, selectJar;
-        private JButton verifyHomepageButton;
-        private JLabel homepageVerifiedLabel;
     }
 
     private void handleFileChanged(ProjectFileWatcher.FileChangeEvent event) {
@@ -396,8 +384,7 @@ public class JDeployProjectEditor {
 
                 @Override
                 protected void done() {
-                    mainFields.homepageVerifiedLabel.setVisible(verified);
-                    mainFields.verifyHomepageButton.setVisible(!verified);
+                    detailsPanel.getVerifyButton().setVisible(!verified);
                     frame.revalidate();
                 }
             };
@@ -414,9 +401,8 @@ public class JDeployProjectEditor {
     }
 
     private void initMainFields(Container cnt) {
-        mainFields = new MainFields();
         cnt.setPreferredSize(new Dimension(1024, 768));
-        DetailsPanel detailsPanel = new DetailsPanel();
+        detailsPanel = new DetailsPanel();
         File projectDir = packageJSONFile.getAbsoluteFile().getParentFile();
         detailsPanel.setParentFrame(frame);
         detailsPanel.setProjectDirectory(projectDir);
@@ -432,183 +418,44 @@ public class JDeployProjectEditor {
             clipboard.setContents(stringSelection, null);
         });
         
+        // Ensure jdeploy object exists
+        if (!packageJSON.has("jdeploy")) {
+            packageJSON.put("jdeploy", new JSONObject());
+            setModified();
+        }
+
         // Load initial data into details panel
         detailsPanel.load(packageJSON);
-        mainFields.name = detailsPanel.getName();
-        if (packageJSON.has("name")) {
-            mainFields.name.setText(packageJSON.getString("name"));
-        }
-        SwingUtils.addChangeListenerTo(mainFields.name, ()->{
-            packageJSON.put("name", mainFields.name.getText());
+        
+        // Wire change listener to setModified() and homepage verification
+        detailsPanel.addChangeListener(evt -> {
             setModified();
-        });
-        if (!packageJSON.has("jdeploy")) {
-            packageJSON.put("jdeploy", new JSONObject());
-            setModified();
-        }
-
-        mainFields.author = detailsPanel.getAuthor();
-        if (packageJSON.has("author")) {
-            Object authorO = packageJSON.get("author");
-            String authorString = "";
-            if (authorO instanceof JSONObject) {
-                JSONObject authorObj = (JSONObject)authorO;
-                if (authorObj.has("name")) {
-                    authorString += authorObj.getString("name");
-                }
-                if (authorObj.has("email")) {
-                    authorString += " <" + authorObj.getString("email")+">";
-                }
-                if (authorObj.has("url")) {
-                    authorString += " ("+authorObj.getString("url")+")";
-                }
-            } else if (authorO instanceof String){
-                authorString = (String)authorO;
-            }
-            mainFields.author.setText(authorString);
-        }
-        SwingUtils.addChangeListenerTo(mainFields.author, ()->{
-            packageJSON.put("author", mainFields.author.getText());
-            setModified();
-        });
-
-
-
-        mainFields.description = detailsPanel.getDescription();
-        mainFields.description.setLineWrap(true);
-        mainFields.description.setWrapStyleWord(true);
-        mainFields.description.setRows(4);
-        if (packageJSON.has("description")) {
-            mainFields.description.setText(packageJSON.getString("description"));
-        }
-        SwingUtils.addChangeListenerTo(mainFields.description, ()->{
-            packageJSON.put("description", mainFields.description.getText());
-            setModified();
-        });
-
-
-        if (!packageJSON.has("jdeploy")) {
-            packageJSON.put("jdeploy", new JSONObject());
-            setModified();
-        }
-
-        JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
-
-        mainFields.title = detailsPanel.getTitle();
-        if (jdeploy.has("title")) {
-            mainFields.title.setText(jdeploy.getString("title"));
-        }
-        SwingUtils.addChangeListenerTo(mainFields.title, () -> {
-            jdeploy.put("title", mainFields.title.getText());
-
-            if (mainFields.title.getText().isEmpty()) {
-                jdeploy.remove("title");
-            }
-            setModified();
-        });
-
-        mainFields.version = detailsPanel.getVersion();
-        if (packageJSON.has("version")) {
-            mainFields.version.setText(VersionCleaner.cleanVersion(packageJSON.getString("version")));
-        }
-        SwingUtils.addChangeListenerTo(mainFields.version, () -> {
-            String cleanVersion = VersionCleaner.cleanVersion(mainFields.version.getText());
-            packageJSON.put("version", cleanVersion);
-            setModified();
-        });
-        mainFields.version.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(java.awt.event.FocusEvent evt) {
-                mainFields.version.setText(VersionCleaner.cleanVersion(mainFields.version.getText()));
+            // Check if the change was to the homepage field and trigger verification
+            if (detailsPanel.getHomepage().hasFocus() || 
+                evt.getSource() == detailsPanel.getHomepage()) {
+                queueHomepageVerification();
             }
         });
-        mainFields.iconUrl = new JTextField();
-        if (jdeploy.has("iconUrl")) {
-            mainFields.iconUrl.setText(jdeploy.getString("iconUrl"));
-
-        }
-        SwingUtils.addChangeListenerTo(mainFields.iconUrl, ()->{
-            jdeploy.put("iconUrl", mainFields.iconUrl.getText());
-            setModified();
-        });
-
-        mainFields.repository = detailsPanel.getRepositoryUrl();
-        mainFields.repository.setColumns(30);
-        mainFields.repository.setMinimumSize(new Dimension(100, mainFields.repository.getPreferredSize().height));
-        mainFields.repositoryDirectory = detailsPanel.getRepositoryDirectory();
-        mainFields.repositoryDirectory.setMinimumSize(
-                new Dimension(100, mainFields.repositoryDirectory.getPreferredSize().height)
-        );
-        mainFields.repositoryDirectory.setColumns(20);
-        if (packageJSON.has("repository")) {
-            Object repoVal = packageJSON.get("repository");
-            if (repoVal instanceof JSONObject) {
-                JSONObject repoObj = (JSONObject)repoVal;
-                String type = repoObj.has("type") ? repoObj.getString("type") : "git";
-                String url = repoObj.has("url") ? repoObj.getString("url") : "";
-                String directory = repoObj.has("directory") ? repoObj.getString("directory") : "";
-                mainFields.repository.setText(url);
-                mainFields.repositoryDirectory.setText(directory);
-
-            } else if (repoVal instanceof String) {
-                mainFields.repository.setText((String)repoVal);
-                mainFields.repositoryDirectory.setText("");
-            }
-        }
-        Runnable onRepoChange = ()-> {
-            Object repoVal = packageJSON.get("repository");
-            JSONObject repoObj = (repoVal instanceof JSONObject) ? (JSONObject) repoVal : new JSONObject();
-            repoObj.put("url", mainFields.repository.getText());
-            repoObj.put("directory", mainFields.repositoryDirectory.getText());
-            packageJSON.put("repository", repoObj);
-            setModified();
-        };
-        SwingUtils.addChangeListenerTo(mainFields.repository, onRepoChange);
-        SwingUtils.addChangeListenerTo(mainFields.repositoryDirectory, onRepoChange);
-
-        mainFields.license = detailsPanel.getLicense();
-        if (packageJSON.has("license")) {
-            mainFields.license.setText(packageJSON.getString("license"));
-        }
-        SwingUtils.addChangeListenerTo(mainFields.license, ()->{
-            packageJSON.put("license", mainFields.license.getText());
-            setModified();
-        });
-
-        boolean includeCommandField = true;
-        mainFields.command = new JTextField();
-
-        mainFields.verifyHomepageButton = detailsPanel.getVerifyButton();
-        mainFields.verifyHomepageButton.setToolTipText("Verify that you own this page");
-        mainFields.verifyHomepageButton.addActionListener(evt->{
-            handleVerifyHomepage();
-        });
-
-        mainFields.homepageVerifiedLabel = new JLabel(FontIcon.of(Material.DONE));
-        mainFields.homepageVerifiedLabel.setForeground(Color.green);
-        mainFields.homepageVerifiedLabel.setToolTipText("Homepage has been verified");
-        mainFields.homepageVerifiedLabel.setVisible(false);
-        queueHomepageVerification();
-
-
-        mainFields.homepage = detailsPanel.getHomepage();
-        if (packageJSON.has("homepage")) {
-            mainFields.homepage.setText(packageJSON.getString("homepage"));
-        }
-        SwingUtils.addChangeListenerTo(mainFields.homepage, ()->{
-            packageJSON.put("homepage", mainFields.homepage.getText());
-            setModified();
+        
+        // Add special listener to homepage field for verification queueing
+        SwingUtils.addChangeListenerTo(detailsPanel.getHomepage(), () -> {
             queueHomepageVerification();
         });
 
+        detailsPanel.getVerifyButton().setToolTipText("Verify that you own this page");
+        detailsPanel.getVerifyButton().addActionListener(evt->{
+            handleVerifyHomepage();
+        });
+
+        queueHomepageVerification();
 
         // Splash screens are now handled by SplashScreensPanel
         splashScreensPanel = new SplashScreensPanel(packageJSONFile.getAbsoluteFile().getParentFile(), frame);
         splashScreensPanel.addChangeListener(evt -> setModified());
-        mainFields.icon = detailsPanel.getIcon();
+        JButton iconButton = detailsPanel.getIcon();
         if (getIconFile().exists()) {
             try {
-                mainFields.icon.setIcon(
+                iconButton.setIcon(
                         new ImageIcon(Thumbnails.of(getIconFile()).size(128, 128).asBufferedImage())
                 );
             } catch (Exception ex) {
@@ -617,17 +464,17 @@ public class JDeployProjectEditor {
             }
 
         } else {
-            mainFields.icon.setText("Select icon...");
+            iconButton.setText("Select icon...");
         }
-        mainFields.icon.addActionListener(evt->{
+        iconButton.addActionListener(evt->{
             File selected = showFileChooser("Select Icon Image", "png");
             if (selected == null) return;
 
             try {
 
                 FileUtils.copyFile(selected, getIconFile());
-                mainFields.icon.setText("");
-                mainFields.icon.setIcon(
+                iconButton.setText("");
+                iconButton.setIcon(
                         new ImageIcon(Thumbnails.of(getIconFile()).size(128, 128).asBufferedImage())
                 );
             } catch (Exception ex) {
@@ -638,133 +485,21 @@ public class JDeployProjectEditor {
             }
         });
 
-        mainFields.jar = detailsPanel.getJarFile();
-        mainFields.jar.setColumns(30);
-        if (jdeploy.has("jar")) {
-            mainFields.jar.setText(jdeploy.getString("jar"));
-        }
-        SwingUtils.addChangeListenerTo(mainFields.jar, ()->{
-            jdeploy.put("jar", mainFields.jar.getText());
-            setModified();
-        });
+        JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
 
-        mainFields.selectJar = detailsPanel.getSelectJarFile();
-        mainFields.selectJar.addActionListener(evt->{
-            FileDialog dlg = new FileDialog(frame, "Select jar file", FileDialog.LOAD);
-            if (mainFields.jar.getText().isEmpty()) {
-                dlg.setDirectory(packageJSONFile.getAbsoluteFile().getParentFile().getAbsolutePath());
-            } else {
-                File currJar = new File(mainFields.jar.getText());
-                if (currJar.exists()) {
-                    dlg.setDirectory(currJar.getAbsoluteFile().getParentFile().getAbsolutePath());
-                } else {
-                    dlg.setDirectory(packageJSONFile.getAbsoluteFile().getParentFile().getAbsolutePath());
-                }
+        // Add special handling for version field to clean it on focus lost
+        detailsPanel.getVersion().addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(java.awt.event.FocusEvent evt) {
+                detailsPanel.getVersion().setText(VersionCleaner.cleanVersion(detailsPanel.getVersion().getText()));
             }
-            dlg.setFilenameFilter(new FilenameFilter() {
-                @Override
-                public boolean accept(File dir, String name) {
-                    return name.endsWith(".jar");
-                }
-            });
-            dlg.setVisible(true);
-            File[] selected = dlg.getFiles();
-            if (selected.length == 0) return;
-            File absDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
-            File jarFile = selected[0].getAbsoluteFile();
-            if (!jarFile.getAbsolutePath().startsWith(absDirectory.getAbsolutePath())) {
-                showError(
-                        "Jar file must be in same directory as the package.json file, or a subdirectory thereof",
-                        null
-                );
-                return;
-            }
-            try {
-                PublishingCoordinator.ValidationResult jarValidation = publishingCoordinator.validateJar(jarFile);
-                if (!jarValidation.isValid()) {
-                    throw new ValidationException(jarValidation.getErrorMessage());
-                }
-            } catch (ValidationException ex) {
-                showError(ex.getMessage(), ex);
-                return;
-            }
-            mainFields.jar.setText(
-                    fromNativePath(
-                            jarFile.getAbsolutePath().substring(absDirectory.getAbsolutePath().length()+1)
-                    )
-            );
-            jdeploy.put("jar", mainFields.jar.getText());
-            setModified();
-
         });
 
-        mainFields.javafx = detailsPanel.getRequiresJavaFX();
-        if (jdeploy.has("javafx") && jdeploy.getBoolean("javafx")) {
-            mainFields.javafx.setSelected(true);
-        }
-        mainFields.javafx.addActionListener(evt->{
-            jdeploy.put("javafx", mainFields.javafx.isSelected());
-            setModified();
-        });
-        mainFields.jdk = detailsPanel.getRequiresFullJDK();
-        if (jdeploy.has("jdk") && jdeploy.getBoolean("jdk")) {
-            mainFields.jdk.setSelected(true);
-        }
-        mainFields.jdk.addActionListener(evt->{
-            jdeploy.put("jdk", mainFields.jdk.isSelected());
-            setModified();
-        });
+        // Set tooltips and properties for JDK Provider field
+        detailsPanel.getJdkProvider().setToolTipText("Auto: Automatically selects the best JDK provider for your platform (Zulu, Adoptium, or Liberica). JBR: Use JetBrains Runtime for applications requiring JCEF or enhanced rendering.");
 
-        mainFields.javaVersion = detailsPanel.getJavaVersion();
-        mainFields.javaVersion.setEditable(true);
-        if (jdeploy.has("javaVersion")) {
-            mainFields.javaVersion.setSelectedItem(String.valueOf(jdeploy.get("javaVersion")));
-        } else {
-            mainFields.javaVersion.setSelectedItem("21");
-        }
-        mainFields.javaVersion.addItemListener(evt -> {
-            jdeploy.put("javaVersion", mainFields.javaVersion.getSelectedItem());
-            setModified();
-        });
-
-        // JDK Provider field
-        mainFields.jdkProvider = detailsPanel.getJdkProvider();
-        mainFields.jdkProvider.setToolTipText("Auto: Automatically selects the best JDK provider for your platform (Zulu, Adoptium, or Liberica). JBR: Use JetBrains Runtime for applications requiring JCEF or enhanced rendering.");
-
-        mainFields.jdkProvider.addItemListener(evt -> {
-            String selected = (String) mainFields.jdkProvider.getSelectedItem();
-
-            // Update package.json
-            if ("Auto (Recommended)".equals(selected)) {
-                // Remove jdkProvider to use automatic selection
-                jdeploy.remove("jdkProvider");
-            } else if ("JetBrains Runtime (JBR)".equals(selected)) {
-                jdeploy.put("jdkProvider", "jbr");
-            }
-
-            // Remove jbrVariant from package.json if switching away from JBR
-            if (!"JetBrains Runtime (JBR)".equals(selected) && jdeploy.has("jbrVariant")) {
-                jdeploy.remove("jbrVariant");
-            }
-
-            setModified();
-        });
-
-        // JBR Variant field
-        mainFields.jbrVariant = detailsPanel.getJbrVariant();
-        mainFields.jbrVariant.setToolTipText("JBR variant to use. Default uses standard or standard+SDK based on whether JDK is required. JCEF includes Chromium Embedded Framework for embedded browsers.");
-
-        mainFields.jbrVariant.addItemListener(evt -> {
-            String selected = (String) mainFields.jbrVariant.getSelectedItem();
-
-            if ("Default".equals(selected)) {
-                // Remove jbrVariant to use automatic selection based on jdk requirement
-                jdeploy.remove("jbrVariant");
-            } else if ("JCEF".equals(selected)) {
-                jdeploy.put("jbrVariant", "jcef");
-            }
-            setModified();
-        });
+        // Set tooltips and properties for JBR Variant field
+        detailsPanel.getJbrVariant().setToolTipText("JBR variant to use. Default uses standard or standard+SDK based on whether JDK is required. JCEF includes Chromium Embedded Framework for embedded browsers.");
 
         // URL schemes are now handled by UrlSchemesPanel
         urlSchemesPanel = new UrlSchemesPanel();
@@ -777,7 +512,10 @@ public class JDeployProjectEditor {
         // Create FiletypesPanel for file type and directory associations
         filetypesPanel = new FiletypesPanel(packageJSONFile.getAbsoluteFile().getParentFile());
         filetypesPanel.load(jdeploy);
-        filetypesPanel.addChangeListener(evt -> setModified());
+        filetypesPanel.addChangeListener(evt -> {
+            filetypesPanel.save(jdeploy);
+            setModified();
+        });
 
         JPanel filetypesPanelWrapper = new JPanel();
         filetypesPanelWrapper.setOpaque(false);
@@ -1488,8 +1226,14 @@ public class JDeployProjectEditor {
                 bundleFiltersPanel.saveAllFiles();
             }
 
-            // Validate and save filetypes panel
             JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
+            
+            // Save details panel
+            if (detailsPanel != null) {
+                detailsPanel.save(packageJSON);
+            }
+
+            // Validate and save filetypes panel
             if (filetypesPanel != null) {
                 String validationError = filetypesPanel.validateDirectoryAssociation();
                 if (validationError != null) {

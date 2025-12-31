@@ -375,8 +375,8 @@ public class DetailsPanel {
         SwingUtils.addChangeListenerTo(repositoryDirectory, this::fireChangeEvent);
         SwingUtils.addChangeListenerTo(jarFile, this::fireChangeEvent);
         
-        requiresJavaFX.addActionListener(evt -> fireChangeEvent());
-        requiresFullJDK.addActionListener(evt -> fireChangeEvent());
+        requiresJavaFX.addItemListener(evt -> fireChangeEvent());
+        requiresFullJDK.addItemListener(evt -> fireChangeEvent());
         javaVersion.addItemListener(evt -> fireChangeEvent());
         jdkProvider.addItemListener(evt -> {
             if (evt.getStateChange() == java.awt.event.ItemEvent.SELECTED) {

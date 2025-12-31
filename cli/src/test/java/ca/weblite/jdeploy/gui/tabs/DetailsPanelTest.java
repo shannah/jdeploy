@@ -477,14 +477,39 @@ class DetailsPanelTest {
     }
     
     @Test
-    @DisplayName("Should register and fire change listener")
+    @DisplayName("Should register and fire change listener on text field changes")
     void testChangeListenerFires() {
         ActionListener listener = evt -> changeListenerCallCount.incrementAndGet();
         panel.addChangeListener(listener);
         
+        // Simulate user typing in a text field
         panel.getName().setText("new-app");
         
-        assertTrue(changeListenerCallCount.get() > 0);
+        assertTrue(changeListenerCallCount.get() > 0, "Change listener should have been called");
+    }
+
+    @Test
+    @DisplayName("Should register and fire change listener on checkbox changes")
+    void testChangeListenerFiresOnCheckbox() {
+        ActionListener listener = evt -> changeListenerCallCount.incrementAndGet();
+        panel.addChangeListener(listener);
+        
+        // Simulate user clicking a checkbox
+        panel.getRequiresJavaFX().setSelected(true);
+        
+        assertTrue(changeListenerCallCount.get() > 0, "Change listener should have been called on checkbox change");
+    }
+
+    @Test
+    @DisplayName("Should register and fire change listener on combobox changes")
+    void testChangeListenerFiresOnComboBox() {
+        ActionListener listener = evt -> changeListenerCallCount.incrementAndGet();
+        panel.addChangeListener(listener);
+        
+        // Simulate user selecting from combobox
+        panel.getJavaVersion().setSelectedItem("17");
+        
+        assertTrue(changeListenerCallCount.get() > 0, "Change listener should have been called on combobox change");
     }
     
     @Test
