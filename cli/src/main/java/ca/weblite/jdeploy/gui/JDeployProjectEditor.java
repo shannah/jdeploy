@@ -355,47 +355,6 @@ public class JDeployProjectEditor {
         }
     }
 
-    private void updateJbrVariantVisibility() {
-        if (mainFields == null || mainFields.jdkProvider == null || mainFields.jbrVariant == null) {
-            return;
-        }
-
-        String selected = (String) mainFields.jdkProvider.getSelectedItem();
-        boolean isJbr = "JetBrains Runtime (JBR)".equals(selected);
-
-        // Find the parent panel containing the JBR variant field
-        Container parent = mainFields.jbrVariant.getParent();
-        if (parent != null) {
-            // Make the field visible/invisible
-            mainFields.jbrVariant.setVisible(isJbr);
-
-            // Find and toggle the label visibility
-            Component[] components = parent.getComponents();
-            for (int i = 0; i < components.length; i++) {
-                if (components[i] == mainFields.jbrVariant) {
-                    // Look backward for the label
-                    for (int j = i - 1; j >= 0; j--) {
-                        if (components[j] instanceof JLabel) {
-                            JLabel label = (JLabel) components[j];
-                            if ("JBR Variant".equals(label.getText())) {
-                                label.setVisible(isJbr);
-                                break;
-                            }
-                        }
-                    }
-                    break;
-                }
-            }
-            parent.revalidate();
-            parent.repaint();
-        }
-
-        // If not JBR, remove jbrVariant from package.json
-        JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
-        if (!isJbr && jdeploy.has("jbrVariant")) {
-            jdeploy.remove("jbrVariant");
-        }
-    }
 
 
 
@@ -469,6 +428,9 @@ public class JDeployProjectEditor {
             Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
             clipboard.setContents(stringSelection, null);
         });
+        
+        // Load initial data into details panel
+        detailsPanel.load(packageJSON);
         mainFields.name = detailsPanel.getName();
         if (packageJSON.has("name")) {
             mainFields.name.setText(packageJSON.getString("name"));
@@ -766,21 +728,6 @@ public class JDeployProjectEditor {
         mainFields.jdkProvider = detailsPanel.getJdkProvider();
         mainFields.jdkProvider.setToolTipText("Auto: Automatically selects the best JDK provider for your platform (Zulu, Adoptium, or Liberica). JBR: Use JetBrains Runtime for applications requiring JCEF or enhanced rendering.");
 
-        // Load existing value from package.json
-        if (jdeploy.has("jdkProvider")) {
-            String provider = jdeploy.getString("jdkProvider");
-            if ("jbr".equals(provider)) {
-                mainFields.jdkProvider.setSelectedItem("JetBrains Runtime (JBR)");
-            } else {
-                // For any other explicit provider (zulu, adoptium, liberica),
-                // show as Auto in the GUI but preserve the value in package.json
-                // This allows advanced users to set providers manually
-                mainFields.jdkProvider.setSelectedItem("Auto (Recommended)");
-            }
-        } else {
-            mainFields.jdkProvider.setSelectedItem("Auto (Recommended)");
-        }
-
         mainFields.jdkProvider.addItemListener(evt -> {
             String selected = (String) mainFields.jdkProvider.getSelectedItem();
 
@@ -792,29 +739,17 @@ public class JDeployProjectEditor {
                 jdeploy.put("jdkProvider", "jbr");
             }
 
-            // Show/hide JBR variant field
-            updateJbrVariantVisibility();
+            // Remove jbrVariant from package.json if switching away from JBR
+            if (!"JetBrains Runtime (JBR)".equals(selected) && jdeploy.has("jbrVariant")) {
+                jdeploy.remove("jbrVariant");
+            }
+
             setModified();
         });
 
         // JBR Variant field
         mainFields.jbrVariant = detailsPanel.getJbrVariant();
         mainFields.jbrVariant.setToolTipText("JBR variant to use. Default uses standard or standard+SDK based on whether JDK is required. JCEF includes Chromium Embedded Framework for embedded browsers.");
-
-        // Load existing value from package.json
-        if (jdeploy.has("jbrVariant")) {
-            String variant = jdeploy.getString("jbrVariant");
-            if ("jcef".equals(variant)) {
-                mainFields.jbrVariant.setSelectedItem("JCEF");
-            } else {
-                // For any other variant (standard, sdk, sdk_jcef), show as Default
-                // and remove from package.json to use automatic selection
-                mainFields.jbrVariant.setSelectedItem("Default");
-                jdeploy.remove("jbrVariant");
-            }
-        } else {
-            mainFields.jbrVariant.setSelectedItem("Default");
-        }
 
         mainFields.jbrVariant.addItemListener(evt -> {
             String selected = (String) mainFields.jbrVariant.getSelectedItem();
@@ -827,9 +762,6 @@ public class JDeployProjectEditor {
             }
             setModified();
         });
-
-        // Set initial visibility
-        updateJbrVariantVisibility();
 
         // URL schemes are now handled by UrlSchemesPanel
         urlSchemesPanel = new UrlSchemesPanel();

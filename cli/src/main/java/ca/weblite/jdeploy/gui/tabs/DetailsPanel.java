@@ -12,6 +12,12 @@ import java.io.File;
 import org.json.JSONObject;
 
 public class DetailsPanel {
+    
+    public DetailsPanel() {
+        initJdkProviderListener();
+        updateJbrVariantVisibility();
+    }
+    
     private JPanel panel1;
     private JTextField name;
     private JTextField version;
@@ -38,6 +44,7 @@ public class DetailsPanel {
     
     private File projectDirectory;
     private ActionListener changeListener;
+    private JLabel jbrVariantLabel;
 
     public JPanel getRoot() {
         return root;
@@ -223,6 +230,8 @@ public class DetailsPanel {
                 } else {
                     jdkProvider.setSelectedItem("Auto (Recommended)");
                 }
+            } else {
+                jdkProvider.setSelectedItem("Auto (Recommended)");
             }
             
             if (jdeploy.has("jbrVariant")) {
@@ -232,8 +241,12 @@ public class DetailsPanel {
                 } else {
                     jbrVariant.setSelectedItem("Default");
                 }
+            } else {
+                jbrVariant.setSelectedItem("Default");
             }
         }
+        
+        updateJbrVariantVisibility();
     }
 
     public void save(JSONObject packageJSON) {
@@ -355,13 +368,49 @@ public class DetailsPanel {
         requiresJavaFX.addActionListener(evt -> fireChangeEvent());
         requiresFullJDK.addActionListener(evt -> fireChangeEvent());
         javaVersion.addItemListener(evt -> fireChangeEvent());
-        jdkProvider.addItemListener(evt -> fireChangeEvent());
+        jdkProvider.addItemListener(evt -> {
+            if (evt.getStateChange() == java.awt.event.ItemEvent.SELECTED) {
+                fireChangeEvent();
+            }
+        });
         jbrVariant.addItemListener(evt -> fireChangeEvent());
     }
 
     private void fireChangeEvent() {
         if (changeListener != null) {
             changeListener.actionPerformed(new java.awt.event.ActionEvent(this, 0, "changed"));
+        }
+    }
+
+    private void updateJbrVariantVisibility() {
+        if (jdkProvider == null || jbrVariant == null) {
+            return;
+        }
+
+        String selected = (String) jdkProvider.getSelectedItem();
+        boolean isJbr = "JetBrains Runtime (JBR)".equals(selected);
+
+        jbrVariant.setVisible(isJbr);
+        
+        if (jbrVariantLabel != null) {
+            jbrVariantLabel.setVisible(isJbr);
+        }
+
+        // Trigger parent layout update
+        Container parent = jbrVariant.getParent();
+        if (parent != null) {
+            parent.revalidate();
+            parent.repaint();
+        }
+    }
+
+    private void initJdkProviderListener() {
+        if (jdkProvider != null) {
+            jdkProvider.addItemListener(evt -> {
+                if (evt.getStateChange() == java.awt.event.ItemEvent.SELECTED) {
+                    updateJbrVariantVisibility();
+                }
+            });
         }
     }
 
@@ -483,6 +532,7 @@ public class DetailsPanel {
         defaultComboBoxModel3.addElement("JCEF");
         jbrVariant.setModel(defaultComboBoxModel3);
         panel4.add(jbrVariant, cc.xy(3, 13));
+        jbrVariantLabel = label11;
         final JLabel label12 = new JLabel();
         label12.setText("Homepage");
         panel4.add(label12, cc.xy(1, 15));

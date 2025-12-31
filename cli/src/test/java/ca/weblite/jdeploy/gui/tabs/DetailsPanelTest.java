@@ -70,7 +70,7 @@ class DetailsPanelTest {
         author.put("name", "Jane Doe");
         author.put("email", "jane@example.com");
         author.put("url", "https://example.com");
-        packageJSON.put("author", author);
+        packageJSON.put("author", (Object) author);
         
         panel.load(packageJSON);
         
@@ -131,7 +131,7 @@ class DetailsPanelTest {
         JSONObject repo = new JSONObject();
         repo.put("url", "https://github.com/user/repo");
         repo.put("directory", "src");
-        packageJSON.put("repository", repo);
+        packageJSON.put("repository", (Object) repo);
         
         panel.load(packageJSON);
         
@@ -145,7 +145,7 @@ class DetailsPanelTest {
         JSONObject packageJSON = new JSONObject();
         JSONObject jdeploy = new JSONObject();
         jdeploy.put("title", "Test Application");
-        packageJSON.put("jdeploy", jdeploy);
+        packageJSON.put("jdeploy", (Object) jdeploy);
         
         panel.load(packageJSON);
         
@@ -158,7 +158,7 @@ class DetailsPanelTest {
         JSONObject packageJSON = new JSONObject();
         JSONObject jdeploy = new JSONObject();
         jdeploy.put("jar", "build/libs/app.jar");
-        packageJSON.put("jdeploy", jdeploy);
+        packageJSON.put("jdeploy", (Object) jdeploy);
         
         panel.load(packageJSON);
         
@@ -171,7 +171,7 @@ class DetailsPanelTest {
         JSONObject packageJSON = new JSONObject();
         JSONObject jdeploy = new JSONObject();
         jdeploy.put("javafx", true);
-        packageJSON.put("jdeploy", jdeploy);
+        packageJSON.put("jdeploy", (Object) jdeploy);
         
         panel.load(packageJSON);
         
@@ -184,7 +184,7 @@ class DetailsPanelTest {
         JSONObject packageJSON = new JSONObject();
         JSONObject jdeploy = new JSONObject();
         jdeploy.put("jdk", true);
-        packageJSON.put("jdeploy", jdeploy);
+        packageJSON.put("jdeploy", (Object) jdeploy);
         
         panel.load(packageJSON);
         
@@ -197,7 +197,7 @@ class DetailsPanelTest {
         JSONObject packageJSON = new JSONObject();
         JSONObject jdeploy = new JSONObject();
         jdeploy.put("javaVersion", "21");
-        packageJSON.put("jdeploy", jdeploy);
+        packageJSON.put("jdeploy", (Object) jdeploy);
         
         panel.load(packageJSON);
         
@@ -210,7 +210,7 @@ class DetailsPanelTest {
         JSONObject packageJSON = new JSONObject();
         JSONObject jdeploy = new JSONObject();
         jdeploy.put("jdkProvider", "jbr");
-        packageJSON.put("jdeploy", jdeploy);
+        packageJSON.put("jdeploy", (Object) jdeploy);
         
         panel.load(packageJSON);
         
@@ -223,7 +223,7 @@ class DetailsPanelTest {
         JSONObject packageJSON = new JSONObject();
         JSONObject jdeploy = new JSONObject();
         jdeploy.put("jbrVariant", "jcef");
-        packageJSON.put("jdeploy", jdeploy);
+        packageJSON.put("jdeploy", (Object) jdeploy);
         
         panel.load(packageJSON);
         
@@ -433,7 +433,7 @@ class DetailsPanelTest {
         JSONObject repo = new JSONObject();
         repo.put("url", "https://github.com/user/repo");
         repo.put("directory", "src");
-        original.put("repository", repo);
+        original.put("repository", (Object) repo);
         
         JSONObject jdeploy = new JSONObject();
         jdeploy.put("title", "Test App");
@@ -443,7 +443,7 @@ class DetailsPanelTest {
         jdeploy.put("javaVersion", "21");
         jdeploy.put("jdkProvider", "jbr");
         jdeploy.put("jbrVariant", "jcef");
-        original.put("jdeploy", jdeploy);
+        original.put("jdeploy", (Object) jdeploy);
         
         // Load into panel
         panel.load(original);
@@ -503,5 +503,71 @@ class DetailsPanelTest {
         
         assertEquals("test-app", packageJSON.getString("name"));
         assertEquals("John Doe", packageJSON.getString("author"));
+    }
+    
+    @Test
+    @DisplayName("Should hide JBR Variant field when JDK Provider is Auto")
+    void testJbrVariantVisibilityWhenAuto() {
+        // Create a test package.json with Auto provider
+        JSONObject packageJSON = new JSONObject();
+        JSONObject jdeploy = new JSONObject();
+        jdeploy.put("jdkProvider", (Object) null); // Will default to Auto
+        packageJSON.put("jdeploy", (Object) jdeploy);
+        
+        panel.load(packageJSON);
+        
+        assertFalse(panel.getJbrVariant().isVisible());
+    }
+    
+    @Test
+    @DisplayName("Should show JBR Variant field when JDK Provider is JBR")
+    void testJbrVariantVisibilityWhenJbr() {
+        // Create a test package.json with JBR provider
+        JSONObject packageJSON = new JSONObject();
+        JSONObject jdeploy = new JSONObject();
+        jdeploy.put("jdkProvider", "jbr");
+        packageJSON.put("jdeploy", (Object) jdeploy);
+        
+        panel.load(packageJSON);
+        
+        assertTrue(panel.getJbrVariant().isVisible());
+    }
+    
+    @Test
+    @DisplayName("Should toggle JBR Variant visibility when switching providers")
+    void testJbrVariantVisibilityToggling() {
+        // Create a test package.json with Auto provider
+        JSONObject packageJSON = new JSONObject();
+        JSONObject jdeploy = new JSONObject();
+        packageJSON.put("jdeploy", (Object) jdeploy);
+        
+        panel.load(packageJSON);
+        
+        // Start with Auto - should be hidden
+        assertEquals("Auto (Recommended)", panel.getJdkProvider().getSelectedItem());
+        assertFalse(panel.getJbrVariant().isVisible());
+        
+        // Switch to JBR - should be visible
+        panel.getJdkProvider().setSelectedIndex(1); // JetBrains Runtime (JBR) is at index 1
+        assertTrue(panel.getJbrVariant().isVisible());
+        
+        // Switch back to Auto - should be hidden
+        panel.getJdkProvider().setSelectedIndex(0); // Auto (Recommended) is at index 0
+        assertFalse(panel.getJbrVariant().isVisible());
+    }
+    
+    @Test
+    @DisplayName("Should initialize JBR Variant field as hidden by default")
+    void testJbrVariantInitiallyHidden() {
+        // Create a test package.json with Auto provider
+        JSONObject packageJSON = new JSONObject();
+        JSONObject jdeploy = new JSONObject();
+        packageJSON.put("jdeploy", (Object) jdeploy);
+        
+        panel.load(packageJSON);
+        
+        // Default state should be Auto (Recommended) with hidden JBR Variant
+        assertEquals("Auto (Recommended)", panel.getJdkProvider().getSelectedItem());
+        assertFalse(panel.getJbrVariant().isVisible());
     }
 }
