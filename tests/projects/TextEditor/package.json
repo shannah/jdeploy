@@ -4,7 +4,10 @@
     "description": "A text editor",
     "main": "index.js",
     "preferGlobal": true,
-    "repository": "https://github.com/shannah/jdeploy-demo-texteditor",
+    "repository": {
+        "directory": "",
+        "url": "https://github.com/shannah/jdeploy-demo-texteditor2"
+    },
     "version": "0.0.0-JDEPLOY-SNAPSHOT",
     "jdeploy": {
         "jdk": false,
@@ -29,6 +32,11 @@
             {
                 "extension": "jdtext",
                 "mimetype": "application/x-jdeploy-demo-texteditor-jdtext"
+            },
+            {
+                "role": "Editor",
+                "description": "Open as project",
+                "type": "directory"
             }
         ],
         "urlSchemes": ["jdtext"],

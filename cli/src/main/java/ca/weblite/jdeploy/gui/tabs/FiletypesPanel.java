@@ -32,6 +32,7 @@ public class FiletypesPanel extends JPanel {
     private Box doctypesPanel;
     private DoctypeFields[] doctypeFieldsArray;
     private DirectoryAssociationFields directoryAssociationFields;
+    private JSONArray documentTypesArray;
 
     public FiletypesPanel(File projectDirectory) {
         this.projectDirectory = Objects.requireNonNull(projectDirectory, "projectDirectory");
@@ -169,11 +170,14 @@ public class FiletypesPanel extends JPanel {
         JButton addDocType = new JButton(FontIcon.of(Material.ADD));
         addDocType.setToolTipText("Add document type association");
         addDocType.addActionListener(evt -> {
-            // Create a temporary JSONArray to manage the row
-            JSONArray docTypes = new JSONArray();
+            // Ensure documentTypesArray is initialized
+            if (documentTypesArray == null) {
+                documentTypesArray = new JSONArray();
+            }
             JSONObject row = new JSONObject();
-            docTypes.put(0, row);
-            createDocTypeRow(docTypes, 0, doctypesPanel);
+            int index = documentTypesArray.length();
+            documentTypesArray.put(index, row);
+            createDocTypeRow(documentTypesArray, index, doctypesPanel);
             doctypesPanel.revalidate();
             doctypesPanel.repaint();
             fireChangeEvent();
@@ -367,9 +371,17 @@ public class FiletypesPanel extends JPanel {
         // Clear existing document type rows
         doctypesPanel.removeAll();
         
-        // Load directory association if it exists
+        // Initialize or load the documentTypes array
         if (jdeploy.has("documentTypes")) {
-            JSONArray docTypes = jdeploy.getJSONArray("documentTypes");
+            documentTypesArray = jdeploy.getJSONArray("documentTypes");
+        } else {
+            documentTypesArray = new JSONArray();
+        }
+        
+        JSONArray docTypes = documentTypesArray;
+        
+        // Load directory association if it exists
+        if (docTypes.length() > 0) {
             for (int i = 0; i < docTypes.length(); i++) {
                 JSONObject docType = docTypes.getJSONObject(i);
                 if (docType.has("type") && "directory".equalsIgnoreCase(docType.getString("type"))) {
@@ -390,17 +402,14 @@ public class FiletypesPanel extends JPanel {
         }
 
         // Add file associations (skip directory associations)
-        if (jdeploy.has("documentTypes")) {
-            JSONArray docTypes = jdeploy.getJSONArray("documentTypes");
-            int len = docTypes.length();
-            for (int i = 0; i < len; i++) {
-                JSONObject docType = docTypes.getJSONObject(i);
-                // Skip directory associations in the file list
-                if (docType.has("type") && "directory".equalsIgnoreCase(docType.getString("type"))) {
-                    continue;
-                }
-                createDocTypeRow(docTypes, i, doctypesPanel);
+        int len = documentTypesArray.length();
+        for (int i = 0; i < len; i++) {
+            JSONObject docType = documentTypesArray.getJSONObject(i);
+            // Skip directory associations in the file list
+            if (docType.has("type") && "directory".equalsIgnoreCase(docType.getString("type"))) {
+                continue;
             }
+            createDocTypeRow(documentTypesArray, i, doctypesPanel);
         }
         
         // Add the filler at the end
@@ -428,17 +437,16 @@ public class FiletypesPanel extends JPanel {
             throw new IllegalArgumentException(validationError);
         }
 
-        // Get or create documentTypes array
-        if (!jdeploy.has("documentTypes")) {
-            jdeploy.put("documentTypes", new JSONArray());
+        // Ensure documentTypesArray is initialized
+        if (documentTypesArray == null) {
+            documentTypesArray = new JSONArray();
         }
-        JSONArray docTypes = jdeploy.getJSONArray("documentTypes");
 
-        // Remove existing directory associations
-        for (int i = docTypes.length() - 1; i >= 0; i--) {
-            JSONObject docType = docTypes.getJSONObject(i);
+        // Remove existing directory associations from the array
+        for (int i = documentTypesArray.length() - 1; i >= 0; i--) {
+            JSONObject docType = documentTypesArray.getJSONObject(i);
             if (docType.has("type") && "directory".equalsIgnoreCase(docType.getString("type"))) {
-                docTypes.remove(i);
+                documentTypesArray.remove(i);
             }
         }
 
@@ -453,7 +461,18 @@ public class FiletypesPanel extends JPanel {
                 dirAssoc.put("description", description);
             }
 
-            docTypes.put(dirAssoc);
+            documentTypesArray.put(dirAssoc);
+        }
+
+        // Write the documentTypes array to jdeploy
+        // Remove old documentTypes first
+        if (jdeploy.has("documentTypes")) {
+            jdeploy.remove("documentTypes");
+        }
+
+        // Only add documentTypes if the array is not empty
+        if (documentTypesArray.length() > 0) {
+            jdeploy.put("documentTypes", documentTypesArray);
         }
     }
 
