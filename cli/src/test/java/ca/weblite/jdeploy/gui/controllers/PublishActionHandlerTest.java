@@ -216,7 +216,7 @@ class PublishActionHandlerTest {
 
     @Test
     @DisplayName("ProgressDialog should be shown during publish and updated on completion")
-    void testProgressDialogShownAndUpdatedOnCompletion() throws InterruptedException {
+    void testProgressDialogShownAndUpdatedOnCompletion() throws InterruptedException, IOException {
         // Mock successful validation and publishing
         when(mockCoordinator.validateForPublishing()).thenReturn(
                 PublishingCoordinator.ValidationResult.success()
@@ -255,7 +255,7 @@ class PublishActionHandlerTest {
 
     @Test
     @DisplayName("ProgressDialog should be shown during publish and updated on failure")
-    void testProgressDialogUpdatedOnFailure() throws InterruptedException {
+    void testProgressDialogUpdatedOnFailure() throws InterruptedException, IOException {
         // Mock successful validation
         when(mockCoordinator.validateForPublishing()).thenReturn(
                 PublishingCoordinator.ValidationResult.success()

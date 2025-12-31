@@ -126,6 +126,12 @@ public class PublishActionHandler {
             return;
         }
 
+        // Skip GUI operations if frame is not displayable (e.g., in tests)
+        if (frame == null || !frame.isDisplayable()) {
+            System.err.println("Not logged in to NPM. Please login and try again.");
+            return;
+        }
+
         // Create a non-modal dialog
         JOptionPane optionPane = new JOptionPane(
                 "<html><p style='width:400px'>You must be logged into NPM in order to publish your app. " +
@@ -218,13 +224,15 @@ public class PublishActionHandler {
         jdeployObject.setNpmToken(context.getNpmToken());
         jdeployObject.setUseManagedNode(context.useManagedNode());
 
-        // Show progress dialog on dispatch thread
-        EventQueue.invokeLater(() -> {
-            progressDialog.show(frame, "Publishing in Progress...");
-            progressDialog.setMessage1("Publishing " + packageName + " to " +
-                    publishingCoordinator.getPublishTargetNames() + ". Please wait...");
-            progressDialog.setMessage2("");
-        });
+        // Show progress dialog on dispatch thread (skip if frame is not displayable, e.g., in tests)
+        if (frame != null && frame.isDisplayable()) {
+            EventQueue.invokeLater(() -> {
+                progressDialog.show(frame, "Publishing in Progress...");
+                progressDialog.setMessage1("Publishing " + packageName + " to " +
+                        publishingCoordinator.getPublishTargetNames() + ". Please wait...");
+                progressDialog.setMessage2("");
+            });
+        }
 
         try {
             // Save changes before publishing
@@ -235,19 +243,27 @@ public class PublishActionHandler {
                     packagingContext,
                     jdeployObject,
                     new SwingOneTimePasswordProvider(frame),
-                    progress -> EventQueue.invokeLater(() -> {
-                        if (progress.isComplete()) {
-                            progressDialog.setComplete();
-                        } else if (progress.isFailed()) {
-                            progressDialog.setFailed();
+                    progress -> {
+                        // Skip GUI updates if frame is not displayable (e.g., in tests)
+                        if (frame != null && frame.isDisplayable()) {
+                            EventQueue.invokeLater(() -> {
+                                if (progress.isComplete()) {
+                                    progressDialog.setComplete();
+                                } else if (progress.isFailed()) {
+                                    progressDialog.setFailed();
+                                }
+                            });
                         }
-                    }),
+                    },
                     context.getGithubToken()
             );
         } catch (Exception ex) {
             packagingContext.err.println("An error occurred during publishing");
             ex.printStackTrace(packagingContext.err);
-            EventQueue.invokeLater(progressDialog::setFailed);
+            // Skip GUI updates if frame is not displayable (e.g., in tests)
+            if (frame != null && frame.isDisplayable()) {
+                EventQueue.invokeLater(progressDialog::setFailed);
+            }
             throw new RuntimeException("Publishing failed: " + ex.getMessage(), ex);
         }
     }
@@ -259,6 +275,16 @@ public class PublishActionHandler {
      * @param exception the exception (may be null)
      */
     private void showError(String message, Throwable exception) {
+        // Skip GUI operations if frame is not displayable (e.g., in tests)
+        if (frame == null || !frame.isDisplayable()) {
+            if (exception != null) {
+                exception.printStackTrace(System.err);
+            } else {
+                System.err.println("Error: " + message);
+            }
+            return;
+        }
+
         File logFile = (exception instanceof ValidationException)
                 ? ((ValidationException) exception).getLogFile()
                 : null;
