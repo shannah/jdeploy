@@ -6,6 +6,11 @@ import ca.weblite.jdeploy.factories.PublishTargetFactory;
 import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
+import ca.weblite.jdeploy.gui.navigation.EditorPanelRegistry;
+import ca.weblite.jdeploy.gui.navigation.NavigablePanel;
+import ca.weblite.jdeploy.gui.navigation.NavigablePanelAdapter;
+import ca.weblite.jdeploy.gui.navigation.NavigationHost;
+import ca.weblite.jdeploy.gui.navigation.TabbedPaneNavigationHost;
 import ca.weblite.jdeploy.gui.services.ProjectFileWatcher;
 import ca.weblite.jdeploy.gui.services.PublishingCoordinator;
 import ca.weblite.jdeploy.gui.services.SwingOneTimePasswordProvider;
@@ -22,6 +27,7 @@ import ca.weblite.jdeploy.gui.tabs.PublishSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.RuntimeArgsPanel;
 import ca.weblite.jdeploy.gui.tabs.SplashScreensPanel;
 import ca.weblite.jdeploy.gui.tabs.UrlSchemesPanel;
+import javax.swing.JTabbedPane;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.npm.NPM;
@@ -81,6 +87,8 @@ public class JDeployProjectEditor {
     private CliSettingsPanel cliSettingsPanel;
     private RuntimeArgsPanel runtimeArgsPanel;
     private CheerpJSettingsPanel cheerpJSettingsPanel;
+    private SplashScreensPanel splashScreensPanel;
+    private EditorPanelRegistry registry;
 
     private NPM npm = null;
 
@@ -353,12 +361,19 @@ public class JDeployProjectEditor {
 
     private void initMainFields(Container cnt) {
         cnt.setPreferredSize(new Dimension(1024, 768));
-        detailsPanel = new DetailsPanel();
         File projectDir = packageJSONFile.getAbsoluteFile().getParentFile();
+        
+        // Ensure jdeploy object exists
+        if (!packageJSON.has("jdeploy")) {
+            packageJSON.put("jdeploy", new JSONObject());
+            setModified();
+        }
+
+        // Setup Details Panel with special handling
+        detailsPanel = new DetailsPanel();
         detailsPanel.setParentFrame(frame);
         detailsPanel.setProjectDirectory(projectDir);
         detailsPanel.getProjectPath().setText(projectDir.getAbsolutePath());
-        // Set a small font in the project path
         detailsPanel.getProjectPath().setFont(detailsPanel.getProjectPath().getFont().deriveFont(10f));
 
         detailsPanel.getCopyPath().setText("");
@@ -368,37 +383,8 @@ public class JDeployProjectEditor {
             Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
             clipboard.setContents(stringSelection, null);
         });
-        
-        // Ensure jdeploy object exists
-        if (!packageJSON.has("jdeploy")) {
-            packageJSON.put("jdeploy", new JSONObject());
-            setModified();
-        }
 
-        // Load initial data into details panel
-        detailsPanel.load(packageJSON);
-        
-        // Wire change listener to setModified() and homepage verification
-        detailsPanel.addChangeListener(evt -> {
-            setModified();
-            // Check if the change was to the homepage field and trigger verification
-            if (detailsPanel.getHomepage().hasFocus() || 
-                evt.getSource() == detailsPanel.getHomepage()) {
-                queueHomepageVerification();
-            }
-        });
-        
-        // Add special listener to homepage field for verification queueing
-        SwingUtils.addChangeListenerTo(detailsPanel.getHomepage(), this::queueHomepageVerification);
-
-        detailsPanel.getVerifyButton().setToolTipText("Verify that you own this page");
-        detailsPanel.getVerifyButton().addActionListener(evt-> handleVerifyHomepage());
-
-        queueHomepageVerification();
-
-        // Splash screens are now handled by SplashScreensPanel
-        SplashScreensPanel splashScreensPanel = new SplashScreensPanel(packageJSONFile.getAbsoluteFile().getParentFile(), frame);
-        splashScreensPanel.addChangeListener(evt -> setModified());
+        // Setup icon button and version cleaning
         JButton iconButton = detailsPanel.getIcon();
         if (getIconFile().exists()) {
             try {
@@ -409,7 +395,6 @@ public class JDeployProjectEditor {
                 System.err.println("Failed to read splash image from "+getIconFile());
                 ex.printStackTrace(System.err);
             }
-
         } else {
             iconButton.setText("Select icon...");
         }
@@ -418,7 +403,6 @@ public class JDeployProjectEditor {
             if (selected == null) return;
 
             try {
-
                 FileUtils.copyFile(selected, getIconFile());
                 iconButton.setText("");
                 iconButton.setIcon(
@@ -428,11 +412,8 @@ public class JDeployProjectEditor {
                 System.err.println("Error while copying icon file");
                 ex.printStackTrace(System.err);
                 showError("Failed to select icon", ex);
-
             }
         });
-
-        JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
 
         // Add special handling for version field to clean it on focus lost
         detailsPanel.getVersion().addFocusListener(new FocusAdapter() {
@@ -448,229 +429,57 @@ public class JDeployProjectEditor {
         // Set tooltips and properties for JBR Variant field
         detailsPanel.getJbrVariant().setToolTipText("JBR variant to use. Default uses standard or standard+SDK based on whether JDK is required. JCEF includes Chromium Embedded Framework for embedded browsers.");
 
-        // URL schemes are now handled by UrlSchemesPanel
-        urlSchemesPanel = new UrlSchemesPanel();
-        urlSchemesPanel.load(jdeploy);
-        urlSchemesPanel.addChangeListener(evt -> {
-            urlSchemesPanel.save(jdeploy);
+        // Add special listeners for details panel
+        detailsPanel.addChangeListener(evt -> {
             setModified();
-        });
-
-        // Create FiletypesPanel for file type and directory associations
-        filetypesPanel = new FiletypesPanel(packageJSONFile.getAbsoluteFile().getParentFile());
-        filetypesPanel.load(jdeploy);
-        filetypesPanel.addChangeListener(evt -> {
-            filetypesPanel.save(jdeploy);
-            setModified();
-        });
-
-        JPanel filetypesPanelWrapper = new JPanel();
-        filetypesPanelWrapper.setOpaque(false);
-        filetypesPanelWrapper.setLayout(new BorderLayout());
-        filetypesPanelWrapper.add(filetypesPanel.getRoot(), BorderLayout.CENTER);
-
-        JTabbedPane tabs = new JTabbedPane();
-        JPanel detailsPanelRoot = detailsPanel.getRoot();
-        JPanel detailWrapper = new JPanel();
-        detailWrapper.setLayout(new BorderLayout());
-        detailWrapper.setBorder(new EmptyBorder(10, 10, 10, 10));
-
-        JPanel helpPanel = new JPanel();
-        helpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        helpPanel.add(
-                MenuBarBuilder.createHelpButton(
-                        MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#_the_details_tab",
-                        "",
-                        "Learn about what these fields do.",
-                        context,
-                        frame
-                )
-        );
-        detailWrapper.add(helpPanel, BorderLayout.NORTH);
-        detailWrapper.add(detailsPanelRoot, BorderLayout.CENTER);
-
-
-
-        tabs.addTab("Details", detailWrapper);
-
-        JPanel splashScreensWrapper = new JPanel();
-        splashScreensWrapper.setLayout(new BorderLayout());
-        splashScreensWrapper.setOpaque(false);
-        splashScreensWrapper.add(splashScreensPanel.getRoot(), BorderLayout.CENTER);
-        
-        JPanel splashScreensHelpPanel = new JPanel();
-        splashScreensHelpPanel.setOpaque(false);
-        splashScreensHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        splashScreensHelpPanel.add(
-                MenuBarBuilder.createHelpButton(
-                        MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#splashscreens",
-                        "",
-                        "Learn more about this panel, and how splash screen images are used in jDeploy.",
-                        context,
-                        frame
-                )
-        );
-        
-        splashScreensWrapper.add(splashScreensHelpPanel, BorderLayout.NORTH);
-        tabs.add("Splash Screens", splashScreensWrapper);
-
-        tabs.add("Filetypes", filetypesPanelWrapper);
-
-        // URLs tab is now handled by UrlSchemesPanel
-        JPanel urlsPanelWrapper = new JPanel();
-        urlsPanelWrapper.setLayout(new BorderLayout());
-        urlsPanelWrapper.setOpaque(false);
-        
-        JPanel urlsHelpPanel = new JPanel();
-        urlsHelpPanel.setOpaque(false);
-        urlsHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        urlsHelpPanel.add(
-                MenuBarBuilder.createHelpButton(
-                        MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#_the_urls_tab",
-                        "",
-                        "Learn more about custom URL schemes in jDeploy",
-                        context,
-                        frame
-                )
-        );
-        
-        urlsPanelWrapper.add(urlsHelpPanel, BorderLayout.NORTH);
-        urlsPanelWrapper.add(urlSchemesPanel.getRoot(), BorderLayout.CENTER);
-        
-        tabs.add("URLs", urlsPanelWrapper);
-
-        // CLI settings panel
-        cliSettingsPanel = new CliSettingsPanel();
-        cliSettingsPanel.load(packageJSON);
-        cliSettingsPanel.addChangeListener(evt -> setModified());
-        cliSettingsPanel.getTutorialButton().addActionListener(evt -> {
-            try {
-                context.browse(new URI(MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/"));
-            } catch (Exception ex) {
-                System.err.println("Failed to open cli tutorial.");
-                ex.printStackTrace(System.err);
-                JOptionPane.showMessageDialog(frame,
-                        new JLabel(
-                                "<html>" +
-                                        "<p style='width:400px'>" +
-                                        "Failed to open the CLI tutorial.  " +
-                                        "Try opening " + MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/ " +
-                                        "manually in your browser." +
-                                        "</p>" +
-                                        "</html>"
-                        ),
-                        "Failed to Open",
-                        JOptionPane.ERROR_MESSAGE);
+            if (detailsPanel.getHomepage().hasFocus() || 
+                evt.getSource() == detailsPanel.getHomepage()) {
+                queueHomepageVerification();
             }
         });
-
-        tabs.add("CLI", cliSettingsPanel.getRoot());
-
-        // Runtime Args panel
-        runtimeArgsPanel = new RuntimeArgsPanel();
-        runtimeArgsPanel.load(jdeploy);
-        runtimeArgsPanel.addChangeListener(evt -> setModified());
-
-        JPanel runtimeArgsPanelWrapper = new JPanel();
-        runtimeArgsPanelWrapper.setLayout(new BorderLayout());
-        runtimeArgsPanelWrapper.setOpaque(false);
-
-        JPanel runtimeArgsHelpPanel = new JPanel();
-        runtimeArgsHelpPanel.setOpaque(false);
-        runtimeArgsHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-        runtimeArgsHelpPanel.add(
-                MenuBarBuilder.createHelpButton(
-                        MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#runargs",
-                        "",
-                        "Open run arguments help in web browser",
-                        context,
-                        frame
-                )
-        );
-
-        runtimeArgsPanelWrapper.add(runtimeArgsHelpPanel, BorderLayout.NORTH);
-        runtimeArgsPanelWrapper.add(runtimeArgsPanel.getRoot(), BorderLayout.CENTER);
-
-        tabs.add("Runtime Args", runtimeArgsPanelWrapper);
-
-        // CheerpJ settings panel
-        if (context.shouldDisplayCheerpJPanel()) {
-            cheerpJSettingsPanel = new CheerpJSettingsPanel();
-            cheerpJSettingsPanel.load(jdeploy);
-            cheerpJSettingsPanel.addChangeListener(evt -> setModified());
-            
-            JPanel cheerpjPanelWrapper = new JPanel();
-            cheerpjPanelWrapper.setLayout(new BorderLayout());
-            cheerpjPanelWrapper.setOpaque(false);
-            
-            JPanel cheerpjHelpPanel = new JPanel();
-            cheerpjHelpPanel.setOpaque(false);
-            cheerpjHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
-            cheerpjHelpPanel.add(
-                    MenuBarBuilder.createHelpButton(
-                            MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#cheerpj",
-                            "",
-                            "Learn more about CheerpJ support",
-                            context,
-                            frame)
-            );
-            
-            cheerpjPanelWrapper.add(cheerpjHelpPanel, BorderLayout.NORTH);
-            cheerpjPanelWrapper.add(cheerpJSettingsPanel.getRoot(), BorderLayout.CENTER);
-            
-            tabs.add("CheerpJ", cheerpjPanelWrapper);
-        }
         
-        // Permissions panel
-        permissionsPanel = new PermissionsPanel();
-        permissionsPanel.loadPermissions(packageJSON);
-        permissionsPanel.addChangeListener(evt -> {
-            permissionsPanel.savePermissions(packageJSON);
-            setModified();
-        });
-        tabs.add("Permissions", permissionsPanel);
+        SwingUtils.addChangeListenerTo(detailsPanel.getHomepage(), this::queueHomepageVerification);
 
-        // Add Bundle Filters tab
-        bundleFiltersPanel = new BundleFiltersPanel(packageJSONFile.getParentFile());
-        bundleFiltersPanel.setOnChangeCallback(this::setModified);
-        bundleFiltersPanel.loadConfiguration(packageJSON);
+        detailsPanel.getVerifyButton().setToolTipText("Verify that you own this page");
+        detailsPanel.getVerifyButton().addActionListener(evt-> handleVerifyHomepage());
+
+        queueHomepageVerification();
+
+        // Create panel registry and populate with all panels
+        registry = createPanelRegistry();
         
-        // Set up NPM enabled checker to check current UI state
-        bundleFiltersPanel.setNpmEnabledChecker(() -> publishSettingsPanel != null && publishSettingsPanel.getNpmCheckbox().isSelected());
+        // Attach change listeners
+        registry.attachChangeListeners(this::setModified);
         
-        tabs.add("Platform-Specific Bundles", bundleFiltersPanel);
+        // Load all panels
+        registry.loadAll(packageJSON);
         
-        downloadPageSettingsPanel = new DownloadPageSettingsPanel(loadDownloadPageSettings());
-        downloadPageSettingsPanel.addChangeListener(evt -> {
-            this.saveDownloadPageSettings(downloadPageSettingsPanel.getSettings());
-            setModified();
-
-        });
-        tabs.add("Download Page", downloadPageSettingsPanel);
-
-        if (context.shouldDisplayPublishSettingsTab()) {
-            tabs.add("Publish Settings", createPublishSettingsPanel());
-        }
-
+        // Create navigation host
+        NavigationHost host = new TabbedPaneNavigationHost(context, frame);
+        registry.populateHost(host);
+        
+        // Setup container
         cnt.removeAll();
         cnt.setLayout(new BorderLayout());
-        cnt.add(tabs, BorderLayout.CENTER);
+        cnt.add(host.getComponent(), BorderLayout.CENTER);
         
         // Add tab change listener to refresh Platform-Specific Bundles panel
-        // This handles cases where publish settings change but package.json hasn't been saved yet
-        tabs.addChangeListener(e -> {
-            int selectedIndex = tabs.getSelectedIndex();
-            if (selectedIndex >= 0) {
-                String tabTitle = tabs.getTitleAt(selectedIndex);
-                if ("Platform-Specific Bundles".equals(tabTitle) && bundleFiltersPanel != null) {
-                    bundleFiltersPanel.refreshUI();
+        if (host.getComponent() instanceof JTabbedPane) {
+            JTabbedPane tabs = (JTabbedPane) host.getComponent();
+            tabs.addChangeListener(e -> {
+                int selectedIndex = tabs.getSelectedIndex();
+                if (selectedIndex >= 0) {
+                    String tabTitle = tabs.getTitleAt(selectedIndex);
+                    if ("Platform-Specific Bundles".equals(tabTitle) && bundleFiltersPanel != null) {
+                        bundleFiltersPanel.refreshUI();
+                    }
                 }
-            }
-        });
+            });
+        }
 
+        // Setup bottom button bar
         JPanel bottomButtons = new JPanel();
         bottomButtons.setLayout(new FlowLayout(FlowLayout.RIGHT));
-
 
         JButton viewDownloadPage = new JButton("View Download Page");
         viewDownloadPage.addActionListener(evt->{
@@ -683,7 +492,6 @@ public class JDeployProjectEditor {
 
         JButton preview = new JButton("Web Preview");
         preview.addActionListener(evt-> context.showWebPreview(frame));
-
 
         JButton publish = new JButton("Publish");
         publish.setDefaultCapable(true);
@@ -742,11 +550,175 @@ public class JDeployProjectEditor {
             bottomButtons.add(closeBtn);
         }
         cnt.add(bottomButtons, BorderLayout.SOUTH);
-
-
     }
 
-    private Component createPublishSettingsPanel() {
+    private EditorPanelRegistry createPanelRegistry() {
+        EditorPanelRegistry registry = new EditorPanelRegistry();
+        File projectDir = packageJSONFile.getAbsoluteFile().getParentFile();
+        JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
+
+        // Details Panel
+        registry.register(NavigablePanelAdapter.forPackageJsonPanel(
+            "Details",
+            MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#_the_details_tab",
+            detailsPanel.getRoot(),
+            json -> detailsPanel.load(json),
+            json -> detailsPanel.save(json),
+            listener -> {
+                // Convert ActionListener to the expected listener type for details panel
+                detailsPanel.addChangeListener(listener);
+            }
+        ));
+
+        // Splash Screens Panel
+        splashScreensPanel = new SplashScreensPanel(projectDir, frame);
+        registry.register(NavigablePanelAdapter.forJdeployPanel(
+            "Splash Screens",
+            MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#splashscreens",
+            splashScreensPanel.getRoot(),
+            json -> splashScreensPanel.load(json),
+            json -> splashScreensPanel.save(json),
+            listener -> splashScreensPanel.addChangeListener(listener)
+        ));
+
+        // Filetypes Panel
+        filetypesPanel = new FiletypesPanel(projectDir);
+        registry.register(NavigablePanelAdapter.forJdeployPanel(
+            "Filetypes",
+            null,
+            filetypesPanel.getRoot(),
+            json -> filetypesPanel.load(json),
+            json -> filetypesPanel.save(json),
+            listener -> filetypesPanel.addChangeListener(listener)
+        ));
+
+        // URL Schemes Panel
+        urlSchemesPanel = new UrlSchemesPanel();
+        registry.register(NavigablePanelAdapter.forJdeployPanel(
+            "URLs",
+            MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#_the_urls_tab",
+            urlSchemesPanel.getRoot(),
+            json -> urlSchemesPanel.load(json),
+            json -> urlSchemesPanel.save(json),
+            listener -> urlSchemesPanel.addChangeListener(listener)
+        ));
+
+        // CLI Settings Panel
+        cliSettingsPanel = new CliSettingsPanel();
+        registry.register(NavigablePanelAdapter.forPackageJsonPanel(
+            "CLI",
+            null,
+            cliSettingsPanel.getRoot(),
+            json -> cliSettingsPanel.load(json),
+            json -> cliSettingsPanel.save(json),
+            listener -> {
+                cliSettingsPanel.addChangeListener(listener);
+                cliSettingsPanel.getTutorialButton().addActionListener(evt -> {
+                    try {
+                        context.browse(new URI(MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/"));
+                    } catch (Exception ex) {
+                        System.err.println("Failed to open cli tutorial.");
+                        ex.printStackTrace(System.err);
+                        JOptionPane.showMessageDialog(frame,
+                                new JLabel(
+                                        "<html>" +
+                                        "<p style='width:400px'>" +
+                                        "Failed to open the CLI tutorial.  " +
+                                        "Try opening " + MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/ " +
+                                        "manually in your browser." +
+                                        "</p>" +
+                                        "</html>"
+                                ),
+                                "Failed to Open",
+                                JOptionPane.ERROR_MESSAGE);
+                    }
+                });
+            }
+        ));
+
+        // Runtime Args Panel
+        runtimeArgsPanel = new RuntimeArgsPanel();
+        registry.register(NavigablePanelAdapter.forJdeployPanel(
+            "Runtime Args",
+            MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#runargs",
+            runtimeArgsPanel.getRoot(),
+            json -> runtimeArgsPanel.load(json),
+            json -> runtimeArgsPanel.save(json),
+            listener -> runtimeArgsPanel.addChangeListener(listener)
+        ));
+
+        // CheerpJ Settings Panel
+        if (context.shouldDisplayCheerpJPanel()) {
+            cheerpJSettingsPanel = new CheerpJSettingsPanel();
+            registry.register(NavigablePanelAdapter.forJdeployPanel(
+                "CheerpJ",
+                MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#cheerpj",
+                cheerpJSettingsPanel.getRoot(),
+                json -> cheerpJSettingsPanel.load(json),
+                json -> cheerpJSettingsPanel.save(json),
+                listener -> cheerpJSettingsPanel.addChangeListener(listener),
+                () -> context.shouldDisplayCheerpJPanel()
+            ));
+        }
+
+        // Permissions Panel
+        permissionsPanel = new PermissionsPanel();
+        registry.register(NavigablePanelAdapter.forPackageJsonPanel(
+            "Permissions",
+            null,
+            (JComponent) permissionsPanel,
+            json -> permissionsPanel.loadPermissions(json),
+            json -> permissionsPanel.savePermissions(json),
+            listener -> permissionsPanel.addChangeListener(listener)
+        ));
+
+        // Bundle Filters Panel
+        bundleFiltersPanel = new BundleFiltersPanel(projectDir);
+        bundleFiltersPanel.setNpmEnabledChecker(() -> publishSettingsPanel != null && publishSettingsPanel.getNpmCheckbox().isSelected());
+        registry.register(NavigablePanelAdapter.forJdeployPanel(
+            "Platform-Specific Bundles",
+            null,
+            bundleFiltersPanel.getRoot(),
+            json -> bundleFiltersPanel.loadConfiguration(packageJSON),
+            json -> {
+                bundleFiltersPanel.saveConfiguration(json);
+                bundleFiltersPanel.saveAllFiles();
+            },
+            listener -> bundleFiltersPanel.setOnChangeCallback(() -> listener.actionPerformed(null))
+        ));
+
+        // Download Page Settings Panel
+        downloadPageSettingsPanel = new DownloadPageSettingsPanel(loadDownloadPageSettings());
+        registry.register(NavigablePanelAdapter.forJdeployPanel(
+            "Download Page",
+            null,
+            (JComponent) downloadPageSettingsPanel,
+            json -> {
+                DownloadPageSettings settings = loadDownloadPageSettings();
+                downloadPageSettingsPanel.setSettings(settings);
+            },
+            json -> saveDownloadPageSettings(downloadPageSettingsPanel.getSettings()),
+            listener -> downloadPageSettingsPanel.addChangeListener(e -> listener.actionPerformed(null))
+        ));
+
+        // Publish Settings Panel (conditional)
+        if (context.shouldDisplayPublishSettingsTab()) {
+            publishSettingsPanel = createPublishSettingsPanel();
+            registry.register(NavigablePanelAdapter.forPackageJsonPanel(
+                "Publish Settings",
+                null,
+                publishSettingsPanel,
+                json -> publishSettingsPanel.load(json),
+                json -> {},  // PublishSettingsPanel doesn't have a save method, data is managed via UI
+                listener -> publishSettingsPanel.addChangeListener(listener),
+                () -> context.shouldDisplayPublishSettingsTab()
+            ));
+        }
+
+        return registry;
+    }
+
+    private PublishSettingsPanel createPublishSettingsPanel() {
         PublishTargetFactory factory = DIContext.get(PublishTargetFactory.class);
         PublishTargetServiceInterface publishTargetService = DIContext.get(PublishTargetServiceInterface.class);
         
@@ -899,22 +871,7 @@ public class JDeployProjectEditor {
 
     private void handleSave() {
         try {
-            if (downloadPageSettingsPanel != null) {
-                saveDownloadPageSettings(downloadPageSettingsPanel.getSettings());
-            }
-            if (bundleFiltersPanel != null) {
-                bundleFiltersPanel.saveConfiguration(packageJSON.getJSONObject("jdeploy"));
-                bundleFiltersPanel.saveAllFiles();
-            }
-
-            JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
-            
-            // Save details panel
-            if (detailsPanel != null) {
-                detailsPanel.save(packageJSON);
-            }
-
-            // Validate and save filetypes panel
+            // Validate filetypes panel if present
             if (filetypesPanel != null) {
                 String validationError = filetypesPanel.validateDirectoryAssociation();
                 if (validationError != null) {
@@ -929,27 +886,12 @@ public class JDeployProjectEditor {
                         return; // Don't save
                     }
                 }
-                filetypesPanel.save(jdeploy);
-            }
-            
-            // Save URL schemes panel
-            if (urlSchemesPanel != null) {
-                urlSchemesPanel.save(jdeploy);
             }
 
-            // Save CLI settings panel
-            if (cliSettingsPanel != null) {
-                cliSettingsPanel.save(packageJSON);
-            }
-
-            // Save Runtime Args panel
-            if (runtimeArgsPanel != null) {
-                runtimeArgsPanel.save(jdeploy);
-            }
-
-            // Save CheerpJ settings panel
-            if (cheerpJSettingsPanel != null) {
-                cheerpJSettingsPanel.save(jdeploy);
+            // Save all panels through registry
+            JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
+            if (registry != null) {
+                registry.saveAll(packageJSON, jdeploy);
             }
 
             FileUtil.writeStringToFile(packageJSON.toString(4), packageJSONFile);
