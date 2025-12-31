@@ -3,8 +3,10 @@ package ca.weblite.jdeploy.gui;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.Assumptions;
 
 import javax.swing.*;
+import java.awt.GraphicsEnvironment;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -24,6 +26,7 @@ public class MenuBarBuilderTest {
 
     @BeforeEach
     void setUp(@TempDir Path tempDir) throws IOException {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "Skipping GUI test in headless environment");
         frame = new JFrame("Test");
         packageJSONFile = tempDir.resolve("package.json").toFile();
         FileUtils.writeStringToFile(packageJSONFile, "{}", "UTF-8");

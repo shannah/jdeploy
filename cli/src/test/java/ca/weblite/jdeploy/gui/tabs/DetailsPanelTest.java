@@ -4,10 +4,12 @@ import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Assumptions;
 
 import javax.swing.JFrame;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.GraphicsEnvironment;
 import java.io.File;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -21,6 +23,7 @@ class DetailsPanelTest {
     
     @BeforeEach
     void setUp() {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "Skipping GUI test in headless environment");
         panel = new DetailsPanel();
         changeListenerCallCount = new AtomicInteger(0);
     }

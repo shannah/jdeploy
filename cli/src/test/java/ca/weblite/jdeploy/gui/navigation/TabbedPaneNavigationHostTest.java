@@ -4,6 +4,7 @@ import ca.weblite.jdeploy.gui.JDeployProjectEditorContext;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Assumptions;
 
 import javax.swing.JComponent;
 import javax.swing.JFrame;
@@ -12,6 +13,7 @@ import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.GraphicsEnvironment;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -27,6 +29,7 @@ public class TabbedPaneNavigationHostTest {
     
     @BeforeEach
     public void setUp() {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "Skipping GUI test in headless environment");
         context = mock(JDeployProjectEditorContext.class);
         parentFrame = new JFrame();
         host = new TabbedPaneNavigationHost(context, parentFrame);

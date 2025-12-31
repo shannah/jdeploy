@@ -5,10 +5,12 @@ import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Assumptions;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.GraphicsEnvironment;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,6 +26,7 @@ class ProjectMetadataPanelTest {
     
     @BeforeEach
     void setUp() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "Skipping GUI test in headless environment");
         frame = new JFrame();
         tempDirectory = Files.createTempDirectory("jdeploy-test").toFile();
         

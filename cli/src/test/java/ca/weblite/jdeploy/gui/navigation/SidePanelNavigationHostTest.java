@@ -3,9 +3,11 @@ package ca.weblite.jdeploy.gui.navigation;
 import ca.weblite.jdeploy.gui.JDeployProjectEditorContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Assumptions;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.GraphicsEnvironment;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -24,6 +26,7 @@ public class SidePanelNavigationHostTest {
     
     @BeforeEach
     public void setUp() {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "Skipping GUI test in headless environment");
         context = mock(JDeployProjectEditorContext.class);
         parentFrame = new JFrame();
         host = new SidePanelNavigationHost(context, parentFrame);
