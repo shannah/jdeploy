@@ -99,4 +99,17 @@ public interface NavigablePanel {
     default boolean shouldDisplay() {
         return true;
     }
+    
+    /**
+     * Gets an optional callback to be invoked when this panel is selected in the navigation UI.
+     * 
+     * <p>This allows panels to perform initialization or refresh operations when the user
+     * selects them in a tabbed interface or similar navigation control.
+     * The default implementation returns null (no callback).</p>
+     * 
+     * @return the selection callback, or null if no callback is needed
+     */
+    default Runnable getOnSelected() {
+        return null;
+    }
 }

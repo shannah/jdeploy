@@ -149,7 +149,7 @@ public class EditorPanelRegistry {
         
         for (NavigablePanel panel : panels) {
             if (panel.shouldDisplay()) {
-                host.addPanel(panel);
+                host.addPanel(panel, panel.getOnSelected());
             }
         }
     }

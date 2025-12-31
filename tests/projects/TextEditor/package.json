@@ -12,15 +12,16 @@
             "win",
             "linux"
         ],
-        "javaVersion": "25",
-        "title": "Text Editor",
-        "downloadPage": {"platforms": ["default"]},
         "fallbackToUniversal": false,
         "publishTargets": [],
+        "javaVersion": "25",
         "permissions": [{
             "name": "photos_add",
             "description": "Needs access to photos"
         }],
+        "jar": "target/TextEditor-1.0-SNAPSHOT.jar",
+        "title": "Text Editor",
+        "downloadPage": {"platforms": ["default"]},
         "platformBundlesEnabled": false
     },
     "dependencies": {

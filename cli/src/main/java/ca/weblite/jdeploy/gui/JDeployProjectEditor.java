@@ -26,7 +26,6 @@ import ca.weblite.jdeploy.gui.tabs.PublishSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.RuntimeArgsPanel;
 import ca.weblite.jdeploy.gui.tabs.SplashScreensPanel;
 import ca.weblite.jdeploy.gui.tabs.UrlSchemesPanel;
-import javax.swing.JTabbedPane;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.packaging.PackagingPreferences;
@@ -416,20 +415,6 @@ public class JDeployProjectEditor {
         cnt.removeAll();
         cnt.setLayout(new BorderLayout());
         cnt.add(host.getComponent(), BorderLayout.CENTER);
-        
-        // Add tab change listener to refresh Platform-Specific Bundles panel
-        if (host.getComponent() instanceof JTabbedPane) {
-            JTabbedPane tabs = (JTabbedPane) host.getComponent();
-            tabs.addChangeListener(e -> {
-                int selectedIndex = tabs.getSelectedIndex();
-                if (selectedIndex >= 0) {
-                    String tabTitle = tabs.getTitleAt(selectedIndex);
-                    if ("Platform-Specific Bundles".equals(tabTitle) && bundleFiltersPanel != null) {
-                        bundleFiltersPanel.refreshUI();
-                    }
-                }
-            });
-        }
 
         // Setup bottom button bar
         JPanel bottomButtons = new JPanel();
@@ -657,7 +642,9 @@ public class JDeployProjectEditor {
                 bundleFiltersPanel.saveConfiguration(json);
                 bundleFiltersPanel.saveAllFiles();
             },
-            listener -> bundleFiltersPanel.setOnChangeCallback(() -> listener.actionPerformed(null))
+            listener -> bundleFiltersPanel.setOnChangeCallback(() -> listener.actionPerformed(null)),
+            () -> bundleFiltersPanel.refreshUI(),
+            () -> true
         ));
 
         // Download Page Settings Panel

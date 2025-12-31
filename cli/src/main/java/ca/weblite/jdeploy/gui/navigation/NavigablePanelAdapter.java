@@ -28,6 +28,7 @@ public class NavigablePanelAdapter implements NavigablePanel {
     private final Consumer<JSONObject> loader;
     private final Consumer<JSONObject> saver;
     private final Consumer<ActionListener> changeListenerRegistrar;
+    private final Runnable onSelected;
     private final Supplier<Boolean> displayCondition;
     
     /**
@@ -39,6 +40,7 @@ public class NavigablePanelAdapter implements NavigablePanel {
      * @param loader consumer that receives a JSONObject for loading configuration, must not be null
      * @param saver consumer that receives a JSONObject for saving configuration, must not be null
      * @param changeListenerRegistrar consumer that receives an ActionListener for change notifications, must not be null
+     * @param onSelected callback to invoke when this panel is selected, may be null
      * @param displayCondition supplier that determines whether this panel should be displayed, must not be null
      */
     public NavigablePanelAdapter(String title,
@@ -47,6 +49,7 @@ public class NavigablePanelAdapter implements NavigablePanel {
                                   Consumer<JSONObject> loader,
                                   Consumer<JSONObject> saver,
                                   Consumer<ActionListener> changeListenerRegistrar,
+                                  Runnable onSelected,
                                   Supplier<Boolean> displayCondition) {
         this.title = title;
         this.helpUrl = helpUrl;
@@ -54,6 +57,7 @@ public class NavigablePanelAdapter implements NavigablePanel {
         this.loader = loader;
         this.saver = saver;
         this.changeListenerRegistrar = changeListenerRegistrar;
+        this.onSelected = onSelected;
         this.displayCondition = displayCondition;
     }
     
@@ -102,6 +106,11 @@ public class NavigablePanelAdapter implements NavigablePanel {
         return displayCondition.get();
     }
     
+    @Override
+    public Runnable getOnSelected() {
+        return onSelected;
+    }
+    
     /**
      * Creates an adapter for a panel that works primarily with the jdeploy configuration object.
      * 
@@ -119,7 +128,7 @@ public class NavigablePanelAdapter implements NavigablePanel {
                                                          Consumer<JSONObject> loader,
                                                          Consumer<JSONObject> saver,
                                                          Consumer<ActionListener> changeListenerRegistrar) {
-        return forJdeployPanel(title, helpUrl, root, loader, saver, changeListenerRegistrar, () -> true);
+        return forJdeployPanel(title, helpUrl, root, loader, saver, changeListenerRegistrar, null, () -> true);
     }
     
     /**
@@ -141,7 +150,31 @@ public class NavigablePanelAdapter implements NavigablePanel {
                                                          Consumer<JSONObject> saver,
                                                          Consumer<ActionListener> changeListenerRegistrar,
                                                          Supplier<Boolean> displayCondition) {
-        return new NavigablePanelAdapter(title, helpUrl, root, loader, saver, changeListenerRegistrar, displayCondition);
+        return forJdeployPanel(title, helpUrl, root, loader, saver, changeListenerRegistrar, null, displayCondition);
+    }
+    
+    /**
+     * Creates an adapter for a panel that works primarily with the jdeploy configuration object.
+     * 
+     * @param title the panel title
+     * @param helpUrl the help URL, may be null
+     * @param root the root component
+     * @param loader consumer that receives the jdeploy JSONObject
+     * @param saver consumer that receives the jdeploy JSONObject
+     * @param changeListenerRegistrar consumer that registers change listeners
+     * @param onSelected callback to invoke when this panel is selected, may be null
+     * @param displayCondition supplier that determines whether this panel should be displayed
+     * @return a new NavigablePanelAdapter configured for jdeploy-focused panels
+     */
+    public static NavigablePanelAdapter forJdeployPanel(String title,
+                                                         String helpUrl,
+                                                         JComponent root,
+                                                         Consumer<JSONObject> loader,
+                                                         Consumer<JSONObject> saver,
+                                                         Consumer<ActionListener> changeListenerRegistrar,
+                                                         Runnable onSelected,
+                                                         Supplier<Boolean> displayCondition) {
+        return new NavigablePanelAdapter(title, helpUrl, root, loader, saver, changeListenerRegistrar, onSelected, displayCondition);
     }
     
     /**
@@ -161,7 +194,7 @@ public class NavigablePanelAdapter implements NavigablePanel {
                                                              Consumer<JSONObject> loader,
                                                              Consumer<JSONObject> saver,
                                                              Consumer<ActionListener> changeListenerRegistrar) {
-        return forPackageJsonPanel(title, helpUrl, root, loader, saver, changeListenerRegistrar, () -> true);
+        return forPackageJsonPanel(title, helpUrl, root, loader, saver, changeListenerRegistrar, null, () -> true);
     }
     
     /**
@@ -183,11 +216,35 @@ public class NavigablePanelAdapter implements NavigablePanel {
                                                              Consumer<JSONObject> saver,
                                                              Consumer<ActionListener> changeListenerRegistrar,
                                                              Supplier<Boolean> displayCondition) {
+        return forPackageJsonPanel(title, helpUrl, root, loader, saver, changeListenerRegistrar, null, displayCondition);
+    }
+    
+    /**
+     * Creates an adapter for a panel that works primarily with the package.json configuration object.
+     * 
+     * @param title the panel title
+     * @param helpUrl the help URL, may be null
+     * @param root the root component
+     * @param loader consumer that receives the package.json JSONObject
+     * @param saver consumer that receives the package.json JSONObject
+     * @param changeListenerRegistrar consumer that registers change listeners
+     * @param onSelected callback to invoke when this panel is selected, may be null
+     * @param displayCondition supplier that determines whether this panel should be displayed
+     * @return a new NavigablePanelAdapter configured for package.json-focused panels
+     */
+    public static NavigablePanelAdapter forPackageJsonPanel(String title,
+                                                             String helpUrl,
+                                                             JComponent root,
+                                                             Consumer<JSONObject> loader,
+                                                             Consumer<JSONObject> saver,
+                                                             Consumer<ActionListener> changeListenerRegistrar,
+                                                             Runnable onSelected,
+                                                             Supplier<Boolean> displayCondition) {
         // For package.json panels, we wrap the loader/saver to prefer packageJSON parameter
         Consumer<JSONObject> wrappedLoader = loader;
         Consumer<JSONObject> wrappedSaver = saver;
         
-        return new NavigablePanelAdapter(title, helpUrl, root, wrappedLoader, wrappedSaver, changeListenerRegistrar, displayCondition) {
+        return new NavigablePanelAdapter(title, helpUrl, root, wrappedLoader, wrappedSaver, changeListenerRegistrar, onSelected, displayCondition) {
             @Override
             public void load(JSONObject packageJSON, JSONObject jdeploy) {
                 if (packageJSON != null) {
