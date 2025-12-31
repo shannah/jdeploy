@@ -17,7 +17,7 @@ import ca.weblite.jdeploy.gui.services.PublishingCoordinator;
 import ca.weblite.jdeploy.packaging.PackagingContext;
 import ca.weblite.jdeploy.gui.tabs.BundleFiltersPanel;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettingsPanel;
-import ca.weblite.jdeploy.gui.tabs.CliSettingsPanel;
+import ca.weblite.jdeploy.gui.tabs.CliCommandsPanel;
 import ca.weblite.jdeploy.gui.tabs.FiletypesPanel;
 import ca.weblite.jdeploy.gui.tabs.JavaRuntimePanel;
 import ca.weblite.jdeploy.gui.tabs.RepositorySettingsPanel;
@@ -74,7 +74,7 @@ public class JDeployProjectEditor {
     private PublishSettingsPanel publishSettingsPanel;
     private FiletypesPanel filetypesPanel;
     private UrlSchemesPanel urlSchemesPanel;
-    private CliSettingsPanel cliSettingsPanel;
+    private CliCommandsPanel cliCommandsPanel;
     private RuntimeArgsPanel runtimeArgsPanel;
     private CheerpJSettingsPanel cheerpJSettingsPanel;
     private SplashScreensPanel splashScreensPanel;
@@ -572,38 +572,16 @@ public class JDeployProjectEditor {
             listener -> urlSchemesPanel.addChangeListener(listener)
         ));
 
-        // CLI Settings Panel
-        cliSettingsPanel = new CliSettingsPanel();
-        registry.register(NavigablePanelAdapter.forPackageJsonPanel(
-            "CLI",
-            null,
+        // CLI Commands Panel
+        cliCommandsPanel = new CliCommandsPanel();
+        registry.register(NavigablePanelAdapter.forJdeployPanel(
+            "CLI Commands",
+            MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#commands",
             FontIcon.of(Material.CODE),
-            cliSettingsPanel.getRoot(),
-            json -> cliSettingsPanel.load(json),
-            json -> cliSettingsPanel.save(json),
-            listener -> {
-                cliSettingsPanel.addChangeListener(listener);
-                cliSettingsPanel.getTutorialButton().addActionListener(evt -> {
-                    try {
-                        context.browse(new URI(MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/"));
-                    } catch (Exception ex) {
-                        System.err.println("Failed to open cli tutorial.");
-                        ex.printStackTrace(System.err);
-                        JOptionPane.showMessageDialog(frame,
-                                new JLabel(
-                                        "<html>" +
-                                        "<p style='width:400px'>" +
-                                        "Failed to open the CLI tutorial.  " +
-                                        "Try opening " + MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/getting-started-tutorial-cli/ " +
-                                        "manually in your browser." +
-                                        "</p>" +
-                                        "</html>"
-                                ),
-                                "Failed to Open",
-                                JOptionPane.ERROR_MESSAGE);
-                    }
-                });
-            }
+            cliCommandsPanel.getRoot(),
+            json -> cliCommandsPanel.load(json),
+            json -> cliCommandsPanel.save(json),
+            listener -> cliCommandsPanel.addChangeListener(listener)
         ));
 
         // Runtime Args Panel
