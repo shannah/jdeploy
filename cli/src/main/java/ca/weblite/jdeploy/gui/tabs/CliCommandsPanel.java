@@ -263,7 +263,13 @@ public class CliCommandsPanel extends JPanel {
                 if (currentCommandModified) {
                     saveCurrentCommand();
                 }
-                commandList.setSelectedIndex(i);
+                // Set flag to prevent onCommandSelected from also running
+                isUpdatingUI = true;
+                try {
+                    commandList.setSelectedIndex(i);
+                } finally {
+                    isUpdatingUI = false;
+                }
                 // Explicitly load the command to ensure UI updates in headless environments
                 loadCommandForEditing(commandName);
                 removeButton.setEnabled(true);
@@ -285,7 +291,13 @@ public class CliCommandsPanel extends JPanel {
             if (currentCommandModified) {
                 saveCurrentCommand();
             }
-            commandList.setSelectedIndex(index);
+            // Set flag to prevent onCommandSelected from also running
+            isUpdatingUI = true;
+            try {
+                commandList.setSelectedIndex(index);
+            } finally {
+                isUpdatingUI = false;
+            }
             // Explicitly load the command to ensure UI updates in headless environments
             String commandName = commandListModel.getElementAt(index);
             loadCommandForEditing(commandName);
