@@ -13,7 +13,7 @@ import ca.weblite.jdeploy.gui.util.SwingUtils;
 import ca.weblite.jdeploy.gui.tabs.BundleFiltersPanel;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.DocumentEvent;
-import ca.weblite.jdeploy.gui.tabs.CheerpJSettings;
+import ca.weblite.jdeploy.gui.tabs.CheerpJSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.CliSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
 import ca.weblite.jdeploy.gui.tabs.FiletypesPanel;
@@ -80,6 +80,7 @@ public class JDeployProjectEditor {
     private UrlSchemesPanel urlSchemesPanel;
     private CliSettingsPanel cliSettingsPanel;
     private RuntimeArgsPanel runtimeArgsPanel;
+    private CheerpJSettingsPanel cheerpJSettingsPanel;
 
     private NPM npm = null;
 
@@ -467,185 +468,6 @@ public class JDeployProjectEditor {
         filetypesPanelWrapper.setOpaque(false);
         filetypesPanelWrapper.setLayout(new BorderLayout());
         filetypesPanelWrapper.add(filetypesPanel.getRoot(), BorderLayout.CENTER);
-        JPanel cheerpjSettingsRoot = null;
-        if (context.shouldDisplayCheerpJPanel()) {
-            CheerpJSettings cheerpJSettings = new CheerpJSettings();
-                cheerpJSettings.getButtons().add(
-                        MenuBarBuilder.createHelpButton(
-                                MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#cheerpj",
-                                "",
-                                "Learn more about CheerpJ support",
-                                context,
-                                frame)
-                );
-            cheerpjSettingsRoot = cheerpJSettings.getRoot();
-            cheerpJSettings.getEnableCheerpJ().setSelected(
-                    jdeploy.has("cheerpj")
-                            && jdeploy.getJSONObject("cheerpj").has("enabled")
-                            && jdeploy.getJSONObject("cheerpj").getBoolean("enabled")
-            );
-
-            Runnable updateCheerpjUI = ()->{
-
-                cheerpJSettings.getEnableCheerpJ().setSelected(
-                        jdeploy.has("cheerpj")
-                                && jdeploy.getJSONObject("cheerpj").has("enabled")
-                                && jdeploy.getJSONObject("cheerpj").getBoolean("enabled")
-                );
-                boolean cheerpjEnabled = cheerpJSettings.getEnableCheerpJ().isSelected();
-                cheerpJSettings.getGithubPagesBranch().setEnabled(cheerpjEnabled);
-                cheerpJSettings.getGithubPagesBranchPath().setEnabled(cheerpjEnabled);
-                cheerpJSettings.getGithubPagesTagPath().setEnabled(cheerpjEnabled);
-                cheerpJSettings.getGithubPagesPath().setEnabled(cheerpjEnabled);
-                if (!cheerpjEnabled) {
-                    return;
-                }
-
-                boolean hasBranch = jdeploy.has("cheerpj")
-                        && jdeploy
-                        .getJSONObject("cheerpj")
-                        .has("githubPages")
-                        && jdeploy
-                        .getJSONObject("cheerpj")
-                        .getJSONObject("githubPages")
-                        .has("branch");
-
-                cheerpJSettings.getGithubPagesBranch().setText(
-                        !hasBranch
-                                ? ""
-                                :  jdeploy
-                                .getJSONObject("cheerpj")
-                                .getJSONObject("githubPages")
-                                .getString("branch")
-                );
-
-                boolean hasBranchPath = jdeploy.has("cheerpj")
-                        && jdeploy
-                        .getJSONObject("cheerpj")
-                        .has("githubPages")
-                        && jdeploy
-                        .getJSONObject("cheerpj")
-                        .getJSONObject("githubPages")
-                        .has("branchPath");
-
-                cheerpJSettings.getGithubPagesBranchPath().setText(
-                        !hasBranchPath
-                                ? ""
-                                :  jdeploy
-                                .getJSONObject("cheerpj")
-                                .getJSONObject("githubPages")
-                                .getString("branchPath")
-                );
-
-                boolean hasTagPath = jdeploy.has("cheerpj")
-                        && jdeploy.getJSONObject("cheerpj").has("githubPages")
-                        && jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").has("tagPath");
-
-                cheerpJSettings.getGithubPagesTagPath().setText(
-                        !hasTagPath
-                                ? ""
-                                :  jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").getString("tagPath")
-                );
-
-                boolean hasPath = jdeploy.has("cheerpj")
-                        && jdeploy.getJSONObject("cheerpj").has("githubPages")
-                        && jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").has("path");
-
-                cheerpJSettings.getGithubPagesPath().setText(
-                        !hasPath
-                                ? ""
-                                :  jdeploy
-                                .getJSONObject("cheerpj")
-                                .getJSONObject("githubPages")
-                                .getString("path")
-                );
-
-
-            };
-            cheerpJSettings.getEnableCheerpJ().addActionListener(evt->{
-                if (cheerpJSettings.getEnableCheerpJ().isSelected()) {
-                    if (jdeploy.has("cheerpj")) {
-                        jdeploy.getJSONObject("cheerpj").put("enabled", true);
-                        setModified();
-                        return;
-                    }
-                }
-
-                if (!cheerpJSettings.getEnableCheerpJ().isSelected()) {
-                    if (!jdeploy.has("cheerpj")) {
-                        return;
-                    } else {
-                        jdeploy.getJSONObject("cheerpj").put("enabled", false);
-                        setModified();
-                        return;
-                    }
-                }
-
-                if (!jdeploy.has("cheerpj")) {
-                    JSONObject initCheerpj = new JSONObject();
-                    initCheerpj.put("enabled", true);
-                    JSONObject initGithubPages = new JSONObject();
-                    initGithubPages.put("enabled", true);
-                    initGithubPages.put("branch", "gh-pages");
-                    initGithubPages.put("branchPath", "{{ branch }}");
-                    initGithubPages.put("tagPath", "app");
-                    initCheerpj.put("githubPages", initGithubPages);
-
-                    jdeploy.put("cheerpj",initCheerpj);
-                    updateCheerpjUI.run();
-                    setModified();
-                    return;
-
-                }
-                jdeploy.getJSONObject("cheerpj").put("enabled", cheerpJSettings.getEnableCheerpJ().isSelected());
-                setModified();
-            });
-
-            cheerpJSettings.getGithubPagesBranch().addActionListener(evt->{
-                if (
-                        jdeploy.has("cheerpj")
-                                && jdeploy.getJSONObject("cheerpj").has("githubPages")
-                ) {
-                    jdeploy
-                            .getJSONObject("cheerpj")
-                            .getJSONObject("githubPages")
-                            .put("branch", cheerpJSettings.getGithubPagesBranch().getText());
-                    setModified();
-                }
-            });
-
-            cheerpJSettings.getGithubPagesBranchPath().addActionListener(evt->{
-                if (
-                        jdeploy.has("cheerpj")
-                                && jdeploy.getJSONObject("cheerpj").has("githubPages")
-                ) {
-                    jdeploy.getJSONObject("cheerpj")
-                            .getJSONObject("githubPages")
-                            .put("branchPath", cheerpJSettings.getGithubPagesBranchPath().getText());
-                    setModified();
-                }
-            });
-
-            cheerpJSettings.getGithubPagesTagPath().addActionListener(evt->{
-                if (
-                        jdeploy.has("cheerpj")
-                                && jdeploy.getJSONObject("cheerpj").has("githubPages")
-                ) {
-                    jdeploy.getJSONObject("cheerpj")
-                            .getJSONObject("githubPages")
-                            .put("tagPath", cheerpJSettings.getGithubPagesTagPath().getText());
-                    setModified();
-                }
-            });
-
-            cheerpJSettings.getGithubPagesPath().addActionListener(evt->{
-                if (jdeploy.has("cheerpj") && jdeploy.getJSONObject("cheerpj").has("githubPages")) {
-                    jdeploy.getJSONObject("cheerpj").getJSONObject("githubPages").put("path", cheerpJSettings.getGithubPagesPath().getText());
-                    setModified();
-                }
-            });
-            updateCheerpjUI.run();
-        }
 
         JTabbedPane tabs = new JTabbedPane();
         JPanel detailsPanelRoot = detailsPanel.getRoot();
@@ -771,8 +593,32 @@ public class JDeployProjectEditor {
 
         tabs.add("Runtime Args", runtimeArgsPanelWrapper);
 
+        // CheerpJ settings panel
         if (context.shouldDisplayCheerpJPanel()) {
-            tabs.add("CheerpJ", cheerpjSettingsRoot);
+            cheerpJSettingsPanel = new CheerpJSettingsPanel();
+            cheerpJSettingsPanel.load(jdeploy);
+            cheerpJSettingsPanel.addChangeListener(evt -> setModified());
+            
+            JPanel cheerpjPanelWrapper = new JPanel();
+            cheerpjPanelWrapper.setLayout(new BorderLayout());
+            cheerpjPanelWrapper.setOpaque(false);
+            
+            JPanel cheerpjHelpPanel = new JPanel();
+            cheerpjHelpPanel.setOpaque(false);
+            cheerpjHelpPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
+            cheerpjHelpPanel.add(
+                    MenuBarBuilder.createHelpButton(
+                            MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#cheerpj",
+                            "",
+                            "Learn more about CheerpJ support",
+                            context,
+                            frame)
+            );
+            
+            cheerpjPanelWrapper.add(cheerpjHelpPanel, BorderLayout.NORTH);
+            cheerpjPanelWrapper.add(cheerpJSettingsPanel.getRoot(), BorderLayout.CENTER);
+            
+            tabs.add("CheerpJ", cheerpjPanelWrapper);
         }
         
         // Permissions panel
@@ -1198,6 +1044,11 @@ public class JDeployProjectEditor {
             // Save Runtime Args panel
             if (runtimeArgsPanel != null) {
                 runtimeArgsPanel.save(jdeploy);
+            }
+
+            // Save CheerpJ settings panel
+            if (cheerpJSettingsPanel != null) {
+                cheerpJSettingsPanel.save(jdeploy);
             }
 
             FileUtil.writeStringToFile(packageJSON.toString(4), packageJSONFile);
