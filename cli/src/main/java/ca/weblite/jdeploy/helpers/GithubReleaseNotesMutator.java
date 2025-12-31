@@ -2,7 +2,7 @@ package ca.weblite.jdeploy.helpers;
 
 import ca.weblite.jdeploy.BundleConstants;
 import ca.weblite.jdeploy.environment.Environment;
-import ca.weblite.jdeploy.gui.JDeployProjectEditor;
+import ca.weblite.jdeploy.gui.MenuBarBuilder;
 
 import java.io.File;
 import java.io.PrintStream;
@@ -14,7 +14,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class GithubReleaseNotesMutator implements BundleConstants {
-    private static final String JDEPLOY_WEBSITE_URL = JDeployProjectEditor.JDEPLOY_WEBSITE_URL;
+    private static final String JDEPLOY_WEBSITE_URL = MenuBarBuilder.JDEPLOY_WEBSITE_URL;
     private final File directory;
 
     private final PrintStream err;

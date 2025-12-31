@@ -1,42 +1,28 @@
 {
-    "bin": {
-        "texteditor": "jdeploy-bundle/jdeploy.js"
-    },
+    "bin": {"texteditor": "jdeploy-bundle/jdeploy.js"},
     "author": "Steve Hannah",
     "description": "A text editor",
     "main": "index.js",
     "preferGlobal": true,
-    "repository": "https://github.com/shannah/jdeploy-demo-texteditor",
+    "repository": {"url": "https://github.com/shannah/jdeploy-demo-texteditor2"},
     "version": "0.0.0-JDEPLOY-SNAPSHOT",
     "jdeploy": {
-        "jdk": false,
-        "javaVersion": "11",
-        "documentTypes": [
-            {
-                "editor": true,
-                "extension": "txt",
-                "mimetype": "text/plain"
-            },
-            {
-                "extension": "html",
-                "mimetype": "text/html"
-            },
-            {
-                "extension": "jdtext",
-                "mimetype": "application/x-jdeploy-demo-texteditor-jdtext"
-            }
-        ],
-        "urlSchemes": [
-            "jdtext"
-        ],
-        "jar": "target/TextEditor-1.0-SNAPSHOT.jar",
-        "javafx": true,
-        "title": "Text Editor",
         "installers": [
             "mac-arm64",
             "win",
             "linux"
-        ]
+        ],
+        "fallbackToUniversal": false,
+        "publishTargets": [],
+        "javaVersion": "25",
+        "permissions": [{
+            "name": "photos_add",
+            "description": "Needs access to photos"
+        }],
+        "jar": "target/TextEditor-1.0-SNAPSHOT.jar",
+        "title": "Text Editor",
+        "downloadPage": {"platforms": ["default"]},
+        "platformBundlesEnabled": false
     },
     "dependencies": {
         "command-exists-promise": "^2.0.2",
@@ -47,10 +33,6 @@
     },
     "license": "ISC",
     "name": "jdeploy-demo-texteditor",
-    "files": [
-        "jdeploy-bundle"
-    ],
-    "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
-    }
+    "files": ["jdeploy-bundle"],
+    "scripts": {"test": "echo \"Error: no test specified\" && exit 1"}
 }

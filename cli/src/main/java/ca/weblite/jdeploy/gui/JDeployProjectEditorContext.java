@@ -112,4 +112,17 @@ public class JDeployProjectEditorContext {
     public void showWebPreview(Frame projectEditorFrame) {
         // Do nothing
     }
+
+    /**
+     * Returns whether the project editor should use side panel navigation (IntelliJ-style)
+     * instead of tabbed navigation. Defaults to true.
+     * 
+     * Subclasses can override this method to return false for backward compatibility
+     * with the previous tabbed navigation UI.
+     * 
+     * @return true to use side navigation, false to use tabbed navigation
+     */
+    public boolean useSideNavigation() {
+        return true;
+    }
 }
