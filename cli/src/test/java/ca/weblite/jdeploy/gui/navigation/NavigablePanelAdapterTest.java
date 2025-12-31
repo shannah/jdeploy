@@ -4,6 +4,7 @@ import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import java.awt.event.ActionEvent;
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * Unit tests for {@link NavigablePanelAdapter}.
@@ -477,5 +479,149 @@ class NavigablePanelAdapterTest {
         
         // Should not throw
         adapter.addChangeListener(null);
+    }
+    
+    @Test
+    void testGetIconReturnsProvidedIcon() {
+        Icon mockIcon = mock(Icon.class);
+        adapter = new NavigablePanelAdapter(
+            "Test Title",
+            null,
+            mockIcon,
+            rootComponent,
+            json -> {},
+            json -> {},
+            registeredListeners::add,
+            null,
+            displayConditionValue::get
+        );
+        
+        assertSame(mockIcon, adapter.getIcon());
+    }
+    
+    @Test
+    void testGetIconReturnsNullWhenNotProvided() {
+        adapter = new NavigablePanelAdapter(
+            "Test Title",
+            null,
+            rootComponent,
+            json -> {},
+            json -> {},
+            registeredListeners::add,
+            null,
+            displayConditionValue::get
+        );
+        
+        assertNull(adapter.getIcon());
+    }
+    
+    @Test
+    void testForJdeployPanelFactoryWithIcon() {
+        Icon mockIcon = mock(Icon.class);
+        adapter = NavigablePanelAdapter.forJdeployPanel(
+            "Jdeploy Panel",
+            "http://example.com/help",
+            mockIcon,
+            rootComponent,
+            json -> {},
+            json -> {},
+            registeredListeners::add
+        );
+        
+        assertSame(mockIcon, adapter.getIcon());
+    }
+    
+    @Test
+    void testForJdeployPanelFactoryWithIconAndDisplayCondition() {
+        Icon mockIcon = mock(Icon.class);
+        adapter = NavigablePanelAdapter.forJdeployPanel(
+            "Jdeploy Panel",
+            "http://example.com/help",
+            mockIcon,
+            rootComponent,
+            json -> {},
+            json -> {},
+            registeredListeners::add,
+            () -> true
+        );
+        
+        assertSame(mockIcon, adapter.getIcon());
+        assertTrue(adapter.shouldDisplay());
+    }
+    
+    @Test
+    void testForJdeployPanelFactoryWithIconAndOnSelectedAndDisplayCondition() {
+        Icon mockIcon = mock(Icon.class);
+        Runnable onSelected = () -> {};
+        adapter = NavigablePanelAdapter.forJdeployPanel(
+            "Jdeploy Panel",
+            "http://example.com/help",
+            mockIcon,
+            rootComponent,
+            json -> {},
+            json -> {},
+            registeredListeners::add,
+            onSelected,
+            () -> true
+        );
+        
+        assertSame(mockIcon, adapter.getIcon());
+        assertSame(onSelected, adapter.getOnSelected());
+        assertTrue(adapter.shouldDisplay());
+    }
+    
+    @Test
+    void testForPackageJsonPanelFactoryWithIcon() {
+        Icon mockIcon = mock(Icon.class);
+        adapter = NavigablePanelAdapter.forPackageJsonPanel(
+            "Package.json Panel",
+            "http://example.com/help",
+            mockIcon,
+            rootComponent,
+            json -> {},
+            json -> {},
+            registeredListeners::add
+        );
+        
+        assertSame(mockIcon, adapter.getIcon());
+    }
+    
+    @Test
+    void testForPackageJsonPanelFactoryWithIconAndDisplayCondition() {
+        Icon mockIcon = mock(Icon.class);
+        adapter = NavigablePanelAdapter.forPackageJsonPanel(
+            "Package.json Panel",
+            "http://example.com/help",
+            mockIcon,
+            rootComponent,
+            json -> {},
+            json -> {},
+            registeredListeners::add,
+            () -> true
+        );
+        
+        assertSame(mockIcon, adapter.getIcon());
+        assertTrue(adapter.shouldDisplay());
+    }
+    
+    @Test
+    void testForPackageJsonPanelFactoryWithIconAndOnSelectedAndDisplayCondition() {
+        Icon mockIcon = mock(Icon.class);
+        Runnable onSelected = () -> {};
+        adapter = NavigablePanelAdapter.forPackageJsonPanel(
+            "Package.json Panel",
+            "http://example.com/help",
+            mockIcon,
+            rootComponent,
+            json -> {},
+            json -> {},
+            registeredListeners::add,
+            onSelected,
+            () -> true
+        );
+        
+        assertSame(mockIcon, adapter.getIcon());
+        assertSame(onSelected, adapter.getOnSelected());
+        assertTrue(adapter.shouldDisplay());
     }
 }
