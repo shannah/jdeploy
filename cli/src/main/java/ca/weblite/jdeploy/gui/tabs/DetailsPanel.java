@@ -25,13 +25,6 @@ public class DetailsPanel {
     }
     
     private JPanel panel1;
-    private JTextField name;
-    private JTextField version;
-    private JTextField title;
-    private JTextField author;
-    private JTextArea description;
-    private JButton icon;
-    private JButton helpButton;
     private JTextField jarFile;
     private JComboBox javaVersion;
     private JCheckBox requiresJavaFX;
@@ -41,10 +34,7 @@ public class DetailsPanel {
     private JButton verifyButton;
     private JTextField repositoryUrl;
     private JTextField repositoryDirectory;
-    private JTextField license;
     private JPanel root;
-    private JLabel projectPath;
-    private JButton copyPath;
     private JComboBox jdkProvider;
     private JComboBox jbrVariant;
     
@@ -62,34 +52,6 @@ public class DetailsPanel {
 
     public JPanel getRoot() {
         return root;
-    }
-
-    public JTextField getName() {
-        return name;
-    }
-
-    public JTextField getVersion() {
-        return version;
-    }
-
-    public JTextField getTitle() {
-        return title;
-    }
-
-    public JTextField getAuthor() {
-        return author;
-    }
-
-    public JTextArea getDescription() {
-        return description;
-    }
-
-    public JButton getIcon() {
-        return icon;
-    }
-
-    public JButton getHelpButton() {
-        return helpButton;
     }
 
     public JTextField getJarFile() {
@@ -128,18 +90,6 @@ public class DetailsPanel {
         return repositoryDirectory;
     }
 
-    public JTextField getLicense() {
-        return license;
-    }
-
-    public JButton getCopyPath() {
-        return copyPath;
-    }
-
-    public JLabel getProjectPath() {
-        return projectPath;
-    }
-
     public JComboBox getJdkProvider() {
         return jdkProvider;
     }
@@ -153,47 +103,7 @@ public class DetailsPanel {
             return;
         }
 
-        // Load root-level fields
-        if (packageJSON.has("name")) {
-            name.setText(packageJSON.getString("name"));
-        }
-        
-        if (packageJSON.has("version")) {
-            version.setText(packageJSON.getString("version"));
-        }
-        
-        if (packageJSON.has("author")) {
-            Object authorObj = packageJSON.get("author");
-            String authorString = "";
-            if (authorObj instanceof JSONObject) {
-                JSONObject author = (JSONObject) authorObj;
-                if (author.has("name")) {
-                    authorString += author.getString("name");
-                }
-                if (author.has("email")) {
-                    authorString += " <" + author.getString("email") + ">";
-                }
-                if (author.has("url")) {
-                    authorString += " (" + author.getString("url") + ")";
-                }
-            } else if (authorObj instanceof String) {
-                authorString = (String) authorObj;
-            }
-            this.author.setText(authorString);
-        }
-        
-        if (packageJSON.has("description")) {
-            description.setText(packageJSON.getString("description"));
-        }
-        
-        if (packageJSON.has("homepage")) {
-            homepage.setText(packageJSON.getString("homepage"));
-        }
-        
-        if (packageJSON.has("license")) {
-            license.setText(packageJSON.getString("license"));
-        }
-        
+        // Load repository info
         if (packageJSON.has("repository")) {
             Object repoObj = packageJSON.get("repository");
             if (repoObj instanceof JSONObject) {
@@ -209,13 +119,13 @@ public class DetailsPanel {
             }
         }
         
+        if (packageJSON.has("homepage")) {
+            homepage.setText(packageJSON.getString("homepage"));
+        }
+        
         // Load jdeploy object fields
         if (packageJSON.has("jdeploy")) {
             JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
-            
-            if (jdeploy.has("title")) {
-                title.setText(jdeploy.getString("title"));
-            }
             
             if (jdeploy.has("jar")) {
                 jarFile.setText(jdeploy.getString("jar"));
@@ -264,37 +174,11 @@ public class DetailsPanel {
             return;
         }
 
-        // Save root-level fields
-        if (!name.getText().trim().isEmpty()) {
-            packageJSON.put("name", name.getText().trim());
-        }
-        
-        if (!version.getText().trim().isEmpty()) {
-            packageJSON.put("version", version.getText().trim());
-        }
-        
-        if (!author.getText().trim().isEmpty()) {
-            packageJSON.put("author", author.getText().trim());
-        } else {
-            packageJSON.remove("author");
-        }
-        
-        if (!description.getText().trim().isEmpty()) {
-            packageJSON.put("description", description.getText().trim());
-        } else {
-            packageJSON.remove("description");
-        }
-        
+        // Save repository info
         if (!homepage.getText().trim().isEmpty()) {
             packageJSON.put("homepage", homepage.getText().trim());
         } else {
             packageJSON.remove("homepage");
-        }
-        
-        if (!license.getText().trim().isEmpty()) {
-            packageJSON.put("license", license.getText().trim());
-        } else {
-            packageJSON.remove("license");
         }
         
         String repoUrl = repositoryUrl.getText().trim();
@@ -320,12 +204,6 @@ public class DetailsPanel {
         JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
         
         // Save jdeploy fields
-        if (!title.getText().trim().isEmpty()) {
-            jdeploy.put("title", title.getText().trim());
-        } else {
-            jdeploy.remove("title");
-        }
-        
         if (!jarFile.getText().trim().isEmpty()) {
             jdeploy.put("jar", jarFile.getText().trim());
         } else {
@@ -367,13 +245,7 @@ public class DetailsPanel {
 
     public void addChangeListener(ActionListener listener) {
         this.changeListener = listener;
-        SwingUtils.addChangeListenerTo(name, this::fireChangeEvent);
-        SwingUtils.addChangeListenerTo(version, this::fireChangeEvent);
-        SwingUtils.addChangeListenerTo(author, this::fireChangeEvent);
-        SwingUtils.addChangeListenerTo(description, this::fireChangeEvent);
-        SwingUtils.addChangeListenerTo(title, this::fireChangeEvent);
         SwingUtils.addChangeListenerTo(homepage, this::fireChangeEvent);
-        SwingUtils.addChangeListenerTo(license, this::fireChangeEvent);
         SwingUtils.addChangeListenerTo(repositoryUrl, this::fireChangeEvent);
         SwingUtils.addChangeListenerTo(repositoryDirectory, this::fireChangeEvent);
         SwingUtils.addChangeListenerTo(jarFile, this::fireChangeEvent);
@@ -508,74 +380,22 @@ public class DetailsPanel {
      * @noinspection ALL
      */
     private void $$$setupUI$$$() {
+        CellConstraints cc = new CellConstraints();
         root = new JPanel();
         root.setLayout(new BorderLayout(0, 0));
         root.setPreferredSize(new Dimension(640, 500));
         root.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10), null, TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-        panel1 = new JPanel();
-        panel1.setLayout(new FormLayout("fill:max(d;4px):noGrow,left:4dlu:noGrow,fill:d:grow", "center:d:noGrow,top:3dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow"));
-        root.add(panel1, BorderLayout.CENTER);
-        final JLabel label1 = new JLabel();
-        label1.setText("Name");
-        CellConstraints cc = new CellConstraints();
-        panel1.add(label1, cc.xy(1, 1));
-        name = new JTextField();
-        panel1.add(name, cc.xy(3, 1, CellConstraints.FILL, CellConstraints.DEFAULT));
-        final JLabel label2 = new JLabel();
-        label2.setText("Version");
-        panel1.add(label2, cc.xy(1, 5));
-        version = new JTextField();
-        panel1.add(version, cc.xy(3, 5, CellConstraints.FILL, CellConstraints.DEFAULT));
-        title = new JTextField();
-        panel1.add(title, cc.xy(3, 7, CellConstraints.FILL, CellConstraints.DEFAULT));
-        final JLabel label3 = new JLabel();
-        label3.setText("Title");
-        panel1.add(label3, cc.xy(1, 7));
-        final JLabel label4 = new JLabel();
-        label4.setText("Author");
-        panel1.add(label4, cc.xy(1, 9));
-        author = new JTextField();
-        panel1.add(author, cc.xy(3, 9, CellConstraints.FILL, CellConstraints.DEFAULT));
-        final JLabel label5 = new JLabel();
-        label5.setText("Description");
-        panel1.add(label5, cc.xy(1, 11));
-        final JLabel label6 = new JLabel();
-        label6.setText("License");
-        panel1.add(label6, cc.xy(1, 13));
-        license = new JTextField();
-        panel1.add(license, cc.xy(3, 13, CellConstraints.FILL, CellConstraints.DEFAULT));
-        final JScrollPane scrollPane1 = new JScrollPane();
-        panel1.add(scrollPane1, cc.xy(3, 11, CellConstraints.FILL, CellConstraints.FILL));
-        description = new JTextArea();
-        description.setRows(3);
-        scrollPane1.setViewportView(description);
-        final JLabel label7 = new JLabel();
-        label7.setText("Path");
-        panel1.add(label7, cc.xy(1, 3));
-        final JPanel panel2 = new JPanel();
-        panel2.setLayout(new BorderLayout(0, 0));
-        panel1.add(panel2, cc.xy(3, 3));
-        projectPath = new JLabel();
-        projectPath.setText("...");
-        panel2.add(projectPath, BorderLayout.CENTER);
-        copyPath = new JButton();
-        copyPath.setText("");
-        copyPath.setToolTipText("Copy project path to clipboard");
-        panel2.add(copyPath, BorderLayout.EAST);
-        final JPanel panel3 = new JPanel();
-        panel3.setLayout(new BorderLayout(0, 0));
-        root.add(panel3, BorderLayout.NORTH);
         final JPanel panel4 = new JPanel();
-        panel4.setLayout(new FormLayout("fill:max(d;4px):noGrow,left:4dlu:noGrow,fill:d:grow,left:4dlu:noGrow,fill:max(d;4px):noGrow", "center:d:grow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow"));
-        root.add(panel4, BorderLayout.SOUTH);
+        panel4.setLayout(new FormLayout("fill:max(d;4px):noGrow,left:4dlu:noGrow,fill:d:grow,left:4dlu:noGrow,fill:max(d;4px):noGrow", "center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow"));
+        root.add(panel4, BorderLayout.CENTER);
         jarFile = new JTextField();
-        panel4.add(jarFile, cc.xy(3, 3, CellConstraints.FILL, CellConstraints.DEFAULT));
-        final JLabel label8 = new JLabel();
-        label8.setText("JAR File");
-        panel4.add(label8, cc.xy(1, 3));
-        final JLabel label9 = new JLabel();
-        label9.setText("Java Version");
-        panel4.add(label9, cc.xy(1, 5));
+        panel4.add(jarFile, cc.xy(3, 1, CellConstraints.FILL, CellConstraints.DEFAULT));
+        final JLabel label1 = new JLabel();
+        label1.setText("JAR File");
+        panel4.add(label1, cc.xy(1, 1));
+        final JLabel label2 = new JLabel();
+        label2.setText("Java Version");
+        panel4.add(label2, cc.xy(1, 3));
         javaVersion = new JComboBox();
         final DefaultComboBoxModel defaultComboBoxModel1 = new DefaultComboBoxModel();
         defaultComboBoxModel1.addElement("25");
@@ -586,60 +406,53 @@ public class DetailsPanel {
         defaultComboBoxModel1.addElement("11");
         defaultComboBoxModel1.addElement("8");
         javaVersion.setModel(defaultComboBoxModel1);
-        panel4.add(javaVersion, cc.xy(3, 5));
+        panel4.add(javaVersion, cc.xy(3, 3));
         requiresJavaFX = new JCheckBox();
         requiresJavaFX.setText("Requires JavaFX");
-        panel4.add(requiresJavaFX, cc.xy(3, 7));
+        panel4.add(requiresJavaFX, cc.xy(3, 5));
         requiresFullJDK = new JCheckBox();
         requiresFullJDK.setText("Requires Full JDK");
-        panel4.add(requiresFullJDK, cc.xy(3, 9));
-        final JLabel label10 = new JLabel();
-        label10.setText("JDK Provider");
-        panel4.add(label10, cc.xy(1, 11));
+        panel4.add(requiresFullJDK, cc.xy(3, 7));
+        final JLabel label3 = new JLabel();
+        label3.setText("JDK Provider");
+        panel4.add(label3, cc.xy(1, 9));
         jdkProvider = new JComboBox();
         final DefaultComboBoxModel defaultComboBoxModel2 = new DefaultComboBoxModel();
         defaultComboBoxModel2.addElement("Auto (Recommended)");
         defaultComboBoxModel2.addElement("JetBrains Runtime (JBR)");
         jdkProvider.setModel(defaultComboBoxModel2);
-        panel4.add(jdkProvider, cc.xy(3, 11));
-        final JLabel label11 = new JLabel();
-        label11.setText("JBR Variant");
-        panel4.add(label11, cc.xy(1, 13));
+        panel4.add(jdkProvider, cc.xy(3, 9));
+        final JLabel label4 = new JLabel();
+        label4.setText("JBR Variant");
+        panel4.add(label4, cc.xy(1, 11));
         jbrVariant = new JComboBox();
         final DefaultComboBoxModel defaultComboBoxModel3 = new DefaultComboBoxModel();
         defaultComboBoxModel3.addElement("Default");
         defaultComboBoxModel3.addElement("JCEF");
         jbrVariant.setModel(defaultComboBoxModel3);
-        panel4.add(jbrVariant, cc.xy(3, 13));
-        jbrVariantLabel = label11;
-        final JLabel label12 = new JLabel();
-        label12.setText("Homepage");
-        panel4.add(label12, cc.xy(1, 15));
+        panel4.add(jbrVariant, cc.xy(3, 11));
+        jbrVariantLabel = label4;
+        final JLabel label5 = new JLabel();
+        label5.setText("Homepage");
+        panel4.add(label5, cc.xy(1, 13));
         selectJarFile = new JButton();
         selectJarFile.setText("Select...");
-        panel4.add(selectJarFile, cc.xy(5, 3));
+        panel4.add(selectJarFile, cc.xy(5, 1));
         homepage = new JTextField();
-        panel4.add(homepage, cc.xy(3, 15, CellConstraints.FILL, CellConstraints.DEFAULT));
+        panel4.add(homepage, cc.xy(3, 13, CellConstraints.FILL, CellConstraints.DEFAULT));
         verifyButton = new JButton();
         verifyButton.setText("Verify");
-        panel4.add(verifyButton, cc.xy(5, 15));
-        final JLabel label13 = new JLabel();
-        label13.setText("Repository");
-        panel4.add(label13, cc.xy(1, 17));
+        panel4.add(verifyButton, cc.xy(5, 13));
+        final JLabel label6 = new JLabel();
+        label6.setText("Repository");
+        panel4.add(label6, cc.xy(1, 15));
         repositoryUrl = new JTextField();
-        panel4.add(repositoryUrl, cc.xy(3, 17, CellConstraints.FILL, CellConstraints.DEFAULT));
-        final JLabel label14 = new JLabel();
-        label14.setText("Directory:");
-        panel4.add(label14, cc.xy(3, 19));
+        panel4.add(repositoryUrl, cc.xy(3, 15, CellConstraints.FILL, CellConstraints.DEFAULT));
+        final JLabel label7 = new JLabel();
+        label7.setText("Directory:");
+        panel4.add(label7, cc.xy(1, 17));
         repositoryDirectory = new JTextField();
-        panel4.add(repositoryDirectory, cc.xy(3, 21, CellConstraints.FILL, CellConstraints.DEFAULT));
-        final JPanel panel5 = new JPanel();
-        panel5.setLayout(new BorderLayout(10, 10));
-        root.add(panel5, BorderLayout.WEST);
-        panel5.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10), null, TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-        icon = new JButton();
-        icon.setText("");
-        panel5.add(icon, BorderLayout.CENTER);
+        panel4.add(repositoryDirectory, cc.xy(3, 19, CellConstraints.FILL, CellConstraints.DEFAULT));
     }
 
     /**

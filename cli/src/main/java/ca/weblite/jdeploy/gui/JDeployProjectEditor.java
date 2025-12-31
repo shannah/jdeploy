@@ -23,6 +23,7 @@ import ca.weblite.jdeploy.gui.tabs.CliSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
 import ca.weblite.jdeploy.gui.tabs.FiletypesPanel;
 import ca.weblite.jdeploy.gui.tabs.PermissionsPanel;
+import ca.weblite.jdeploy.gui.tabs.ProjectMetadataPanel;
 import ca.weblite.jdeploy.gui.tabs.PublishSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.RuntimeArgsPanel;
 import ca.weblite.jdeploy.gui.tabs.SplashScreensPanel;
@@ -60,6 +61,7 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.FocusAdapter;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.FileDialog;
 import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -77,6 +79,7 @@ public class JDeployProjectEditor {
 
     private JDeployProjectEditorContext context = new JDeployProjectEditorContext();
 
+    private ProjectMetadataPanel projectMetadataPanel;
     private DetailsPanel detailsPanel;
     private DownloadPageSettingsPanel downloadPageSettingsPanel;
     private PermissionsPanel permissionsPanel;
@@ -193,9 +196,6 @@ public class JDeployProjectEditor {
         frame.revalidate();
     }
 
-    private File getIconFile() {
-        return new File(packageJSONFile.getAbsoluteFile().getParentFile(), "icon.png");
-    }
 
     public JDeployProjectEditor(File packageJSONFile, JSONObject packageJSON) {
         this(packageJSONFile, packageJSON, null);
@@ -369,59 +369,17 @@ public class JDeployProjectEditor {
             setModified();
         }
 
+        // Setup Project Metadata Panel
+        projectMetadataPanel = new ProjectMetadataPanel(
+            frame,
+            projectDir,
+            context.getFileChooserInterop()
+        );
+
         // Setup Details Panel with special handling
         detailsPanel = new DetailsPanel();
         detailsPanel.setParentFrame(frame);
         detailsPanel.setProjectDirectory(projectDir);
-        detailsPanel.getProjectPath().setText(projectDir.getAbsolutePath());
-        detailsPanel.getProjectPath().setFont(detailsPanel.getProjectPath().getFont().deriveFont(10f));
-
-        detailsPanel.getCopyPath().setText("");
-        detailsPanel.getCopyPath().setIcon(FontIcon.of(Material.CONTENT_COPY));
-        detailsPanel.getCopyPath().addActionListener(evt -> {
-            StringSelection stringSelection = new StringSelection(detailsPanel.getProjectPath().getText());
-            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-            clipboard.setContents(stringSelection, null);
-        });
-
-        // Setup icon button and version cleaning
-        JButton iconButton = detailsPanel.getIcon();
-        if (getIconFile().exists()) {
-            try {
-                iconButton.setIcon(
-                        new ImageIcon(Thumbnails.of(getIconFile()).size(128, 128).asBufferedImage())
-                );
-            } catch (Exception ex) {
-                System.err.println("Failed to read splash image from "+getIconFile());
-                ex.printStackTrace(System.err);
-            }
-        } else {
-            iconButton.setText("Select icon...");
-        }
-        iconButton.addActionListener(evt->{
-            File selected = showFileChooser("png");
-            if (selected == null) return;
-
-            try {
-                FileUtils.copyFile(selected, getIconFile());
-                iconButton.setText("");
-                iconButton.setIcon(
-                        new ImageIcon(Thumbnails.of(getIconFile()).size(128, 128).asBufferedImage())
-                );
-            } catch (Exception ex) {
-                System.err.println("Error while copying icon file");
-                ex.printStackTrace(System.err);
-                showError("Failed to select icon", ex);
-            }
-        });
-
-        // Add special handling for version field to clean it on focus lost
-        detailsPanel.getVersion().addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(java.awt.event.FocusEvent evt) {
-                detailsPanel.getVersion().setText(VersionCleaner.cleanVersion(detailsPanel.getVersion().getText()));
-            }
-        });
 
         // Set tooltips and properties for JDK Provider field
         detailsPanel.getJdkProvider().setToolTipText("Auto: Automatically selects the best JDK provider for your platform (Zulu, Adoptium, or Liberica). JBR: Use JetBrains Runtime for applications requiring JCEF or enhanced rendering.");
@@ -429,7 +387,9 @@ public class JDeployProjectEditor {
         // Set tooltips and properties for JBR Variant field
         detailsPanel.getJbrVariant().setToolTipText("JBR variant to use. Default uses standard or standard+SDK based on whether JDK is required. JCEF includes Chromium Embedded Framework for embedded browsers.");
 
-        // Add special listeners for details panel
+        // Add special listeners for details panel and metadata panel
+        projectMetadataPanel.addChangeListener(evt -> setModified());
+        
         detailsPanel.addChangeListener(evt -> {
             setModified();
             if (detailsPanel.getHomepage().hasFocus() || 
@@ -557,9 +517,19 @@ public class JDeployProjectEditor {
         File projectDir = packageJSONFile.getAbsoluteFile().getParentFile();
         JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
 
+        // Project Metadata Panel
+        registry.register(NavigablePanelAdapter.forPackageJsonPanel(
+            "Project",
+            MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#_the_details_tab",
+            projectMetadataPanel.getRoot(),
+            json -> projectMetadataPanel.load(json),
+            json -> projectMetadataPanel.save(json),
+            listener -> projectMetadataPanel.addChangeListener(listener)
+        ));
+
         // Details Panel
         registry.register(NavigablePanelAdapter.forPackageJsonPanel(
-            "Details",
+            "Build",
             MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#_the_details_tab",
             detailsPanel.getRoot(),
             json -> detailsPanel.load(json),
@@ -887,6 +857,9 @@ public class JDeployProjectEditor {
                     }
                 }
             }
+
+            // Save metadata panel first to ensure jdeploy object is created
+            projectMetadataPanel.save(packageJSON);
 
             // Save all panels through registry
             JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");

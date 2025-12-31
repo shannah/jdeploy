@@ -32,68 +32,6 @@ class DetailsPanelTest {
     }
     
     @Test
-    @DisplayName("Should load name from root packageJSON")
-    void testLoadName() {
-        JSONObject packageJSON = new JSONObject();
-        packageJSON.put("name", "test-app");
-        
-        panel.load(packageJSON);
-        
-        assertEquals("test-app", panel.getName().getText());
-    }
-    
-    @Test
-    @DisplayName("Should load version from root packageJSON")
-    void testLoadVersion() {
-        JSONObject packageJSON = new JSONObject();
-        packageJSON.put("version", "1.2.3");
-        
-        panel.load(packageJSON);
-        
-        assertEquals("1.2.3", panel.getVersion().getText());
-    }
-    
-    @Test
-    @DisplayName("Should load author from root packageJSON")
-    void testLoadAuthor() {
-        JSONObject packageJSON = new JSONObject();
-        packageJSON.put("author", "John Doe");
-        
-        panel.load(packageJSON);
-        
-        assertEquals("John Doe", panel.getAuthor().getText());
-    }
-    
-    @Test
-    @DisplayName("Should load author from object format")
-    void testLoadAuthorObject() {
-        JSONObject packageJSON = new JSONObject();
-        JSONObject author = new JSONObject();
-        author.put("name", "Jane Doe");
-        author.put("email", "jane@example.com");
-        author.put("url", "https://example.com");
-        packageJSON.put("author", (Object) author);
-        
-        panel.load(packageJSON);
-        
-        String text = panel.getAuthor().getText();
-        assertTrue(text.contains("Jane Doe"));
-        assertTrue(text.contains("jane@example.com"));
-        assertTrue(text.contains("https://example.com"));
-    }
-    
-    @Test
-    @DisplayName("Should load description from root packageJSON")
-    void testLoadDescription() {
-        JSONObject packageJSON = new JSONObject();
-        packageJSON.put("description", "A test application");
-        
-        panel.load(packageJSON);
-        
-        assertEquals("A test application", panel.getDescription().getText());
-    }
-    
-    @Test
     @DisplayName("Should load homepage from root packageJSON")
     void testLoadHomepage() {
         JSONObject packageJSON = new JSONObject();
@@ -102,17 +40,6 @@ class DetailsPanelTest {
         panel.load(packageJSON);
         
         assertEquals("https://example.com", panel.getHomepage().getText());
-    }
-    
-    @Test
-    @DisplayName("Should load license from root packageJSON")
-    void testLoadLicense() {
-        JSONObject packageJSON = new JSONObject();
-        packageJSON.put("license", "MIT");
-        
-        panel.load(packageJSON);
-        
-        assertEquals("MIT", panel.getLicense().getText());
     }
     
     @Test
@@ -139,19 +66,6 @@ class DetailsPanelTest {
         
         assertEquals("https://github.com/user/repo", panel.getRepositoryUrl().getText());
         assertEquals("src", panel.getRepositoryDirectory().getText());
-    }
-    
-    @Test
-    @DisplayName("Should load title from jdeploy object")
-    void testLoadTitle() {
-        JSONObject packageJSON = new JSONObject();
-        JSONObject jdeploy = new JSONObject();
-        jdeploy.put("title", "Test Application");
-        packageJSON.put("jdeploy", (Object) jdeploy);
-        
-        panel.load(packageJSON);
-        
-        assertEquals("Test Application", panel.getTitle().getText());
     }
     
     @Test
@@ -239,49 +153,6 @@ class DetailsPanelTest {
         // Should not throw exception
     }
     
-    @Test
-    @DisplayName("Should save name to root packageJSON")
-    void testSaveName() {
-        JSONObject packageJSON = new JSONObject();
-        panel.getName().setText("test-app");
-        
-        panel.save(packageJSON);
-        
-        assertEquals("test-app", packageJSON.getString("name"));
-    }
-    
-    @Test
-    @DisplayName("Should save version to root packageJSON")
-    void testSaveVersion() {
-        JSONObject packageJSON = new JSONObject();
-        panel.getVersion().setText("1.2.3");
-        
-        panel.save(packageJSON);
-        
-        assertEquals("1.2.3", packageJSON.getString("version"));
-    }
-    
-    @Test
-    @DisplayName("Should save author to root packageJSON")
-    void testSaveAuthor() {
-        JSONObject packageJSON = new JSONObject();
-        panel.getAuthor().setText("John Doe");
-        
-        panel.save(packageJSON);
-        
-        assertEquals("John Doe", packageJSON.getString("author"));
-    }
-    
-    @Test
-    @DisplayName("Should save description to root packageJSON")
-    void testSaveDescription() {
-        JSONObject packageJSON = new JSONObject();
-        panel.getDescription().setText("A test application");
-        
-        panel.save(packageJSON);
-        
-        assertEquals("A test application", packageJSON.getString("description"));
-    }
     
     @Test
     @DisplayName("Should save homepage to root packageJSON")
@@ -294,16 +165,6 @@ class DetailsPanelTest {
         assertEquals("https://example.com", packageJSON.getString("homepage"));
     }
     
-    @Test
-    @DisplayName("Should save license to root packageJSON")
-    void testSaveLicense() {
-        JSONObject packageJSON = new JSONObject();
-        panel.getLicense().setText("MIT");
-        
-        panel.save(packageJSON);
-        
-        assertEquals("MIT", packageJSON.getString("license"));
-    }
     
     @Test
     @DisplayName("Should save repository as object")
@@ -319,17 +180,6 @@ class DetailsPanelTest {
         assertEquals("src", repo.getString("directory"));
     }
     
-    @Test
-    @DisplayName("Should save title to jdeploy object")
-    void testSaveTitle() {
-        JSONObject packageJSON = new JSONObject();
-        panel.getTitle().setText("Test Application");
-        
-        panel.save(packageJSON);
-        
-        JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
-        assertEquals("Test Application", jdeploy.getString("title"));
-    }
     
     @Test
     @DisplayName("Should save jar to jdeploy object")
@@ -405,34 +255,13 @@ class DetailsPanelTest {
         assertEquals("jcef", jdeploy.getString("jbrVariant"));
     }
     
-    @Test
-    @DisplayName("Should remove empty fields from packageJSON")
-    void testSaveRemovesEmpty() {
-        JSONObject packageJSON = new JSONObject();
-        packageJSON.put("author", "John");
-        packageJSON.put("license", "MIT");
-        
-        // Leave fields empty
-        panel.getAuthor().setText("");
-        panel.getLicense().setText("");
-        
-        panel.save(packageJSON);
-        
-        assertFalse(packageJSON.has("author"));
-        assertFalse(packageJSON.has("license"));
-    }
     
     @Test
     @DisplayName("Should handle load/save round-trip without data loss")
     void testLoadSaveRoundTrip() {
-        // Create original package.json
+        // Create original package.json with DetailsPanel fields only
         JSONObject original = new JSONObject();
-        original.put("name", "test-app");
-        original.put("version", "1.0.0");
-        original.put("author", "Jane Doe");
-        original.put("description", "Test application");
         original.put("homepage", "https://example.com");
-        original.put("license", "Apache-2.0");
         
         JSONObject repo = new JSONObject();
         repo.put("url", "https://github.com/user/repo");
@@ -440,7 +269,6 @@ class DetailsPanelTest {
         original.put("repository", (Object) repo);
         
         JSONObject jdeploy = new JSONObject();
-        jdeploy.put("title", "Test App");
         jdeploy.put("jar", "build/libs/app.jar");
         jdeploy.put("javafx", true);
         jdeploy.put("jdk", true);
@@ -457,19 +285,13 @@ class DetailsPanelTest {
         panel.save(saved);
         
         // Verify all fields match
-        assertEquals(original.getString("name"), saved.getString("name"));
-        assertEquals(original.getString("version"), saved.getString("version"));
-        assertEquals(original.getString("author"), saved.getString("author"));
-        assertEquals(original.getString("description"), saved.getString("description"));
         assertEquals(original.getString("homepage"), saved.getString("homepage"));
-        assertEquals(original.getString("license"), saved.getString("license"));
         
         JSONObject savedRepo = saved.getJSONObject("repository");
         assertEquals(repo.getString("url"), savedRepo.getString("url"));
         assertEquals(repo.getString("directory"), savedRepo.getString("directory"));
         
         JSONObject savedJdeploy = saved.getJSONObject("jdeploy");
-        assertEquals(jdeploy.getString("title"), savedJdeploy.getString("title"));
         assertEquals(jdeploy.getString("jar"), savedJdeploy.getString("jar"));
         assertEquals(jdeploy.getBoolean("javafx"), savedJdeploy.getBoolean("javafx"));
         assertEquals(jdeploy.getBoolean("jdk"), savedJdeploy.getBoolean("jdk"));
@@ -485,7 +307,7 @@ class DetailsPanelTest {
         panel.addChangeListener(listener);
         
         // Simulate user typing in a text field
-        panel.getName().setText("new-app");
+        panel.getHomepage().setText("https://new-example.com");
         
         assertTrue(changeListenerCallCount.get() > 0, "Change listener should have been called");
     }
@@ -521,18 +343,6 @@ class DetailsPanelTest {
         // Should not throw exception
     }
     
-    @Test
-    @DisplayName("Should trim whitespace from fields")
-    void testTrimWhitespace() {
-        JSONObject packageJSON = new JSONObject();
-        panel.getName().setText("  test-app  ");
-        panel.getAuthor().setText("  John Doe  ");
-        
-        panel.save(packageJSON);
-        
-        assertEquals("test-app", packageJSON.getString("name"));
-        assertEquals("John Doe", packageJSON.getString("author"));
-    }
     
     @Test
     @DisplayName("Should hide JBR Variant field when JDK Provider is Auto")
@@ -622,22 +432,16 @@ class DetailsPanelTest {
     @Test
     @DisplayName("Integration: Load complete packageJSON, modify all fields, save, and verify persistence")
     void testCompleteLoadModifySaveRoundTrip() {
-        // Create a comprehensive package.json
+        // Create a comprehensive package.json with DetailsPanel fields only
         JSONObject original = createCompletePackageJSON();
         
         // Load into panel
         panel.load(original);
         
         // Verify all fields are loaded correctly
-        assertEquals("test-app", panel.getName().getText());
-        assertEquals("1.0.0", panel.getVersion().getText());
-        assertEquals("Jane Doe <jane@example.com> (https://example.com)", panel.getAuthor().getText());
-        assertEquals("A test application", panel.getDescription().getText());
         assertEquals("https://example.com", panel.getHomepage().getText());
-        assertEquals("Apache-2.0", panel.getLicense().getText());
         assertEquals("https://github.com/user/repo", panel.getRepositoryUrl().getText());
         assertEquals("src", panel.getRepositoryDirectory().getText());
-        assertEquals("Test App", panel.getTitle().getText());
         assertEquals("build/libs/app.jar", panel.getJarFile().getText());
         assertTrue(panel.getRequiresJavaFX().isSelected());
         assertTrue(panel.getRequiresFullJDK().isSelected());
@@ -646,15 +450,9 @@ class DetailsPanelTest {
         assertEquals("JCEF", panel.getJbrVariant().getSelectedItem());
         
         // Now modify all fields
-        panel.getName().setText("modified-app");
-        panel.getVersion().setText("2.0.0");
-        panel.getAuthor().setText("John Smith");
-        panel.getDescription().setText("Modified description");
         panel.getHomepage().setText("https://modified.com");
-        panel.getLicense().setText("MIT");
         panel.getRepositoryUrl().setText("https://github.com/other/repo");
         panel.getRepositoryDirectory().setText("docs");
-        panel.getTitle().setText("Modified App");
         panel.getJarFile().setText("target/modified.jar");
         panel.getRequiresJavaFX().setSelected(false);
         panel.getRequiresFullJDK().setSelected(false);
@@ -666,19 +464,13 @@ class DetailsPanelTest {
         panel.save(saved);
         
         // Verify all modifications are persisted
-        assertEquals("modified-app", saved.getString("name"));
-        assertEquals("2.0.0", saved.getString("version"));
-        assertEquals("John Smith", saved.getString("author"));
-        assertEquals("Modified description", saved.getString("description"));
         assertEquals("https://modified.com", saved.getString("homepage"));
-        assertEquals("MIT", saved.getString("license"));
         
         JSONObject savedRepo = saved.getJSONObject("repository");
         assertEquals("https://github.com/other/repo", savedRepo.getString("url"));
         assertEquals("docs", savedRepo.getString("directory"));
         
         JSONObject savedJdeploy = saved.getJSONObject("jdeploy");
-        assertEquals("Modified App", savedJdeploy.getString("title"));
         assertEquals("target/modified.jar", savedJdeploy.getString("jar"));
         assertFalse(savedJdeploy.has("javafx"));
         assertFalse(savedJdeploy.has("jdk"));
@@ -695,14 +487,14 @@ class DetailsPanelTest {
         // No jdeploy object
         
         panel.load(packageJSON);
-        panel.getTitle().setText("Test Title");
+        panel.getJarFile().setText("build/libs/app.jar");
         
         JSONObject saved = new JSONObject();
         panel.save(saved);
         
         assertTrue(saved.has("jdeploy"));
         JSONObject jdeploy = saved.getJSONObject("jdeploy");
-        assertEquals("Test Title", jdeploy.getString("title"));
+        assertEquals("build/libs/app.jar", jdeploy.getString("jar"));
     }
     
     @Test
@@ -787,81 +579,17 @@ class DetailsPanelTest {
         assertEquals("docs", repo.getString("directory"));
     }
     
-    @Test
-    @DisplayName("Edge case: Load author as string, save as string")
-    void testAuthorStringPersistence() {
-        JSONObject packageJSON = new JSONObject();
-        packageJSON.put("name", "test-app");
-        packageJSON.put("author", "John Doe");
-        
-        panel.load(packageJSON);
-        
-        assertEquals("John Doe", panel.getAuthor().getText());
-        
-        panel.getAuthor().setText("Jane Smith");
-        
-        JSONObject saved = new JSONObject();
-        panel.save(saved);
-        
-        assertEquals("Jane Smith", saved.getString("author"));
-    }
-    
-    @Test
-    @DisplayName("Edge case: Load author as object, modify, and save as string")
-    void testAuthorObjectModifiedToString() {
-        JSONObject packageJSON = new JSONObject();
-        packageJSON.put("name", "test-app");
-        JSONObject author = new JSONObject();
-        author.put("name", "Jane Doe");
-        author.put("email", "jane@example.com");
-        author.put("url", "https://example.com");
-        packageJSON.put("author", (Object) author);
-        
-        panel.load(packageJSON);
-        
-        String loadedAuthor = panel.getAuthor().getText();
-        assertTrue(loadedAuthor.contains("Jane Doe"));
-        assertTrue(loadedAuthor.contains("jane@example.com"));
-        
-        // User modifies it to a simple string
-        panel.getAuthor().setText("Simple Author");
-        
-        JSONObject saved = new JSONObject();
-        panel.save(saved);
-        
-        // Should be saved as plain string
-        assertEquals("Simple Author", saved.getString("author"));
-    }
-    
-    @Test
-    @DisplayName("Edge case: Empty author should be removed")
-    void testEmptyAuthorRemoved() {
-        JSONObject packageJSON = new JSONObject();
-        packageJSON.put("name", "test-app");
-        packageJSON.put("author", "John Doe");
-        
-        panel.load(packageJSON);
-        panel.getAuthor().setText("");
-        
-        JSONObject saved = new JSONObject();
-        panel.save(saved);
-        
-        assertFalse(saved.has("author"));
-    }
     
     @Test
     @DisplayName("Edge case: Loading with null jdeploy should not fail")
     void testLoadWithNullJdeployField() {
         JSONObject packageJSON = new JSONObject();
-        packageJSON.put("name", "test-app");
-        packageJSON.put("version", "1.0.0");
+        packageJSON.put("homepage", "https://example.com");
         
         // Don't add jdeploy object at all
         panel.load(packageJSON);
         
-        assertEquals("test-app", panel.getName().getText());
-        assertEquals("1.0.0", panel.getVersion().getText());
-        assertEquals("", panel.getTitle().getText());
+        assertEquals("https://example.com", panel.getHomepage().getText());
     }
     
     @Test
@@ -871,22 +599,19 @@ class DetailsPanelTest {
         panel.load(original);
         
         // Only modify specific fields
-        panel.getName().setText("new-name");
-        panel.getLicense().setText("GPL-3.0");
+        panel.getHomepage().setText("https://new-homepage.com");
         panel.getRequiresJavaFX().setSelected(false);
         
         JSONObject saved = new JSONObject();
         panel.save(saved);
         
         // Modified fields should have new values
-        assertEquals("new-name", saved.getString("name"));
-        assertEquals("GPL-3.0", saved.getString("license"));
+        assertEquals("https://new-homepage.com", saved.getString("homepage"));
         assertFalse(saved.getJSONObject("jdeploy").has("javafx"));
         
         // Unmodified fields should still be present
-        assertEquals("1.0.0", saved.getString("version"));
-        assertEquals("A test application", saved.getString("description"));
-        assertEquals("https://example.com", saved.getString("homepage"));
+        assertEquals("https://github.com/user/repo", saved.getJSONObject("repository").getString("url"));
+        assertEquals("build/libs/app.jar", saved.getJSONObject("jdeploy").getString("jar"));
     }
     
     @Test
@@ -894,18 +619,12 @@ class DetailsPanelTest {
     void testWhitespaceTrimming() {
         JSONObject packageJSON = new JSONObject();
         
-        panel.getName().setText("  test-app  ");
-        panel.getVersion().setText(" 1.0.0 ");
-        panel.getAuthor().setText("  John Doe  ");
-        panel.getDescription().setText("  Description  ");
+        panel.getHomepage().setText("  https://example.com  ");
         panel.getRepositoryUrl().setText("  https://github.com/user/repo  ");
         
         panel.save(packageJSON);
         
-        assertEquals("test-app", packageJSON.getString("name"));
-        assertEquals("1.0.0", packageJSON.getString("version"));
-        assertEquals("John Doe", packageJSON.getString("author"));
-        assertEquals("Description", packageJSON.getString("description"));
+        assertEquals("https://example.com", packageJSON.getString("homepage"));
         assertEquals("https://github.com/user/repo", packageJSON.getJSONObject("repository").getString("url"));
     }
     
@@ -997,24 +716,13 @@ class DetailsPanelTest {
     // ========== HELPER METHOD ==========
     
     /**
-     * Creates a complete package.json with all supported fields for testing.
+     * Creates a complete package.json with all supported DetailsPanel fields for testing.
      */
     private JSONObject createCompletePackageJSON() {
         JSONObject packageJSON = new JSONObject();
         
         // Root level fields
-        packageJSON.put("name", "test-app");
-        packageJSON.put("version", "1.0.0");
-        
-        JSONObject author = new JSONObject();
-        author.put("name", "Jane Doe");
-        author.put("email", "jane@example.com");
-        author.put("url", "https://example.com");
-        packageJSON.put("author", (Object) author);
-        
-        packageJSON.put("description", "A test application");
         packageJSON.put("homepage", "https://example.com");
-        packageJSON.put("license", "Apache-2.0");
         
         JSONObject repo = new JSONObject();
         repo.put("url", "https://github.com/user/repo");
@@ -1023,7 +731,6 @@ class DetailsPanelTest {
         
         // jdeploy object
         JSONObject jdeploy = new JSONObject();
-        jdeploy.put("title", "Test App");
         jdeploy.put("jar", "build/libs/app.jar");
         jdeploy.put("javafx", true);
         jdeploy.put("jdk", true);
@@ -1034,4 +741,5 @@ class DetailsPanelTest {
         
         return packageJSON;
     }
+    
 }
