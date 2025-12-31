@@ -22,7 +22,11 @@
         "jar": "target/TextEditor-1.0-SNAPSHOT.jar",
         "title": "Text Editor",
         "downloadPage": {"platforms": ["default"]},
-        "platformBundlesEnabled": false
+        "platformBundlesEnabled": false,
+        "commands": {
+            "opentxt": {},
+            "previewtxt": {"description": "Previews a txt file"}
+        }
     },
     "dependencies": {
         "command-exists-promise": "^2.0.2",
