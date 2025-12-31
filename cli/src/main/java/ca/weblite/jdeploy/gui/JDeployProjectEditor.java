@@ -33,20 +33,14 @@ import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetServiceInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTarget;
 import ca.weblite.jdeploy.publishTargets.PublishTargetType;
-import ca.weblite.jdeploy.publishing.PublishingContext;
-import ca.weblite.jdeploy.publishing.github.GitHubPublishDriver;
 import ca.weblite.jdeploy.services.*;
 import ca.weblite.jdeploy.claude.SetupClaudeService;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
 import ca.weblite.jdeploy.downloadPage.swing.DownloadPageSettingsPanel;
 import ca.weblite.tools.io.FileUtil;
-import ca.weblite.tools.io.MD5;
-import io.codeworth.panelmatic.PanelMatic;
-import io.codeworth.panelmatic.util.Groupings;
 import net.coobird.thumbnailator.Thumbnails;
 import org.apache.commons.io.FileUtils;
-import org.json.JSONArray;
 import org.json.JSONObject;
 import org.kordamp.ikonli.material.Material;
 import org.kordamp.ikonli.swing.FontIcon;
@@ -54,7 +48,6 @@ import org.kordamp.ikonli.swing.FontIcon;
 import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.MatteBorder;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -64,34 +57,25 @@ import java.awt.event.WindowEvent;
 import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.*;
 import java.util.*;
 import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
-
-import static ca.weblite.jdeploy.PathUtil.fromNativePath;
-import static ca.weblite.jdeploy.PathUtil.toNativePath;
 
 public class JDeployProjectEditor {
     private boolean modified;
     private JSONObject packageJSON;
-    private File packageJSONFile;
+    private final File packageJSONFile;
     private boolean processingJdpignoreChange = false;
     private boolean processingPackageJSONChange = false;
-    private ArrayList<LinkFields> linkFields;
     private JFrame frame;
-    private ProjectFileWatcher fileWatcher;
+    private final ProjectFileWatcher fileWatcher;
 
     private JDeployProjectEditorContext context = new JDeployProjectEditorContext();
 
-    private MenuBarBuilder menuBarBuilder;
     private DetailsPanel detailsPanel;
     private DownloadPageSettingsPanel downloadPageSettingsPanel;
     private PermissionsPanel permissionsPanel;
     private BundleFiltersPanel bundleFiltersPanel;
     private PublishSettingsPanel publishSettingsPanel;
-    private SplashScreensPanel splashScreensPanel;
     private FiletypesPanel filetypesPanel;
     private UrlSchemesPanel urlSchemesPanel;
     private CliSettingsPanel cliSettingsPanel;
@@ -200,10 +184,6 @@ public class JDeployProjectEditor {
         frame.revalidate();
     }
 
-    private class LinkFields {
-        private JTextField url, label;
-    }
-
     private File getIconFile() {
         return new File(packageJSONFile.getAbsoluteFile().getParentFile(), "icon.png");
     }
@@ -288,7 +268,6 @@ public class JDeployProjectEditor {
     private int showWarningUnsavedChangesMessage() {
         String[] buttonLabels = new String[] {"Yes", "No", "Cancel"};
         String defaultOption = buttonLabels[0];
-        Icon icon = null;
 
         return JOptionPane.showOptionDialog(frame,
                 "There's still something unsaved.\n" +
@@ -296,7 +275,7 @@ public class JDeployProjectEditor {
                 "Warning",
                 JOptionPane.YES_NO_CANCEL_OPTION,
                 JOptionPane.WARNING_MESSAGE,
-                icon,
+                null,
                 buttonLabels,
                 defaultOption);
     }
@@ -317,18 +296,6 @@ public class JDeployProjectEditor {
         frame.setVisible(true);
     }
 
-    public boolean isShowing() {
-        return frame != null && frame.isVisible();
-    }
-
-    public boolean focus() {
-        if (frame != null && frame.isVisible()) {
-            frame.requestFocus();
-            return true;
-        }
-        return false;
-    }
-
     private void setModified() {
         modified = true;
         if (frame != null && frame.getRootPane() != null) {
@@ -342,23 +309,6 @@ public class JDeployProjectEditor {
             frame.getRootPane().putClientProperty("Window.documentModified", false);
         }
     }
-
-
-
-
-    private void setOpaqueRecursive(JComponent cnt, boolean opaque) {
-        cnt.setOpaque(opaque);
-        if (cnt.getComponentCount() > 0) {
-            int len = cnt.getComponentCount();
-            for (int i=0; i<len; i++) {
-                Component cmp = cnt.getComponent(i);
-                if (cmp instanceof JComponent) {
-                    setOpaqueRecursive((JComponent)cmp, opaque);
-                }
-            }
-        }
-    }
-
 
     private Timer verifyTimer;
 
@@ -438,19 +388,15 @@ public class JDeployProjectEditor {
         });
         
         // Add special listener to homepage field for verification queueing
-        SwingUtils.addChangeListenerTo(detailsPanel.getHomepage(), () -> {
-            queueHomepageVerification();
-        });
+        SwingUtils.addChangeListenerTo(detailsPanel.getHomepage(), this::queueHomepageVerification);
 
         detailsPanel.getVerifyButton().setToolTipText("Verify that you own this page");
-        detailsPanel.getVerifyButton().addActionListener(evt->{
-            handleVerifyHomepage();
-        });
+        detailsPanel.getVerifyButton().addActionListener(evt-> handleVerifyHomepage());
 
         queueHomepageVerification();
 
         // Splash screens are now handled by SplashScreensPanel
-        splashScreensPanel = new SplashScreensPanel(packageJSONFile.getAbsoluteFile().getParentFile(), frame);
+        SplashScreensPanel splashScreensPanel = new SplashScreensPanel(packageJSONFile.getAbsoluteFile().getParentFile(), frame);
         splashScreensPanel.addChangeListener(evt -> setModified());
         JButton iconButton = detailsPanel.getIcon();
         if (getIconFile().exists()) {
@@ -467,7 +413,7 @@ public class JDeployProjectEditor {
             iconButton.setText("Select icon...");
         }
         iconButton.addActionListener(evt->{
-            File selected = showFileChooser("Select Icon Image", "png");
+            File selected = showFileChooser("png");
             if (selected == null) return;
 
             try {
@@ -840,13 +786,11 @@ public class JDeployProjectEditor {
 
         // Add Bundle Filters tab
         bundleFiltersPanel = new BundleFiltersPanel(packageJSONFile.getParentFile());
-        bundleFiltersPanel.setOnChangeCallback(() -> setModified());
+        bundleFiltersPanel.setOnChangeCallback(this::setModified);
         bundleFiltersPanel.loadConfiguration(packageJSON);
         
         // Set up NPM enabled checker to check current UI state
-        bundleFiltersPanel.setNpmEnabledChecker(() -> {
-            return publishSettingsPanel != null && publishSettingsPanel.getNpmCheckbox().isSelected();
-        });
+        bundleFiltersPanel.setNpmEnabledChecker(() -> publishSettingsPanel != null && publishSettingsPanel.getNpmCheckbox().isSelected());
         
         tabs.add("Platform-Specific Bundles", bundleFiltersPanel);
         
@@ -892,9 +836,7 @@ public class JDeployProjectEditor {
         });
 
         JButton preview = new JButton("Web Preview");
-        preview.addActionListener(evt->{
-            context.showWebPreview(frame);
-        });
+        preview.addActionListener(evt-> context.showWebPreview(frame));
 
 
         JButton publish = new JButton("Publish");
@@ -919,9 +861,7 @@ public class JDeployProjectEditor {
                 return;
             }
 
-            new Thread(()->{
-                handlePublish();
-            }).start();
+            new Thread(this::handlePublish).start();
         });
 
         JCheckBox buildOnPublish = new JCheckBox("Build Project");
@@ -1053,10 +993,7 @@ public class JDeployProjectEditor {
                         return; // Only update URL if GitHub is actually selected
                     }
                     try {
-                        PublishTargetInterface existingGithub = targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().orElse(null);
-                        if (existingGithub != null) {
-                            targets.remove(existingGithub);
-                        }
+                        targets.stream().filter(t -> t.getType() == PublishTargetType.GITHUB).findFirst().ifPresent(targets::remove);
                         // Explicitly create GitHub target instead of relying on URL-based factory logic
                         String githubUrl = panel.getGithubRepositoryField().getText();
                         String name = "github: " + (githubUrl.isEmpty() ? packageJSON.getString("name") : githubUrl);
@@ -1077,18 +1014,15 @@ public class JDeployProjectEditor {
 
     }
 
-
-    private File showFileChooser(String title, String... extensions) {
-        return showFileChooser(title, new HashSet<String>(Arrays.asList(extensions)));
+    private File showFileChooser(String... extensions) {
+        return showFileChooser(new HashSet<>(Arrays.asList(extensions)));
     }
-    private File showFileChooser(String title, Set<String> extensions) {
-        return context.getFileChooserInterop().showFileChooser(frame, title, extensions);
+    private File showFileChooser(Set<String> extensions) {
+        return context.getFileChooserInterop().showFileChooser(frame, "Select Icon Image", extensions);
     }
-
-
 
     private void initMenu() {
-        menuBarBuilder = new MenuBarBuilder(
+        MenuBarBuilder menuBarBuilder = new MenuBarBuilder(
                 frame,
                 packageJSONFile,
                 context,
@@ -1282,7 +1216,7 @@ public class JDeployProjectEditor {
     }
 
     private void showError(String message, Throwable exception) {
-        File logFile = exception instanceof ValidationException
+        File logFile = (exception instanceof ValidationException)
                 ? ((ValidationException) exception).getLogFile()
                 : null;
 
@@ -1325,59 +1259,23 @@ public class JDeployProjectEditor {
             );
         }
 
-        exception.printStackTrace(System.err);
+        if (exception != null) {
+            exception.printStackTrace(System.err);
+        }
     }
 
 
     private static final int NOT_LOGGED_IN = 1;
 
-    private class ValidationException extends Exception {
-        private int type;
+    private static class ValidationException extends Exception {
+        private final int type;
 
-        private File logFile;
-
-        ValidationException(String msg){
-            this(msg, (File)null);
-        }
-
-        ValidationException(String msg, File logFile) {
-            super(msg);
-            this.logFile = logFile;
-        }
-
-        ValidationException(String msg, int type) {
-            super(msg);
-            this.type = type;
-        }
+        private final File logFile;
 
         ValidationException(String msg, int type, File logFile) {
             super(msg);
             this.type = type;
             this.logFile = logFile;
-        }
-
-        ValidationException(String msg, Throwable cause, File logFile) {
-            super(msg, cause);
-            this.logFile = logFile;
-        }
-
-        ValidationException(String msg, Throwable cause) {
-            super(msg, cause);
-        }
-
-        ValidationException(String msg, Throwable cause, int type, File logFile) {
-            super(msg, cause);
-            this.type = type;
-            this.logFile = logFile;
-        }
-
-        ValidationException(String msg, Throwable cause, int type) {
-            super(msg, cause);
-            this.type = type;
-        }
-
-        int getType() {
-            return type;
         }
 
         File getLogFile() {
@@ -1387,7 +1285,7 @@ public class JDeployProjectEditor {
 
 
     private boolean publishInProgress = false;
-    private PublishingCoordinator publishingCoordinator;
+    private final PublishingCoordinator publishingCoordinator;
 
     private void handlePublish() {
         if (publishInProgress) return;
@@ -1399,9 +1297,7 @@ public class JDeployProjectEditor {
 
                 try {
                     TerminalLoginLauncher.launchLoginTerminal();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                } catch (URISyntaxException e) {
+                } catch (IOException | URISyntaxException e) {
                     throw new RuntimeException(e);
                 }
 
@@ -1449,30 +1345,6 @@ public class JDeployProjectEditor {
             publishInProgress = false;
         }
     }
-
-    private void handleExportIdentity() {
-        try {
-            handleExportIdentity0();
-        } catch (Exception ex) {
-            showError(ex.getMessage(), ex);
-        }
-    }
-
-    private void handleExportIdentity0() throws IOException {
-        ExportIdentityService exportIdentityService = new ExportIdentityService();
-        JDeploy jdeploy = new JDeploy(packageJSONFile.getAbsoluteFile().getParentFile(), false);
-        jdeploy.setNpmToken(context.getNpmToken());
-        jdeploy.setUseManagedNode(context.useManagedNode());
-        exportIdentityService.setDeveloperIdentityKeyStore(jdeploy.getKeyStore());
-        FileDialog saveDialog = new FileDialog(frame, "Select Destination", FileDialog.SAVE);
-        saveDialog.setVisible(true);
-        File[] dest = saveDialog.getFiles();
-        if (dest == null || dest.length == 0) {
-            return;
-        }
-        exportIdentityService.exportIdentityToFile(dest[0]);
-    }
-
 
     private String getDownloadPageUrl() {
         try {
@@ -1552,38 +1424,20 @@ public class JDeployProjectEditor {
                     packagingContext,
                     jdeployObject,
                     new SwingOneTimePasswordProvider(frame),
-                    progress -> {
-                        EventQueue.invokeLater(() -> {
-                            if (progress.isComplete()) {
-                                progressDialog.setComplete();
-                            } else if (progress.isFailed()) {
-                                progressDialog.setFailed();
-                            }
-                        });
-                    },
+                    progress -> EventQueue.invokeLater(() -> {
+                        if (progress.isComplete()) {
+                            progressDialog.setComplete();
+                        } else if (progress.isFailed()) {
+                            progressDialog.setFailed();
+                        }
+                    }),
                     context.getGithubToken()
             );
         } catch (Exception ex) {
             packagingContext.err.println("An error occurred during publishing");
             ex.printStackTrace(packagingContext.err);
-            EventQueue.invokeLater(() -> {
-                progressDialog.setFailed();
-            });
+            EventQueue.invokeLater(progressDialog::setFailed);
         }
-    }
-
-    private JDialog createProgressDialog(String title, String message) {
-        JDialog dialog = new JDialog(frame, title, true);
-        dialog.setLayout(new FlowLayout());
-        dialog.add(new JLabel(message));
-        JProgressBar progressBar = progressBar = new JProgressBar();
-        progressBar.setIndeterminate(true);
-        dialog.add(progressBar);
-        dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
-        dialog.pack();
-        dialog.setLocationRelativeTo(frame);
-        dialog.setModal(false);
-        return dialog;
     }
     
     private DownloadPageSettings loadDownloadPageSettings() {
