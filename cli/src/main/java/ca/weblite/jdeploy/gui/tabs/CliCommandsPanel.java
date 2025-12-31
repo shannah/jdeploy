@@ -531,6 +531,44 @@ public class CliCommandsPanel extends JPanel {
     private void onFieldChanged() {
         if (!isUpdatingUI) {
             currentCommandModified = true;
+            // Immediately update the model with current field values
+            int index = commandList.getSelectedIndex();
+            if (index >= 0) {
+                String currentName = commandListModel.getElementAt(index);
+                JSONObject spec = commandsModel.get(currentName);
+                if (spec == null) {
+                    spec = new JSONObject();
+                    commandsModel.put(currentName, spec);
+                }
+                
+                // Update description
+                String desc = descriptionField.getText().trim();
+                if (!desc.isEmpty()) {
+                    spec.put("description", desc);
+                } else {
+                    spec.remove("description");
+                }
+                
+                // Update args
+                String argsText = argsField.getText().trim();
+                if (!argsText.isEmpty()) {
+                    String[] lines = argsText.split("\n");
+                    JSONArray argsArray = new JSONArray();
+                    for (String line : lines) {
+                        String trimmed = line.trim();
+                        if (!trimmed.isEmpty()) {
+                            argsArray.put(trimmed);
+                        }
+                    }
+                    if (argsArray.length() > 0) {
+                        spec.put("args", argsArray);
+                    } else {
+                        spec.remove("args");
+                    }
+                } else {
+                    spec.remove("args");
+                }
+            }
         }
         fireChangeEvent();
     }
