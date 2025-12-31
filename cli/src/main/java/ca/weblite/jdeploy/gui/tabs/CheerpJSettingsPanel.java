@@ -33,6 +33,10 @@ public class CheerpJSettingsPanel extends JPanel {
         return this;
     }
 
+    public CheerpJSettings getCheerpJSettings() {
+        return cheerpJSettings;
+    }
+
     public void load(JSONObject jdeploy) {
         if (jdeploy == null || !jdeploy.has("cheerpj")) {
             cheerpJSettings.getEnableCheerpJ().setSelected(false);
