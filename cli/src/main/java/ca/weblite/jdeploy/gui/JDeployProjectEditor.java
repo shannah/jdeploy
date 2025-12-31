@@ -13,7 +13,6 @@ import ca.weblite.jdeploy.gui.navigation.NavigationHost;
 import ca.weblite.jdeploy.gui.navigation.TabbedPaneNavigationHost;
 import ca.weblite.jdeploy.gui.services.ProjectFileWatcher;
 import ca.weblite.jdeploy.gui.services.PublishingCoordinator;
-import ca.weblite.jdeploy.gui.services.SwingOneTimePasswordProvider;
 import ca.weblite.jdeploy.packaging.PackagingContext;
 import ca.weblite.jdeploy.gui.tabs.BundleFiltersPanel;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettingsPanel;
@@ -30,7 +29,6 @@ import ca.weblite.jdeploy.gui.tabs.UrlSchemesPanel;
 import javax.swing.JTabbedPane;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.NPMApplication;
-import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.packaging.PackagingPreferences;
 import ca.weblite.jdeploy.packaging.PackagingPreferencesService;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
@@ -52,7 +50,6 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
 import java.net.URI;
-import java.util.*;
 import java.util.List;
 
 public class JDeployProjectEditor {
@@ -81,22 +78,7 @@ public class JDeployProjectEditor {
     private SplashScreensPanel splashScreensPanel;
     private EditorPanelRegistry registry;
     private PublishActionHandler publishActionHandler;
-    private PublishingCoordinator publishingCoordinator;
-
-    private NPM npm = null;
-
-    private NPM getNPM() {
-        if (
-                npm == null
-                        || npm.isUseManagedNode() != context.useManagedNode()
-                        ||!Objects.equals(npm.getNpmToken(), context.getNpmToken())
-        ) {
-            npm = new NPM(System.out, System.err, context.useManagedNode());
-            npm.setNpmToken(context.getNpmToken());
-        }
-
-        return npm;
-    }
+    private final PublishingCoordinator publishingCoordinator;
 
     private void handleFileChanged(ProjectFileWatcher.FileChangeEvent event) {
         if ("package.json".equals(event.filename())) {
