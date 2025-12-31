@@ -349,6 +349,124 @@ public class SidePanelNavigationHostTest {
         when(panel.shouldDisplay()).thenReturn(shouldDisplay);
         when(panel.getRoot()).thenReturn(root);
         when(panel.getOnSelected()).thenReturn(null);
+        when(panel.getIcon()).thenReturn(null);
         return panel;
+    }
+    
+    /**
+     * Creates a mock NavigablePanel with the specified properties and icon.
+     */
+    private NavigablePanel createMockPanelWithIcon(
+            String title,
+            String helpUrl,
+            boolean shouldDisplay,
+            Icon icon
+    ) {
+        JPanel root = new JPanel();
+        NavigablePanel panel = mock(NavigablePanel.class);
+        when(panel.getTitle()).thenReturn(title);
+        when(panel.getHelpUrl()).thenReturn(helpUrl);
+        when(panel.shouldDisplay()).thenReturn(shouldDisplay);
+        when(panel.getRoot()).thenReturn(root);
+        when(panel.getOnSelected()).thenReturn(null);
+        when(panel.getIcon()).thenReturn(icon);
+        return panel;
+    }
+    
+    @Test
+    public void testAddPanelWithIconStoresIcon() {
+        Icon mockIcon = mock(Icon.class);
+        NavigablePanel panel = createMockPanelWithIcon("Icon Panel", null, true, mockIcon);
+        
+        host.addPanel(panel);
+        
+        JComponent component = host.getComponent();
+        JSplitPane splitPane = (JSplitPane) component;
+        Component leftComponent = splitPane.getLeftComponent();
+        
+        JScrollPane scrollPane = (JScrollPane) leftComponent;
+        @SuppressWarnings("unchecked")
+        JList<String> list = (JList<String>) scrollPane.getViewport().getView();
+        @SuppressWarnings("unchecked")
+        ListCellRenderer<String> renderer = (ListCellRenderer<String>) list.getCellRenderer();
+        
+        Component renderedComponent = renderer.getListCellRendererComponent(
+                list, "Icon Panel", 0, false, false
+        );
+        
+        assertInstanceOf(JLabel.class, renderedComponent);
+        JLabel label = (JLabel) renderedComponent;
+        assertSame(mockIcon, label.getIcon());
+    }
+    
+    @Test
+    public void testAddPanelWithoutIconRendersWithoutIcon() {
+        NavigablePanel panel = createMockPanel("No Icon Panel", null, true);
+        
+        host.addPanel(panel);
+        
+        JComponent component = host.getComponent();
+        JSplitPane splitPane = (JSplitPane) component;
+        Component leftComponent = splitPane.getLeftComponent();
+        
+        JScrollPane scrollPane = (JScrollPane) leftComponent;
+        @SuppressWarnings("unchecked")
+        JList<String> list = (JList<String>) scrollPane.getViewport().getView();
+        @SuppressWarnings("unchecked")
+        ListCellRenderer<String> renderer = (ListCellRenderer<String>) list.getCellRenderer();
+        
+        Component renderedComponent = renderer.getListCellRendererComponent(
+                list, "No Icon Panel", 0, false, false
+        );
+        
+        assertInstanceOf(JLabel.class, renderedComponent);
+        JLabel label = (JLabel) renderedComponent;
+        assertNull(label.getIcon());
+    }
+    
+    @Test
+    public void testMultiplePanelsWithDifferentIcons() {
+        Icon icon1 = mock(Icon.class);
+        Icon icon2 = mock(Icon.class);
+        Icon icon3 = mock(Icon.class);
+        
+        NavigablePanel panel1 = createMockPanelWithIcon("Panel 1", null, true, icon1);
+        NavigablePanel panel2 = createMockPanelWithIcon("Panel 2", null, true, icon2);
+        NavigablePanel panel3 = createMockPanelWithIcon("Panel 3", null, true, icon3);
+        
+        host.addPanel(panel1);
+        host.addPanel(panel2);
+        host.addPanel(panel3);
+        
+        JComponent component = host.getComponent();
+        JSplitPane splitPane = (JSplitPane) component;
+        Component leftComponent = splitPane.getLeftComponent();
+        
+        JScrollPane scrollPane = (JScrollPane) leftComponent;
+        @SuppressWarnings("unchecked")
+        JList<String> list = (JList<String>) scrollPane.getViewport().getView();
+        @SuppressWarnings("unchecked")
+        ListCellRenderer<String> renderer = (ListCellRenderer<String>) list.getCellRenderer();
+        
+        // Verify icon for panel 1
+        Component renderedComponent1 = renderer.getListCellRendererComponent(
+                list, "Panel 1", 0, false, false
+        );
+        JLabel label1 = (JLabel) renderedComponent1;
+        assertSame(icon1, label1.getIcon());
+        
+        // Verify icon for panel 2
+        Component renderedComponent2 = renderer.getListCellRendererComponent(
+                list, "Panel 2", 1, false, false
+        );
+        JLabel label2 = (JLabel) renderedComponent2;
+        assertSame(icon2, label2.getIcon());
+        
+        // Verify icon for panel 3
+        Component renderedComponent3 = renderer.getListCellRendererComponent(
+                list, "Panel 3", 2, false, false
+        );
+        JLabel label3 = (JLabel) renderedComponent3;
+        assertSame(icon3, label3.getIcon());
     }
 }
