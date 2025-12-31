@@ -114,7 +114,7 @@ public class MenuBarBuilder {
         openProjectDirectory.addActionListener(evt -> {
             if (context.getDesktopInterop().isDesktopSupported()) {
                 try {
-                    context.getDesktopInterop().openDirectory(packageJSONFile.getParentFile());
+                    context.getDesktopInterop().openDirectory(packageJSONFile.getAbsoluteFile().getParentFile());
                 } catch (Exception ex) {
                     showError("Failed to open project directory in file manager", ex, frame);
                 }

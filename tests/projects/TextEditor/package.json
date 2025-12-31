@@ -10,15 +10,22 @@
     },
     "version": "0.0.0-JDEPLOY-SNAPSHOT",
     "jdeploy": {
-        "jdk": false,
         "installers": [
             "mac-arm64",
             "win",
             "linux"
         ],
+        "javaVersion": "11",
+        "title": "Text Editor",
+        "downloadPage": {"platforms": ["default"]},
+        "jdk": false,
+        "args": ["-Dfoo=bar"],
         "fallbackToUniversal": false,
         "publishTargets": [],
-        "javaVersion": "11",
+        "permissions": [{
+            "name": "photos_add",
+            "description": "Needs access to photos"
+        }],
         "documentTypes": [
             {
                 "editor": true,
@@ -51,8 +58,6 @@
         ],
         "jar": "target/TextEditor-1.0-SNAPSHOT.jar",
         "javafx": true,
-        "title": "Text Editor",
-        "downloadPage": {"platforms": ["default"]},
         "platformBundlesEnabled": false
     },
     "dependencies": {
