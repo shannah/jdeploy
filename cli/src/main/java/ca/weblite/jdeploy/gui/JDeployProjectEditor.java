@@ -371,6 +371,17 @@ public class JDeployProjectEditor {
             setModified();
         }
 
+        // Initialize PublishActionHandler with dependencies
+        this.publishActionHandler = new PublishActionHandler(
+                frame,
+                packageJSONFile,
+                packageJSON,
+                context,
+                publishingCoordinator,
+                this::handleSave,
+                this::getDownloadPageUrl
+        );
+
         // Setup Project Metadata Panel
         projectMetadataPanel = new ProjectMetadataPanel(
             frame,
@@ -509,11 +520,9 @@ public class JDeployProjectEditor {
                     ),
                     "Publish to " + publishTargetName + "?",
                     JOptionPane.YES_NO_OPTION);
-            if (result == JOptionPane.NO_OPTION) {
-                return;
+            if (result == JOptionPane.YES_OPTION) {
+                publishActionHandler.handlePublish();
             }
-
-            publishActionHandler.handlePublish();
         });
         return publish;
     }
