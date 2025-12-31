@@ -406,7 +406,7 @@ public class JDeployProjectEditor {
         registry.attachChangeListeners(this::setModified);
         
         // Load all panels
-        registry.loadAll(packageJSON);
+        registry.loadAll(packageJSON, packageJSON.optJSONObject("jdeploy"));
         
         // Create navigation host
         NavigationHost host = new TabbedPaneNavigationHost(context, frame);
