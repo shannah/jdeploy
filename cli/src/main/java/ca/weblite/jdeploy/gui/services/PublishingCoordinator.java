@@ -364,19 +364,22 @@ public class PublishingCoordinator {
      * @param jdeployInstance the JDeploy instance with configured tokens
      * @param otpProvider provider for one-time passwords
      * @param progressCallback callback for progress reporting
+     * @param githubToken the GitHub token for authentication (may be null if not publishing to GitHub)
      * @throws IOException if an IO error occurs during publishing
      */
     public void publish(
             PackagingContext packagingContext,
             JDeploy jdeployInstance,
             OneTimePasswordProviderInterface otpProvider,
-            ProgressCallback progressCallback
+            ProgressCallback progressCallback,
+            String githubToken
     ) throws IOException {
         try {
             PublishingContext publishingContext = PublishingContext
                     .builder()
                     .setPackagingContext(packagingContext)
                     .setNPM(jdeployInstance.getNPM())
+                    .setGithubToken(githubToken)
                     .build();
 
             jdeployInstance.publish(publishingContext, otpProvider);

@@ -1900,7 +1900,8 @@ public class JDeployProjectEditor {
                                 progressDialog.setFailed();
                             }
                         });
-                    }
+                    },
+                    context.getGithubToken()
             );
         } catch (Exception ex) {
             packagingContext.err.println("An error occurred during publishing");
