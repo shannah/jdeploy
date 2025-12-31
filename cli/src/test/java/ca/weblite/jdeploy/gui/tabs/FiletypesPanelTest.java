@@ -202,16 +202,15 @@ public class FiletypesPanelTest {
     }
 
     @Test
-    @DisplayName("Should create new empty documentTypes array if missing")
+    @DisplayName("Should not create documentTypes array when empty")
     void testCreateDocumentTypesArrayOnSave() {
         JSONObject jdeploy = new JSONObject();
         
-        // Save without documentTypes
+        // Save without any document types added
         assertDoesNotThrow(() -> panel.save(jdeploy));
         
-        // Should create the array
-        assertTrue(jdeploy.has("documentTypes"));
-        assertTrue(jdeploy.get("documentTypes") instanceof JSONArray);
+        // Should NOT create an empty array (cleaner JSON output)
+        assertFalse(jdeploy.has("documentTypes"), "Empty documentTypes array should be omitted from JSON");
     }
 
     @Test
