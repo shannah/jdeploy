@@ -20,8 +20,9 @@ import javax.swing.event.DocumentListener;
 import javax.swing.event.DocumentEvent;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.CliSettingsPanel;
-import ca.weblite.jdeploy.gui.tabs.DetailsPanel;
 import ca.weblite.jdeploy.gui.tabs.FiletypesPanel;
+import ca.weblite.jdeploy.gui.tabs.JavaRuntimePanel;
+import ca.weblite.jdeploy.gui.tabs.RepositorySettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.PermissionsPanel;
 import ca.weblite.jdeploy.gui.tabs.ProjectMetadataPanel;
 import ca.weblite.jdeploy.gui.tabs.PublishSettingsPanel;
@@ -80,7 +81,8 @@ public class JDeployProjectEditor {
     private JDeployProjectEditorContext context = new JDeployProjectEditorContext();
 
     private ProjectMetadataPanel projectMetadataPanel;
-    private DetailsPanel detailsPanel;
+    private JavaRuntimePanel javaRuntimePanel;
+    private RepositorySettingsPanel repositorySettingsPanel;
     private DownloadPageSettingsPanel downloadPageSettingsPanel;
     private PermissionsPanel permissionsPanel;
     private BundleFiltersPanel bundleFiltersPanel;
@@ -343,8 +345,10 @@ public class JDeployProjectEditor {
 
                 @Override
                 protected void done() {
-                    detailsPanel.getVerifyButton().setVisible(!verified);
-                    frame.revalidate();
+                    if (repositorySettingsPanel != null) {
+                        repositorySettingsPanel.setVerifyButtonVisible(!verified);
+                        frame.revalidate();
+                    }
                 }
             };
             worker.execute();
@@ -375,33 +379,32 @@ public class JDeployProjectEditor {
             projectDir,
             context.getFileChooserInterop()
         );
-
-        // Setup Details Panel with special handling
-        detailsPanel = new DetailsPanel();
-        detailsPanel.setParentFrame(frame);
-        detailsPanel.setProjectDirectory(projectDir);
-
-        // Set tooltips and properties for JDK Provider field
-        detailsPanel.getJdkProvider().setToolTipText("Auto: Automatically selects the best JDK provider for your platform (Zulu, Adoptium, or Liberica). JBR: Use JetBrains Runtime for applications requiring JCEF or enhanced rendering.");
-
-        // Set tooltips and properties for JBR Variant field
-        detailsPanel.getJbrVariant().setToolTipText("JBR variant to use. Default uses standard or standard+SDK based on whether JDK is required. JCEF includes Chromium Embedded Framework for embedded browsers.");
-
-        // Add special listeners for details panel and metadata panel
         projectMetadataPanel.addChangeListener(evt -> setModified());
-        
-        detailsPanel.addChangeListener(evt -> {
-            setModified();
-            if (detailsPanel.getHomepage().hasFocus() || 
-                evt.getSource() == detailsPanel.getHomepage()) {
-                queueHomepageVerification();
-            }
-        });
-        
-        SwingUtils.addChangeListenerTo(detailsPanel.getHomepage(), this::queueHomepageVerification);
 
-        detailsPanel.getVerifyButton().setToolTipText("Verify that you own this page");
-        detailsPanel.getVerifyButton().addActionListener(evt-> handleVerifyHomepage());
+        // Setup Java Runtime Panel
+        javaRuntimePanel = new JavaRuntimePanel(
+            frame,
+            projectDir,
+            jarFile -> {
+                PublishingCoordinator.ValidationResult result = publishingCoordinator.validateJar(jarFile);
+                if (result.isValid()) {
+                    return JavaRuntimePanel.ValidationResult.success();
+                } else {
+                    return JavaRuntimePanel.ValidationResult.failure(result.getErrorMessage());
+                }
+            }
+        );
+        javaRuntimePanel.addChangeListener(evt -> setModified());
+
+        // Setup Repository Settings Panel
+        repositorySettingsPanel = new RepositorySettingsPanel(
+            frame,
+            homepage -> handleVerifyHomepage()
+        );
+        repositorySettingsPanel.addChangeListener(evt -> {
+            setModified();
+            queueHomepageVerification();
+        });
 
         queueHomepageVerification();
 
@@ -515,7 +518,6 @@ public class JDeployProjectEditor {
     private EditorPanelRegistry createPanelRegistry() {
         EditorPanelRegistry registry = new EditorPanelRegistry();
         File projectDir = packageJSONFile.getAbsoluteFile().getParentFile();
-        JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
 
         // Project Metadata Panel
         registry.register(NavigablePanelAdapter.forPackageJsonPanel(
@@ -527,17 +529,24 @@ public class JDeployProjectEditor {
             listener -> projectMetadataPanel.addChangeListener(listener)
         ));
 
-        // Details Panel
-        registry.register(NavigablePanelAdapter.forPackageJsonPanel(
+        // Java Runtime Panel
+        registry.register(NavigablePanelAdapter.forJdeployPanel(
             "Build",
             MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#_the_details_tab",
-            detailsPanel.getRoot(),
-            json -> detailsPanel.load(json),
-            json -> detailsPanel.save(json),
-            listener -> {
-                // Convert ActionListener to the expected listener type for details panel
-                detailsPanel.addChangeListener(listener);
-            }
+            javaRuntimePanel.getRoot(),
+            json -> javaRuntimePanel.load(json),
+            json -> javaRuntimePanel.save(json),
+            listener -> javaRuntimePanel.addChangeListener(listener)
+        ));
+
+        // Repository Settings Panel
+        registry.register(NavigablePanelAdapter.forPackageJsonPanel(
+            "Repository",
+            MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#_the_details_tab",
+            repositorySettingsPanel.getRoot(),
+            json -> repositorySettingsPanel.load(json),
+            json -> repositorySettingsPanel.save(json),
+            listener -> repositorySettingsPanel.addChangeListener(listener)
         ));
 
         // Splash Screens Panel
