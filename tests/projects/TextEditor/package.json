@@ -4,10 +4,7 @@
     "description": "A text editor",
     "main": "index.js",
     "preferGlobal": true,
-    "repository": {
-        "directory": "",
-        "url": "https://github.com/shannah/jdeploy-demo-texteditor2"
-    },
+    "repository": {"url": "https://github.com/shannah/jdeploy-demo-texteditor2"},
     "version": "0.0.0-JDEPLOY-SNAPSHOT",
     "jdeploy": {
         "installers": [
@@ -18,7 +15,6 @@
         "javaVersion": "11",
         "title": "Text Editor",
         "downloadPage": {"platforms": ["default"]},
-        "jdk": false,
         "args": ["-Dfoo=bar"],
         "fallbackToUniversal": false,
         "publishTargets": [],
@@ -56,8 +52,10 @@
             "jdtext",
             "myjdtext"
         ],
+        "jdkProvider": "jbr",
         "jar": "target/TextEditor-1.0-SNAPSHOT.jar",
         "javafx": true,
+        "jbrVariant": "jcef",
         "platformBundlesEnabled": false
     },
     "dependencies": {
