@@ -1,11 +1,15 @@
 package ca.weblite.jdeploy.gui.tabs;
 
+import ca.weblite.jdeploy.gui.util.SwingUtils;
 import com.jgoodies.forms.layout.CellConstraints;
 import com.jgoodies.forms.layout.FormLayout;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
+import java.awt.event.ActionListener;
+import java.io.File;
+import org.json.JSONObject;
 
 public class DetailsPanel {
     private JPanel panel1;
@@ -31,6 +35,9 @@ public class DetailsPanel {
     private JButton copyPath;
     private JComboBox jdkProvider;
     private JComboBox jbrVariant;
+    
+    private File projectDirectory;
+    private ActionListener changeListener;
 
     public JPanel getRoot() {
         return root;
@@ -118,6 +125,244 @@ public class DetailsPanel {
 
     public JComboBox getJbrVariant() {
         return jbrVariant;
+    }
+
+    public void setProjectDirectory(File projectDirectory) {
+        this.projectDirectory = projectDirectory;
+    }
+
+    public void load(JSONObject packageJSON) {
+        if (packageJSON == null) {
+            return;
+        }
+
+        // Load root-level fields
+        if (packageJSON.has("name")) {
+            name.setText(packageJSON.getString("name"));
+        }
+        
+        if (packageJSON.has("version")) {
+            version.setText(packageJSON.getString("version"));
+        }
+        
+        if (packageJSON.has("author")) {
+            Object authorObj = packageJSON.get("author");
+            String authorString = "";
+            if (authorObj instanceof JSONObject) {
+                JSONObject author = (JSONObject) authorObj;
+                if (author.has("name")) {
+                    authorString += author.getString("name");
+                }
+                if (author.has("email")) {
+                    authorString += " <" + author.getString("email") + ">";
+                }
+                if (author.has("url")) {
+                    authorString += " (" + author.getString("url") + ")";
+                }
+            } else if (authorObj instanceof String) {
+                authorString = (String) authorObj;
+            }
+            this.author.setText(authorString);
+        }
+        
+        if (packageJSON.has("description")) {
+            description.setText(packageJSON.getString("description"));
+        }
+        
+        if (packageJSON.has("homepage")) {
+            homepage.setText(packageJSON.getString("homepage"));
+        }
+        
+        if (packageJSON.has("license")) {
+            license.setText(packageJSON.getString("license"));
+        }
+        
+        if (packageJSON.has("repository")) {
+            Object repoObj = packageJSON.get("repository");
+            if (repoObj instanceof JSONObject) {
+                JSONObject repo = (JSONObject) repoObj;
+                if (repo.has("url")) {
+                    repositoryUrl.setText(repo.getString("url"));
+                }
+                if (repo.has("directory")) {
+                    repositoryDirectory.setText(repo.getString("directory"));
+                }
+            } else if (repoObj instanceof String) {
+                repositoryUrl.setText((String) repoObj);
+            }
+        }
+        
+        // Load jdeploy object fields
+        if (packageJSON.has("jdeploy")) {
+            JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
+            
+            if (jdeploy.has("title")) {
+                title.setText(jdeploy.getString("title"));
+            }
+            
+            if (jdeploy.has("jar")) {
+                jarFile.setText(jdeploy.getString("jar"));
+            }
+            
+            if (jdeploy.has("javafx")) {
+                requiresJavaFX.setSelected(jdeploy.getBoolean("javafx"));
+            }
+            
+            if (jdeploy.has("jdk")) {
+                requiresFullJDK.setSelected(jdeploy.getBoolean("jdk"));
+            }
+            
+            if (jdeploy.has("javaVersion")) {
+                javaVersion.setSelectedItem(String.valueOf(jdeploy.get("javaVersion")));
+            }
+            
+            if (jdeploy.has("jdkProvider")) {
+                String provider = jdeploy.getString("jdkProvider");
+                if ("jbr".equals(provider)) {
+                    jdkProvider.setSelectedItem("JetBrains Runtime (JBR)");
+                } else {
+                    jdkProvider.setSelectedItem("Auto (Recommended)");
+                }
+            }
+            
+            if (jdeploy.has("jbrVariant")) {
+                String variant = jdeploy.getString("jbrVariant");
+                if ("jcef".equals(variant)) {
+                    jbrVariant.setSelectedItem("JCEF");
+                } else {
+                    jbrVariant.setSelectedItem("Default");
+                }
+            }
+        }
+    }
+
+    public void save(JSONObject packageJSON) {
+        if (packageJSON == null) {
+            return;
+        }
+
+        // Save root-level fields
+        if (!name.getText().trim().isEmpty()) {
+            packageJSON.put("name", name.getText().trim());
+        }
+        
+        if (!version.getText().trim().isEmpty()) {
+            packageJSON.put("version", version.getText().trim());
+        }
+        
+        if (!author.getText().trim().isEmpty()) {
+            packageJSON.put("author", author.getText().trim());
+        } else {
+            packageJSON.remove("author");
+        }
+        
+        if (!description.getText().trim().isEmpty()) {
+            packageJSON.put("description", description.getText().trim());
+        } else {
+            packageJSON.remove("description");
+        }
+        
+        if (!homepage.getText().trim().isEmpty()) {
+            packageJSON.put("homepage", homepage.getText().trim());
+        } else {
+            packageJSON.remove("homepage");
+        }
+        
+        if (!license.getText().trim().isEmpty()) {
+            packageJSON.put("license", license.getText().trim());
+        } else {
+            packageJSON.remove("license");
+        }
+        
+        String repoUrl = repositoryUrl.getText().trim();
+        String repoDir = repositoryDirectory.getText().trim();
+        if (!repoUrl.isEmpty() || !repoDir.isEmpty()) {
+            JSONObject repo = new JSONObject();
+            if (!repoUrl.isEmpty()) {
+                repo.put("url", repoUrl);
+            }
+            if (!repoDir.isEmpty()) {
+                repo.put("directory", repoDir);
+            }
+            packageJSON.put("repository", repo);
+        } else {
+            packageJSON.remove("repository");
+        }
+        
+        // Ensure jdeploy object exists
+        if (!packageJSON.has("jdeploy")) {
+            packageJSON.put("jdeploy", new JSONObject());
+        }
+        
+        JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
+        
+        // Save jdeploy fields
+        if (!title.getText().trim().isEmpty()) {
+            jdeploy.put("title", title.getText().trim());
+        } else {
+            jdeploy.remove("title");
+        }
+        
+        if (!jarFile.getText().trim().isEmpty()) {
+            jdeploy.put("jar", jarFile.getText().trim());
+        } else {
+            jdeploy.remove("jar");
+        }
+        
+        jdeploy.put("javafx", requiresJavaFX.isSelected());
+        if (!requiresJavaFX.isSelected()) {
+            jdeploy.remove("javafx");
+        }
+        
+        jdeploy.put("jdk", requiresFullJDK.isSelected());
+        if (!requiresFullJDK.isSelected()) {
+            jdeploy.remove("jdk");
+        }
+        
+        Object selectedVersion = javaVersion.getSelectedItem();
+        if (selectedVersion != null && !selectedVersion.toString().isEmpty()) {
+            jdeploy.put("javaVersion", selectedVersion.toString());
+        }
+        
+        Object selectedProvider = jdkProvider.getSelectedItem();
+        if ("JetBrains Runtime (JBR)".equals(selectedProvider)) {
+            jdeploy.put("jdkProvider", "jbr");
+        } else {
+            jdeploy.remove("jdkProvider");
+        }
+        
+        Object selectedVariant = jbrVariant.getSelectedItem();
+        if ("JCEF".equals(selectedVariant)) {
+            jdeploy.put("jbrVariant", "jcef");
+        } else {
+            jdeploy.remove("jbrVariant");
+        }
+    }
+
+    public void addChangeListener(ActionListener listener) {
+        this.changeListener = listener;
+        SwingUtils.addChangeListenerTo(name, this::fireChangeEvent);
+        SwingUtils.addChangeListenerTo(version, this::fireChangeEvent);
+        SwingUtils.addChangeListenerTo(author, this::fireChangeEvent);
+        SwingUtils.addChangeListenerTo(description, this::fireChangeEvent);
+        SwingUtils.addChangeListenerTo(title, this::fireChangeEvent);
+        SwingUtils.addChangeListenerTo(homepage, this::fireChangeEvent);
+        SwingUtils.addChangeListenerTo(license, this::fireChangeEvent);
+        SwingUtils.addChangeListenerTo(repositoryUrl, this::fireChangeEvent);
+        SwingUtils.addChangeListenerTo(repositoryDirectory, this::fireChangeEvent);
+        SwingUtils.addChangeListenerTo(jarFile, this::fireChangeEvent);
+        
+        requiresJavaFX.addActionListener(evt -> fireChangeEvent());
+        requiresFullJDK.addActionListener(evt -> fireChangeEvent());
+        javaVersion.addItemListener(evt -> fireChangeEvent());
+        jdkProvider.addItemListener(evt -> fireChangeEvent());
+        jbrVariant.addItemListener(evt -> fireChangeEvent());
+    }
+
+    private void fireChangeEvent() {
+        if (changeListener != null) {
+            changeListener.actionPerformed(new java.awt.event.ActionEvent(this, 0, "changed"));
+        }
     }
 
     {
