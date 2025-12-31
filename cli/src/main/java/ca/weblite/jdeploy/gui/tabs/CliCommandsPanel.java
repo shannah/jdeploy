@@ -147,9 +147,9 @@ public class CliCommandsPanel extends JPanel {
         descriptionField = new JTextField();
         descriptionField.setMaximumSize(new Dimension(Integer.MAX_VALUE, descriptionField.getPreferredSize().height));
         descriptionField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override public void insertUpdate(DocumentEvent e) { fireChangeEvent(); }
-            @Override public void removeUpdate(DocumentEvent e) { fireChangeEvent(); }
-            @Override public void changedUpdate(DocumentEvent e) { fireChangeEvent(); }
+            @Override public void insertUpdate(DocumentEvent e) { onFieldChanged(); }
+            @Override public void removeUpdate(DocumentEvent e) { onFieldChanged(); }
+            @Override public void changedUpdate(DocumentEvent e) { onFieldChanged(); }
         });
         formPanel.add(descriptionField);
 
@@ -166,9 +166,9 @@ public class CliCommandsPanel extends JPanel {
         argsField.setRows(6);
         argsField.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         argsField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override public void insertUpdate(DocumentEvent e) { fireChangeEvent(); }
-            @Override public void removeUpdate(DocumentEvent e) { fireChangeEvent(); }
-            @Override public void changedUpdate(DocumentEvent e) { fireChangeEvent(); }
+            @Override public void insertUpdate(DocumentEvent e) { onFieldChanged(); }
+            @Override public void removeUpdate(DocumentEvent e) { onFieldChanged(); }
+            @Override public void changedUpdate(DocumentEvent e) { onFieldChanged(); }
         });
 
         JScrollPane argsScroller = new JScrollPane(argsField);
@@ -514,5 +514,12 @@ public class CliCommandsPanel extends JPanel {
         if (changeListener != null && !isUpdatingUI) {
             changeListener.actionPerformed(new java.awt.event.ActionEvent(this, 0, "changed"));
         }
+    }
+
+    private void onFieldChanged() {
+        if (!isUpdatingUI) {
+            currentCommandModified = true;
+        }
+        fireChangeEvent();
     }
 }
