@@ -33,12 +33,12 @@ public class CliSettingsPanelTest {
     @Test
     @DisplayName("Should load command from bin object")
     void testLoadCommand() {
-        JSONObject jdeploy = new JSONObject();
+        JSONObject packageJSON = new JSONObject();
         JSONObject bin = new JSONObject();
         bin.put("my-app", "jdeploy-bundle/jdeploy.js");
-        jdeploy.put("bin", bin);
+        packageJSON.put("bin", bin);
 
-        panel.load(jdeploy);
+        panel.load(packageJSON);
 
         assertEquals("my-app", panel.getCommandField().getText());
     }
@@ -46,13 +46,13 @@ public class CliSettingsPanelTest {
     @Test
     @DisplayName("Should handle missing bin gracefully")
     void testLoadMissingBin() {
-        JSONObject jdeploy = new JSONObject();
-        panel.load(jdeploy);
+        JSONObject packageJSON = new JSONObject();
+        panel.load(packageJSON);
         assertEquals("", panel.getCommandField().getText());
     }
 
     @Test
-    @DisplayName("Should handle null jdeploy object")
+    @DisplayName("Should handle null packageJSON object")
     void testLoadNullJdeploy() {
         panel.load(null);
         assertEquals("", panel.getCommandField().getText());
@@ -61,28 +61,28 @@ public class CliSettingsPanelTest {
     @Test
     @DisplayName("Should save command to bin object")
     void testSaveCommand() {
-        JSONObject jdeploy = new JSONObject();
+        JSONObject packageJSON = new JSONObject();
         panel.getCommandField().setText("my-command");
 
-        panel.save(jdeploy);
+        panel.save(packageJSON);
 
-        assertTrue(jdeploy.has("bin"));
-        JSONObject bin = jdeploy.getJSONObject("bin");
+        assertTrue(packageJSON.has("bin"));
+        JSONObject bin = packageJSON.getJSONObject("bin");
         assertEquals("jdeploy-bundle/jdeploy.js", bin.getString("my-command"));
     }
 
     @Test
     @DisplayName("Should remove bin when command is empty")
     void testSaveEmptyCommand() {
-        JSONObject jdeploy = new JSONObject();
+        JSONObject packageJSON = new JSONObject();
         JSONObject bin = new JSONObject();
         bin.put("old-command", "jdeploy-bundle/jdeploy.js");
-        jdeploy.put("bin", bin);
+        packageJSON.put("bin", bin);
 
         panel.getCommandField().setText("");
-        panel.save(jdeploy);
+        panel.save(packageJSON);
 
-        assertFalse(jdeploy.has("bin"));
+        assertFalse(packageJSON.has("bin"));
     }
 
     @Test
@@ -141,54 +141,54 @@ public class CliSettingsPanelTest {
     }
 
     @Test
-    @DisplayName("Should save without affecting other fields in jdeploy")
+    @DisplayName("Should save without affecting other fields in packageJSON")
     void testSaveDoesNotAffectOtherFields() {
-        JSONObject jdeploy = new JSONObject();
-        jdeploy.put("jar", "path/to/jar.jar");
-        jdeploy.put("javafx", true);
+        JSONObject packageJSON = new JSONObject();
+        packageJSON.put("jar", "path/to/jar.jar");
+        packageJSON.put("javafx", true);
 
         panel.getCommandField().setText("my-app");
-        panel.save(jdeploy);
+        panel.save(packageJSON);
 
         // Other fields should still be present
-        assertEquals("path/to/jar.jar", jdeploy.getString("jar"));
-        assertTrue(jdeploy.getBoolean("javafx"));
+        assertEquals("path/to/jar.jar", packageJSON.getString("jar"));
+        assertTrue(packageJSON.getBoolean("javafx"));
     }
 
     @Test
     @DisplayName("Should handle command with spaces and special characters")
     void testCommandWithSpecialCharacters() {
-        JSONObject jdeploy = new JSONObject();
+        JSONObject packageJSON = new JSONObject();
         String command = "my-app-v1";
 
         panel.getCommandField().setText(command);
-        panel.save(jdeploy);
+        panel.save(packageJSON);
 
-        JSONObject bin = jdeploy.getJSONObject("bin");
+        JSONObject bin = packageJSON.getJSONObject("bin");
         assertEquals("jdeploy-bundle/jdeploy.js", bin.getString(command));
     }
 
     @Test
     @DisplayName("Should trim whitespace from command")
     void testCommandTrimsWhitespace() {
-        JSONObject jdeploy = new JSONObject();
+        JSONObject packageJSON = new JSONObject();
         panel.getCommandField().setText("  my-app  ");
-        panel.save(jdeploy);
+        panel.save(packageJSON);
 
-        JSONObject bin = jdeploy.getJSONObject("bin");
+        JSONObject bin = packageJSON.getJSONObject("bin");
         assertEquals("jdeploy-bundle/jdeploy.js", bin.getString("my-app"));
     }
 
     @Test
     @DisplayName("Should handle bin with multiple entries (load shows nothing)")
     void testLoadMultipleEntries() {
-        JSONObject jdeploy = new JSONObject();
+        JSONObject packageJSON = new JSONObject();
         JSONObject bin = new JSONObject();
         bin.put("app1", "jdeploy-bundle/jdeploy.js");
         bin.put("app2", "jdeploy-bundle/jdeploy.js");
-        jdeploy.put("bin", bin);
+        packageJSON.put("bin", bin);
 
-        panel.load(jdeploy);
+        panel.load(packageJSON);
 
         // Should show empty since multiple entries
         assertEquals("", panel.getCommandField().getText());

@@ -72,6 +72,10 @@ public class CliSettingsPanel {
         // Command field
         commandField = new JTextField();
         commandField.setMaximumSize(new Dimension(1000, commandField.getPreferredSize().height));
+        commandField.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createEmptyBorder(0, 5, 0, 0),
+            commandField.getBorder()
+        ));
         root.add(commandField);
 
         // Vertical glue to push everything to top
@@ -93,13 +97,13 @@ public class CliSettingsPanel {
         return tutorialButton;
     }
 
-    public void load(JSONObject jdeploy) {
-        if (jdeploy == null || !jdeploy.has("bin")) {
+    public void load(JSONObject packageJSON) {
+        if (packageJSON == null || !packageJSON.has("bin")) {
             commandField.setText("");
             return;
         }
 
-        JSONObject bin = jdeploy.getJSONObject("bin");
+        JSONObject bin = packageJSON.getJSONObject("bin");
         if (bin.keySet().size() == 1) {
             commandField.setText(bin.keySet().iterator().next());
         } else {
@@ -107,18 +111,18 @@ public class CliSettingsPanel {
         }
     }
 
-    public void save(JSONObject jdeploy) {
+    public void save(JSONObject packageJSON) {
         String command = commandField.getText().trim();
         
         if (command.isEmpty()) {
             // Remove bin if empty
-            if (jdeploy.has("bin")) {
-                jdeploy.remove("bin");
+            if (packageJSON.has("bin")) {
+                packageJSON.remove("bin");
             }
         } else {
             JSONObject bin = new JSONObject();
             bin.put(command, "jdeploy-bundle/jdeploy.js");
-            jdeploy.put("bin", bin);
+            packageJSON.put("bin", bin);
         }
     }
 

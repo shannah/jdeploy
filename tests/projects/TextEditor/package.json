@@ -34,12 +34,21 @@
                 "mimetype": "application/x-jdeploy-demo-texteditor-jdtext"
             },
             {
+                "editor": true,
+                "extension": "html2",
+                "custom": true,
+                "mimetype": "text/html2"
+            },
+            {
                 "role": "Editor",
                 "description": "Open as project",
                 "type": "directory"
             }
         ],
-        "urlSchemes": ["jdtext"],
+        "urlSchemes": [
+            "jdtext",
+            "myjdtext"
+        ],
         "jar": "target/TextEditor-1.0-SNAPSHOT.jar",
         "javafx": true,
         "title": "Text Editor",

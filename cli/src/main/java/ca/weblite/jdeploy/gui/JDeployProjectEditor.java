@@ -1119,7 +1119,7 @@ public class JDeployProjectEditor {
 
         // CLI settings panel
         cliSettingsPanel = new CliSettingsPanel();
-        cliSettingsPanel.load(jdeploy);
+        cliSettingsPanel.load(packageJSON);
         cliSettingsPanel.addChangeListener(evt -> setModified());
         cliSettingsPanel.getTutorialButton().addActionListener(evt -> {
             try {
@@ -1598,7 +1598,7 @@ public class JDeployProjectEditor {
 
             // Save CLI settings panel
             if (cliSettingsPanel != null) {
-                cliSettingsPanel.save(jdeploy);
+                cliSettingsPanel.save(packageJSON);
             }
 
             // Save Runtime Args panel
