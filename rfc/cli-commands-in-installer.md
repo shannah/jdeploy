@@ -39,6 +39,7 @@ Both features share the same underlying mechanism (wrapper scripts invoking the 
 Add an optional `jdeploy.commands` object to `package.json` where command names are keys and each command spec is an object with the following properties:
 
 - `args` (array of strings, optional): extra static arguments to pass to the launcher when this command is invoked (commonly JVM properties like `-D...` or app-specific flags).
+- `description` (string, optional): a short description of what the command does, displayed in the installer UI to help users understand the command's purpose.
 
 Example:
 ```json
@@ -65,6 +66,7 @@ Validation rules:
   - They MUST NOT contain path separators (`/` or `\`) or control characters.
   - This prevents attempts to place commands into arbitrary paths or overwrite paths by containing `../`.
 - `args` if present MUST be an array of strings. Empty arrays are allowed.
+- `description` if present MUST be a string. It is used to display context about the command in the installer UI. The description should be concise (recommended: under 80 characters) and provide a brief explanation of what the command does.
 - The `commands` object itself may be empty (`"commands": {}` is valid and results in no CLI command wrappers being installed).
 - The installer should validate this schema at bundle/installer build-time and reject invalid configs (or warn + skip installing bad entries).
 
@@ -399,11 +401,19 @@ When `jdeploy.commands` contains at least one command, the installation form SHO
 **Checkbox:**
 - Label: "Add command-line tools to PATH"
 - Default state: Selected (checked)
-- Info icon with tooltip listing the commands that will be added (e.g., "Commands: myapp-cli, myapp-admin")
+- Info icon with tooltip listing the commands that will be added. The tooltip should include command names and their descriptions if available (e.g., "Commands: myapp-cli (Run the application in CLI mode), myapp-admin (Start the admin console)")
+
+**Command descriptions:**
+- If a command has a `description` field, it SHOULD be displayed in the installer UI (in the tooltip, a list, or expandable details) to help users understand what each command does.
+- Descriptions help users make informed decisions about which commands to install or configure.
 
 **Behavior:**
 - If unchecked, CLI command scripts are still created but PATH is not modified
 - The checkbox controls both CLI Launcher and CLI Commands PATH addition
+
+**Command descriptions:**
+- If a command has a `description` field, it SHOULD be displayed in the installer UI (in the tooltip, a list, or expandable details) to help users understand what each command does.
+- Descriptions help users make informed decisions about which commands to install or configure.
 
 **Error handling:**
 - If PATH modification fails, log the error to STDERR
