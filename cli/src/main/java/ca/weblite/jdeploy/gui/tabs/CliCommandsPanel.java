@@ -37,6 +37,7 @@ public class CliCommandsPanel extends JPanel {
     private boolean currentCommandModified = false;
     private java.util.Map<String, JSONObject> commandsModel = new java.util.LinkedHashMap<>();
     private String previouslySelectedCommand = null;
+    private static final String ARGS_PLACEHOLDER = "-Xmx2g\n-Dfoo=bar\narg1\n$@";
 
     public CliCommandsPanel() {
         initializeUI();
@@ -199,6 +200,29 @@ public class CliCommandsPanel extends JPanel {
         argsField.setWrapStyleWord(false);
         argsField.setRows(6);
         argsField.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+
+        // Add placeholder behavior
+        argsField.setForeground(Color.GRAY);
+        argsField.setText(ARGS_PLACEHOLDER);
+
+        argsField.addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override
+            public void focusGained(java.awt.event.FocusEvent e) {
+                if (argsField.getText().equals(ARGS_PLACEHOLDER) && argsField.getForeground().equals(Color.GRAY)) {
+                    argsField.setText("");
+                    argsField.setForeground(Color.BLACK);
+                }
+            }
+
+            @Override
+            public void focusLost(java.awt.event.FocusEvent e) {
+                if (argsField.getText().trim().isEmpty()) {
+                    argsField.setForeground(Color.GRAY);
+                    argsField.setText(ARGS_PLACEHOLDER);
+                }
+            }
+        });
+
         argsField.getDocument().addDocumentListener(new DocumentListener() {
             @Override public void insertUpdate(DocumentEvent e) { onFieldChanged(); }
             @Override public void removeUpdate(DocumentEvent e) { onFieldChanged(); }
@@ -288,7 +312,8 @@ public class CliCommandsPanel extends JPanel {
             commandsModel.clear();
             nameField.setText("");
             descriptionField.setText("");
-            argsField.setText("");
+            argsField.setForeground(Color.GRAY);
+            argsField.setText(ARGS_PLACEHOLDER);
             validationLabel.setText(" ");
             removeButton.setEnabled(false);
             previouslySelectedCommand = null;
@@ -409,7 +434,8 @@ public class CliCommandsPanel extends JPanel {
         if (index < 0) {
             nameField.setText("");
             descriptionField.setText("");
-            argsField.setText("");
+            argsField.setForeground(Color.GRAY);
+            argsField.setText(ARGS_PLACEHOLDER);
             validationLabel.setText(" ");
             removeButton.setEnabled(false);
             previouslySelectedCommand = null;
@@ -441,13 +467,16 @@ public class CliCommandsPanel extends JPanel {
                         if (i > 0) sb.append("\n");
                         sb.append(argsArray.getString(i));
                     }
+                    argsField.setForeground(Color.BLACK);
                     argsField.setText(sb.toString());
                 } else {
-                    argsField.setText("");
+                    argsField.setForeground(Color.GRAY);
+                    argsField.setText(ARGS_PLACEHOLDER);
                 }
             } else {
                 descriptionField.setText("");
-                argsField.setText("");
+                argsField.setForeground(Color.GRAY);
+                argsField.setText(ARGS_PLACEHOLDER);
             }
             
             validationLabel.setText(" ");
@@ -518,7 +547,9 @@ public class CliCommandsPanel extends JPanel {
                         }
                         
                         String argsText = argsField.getText().trim();
-                        if (!argsText.isEmpty()) {
+                        boolean isPlaceholder = argsText.equals(ARGS_PLACEHOLDER.trim()) && argsField.getForeground().equals(Color.GRAY);
+
+                        if (!argsText.isEmpty() && !isPlaceholder) {
                             String[] lines = argsText.split("\n");
                             JSONArray argsArray = new JSONArray();
                             for (String line : lines) {
@@ -574,7 +605,8 @@ public class CliCommandsPanel extends JPanel {
             removeButton.setEnabled(false);
             nameField.setText("");
             descriptionField.setText("");
-            argsField.setText("");
+            argsField.setForeground(Color.GRAY);
+            argsField.setText(ARGS_PLACEHOLDER);
             validationLabel.setText(" ");
             previouslySelectedCommand = null;
             currentCommandModified = false;
@@ -600,7 +632,10 @@ public class CliCommandsPanel extends JPanel {
         }
 
         String argsText = argsField.getText().trim();
-        if (!argsText.isEmpty()) {
+        // Don't save placeholder text as actual args
+        boolean isPlaceholder = argsText.equals(ARGS_PLACEHOLDER.trim()) && argsField.getForeground().equals(Color.GRAY);
+
+        if (!argsText.isEmpty() && !isPlaceholder) {
             String[] lines = argsText.split("\n");
             JSONArray argsArray = new JSONArray();
             for (String line : lines) {
@@ -646,7 +681,9 @@ public class CliCommandsPanel extends JPanel {
                 
                 // Update args
                 String argsText = argsField.getText().trim();
-                if (!argsText.isEmpty()) {
+                boolean isPlaceholder = argsText.equals(ARGS_PLACEHOLDER.trim()) && argsField.getForeground().equals(Color.GRAY);
+
+                if (!argsText.isEmpty() && !isPlaceholder) {
                     String[] lines = argsText.split("\n");
                     JSONArray argsArray = new JSONArray();
                     for (String line : lines) {
