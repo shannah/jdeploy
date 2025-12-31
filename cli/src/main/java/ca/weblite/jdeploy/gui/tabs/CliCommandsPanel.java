@@ -274,10 +274,29 @@ public class CliCommandsPanel extends JPanel {
         isUpdatingUI = true;
         try {
             nameField.setText(commandName);
-            // Description and args are loaded from the form state
-            // In a real scenario, we'd load from the backing data model
-            descriptionField.setText("");
-            argsField.setText("");
+            
+            // Load description and args from the backing data model
+            JSONObject spec = commandsModel.get(commandName);
+            if (spec != null) {
+                descriptionField.setText(spec.optString("description", ""));
+                
+                // Load args - join array elements with newlines
+                if (spec.has("args")) {
+                    JSONArray argsArray = spec.getJSONArray("args");
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < argsArray.length(); i++) {
+                        if (i > 0) sb.append("\n");
+                        sb.append(argsArray.getString(i));
+                    }
+                    argsField.setText(sb.toString());
+                } else {
+                    argsField.setText("");
+                }
+            } else {
+                descriptionField.setText("");
+                argsField.setText("");
+            }
+            
             validationLabel.setText(" ");
         } finally {
             isUpdatingUI = false;
@@ -287,19 +306,11 @@ public class CliCommandsPanel extends JPanel {
     private void saveCurrentCommand() {
         int index = commandList.getSelectedIndex();
         if (index >= 0) {
-            String oldName = commandListModel.getElementAt(index);
-            String newName = nameField.getText().trim();
-
+            String currentName = commandListModel.getElementAt(index);
+            
             // Save current form state to model
-            JSONObject spec = buildCommandSpec(newName);
-            commandsModel.put(newName, spec);
-
-            // If name changed, update list and model
-            if (!oldName.equals(newName) && !newName.isEmpty()) {
-                commandsModel.remove(oldName);
-                commandListModel.setElementAt(newName, index);
-                commandList.setSelectedIndex(index);
-            }
+            JSONObject spec = buildCommandSpec(currentName);
+            commandsModel.put(currentName, spec);
         }
     }
 
@@ -315,6 +326,40 @@ public class CliCommandsPanel extends JPanel {
             validationLabel.setText("Invalid: must start with alphanumeric, then alphanumeric/dot/dash/underscore");
         } else {
             validationLabel.setText(" ");
+            
+            // Update the list item in real-time when the name is valid
+            int index = commandList.getSelectedIndex();
+            if (index >= 0) {
+                String oldName = commandListModel.getElementAt(index);
+                if (!oldName.equals(name)) {
+                    // Check for duplicates (excluding current position)
+                    boolean isDuplicate = false;
+                    for (int i = 0; i < commandListModel.size(); i++) {
+                        if (i != index && commandListModel.getElementAt(i).equals(name)) {
+                            isDuplicate = true;
+                            validationLabel.setText("A command with this name already exists");
+                            break;
+                        }
+                    }
+                    
+                    if (!isDuplicate) {
+                        // Update the model map
+                        JSONObject spec = commandsModel.remove(oldName);
+                        if (spec == null) {
+                            spec = new JSONObject();
+                        }
+                        commandsModel.put(name, spec);
+                        
+                        // Update the list (this will not trigger selection change)
+                        isUpdatingUI = true;
+                        try {
+                            commandListModel.setElementAt(name, index);
+                        } finally {
+                            isUpdatingUI = false;
+                        }
+                    }
+                }
+            }
         }
 
         fireChangeEvent();
