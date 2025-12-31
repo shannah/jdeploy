@@ -76,6 +76,9 @@ public class IdeInteropService {
             findIde(root, ideFiles, "code", "Code.exe", "code", "Visual Studio Code.app");
         }
 
+        // Brokk with hardcoded paths
+        findBrokk(ideFiles);
+
         return ideFiles;
     }
 
@@ -124,6 +127,24 @@ public class IdeInteropService {
                // recurse into this directory
                 findIde(file, ideFiles, keyword, winPath, unixPath, macPath);
             }
+        }
+    }
+
+    private void findBrokk(List<File> ideFiles) {
+        String os = System.getProperty("os.name").toLowerCase();
+        String userHome = System.getProperty("user.home");
+        File brokkPath = null;
+
+        if (os.contains("mac")) {
+            brokkPath = new File(userHome + "/Applications/Brokk.app");
+        } else if (os.contains("linux")) {
+            brokkPath = new File(userHome + "/.jdeploy/apps/aa9c6bf0f741db62062e21177aeb3e40.brokk/brokk");
+        } else if (os.contains("win")) {
+            brokkPath = new File(userHome + "\\.jdeploy\\apps\\aa9c6bf0f741db62062e21177aeb3e40.brokk\\Brokk.exe");
+        }
+
+        if (brokkPath != null && brokkPath.exists()) {
+            ideFiles.add(brokkPath);
         }
     }
 

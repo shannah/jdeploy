@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.ideInterop;
 
+import ca.weblite.jdeploy.ideInterop.brokk.BrokkInterop;
 import ca.weblite.jdeploy.ideInterop.eclipse.EclipseIdeInterop;
 import ca.weblite.jdeploy.ideInterop.intellij.IntelliJIdeInterop;
 import ca.weblite.jdeploy.ideInterop.netbeans.NetBeansIdeInterop;
@@ -19,6 +20,8 @@ public class IdeInteropFactory {
             return new NetBeansIdeInterop(path);
         } else if (path.getName().contains("Code") && (path.getAbsolutePath().contains("VS") || path.getAbsolutePath().contains("Visual Studio"))) {
             return new VscodeInterop(path);
+        } else if (path.getAbsolutePath().contains("Brokk") || path.getAbsolutePath().contains("brokk")) {
+            return new BrokkInterop(path);
         } else {
             return null;
         }
