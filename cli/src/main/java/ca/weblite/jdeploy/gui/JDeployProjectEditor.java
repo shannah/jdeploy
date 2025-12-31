@@ -7,17 +7,13 @@ import ca.weblite.jdeploy.gui.controllers.EditGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.GenerateGithubWorkflowController;
 import ca.weblite.jdeploy.gui.controllers.VerifyWebsiteController;
 import ca.weblite.jdeploy.gui.navigation.EditorPanelRegistry;
-import ca.weblite.jdeploy.gui.navigation.NavigablePanel;
 import ca.weblite.jdeploy.gui.navigation.NavigablePanelAdapter;
 import ca.weblite.jdeploy.gui.navigation.NavigationHost;
 import ca.weblite.jdeploy.gui.navigation.TabbedPaneNavigationHost;
 import ca.weblite.jdeploy.gui.services.ProjectFileWatcher;
 import ca.weblite.jdeploy.gui.services.PublishingCoordinator;
 import ca.weblite.jdeploy.gui.services.SwingOneTimePasswordProvider;
-import ca.weblite.jdeploy.gui.util.SwingUtils;
 import ca.weblite.jdeploy.gui.tabs.BundleFiltersPanel;
-import javax.swing.event.DocumentListener;
-import javax.swing.event.DocumentEvent;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.CliSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.FiletypesPanel;
@@ -39,7 +35,6 @@ import ca.weblite.jdeploy.packaging.PackagingPreferences;
 import ca.weblite.jdeploy.packaging.PackagingPreferencesService;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetServiceInterface;
-import ca.weblite.jdeploy.publishTargets.PublishTarget;
 import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import ca.weblite.jdeploy.services.*;
 import ca.weblite.jdeploy.claude.SetupClaudeService;
@@ -47,11 +42,8 @@ import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
 import ca.weblite.jdeploy.downloadPage.swing.DownloadPageSettingsPanel;
 import ca.weblite.tools.io.FileUtil;
-import net.coobird.thumbnailator.Thumbnails;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
-import org.kordamp.ikonli.material.Material;
-import org.kordamp.ikonli.swing.FontIcon;
 
 import javax.swing.*;
 import javax.swing.Timer;
@@ -59,10 +51,8 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
-import java.awt.event.FocusAdapter;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.awt.FileDialog;
 import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -456,30 +446,7 @@ public class JDeployProjectEditor {
         JButton preview = new JButton("Web Preview");
         preview.addActionListener(evt-> context.showWebPreview(frame));
 
-        JButton publish = new JButton("Publish");
-        publish.setDefaultCapable(true);
-
-        publish.addActionListener(evt->{
-            String publishTargetName = publishingCoordinator.getPublishTargetNames();
-            String downloadPageUrl = getDownloadPageUrl();
-            int result = JOptionPane.showConfirmDialog(
-                    frame,
-                    new JLabel("<html><p style='width:400px'>Are you sure you want to publish your app to " + publishTargetName + "?  " +
-                            "Once published, users will be able to download your app at " +
-                            "<a href='" + downloadPageUrl + "'>" +
-                            downloadPageUrl +
-                            "</a>." +
-                            "<br/>Do you wish to proceed?</p>" +
-                            "</html>"
-                    ),
-                    "Publish to " + publishTargetName + "?",
-                    JOptionPane.YES_NO_OPTION);
-            if (result == JOptionPane.NO_OPTION) {
-                return;
-            }
-
-            new Thread(this::handlePublish).start();
-        });
+        JButton publish = getPublishButton();
 
         JCheckBox buildOnPublish = new JCheckBox("Build Project");
         buildOnPublish.setToolTipText("Build the project before publishing.  " +
@@ -513,6 +480,34 @@ public class JDeployProjectEditor {
             bottomButtons.add(closeBtn);
         }
         cnt.add(bottomButtons, BorderLayout.SOUTH);
+    }
+
+    private JButton getPublishButton() {
+        JButton publish = new JButton("Publish");
+        publish.setDefaultCapable(true);
+
+        publish.addActionListener(evt->{
+            String publishTargetName = publishingCoordinator.getPublishTargetNames();
+            String downloadPageUrl = getDownloadPageUrl();
+            int result = JOptionPane.showConfirmDialog(
+                    frame,
+                    new JLabel("<html><p style='width:400px'>Are you sure you want to publish your app to " + publishTargetName + "?  " +
+                            "Once published, users will be able to download your app at " +
+                            "<a href='" + downloadPageUrl + "'>" +
+                            downloadPageUrl +
+                            "</a>." +
+                            "<br/>Do you wish to proceed?</p>" +
+                            "</html>"
+                    ),
+                    "Publish to " + publishTargetName + "?",
+                    JOptionPane.YES_NO_OPTION);
+            if (result == JOptionPane.NO_OPTION) {
+                return;
+            }
+
+            new Thread(this::handlePublish).start();
+        });
+        return publish;
     }
 
     private EditorPanelRegistry createPanelRegistry() {
@@ -645,7 +640,7 @@ public class JDeployProjectEditor {
         registry.register(NavigablePanelAdapter.forPackageJsonPanel(
             "Permissions",
             null,
-            (JComponent) permissionsPanel,
+            permissionsPanel,
             json -> permissionsPanel.loadPermissions(json),
             json -> permissionsPanel.savePermissions(json),
             listener -> permissionsPanel.addChangeListener(listener)
@@ -671,7 +666,7 @@ public class JDeployProjectEditor {
         registry.register(NavigablePanelAdapter.forJdeployPanel(
             "Download Page",
             null,
-            (JComponent) downloadPageSettingsPanel,
+            downloadPageSettingsPanel,
             json -> {
                 DownloadPageSettings settings = loadDownloadPageSettings();
                 downloadPageSettingsPanel.setSettings(settings);
@@ -710,13 +705,6 @@ public class JDeployProjectEditor {
         publishSettingsPanel.addChangeListener(evt -> setModified());
         
         return publishSettingsPanel;
-    }
-
-    private File showFileChooser(String... extensions) {
-        return showFileChooser(new HashSet<>(Arrays.asList(extensions)));
-    }
-    private File showFileChooser(Set<String> extensions) {
-        return context.getFileChooserInterop().showFileChooser(frame, "Select Icon Image", extensions);
     }
 
     private void initMenu() {
