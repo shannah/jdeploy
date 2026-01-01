@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.installer.cli;
 
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.jdeploy.installer.util.DebugLogger;
 import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.tools.io.IOUtil;
@@ -43,16 +44,19 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
 
     /**
      * Determines the binary directory where CLI commands will be installed.
-     * Uses the path from settings if provided, otherwise defaults to ~/.local/bin.
+     * Uses CliCommandBinDirResolver to compute the shared bin directory (~/.jdeploy/bin).
+     * Falls back to the same default if settings are not available.
      *
-     * @param settings installation settings containing optional custom command line path
-     * @return the resolved binary directory
+     * @param settings installation settings containing package name and source
+     * @return the resolved binary directory (shared across all packages)
      */
     protected File getBinDir(InstallationSettings settings) {
-        if (settings != null && settings.getCommandLinePath() != null && !settings.getCommandLinePath().isEmpty()) {
-            return new File(settings.getCommandLinePath()).getParentFile();
+        File homeDir = getHomeDir();
+        if (settings != null && settings.getPackageName() != null && !settings.getPackageName().trim().isEmpty()) {
+            return CliCommandBinDirResolver.getCliCommandBinDir(settings.getPackageName(), settings.getSource(), homeDir);
         }
-        return new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+        // Fallback: use default shared bin directory if package name not available
+        return new File(homeDir, ".jdeploy" + File.separator + "bin");
     }
 
     /**

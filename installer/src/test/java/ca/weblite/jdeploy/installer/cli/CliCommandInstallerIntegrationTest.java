@@ -35,6 +35,7 @@ public class CliCommandInstallerIntegrationTest {
     private File binDir;
     private File launcherPath;
     private File mockHome;
+    private File actualBinDir;
     private CliCommandInstaller installer;
 
     @BeforeEach
@@ -50,6 +51,10 @@ public class CliCommandInstallerIntegrationTest {
 
         launcherDir.mkdirs();
         binDir.mkdirs();
+
+        // Compute the actual bin directory where scripts will be installed
+        // This is where CliCommandBinDirResolver puts scripts: ~/.jdeploy/bin
+        actualBinDir = new File(mockHome, ".jdeploy/bin");
 
         // Create a mock launcher file
         assertTrue(launcherPath.createNewFile(), "Failed to create launcher file");
@@ -75,7 +80,7 @@ public class CliCommandInstallerIntegrationTest {
 
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliCommands(true);
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setCommandLinePath(new File(actualBinDir, "test-launcher").getAbsolutePath());
 
         // Act - Install commands
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
@@ -90,8 +95,8 @@ public class CliCommandInstallerIntegrationTest {
             assertTrue(scriptFile.isFile(), "Installed path should be a file: " + scriptFile.getAbsolutePath());
         }
 
-        // Count files in bin directory before uninstall
-        File[] filesBeforeUninstall = binDir.listFiles((dir, name) -> !name.startsWith("."));
+        // Count files in actual bin directory before uninstall
+        File[] filesBeforeUninstall = actualBinDir.listFiles((dir, name) -> !name.startsWith("."));
         int installedCountBefore = filesBeforeUninstall != null ? filesBeforeUninstall.length : 0;
         assertTrue(installedCountBefore > 0, "Should have installed scripts in bin directory");
 
@@ -99,7 +104,7 @@ public class CliCommandInstallerIntegrationTest {
         installer.uninstallCommands(launcherDir);
 
         // Assert - Verify cleanup
-        File[] remainingScripts = binDir.listFiles((dir, name) -> 
+        File[] remainingScripts = actualBinDir.listFiles((dir, name) -> 
                 !name.startsWith(".") && !name.endsWith(".json"));
         
         int remainingCount = remainingScripts != null ? remainingScripts.length : 0;
@@ -127,7 +132,7 @@ public class CliCommandInstallerIntegrationTest {
         );
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setCommandLinePath(new File(actualBinDir, "test-launcher").getAbsolutePath());
 
         // Act
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
@@ -152,7 +157,7 @@ public class CliCommandInstallerIntegrationTest {
         );
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setCommandLinePath(new File(actualBinDir, "test-launcher").getAbsolutePath());
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
 
         assertTrue(!installedFiles.isEmpty(), "Commands should be installed");

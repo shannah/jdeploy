@@ -61,11 +61,12 @@ public class CliCommandBinDirResolver {
      * Testable method to get the CLI command bin directory with injected base directory.
      *
      * Allows tests to inject a custom base directory instead of relying on system properties.
+     * Returns the shared bin directory (~/.jdeploy/bin) - all packages share the same bin directory.
      *
-     * @param packageName the package name
+     * @param packageName the package name (used for validation, not for path computation)
      * @param source      the GitHub source URL (null for NPM packages)
      * @param userHome    the base directory (typically user home or test directory)
-     * @return the File object representing the bin directory
+     * @return the File object representing the shared bin directory
      * @throws IllegalArgumentException if packageName is null or empty
      */
     public static File getCliCommandBinDir(String packageName, String source, File userHome) {
@@ -73,6 +74,7 @@ public class CliCommandBinDirResolver {
             throw new IllegalArgumentException("packageName cannot be null or empty");
         }
 
+        // Return the shared bin directory - all packages use the same directory
         return new File(userHome, BIN_DIR_NAME);
     }
 }
