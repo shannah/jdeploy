@@ -19,6 +19,11 @@ public class UnixPathManager {
     }
 
     /**
+     * Marker comment that users can add to shell config files to prevent automatic PATH modification.
+     */
+    public static final String NO_AUTO_PATH_MARKER = "# jdeploy:no-auto-path";
+
+    /**
      * Adds a directory to the system PATH environment variable.
      * Updates shell configuration files (.bashrc, .zshrc, etc.) to persist the change.
      * This method is idempotent: it checks if the directory is already in PATH or config before adding.
@@ -102,15 +107,19 @@ public class UnixPathManager {
                 }
                 configFile.createNewFile();
             } else {
-                // Check file contents to avoid duplicate entries
+                // Check for user override marker
                 String content = IOUtil.readToString(new FileInputStream(configFile));
-                if (content.contains(pathExportString) || content.contains(binDir.getAbsolutePath())) {
-                    DebugLogger.log("PATH entry already exists in: " + configFile.getAbsolutePath());
-                    return true;
+                if (content.contains(NO_AUTO_PATH_MARKER)) {
+                    DebugLogger.log("Skipping PATH modification in " + configFile.getAbsolutePath() + " due to " + NO_AUTO_PATH_MARKER + " marker");
+                    System.out.println("Skipping PATH modification in " + configFile.getName() + " (found " + NO_AUTO_PATH_MARKER + " marker)");
+                    return true; // Return true to indicate success (user explicitly opted out)
                 }
+
+                // Remove any existing PATH entry for this binDir first
+                removePathFromConfigFile(configFile, binDir, homeDir);
             }
 
-            // Append PATH export to the config file
+            // Append PATH export to the config file (always at the end)
             DebugLogger.log("Writing PATH export to: " + configFile.getAbsolutePath());
             String pathExport = "\n# Added by jDeploy installer\nexport PATH=\"" + pathExportString + ":$PATH\"\n";
             try (FileOutputStream fos = new FileOutputStream(configFile, true)) {
@@ -168,6 +177,114 @@ public class UnixPathManager {
             return "~/" + relativePath.replace(File.separatorChar, '/');
         }
         return binPath;
+    }
+
+    /**
+     * Checks if the given config file contains the no-auto-path marker.
+     * If present, automatic PATH modification should be skipped for this file.
+     *
+     * @param configFile the shell configuration file to check
+     * @return true if the marker is present, false otherwise
+     */
+    public static boolean hasNoAutoPathMarker(File configFile) {
+        if (configFile == null || !configFile.exists()) {
+            return false;
+        }
+        try {
+            String content = IOUtil.readToString(new FileInputStream(configFile));
+            return content.contains(NO_AUTO_PATH_MARKER);
+        } catch (Exception e) {
+            DebugLogger.log("Failed to check for no-auto-path marker in " + configFile.getAbsolutePath() + ": " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Removes an existing PATH export for the given binDir from a config file.
+     * Removes lines that contain the jDeploy installer comment AND the path export for this specific directory.
+     *
+     * @param configFile the shell configuration file to modify
+     * @param binDir the binary directory whose PATH entry should be removed
+     * @param homeDir the user's home directory (for computing relative paths)
+     * @return true if any entry was removed, false otherwise
+     */
+    static boolean removePathFromConfigFile(File configFile, File binDir, File homeDir) {
+        if (configFile == null || !configFile.exists()) {
+            return false;
+        }
+        try {
+            String content = IOUtil.readToString(new FileInputStream(configFile));
+            String pathExportString = computePathExportString(binDir, homeDir);
+            String absolutePath = binDir.getAbsolutePath();
+            
+            // Build patterns to match jDeploy-added PATH entries for this directory
+            // We want to remove both the comment line and the export line
+            String[] lines = content.split("\n", -1);
+            StringBuilder result = new StringBuilder();
+            boolean removed = false;
+            boolean skipNextExport = false;
+            
+            for (int i = 0; i < lines.length; i++) {
+                String line = lines[i];
+                String trimmed = line.trim();
+                
+                // Check if this is a jDeploy comment line
+                if (trimmed.equals("# Added by jDeploy installer")) {
+                    // Look ahead to see if the next line is an export for our binDir
+                    if (i + 1 < lines.length) {
+                        String nextLine = lines[i + 1].trim();
+                        if (nextLine.startsWith("export PATH=\"") && 
+                            (nextLine.contains(pathExportString) || nextLine.contains(absolutePath))) {
+                            // Skip this comment line and mark to skip the export line
+                            skipNextExport = true;
+                            removed = true;
+                            continue;
+                        }
+                    }
+                }
+                
+                // Check if this is an export line we should skip
+                if (skipNextExport && trimmed.startsWith("export PATH=\"") &&
+                    (trimmed.contains(pathExportString) || trimmed.contains(absolutePath))) {
+                    skipNextExport = false;
+                    continue;
+                }
+                
+                // Also check for standalone export lines (not preceded by jDeploy comment)
+                if (trimmed.startsWith("export PATH=\"") &&
+                    (trimmed.contains(pathExportString) || trimmed.contains(absolutePath)) &&
+                    trimmed.contains(":$PATH\"")) {
+                    removed = true;
+                    continue;
+                }
+                
+                skipNextExport = false;
+                if (result.length() > 0 || !line.isEmpty()) {
+                    if (result.length() > 0) {
+                        result.append("\n");
+                    }
+                    result.append(line);
+                }
+            }
+            
+            if (removed) {
+                // Write back the modified content
+                // Preserve trailing newline if original had one
+                String newContent = result.toString();
+                if (content.endsWith("\n") && !newContent.endsWith("\n")) {
+                    newContent += "\n";
+                }
+                try (FileOutputStream fos = new FileOutputStream(configFile)) {
+                    fos.write(newContent.getBytes(StandardCharsets.UTF_8));
+                }
+                DebugLogger.log("Removed existing PATH entry for " + binDir.getAbsolutePath() + " from " + configFile.getAbsolutePath());
+            }
+            
+            return removed;
+        } catch (Exception e) {
+            DebugLogger.log("Failed to remove PATH entry from " + configFile.getAbsolutePath() + ": " + e.getMessage());
+            return false;
+        }
     }
 
     /**

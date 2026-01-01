@@ -960,14 +960,16 @@ public class InstallWindowsRegistry {
             String binPath = binDir.getAbsolutePath();
             String key = "Environment";
             String curr = null;
-            boolean hadRegistryValue = false;
             if (registryOps.keyExists(key) && registryOps.valueExists(key, "Path")) {
                 curr = registryOps.getStringValue(key, "Path");
-                hadRegistryValue = true;
             } else {
                 curr = System.getenv("PATH");
             }
-            String newPath = computePathWithAdded(curr, binPath);
+            
+            // First remove any existing entry for this binPath, then add at the end
+            String withoutOld = computePathWithRemoved(curr, binPath);
+            String newPath = computePathWithAdded(withoutOld, binPath);
+            
             if (newPath == null) newPath = binPath;
             if (curr != null && curr.equals(newPath)) {
                 return false;

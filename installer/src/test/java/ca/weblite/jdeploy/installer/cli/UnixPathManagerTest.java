@@ -225,7 +225,7 @@ public class UnixPathManagerTest {
         File bashrc = new File(homeDir, ".bashrc");
         bashrc.createNewFile();
 
-        // Pre-populate bashrc with absolute path
+        // Pre-populate bashrc with absolute path (without jDeploy comment)
         String absolutePath = binDir.getAbsolutePath();
         Files.write(bashrc.toPath(), ("export PATH=\"" + absolutePath + ":$PATH\"\n").getBytes(StandardCharsets.UTF_8));
 
@@ -235,9 +235,8 @@ public class UnixPathManagerTest {
         String content = IOUtil.readToString(new FileInputStream(bashrc));
         int occurrences = countOccurrences(content, absolutePath);
         assertEquals(1, occurrences, "Absolute path should appear exactly once");
-        // Should not append again since path already exists
-        String contentAfter = IOUtil.readToString(new FileInputStream(bashrc));
-        assertEquals(countOccurrences(contentAfter, "Added by jDeploy installer"), 0, "Should not add comment again");
+        // With remove-then-add strategy, the jDeploy comment should now be present
+        assertEquals(1, countOccurrences(content, "Added by jDeploy installer"), "jDeploy comment should be added");
     }
 
     @Test
@@ -501,5 +500,137 @@ public class UnixPathManagerTest {
             index += substring.length();
         }
         return count;
+    }
+
+    @Test
+    public void testHasNoAutoPathMarkerWhenPresent() throws IOException {
+        File bashrc = new File(homeDir, ".bashrc");
+        Files.write(bashrc.toPath(), ("# Some config\n" + UnixPathManager.NO_AUTO_PATH_MARKER + "\nexport FOO=bar\n").getBytes(StandardCharsets.UTF_8));
+
+        assertTrue(UnixPathManager.hasNoAutoPathMarker(bashrc), "Should detect no-auto-path marker");
+    }
+
+    @Test
+    public void testHasNoAutoPathMarkerWhenAbsent() throws IOException {
+        File bashrc = new File(homeDir, ".bashrc");
+        Files.write(bashrc.toPath(), ("# Some config\nexport FOO=bar\n").getBytes(StandardCharsets.UTF_8));
+
+        assertFalse(UnixPathManager.hasNoAutoPathMarker(bashrc), "Should not detect marker when absent");
+    }
+
+    @Test
+    public void testHasNoAutoPathMarkerNonExistentFile() {
+        File nonExistent = new File(homeDir, ".nonexistent");
+        assertFalse(UnixPathManager.hasNoAutoPathMarker(nonExistent), "Should return false for non-existent file");
+    }
+
+    @Test
+    public void testHasNoAutoPathMarkerNullFile() {
+        assertFalse(UnixPathManager.hasNoAutoPathMarker(null), "Should return false for null file");
+    }
+
+    @Test
+    public void testAddToPathSkipsWhenMarkerPresent() throws IOException {
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+        
+        // Create bashrc with the no-auto-path marker
+        File bashrc = new File(homeDir, ".bashrc");
+        String originalContent = "# My custom config\n" + UnixPathManager.NO_AUTO_PATH_MARKER + "\nexport MYVAR=myvalue\n";
+        Files.write(bashrc.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+
+        assertTrue(result, "Should return true (success) when marker is present");
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
+        assertEquals(originalContent, content, "File should not be modified when marker is present");
+        assertFalse(content.contains(binDir.getAbsolutePath()), "PATH should not be added when marker is present");
+    }
+
+    @Test
+    public void testRemovePathFromConfigFile() throws IOException {
+        File bashrc = new File(homeDir, ".bashrc");
+        String existingPath = binDir.getAbsolutePath();
+        String originalContent = "# Some config\n# Added by jDeploy installer\nexport PATH=\"" + existingPath + ":$PATH\"\nexport FOO=bar\n";
+        Files.write(bashrc.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean removed = UnixPathManager.removePathFromConfigFile(bashrc, binDir, homeDir);
+
+        assertTrue(removed, "Should return true when entry was removed");
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
+        assertFalse(content.contains(existingPath), "PATH entry should be removed");
+        assertFalse(content.contains("# Added by jDeploy installer"), "Comment should be removed");
+        assertTrue(content.contains("export FOO=bar"), "Other content should be preserved");
+    }
+
+    @Test
+    public void testRemovePathFromConfigFileNoEntry() throws IOException {
+        File bashrc = new File(homeDir, ".bashrc");
+        String originalContent = "# Some config\nexport FOO=bar\n";
+        Files.write(bashrc.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean removed = UnixPathManager.removePathFromConfigFile(bashrc, binDir, homeDir);
+
+        assertFalse(removed, "Should return false when no entry to remove");
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
+        assertEquals(originalContent, content, "File should not be modified");
+    }
+
+    @Test
+    public void testRemovePathFromConfigFileNonExistent() {
+        File nonExistent = new File(homeDir, ".nonexistent");
+        
+        boolean removed = UnixPathManager.removePathFromConfigFile(nonExistent, binDir, homeDir);
+
+        assertFalse(removed, "Should return false for non-existent file");
+    }
+
+    @Test
+    public void testAddToPathRemovesThenAddsAtEnd() throws IOException {
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+        File bashrc = new File(homeDir, ".bashrc");
+        
+        // Create bashrc with existing jDeploy PATH entry in the middle
+        String existingPath = binDir.getAbsolutePath();
+        String originalContent = "# First config\nexport FIRST=1\n# Added by jDeploy installer\nexport PATH=\"" + existingPath + ":$PATH\"\n# More config\nexport SECOND=2\n";
+        Files.write(bashrc.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+
+        assertTrue(result);
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
+        
+        // Verify the old entry was removed and new one added at the end
+        int pathOccurrences = countOccurrences(content, existingPath);
+        assertEquals(1, pathOccurrences, "PATH should appear exactly once");
+        
+        // The new PATH entry should be at the end of the file
+        assertTrue(content.trim().endsWith("export PATH=\"" + existingPath + ":$PATH\""), 
+            "PATH export should be at the end of the file");
+    }
+
+    @Test
+    public void testAddToPathWithHomeRelativePath() throws IOException {
+        // Create a bin directory under homeDir
+        File homeBinDir = new File(homeDir, ".local/bin");
+        homeBinDir.mkdirs();
+        
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+        File bashrc = new File(homeDir, ".bashrc");
+        
+        // Create bashrc with existing $HOME-relative PATH entry
+        String originalContent = "# First config\n# Added by jDeploy installer\nexport PATH=\"$HOME/.local/bin:$PATH\"\n# More config\n";
+        Files.write(bashrc.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean result = UnixPathManager.addToPath(homeBinDir, shell, pathEnv, homeDir);
+
+        assertTrue(result);
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
+        
+        // Verify the old entry was removed and new one added at the end
+        int pathOccurrences = countOccurrences(content, "$HOME/.local/bin");
+        assertEquals(1, pathOccurrences, "PATH should appear exactly once");
     }
 }
