@@ -74,6 +74,18 @@ Where `356a192b7913b04c54574d18c28d46e6` is the full MD5 hash of the source URL.
 
 6. **Future extensibility**: The per-app directory structure makes it easier to add app-specific configuration, metadata, or additional tooling in the future without polluting a shared namespace.
 
+## Design Principles
+
+This implementation follows clean code principles:
+
+| Principle | Application |
+|-----------|-------------|
+| **Single Responsibility** | `CliCommandBinDirResolver` only computes paths; `CliCommandManifestRepository` only handles persistence |
+| **Open/Closed** | New sources or platforms can be added without modifying existing code |
+| **Dependency Inversion** | Core utilities accept dependencies as parameters for testability |
+| **Interface Segregation** | Small, focused interfaces (`CliCommandManifestRepository`) rather than large abstractions |
+| **Test-First** | Each implementation phase includes corresponding tests |
+
 ## Implementation Changes
 
 ### InstallationSettings Changes
@@ -92,6 +104,41 @@ public void setSource(String source) { this.source = source; }
 ```
 
 The method signature `getBinDir(InstallationSettings settings)` remains unchanged across all platform installers. The `InstallationSettings` class is extended with new fields to support computation of the fully qualified package name.
+
+### CliCommandManifestRepository Interface
+
+Define an interface for metadata persistence to support testability and separation of concerns:
+
+```java
+public interface CliCommandManifestRepository {
+    /**
+     * Saves the CLI command manifest for an app.
+     * @param manifest the manifest to save
+     * @throws UncheckedIOException if the manifest cannot be saved
+     */
+    void save(CliCommandManifest manifest);
+
+    /**
+     * Loads the most recent CLI command manifest for an app.
+     * @param packageName the package name
+     * @param source the source URL (null/empty for NPM packages)
+     * @return the manifest, or empty if not found
+     */
+    Optional<CliCommandManifest> load(String packageName, String source);
+
+    /**
+     * Deletes all manifests for an app.
+     * @param packageName the package name
+     * @param source the source URL (null/empty for NPM packages)
+     */
+    void delete(String packageName, String source);
+}
+```
+
+The default implementation (`FileCliCommandManifestRepository`) stores manifests at:
+```
+~/.jdeploy/manifests/{arch}/{fullyQualifiedPackageName}/{packageName}-{timestamp}.json
+```
 
 ### Platform-Specific Behavior Changes
 
@@ -172,10 +219,14 @@ public class CliCommandBinDirResolver {
 
 ### Error Handling Requirements
 
+All errors use unchecked exceptions for cleaner APIs:
+
 - If `packageName` is null or empty: throw `IllegalArgumentException` with descriptive message
-- If bin directory cannot be created: throw `IOException` with descriptive message including the path
-- If bin directory exists but is not writable: throw `IOException` before attempting to write scripts
+- If bin directory cannot be created: throw `UncheckedIOException` with descriptive message including the path
+- If bin directory exists but is not writable: throw `UncheckedIOException` before attempting to write scripts
 - All platform installers must validate directory accessibility before installation
+
+Using unchecked exceptions keeps the API clean and avoids forcing callers into try-catch blocks while still providing meaningful error messages.
 
 ### PATH Management Strategy
 
@@ -264,11 +315,15 @@ package ca.weblite.jdeploy.installer.util;
 public class CliCommandBinDirResolver {
     /**
      * Computes the fully qualified package name.
-     * @param packageName the package name
-     * @param source the source URL (null/empty for NPM registry packages)
+     * @param packageName the package name (MUST NOT be null or empty)
+     * @param source the source URL (null or empty for NPM registry packages)
      * @return the fully qualified package name
+     * @throws IllegalArgumentException if packageName is null or empty
      */
     public static String computeFullyQualifiedPackageName(String packageName, String source) {
+        if (packageName == null || packageName.isEmpty()) {
+            throw new IllegalArgumentException("packageName must not be null or empty");
+        }
         if (source == null || source.isEmpty()) {
             return packageName;
         }
@@ -278,17 +333,33 @@ public class CliCommandBinDirResolver {
 
     /**
      * Resolves the CLI bin directory for installing commands.
-     * @param packageName the package name
-     * @param source the source URL (null/empty for NPM registry packages)
-     * @return the bin directory path
+     * Convenience method that uses default environment.
      */
     public static File getCliCommandBinDir(String packageName, String source) {
-        String archSuffix = ArchitectureUtil.getArchitectureSuffix();
-        String fqpn = computeFullyQualifiedPackageName(packageName, source);
-        return new File(
+        return getCliCommandBinDir(
             PackagePathResolver.getJDeployHome(),
-            "bin" + archSuffix + File.separator + fqpn
+            ArchitectureUtil.getArchitectureSuffix(),
+            packageName,
+            source
         );
+    }
+
+    /**
+     * Resolves the CLI bin directory for installing commands.
+     * Testable version with injected dependencies.
+     * @param jdeployHome the jDeploy home directory
+     * @param archSuffix the architecture suffix (e.g., "-arm64", "-x64")
+     * @param packageName the package name (MUST NOT be null or empty)
+     * @param source the source URL (null or empty for NPM registry packages)
+     * @return the bin directory path
+     * @throws IllegalArgumentException if packageName is null or empty
+     */
+    public static File getCliCommandBinDir(File jdeployHome, String archSuffix, String packageName, String source) {
+        if (packageName == null || packageName.isEmpty()) {
+            throw new IllegalArgumentException("packageName must not be null or empty");
+        }
+        String fqpn = computeFullyQualifiedPackageName(packageName, source);
+        return new File(jdeployHome, "bin" + archSuffix + File.separator + fqpn);
     }
 }
 ```
@@ -357,15 +428,35 @@ This change improves user experience (no command conflicts), simplifies installe
 
 If this RFC is accepted, the implementation sequence should be:
 
-1. Create `CliCommandBinDirResolver` utility class
-2. Update `InstallationSettings` to expose `packageName` and `source` fields
-3. Update `AbstractUnixCliCommandInstaller.getBinDir()` to use new utility
-4. Update `MacCliCommandInstaller.getBinDir()` to use new utility
-5. Update `WindowsCliCommandInstaller.installCommands()` to use new utility
-6. Update uninstall logic in all installers to clean up new directory structure
-7. Implement PATH management strategy with user override marker support
-8. Add/update tests for all platform-specific installers
+1. Create `CliCommandBinDirResolver` utility class with unit tests for:
+   - NPM package (source=null) → returns package name only
+   - GitHub package → returns `{MD5}.{packageName}` format
+   - Null/empty package name → throws `IllegalArgumentException`
+   - Testable overload with injected dependencies
+
+2. Create `CliCommandManifestRepository` interface and `FileCliCommandManifestRepository` implementation with tests for:
+   - Save/load/delete manifest operations
+   - Correct path computation based on package identity
+
+3. Update `InstallationSettings` to expose `packageName` and `source` fields with tests verifying proper getter/setter behavior
+
+4. Update `AbstractUnixCliCommandInstaller.getBinDir()` to use `CliCommandBinDirResolver` with integration tests verifying correct bin directory path
+
+5. Update `MacCliCommandInstaller.getBinDir()` to use `CliCommandBinDirResolver` with platform-specific tests
+
+6. Update `WindowsCliCommandInstaller.installCommands()` to use `CliCommandBinDirResolver` with Windows-specific tests
+
+7. Update uninstall logic in all installers to:
+   - Clean up new directory structure
+   - Use `CliCommandManifestRepository` for metadata operations
+   - Include tests for cleanup behavior
+
+8. Implement PATH management strategy with user override marker support and tests for:
+   - PATH entry addition/removal
+   - Marker detection (`# jdeploy:no-auto-path`)
+
 9. Document migration path in installer help/UI
+
 10. Update `cli-commands-in-installer.md` RFC to align with this RFC and remove superseded sections
 
 ## Appendix: Comparison with Existing Package Path Structure
