@@ -43,11 +43,12 @@ public class LinuxCliCommandInstallerTest {
         launcherPath.createNewFile();
         launcherPath.setExecutable(true);
 
-        binDir = new File(new File(tempDir, ".local"), "bin");
-        binDir.mkdirs();
-
         homeDir = new File(tempDir, "home");
         homeDir.mkdirs();
+
+        binDir = new File(new File(homeDir, ".jdeploy"), "bin");
+        binDir.mkdirs();
+
         installer = new TestableLinuxCliCommandInstaller(homeDir);
     }
 
