@@ -433,7 +433,7 @@ public class CliCommandInstallerIntegrationTest {
         assertTrue(bashrc.exists(), ".bashrc should be created");
         String content = FileUtils.readFileToString(bashrc, "UTF-8");
         String expectedPath = windowsInstaller.convertToMsysPath(customBinDir);
-        assertTrue(content.contains("export PATH=\"$PATH:" + expectedPath + "\""), "Content should contain export line");
+        assertTrue(content.contains("export PATH=\"" + expectedPath + ":$PATH\""), "Content should contain export line with prepended path");
         
         // Act - Remove
         java.lang.reflect.Method removeMethod = WindowsCliCommandInstaller.class.getDeclaredMethod("removeFromGitBashPath", File.class);

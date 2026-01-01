@@ -452,7 +452,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 return true; // Already present
             }
 
-            String exportLine = "export PATH=\"$PATH:" + msysPath + "\"";
+            String exportLine = "export PATH=\"" + msysPath + ":$PATH\"";
             StringBuilder sb = new StringBuilder(content);
             if (!content.isEmpty() && !content.endsWith("\n")) {
                 sb.append("\n");
@@ -497,7 +497,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 return false;
             }
 
-            String exportLine = "export PATH=\"$PATH:" + msysPath + "\"";
+            String exportLine = "export PATH=\"" + msysPath + ":$PATH\"";
             String newContent = content.replace(exportLine + "\r\n", "")
                                        .replace(exportLine + "\n", "")
                                        .replace(exportLine, "");
