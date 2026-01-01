@@ -32,10 +32,7 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
 
     @Override
     protected File getBinDir(InstallationSettings settings) {
-        if (settings != null && settings.getCommandLinePath() != null && !settings.getCommandLinePath().isEmpty()) {
-            return new File(settings.getCommandLinePath()).getParentFile();
-        }
-        return new File(System.getProperty("user.home"), "bin");
+        return super.getBinDir(settings);
     }
 
     @Override
