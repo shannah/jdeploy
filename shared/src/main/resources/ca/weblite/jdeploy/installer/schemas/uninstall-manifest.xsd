@@ -4,6 +4,17 @@
            xmlns:tns="http://jdeploy.ca/uninstall-manifest/1.0"
            elementFormDefault="qualified">
 
+    <!--
+        Canonical schema location for use with xsi:schemaLocation:
+        http://jdeploy.ca/uninstall-manifest/1.0 uninstall-manifest.xsd
+        
+        Example document declaration:
+        <uninstallManifest xmlns="http://jdeploy.ca/uninstall-manifest/1.0"
+                           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                           xsi:schemaLocation="http://jdeploy.ca/uninstall-manifest/1.0 uninstall-manifest.xsd"
+                           version="1.0">
+    -->
+
     <xs:annotation>
         <xs:documentation>
             XML Schema for jDeploy Uninstall Manifest v1.0
@@ -17,7 +28,30 @@
     </xs:annotation>
 
     <!-- Root Element -->
-    <xs:element name="uninstallManifest" type="tns:UninstallManifestType"/>
+    <xs:element name="uninstallManifest" type="tns:UninstallManifestType">
+        <xs:unique name="uniqueFilePath">
+            <xs:annotation>
+                <xs:documentation>Ensures no duplicate file paths in the manifest</xs:documentation>
+            </xs:annotation>
+            <xs:selector xpath="tns:files/tns:file"/>
+            <xs:field xpath="tns:path"/>
+        </xs:unique>
+        <xs:unique name="uniqueDirectoryPath">
+            <xs:annotation>
+                <xs:documentation>Ensures no duplicate directory paths in the manifest</xs:documentation>
+            </xs:annotation>
+            <xs:selector xpath="tns:directories/tns:directory"/>
+            <xs:field xpath="tns:path"/>
+        </xs:unique>
+        <xs:unique name="uniqueCreatedRegistryKey">
+            <xs:annotation>
+                <xs:documentation>Ensures no duplicate created registry key paths</xs:documentation>
+            </xs:annotation>
+            <xs:selector xpath="tns:registry/tns:createdKeys/tns:createdKey"/>
+            <xs:field xpath="tns:root"/>
+            <xs:field xpath="tns:path"/>
+        </xs:unique>
+    </xs:element>
 
     <!-- Main Types -->
     <xs:complexType name="UninstallManifestType">
@@ -36,6 +70,7 @@
                 <xs:documentation>Schema version (e.g., "1.0")</xs:documentation>
             </xs:annotation>
         </xs:attribute>
+        <xs:anyAttribute namespace="##other" processContents="lax"/>
     </xs:complexType>
 
     <!-- Package Info Section -->
@@ -71,7 +106,7 @@
             </xs:element>
             <xs:element name="installedAt" type="xs:dateTime" minOccurs="1" maxOccurs="1">
                 <xs:annotation>
-                    <xs:documentation>ISO 8601 timestamp when installed</xs:documentation>
+                    <xs:documentation>ISO 8601 timestamp when installed. UTC timezone (Z suffix) is preferred, e.g., 2024-01-15T10:30:45Z</xs:documentation>
                 </xs:annotation>
             </xs:element>
             <xs:element name="installerVersion" type="xs:string" minOccurs="1" maxOccurs="1">
@@ -80,6 +115,7 @@
                 </xs:annotation>
             </xs:element>
         </xs:sequence>
+        <xs:anyAttribute namespace="##other" processContents="lax"/>
     </xs:complexType>
 
     <!-- Architecture Type -->
@@ -136,6 +172,7 @@
                 </xs:annotation>
             </xs:element>
         </xs:sequence>
+        <xs:anyAttribute namespace="##other" processContents="lax"/>
     </xs:complexType>
 
     <xs:simpleType name="FileTypeEnum">
@@ -211,6 +248,7 @@
                 </xs:annotation>
             </xs:element>
         </xs:sequence>
+        <xs:anyAttribute namespace="##other" processContents="lax"/>
     </xs:complexType>
 
     <xs:simpleType name="CleanupStrategyType">
@@ -324,9 +362,15 @@
                     <xs:documentation>Value name (empty string for default/unnamed value)</xs:documentation>
                 </xs:annotation>
             </xs:element>
-            <xs:element name="previousValue" type="xs:string" minOccurs="0" maxOccurs="1">
+            <xs:element name="previousValue" type="xs:string" nillable="true" minOccurs="0" maxOccurs="1">
                 <xs:annotation>
-                    <xs:documentation>The original value before modification. If empty or absent, value didn't exist before.</xs:documentation>
+                    <xs:documentation>
+                        The original value before modification. 
+                        - If element is absent: value didn't exist before installation
+                        - If element has xsi:nil="true": value didn't exist before (explicit)
+                        - If element is empty: value was an empty string
+                        - Otherwise: contains the previous value to restore
+                    </xs:documentation>
                 </xs:annotation>
             </xs:element>
             <xs:element name="previousType" type="tns:RegistryValueTypeEnum" minOccurs="1" maxOccurs="1">
@@ -535,10 +579,11 @@
                 - ${JDEPLOY_HOME}: ~/.jdeploy directory
                 - ${APP_DIR}: Installed app directory
                 Variables are expanded at runtime, not at manifest creation time.
+                Paths must be non-empty.
             </xs:documentation>
         </xs:annotation>
         <xs:restriction base="xs:string">
-            <xs:pattern value=".*"/>
+            <xs:minLength value="1"/>
         </xs:restriction>
     </xs:simpleType>
 
