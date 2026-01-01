@@ -2,6 +2,8 @@ package ca.weblite.jdeploy.installer.cli;
 
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
+import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.RegistryOperations;
 import ca.weblite.jdeploy.models.CommandSpec;
@@ -56,19 +58,28 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             return createdFiles;
         }
 
-        // Determine bin directory location
-        File userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
+        // Determine bin directory locations
+        File userBinDir = CliCommandBinDirResolver.getCliCommandBinDir(
+            settings.getPackageName(),
+            settings.getSource()
+        );
+
+        // Compute per-app PATH directory for registry operations
+        File perAppPathDir = CliCommandBinDirResolver.getPerAppBinDir(
+            settings.getPackageName(),
+            settings.getSource()
+        );
 
         try {
             // Write .cmd wrappers for each command
             List<File> wrapperFiles = writeCommandWrappersForTest(userBinDir, launcherPath, commands);
             createdFiles.addAll(wrapperFiles);
 
-            // Update user PATH via registry
-            boolean pathUpdated = addToPath(userBinDir);
+            // Update user PATH via registry using per-app directory
+            boolean pathUpdated = addToPath(perAppPathDir);
 
-            // Update Git Bash path if applicable
-            boolean gitBashPathUpdated = addToGitBashPath(userBinDir);
+            // Update Git Bash path if applicable using per-app directory
+            boolean gitBashPathUpdated = addToGitBashPath(perAppPathDir);
 
             // Determine if the launcher is the CLI variant
             File cliExePath = null;
@@ -78,7 +89,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
             // Persist metadata for uninstall in the app directory
             File appDir = launcherPath.getParentFile();
-            persistMetadata(appDir, wrapperFiles, pathUpdated, gitBashPathUpdated, cliExePath);
+            persistMetadata(appDir, wrapperFiles, pathUpdated, gitBashPathUpdated, cliExePath, userBinDir, perAppPathDir);
 
         } catch (IOException e) {
             System.err.println("Warning: Failed to install CLI commands: " + e.getMessage());
@@ -112,9 +123,17 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 }
             }
 
+            // Determine shared bin directory for wrapper cleanup
+            File userBinDir;
+            if (metadata.has("sharedBinDir")) {
+                userBinDir = new File(metadata.getString("sharedBinDir"));
+            } else {
+                // Fallback to old hardcoded path for backward compatibility
+                userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
+            }
+
             // Clean up wrapper files
             JSONArray wrappersArray = metadata.optJSONArray(CliInstallerConstants.CREATED_WRAPPERS_KEY);
-            File userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
             if (wrappersArray != null) {
                 for (int i = 0; i < wrappersArray.length(); i++) {
                     String wrapperName = wrappersArray.getString(i);
@@ -135,14 +154,23 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 }
             }
 
+            // Determine per-app PATH directory for cleanup
+            File perAppPathDir;
+            if (metadata.has("perAppPathDir")) {
+                perAppPathDir = new File(metadata.getString("perAppPathDir"));
+            } else {
+                // Fallback to old hardcoded path for backward compatibility
+                perAppPathDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
+            }
+
             // Remove from PATH if it was added
             if (metadata.optBoolean(CliInstallerConstants.PATH_UPDATED_KEY, false)) {
-                removeFromPath(userBinDir);
+                removeFromPath(perAppPathDir);
             }
 
             // Remove from Git Bash path if it was added
             if (metadata.optBoolean(CliInstallerConstants.GIT_BASH_PATH_UPDATED_KEY, false)) {
-                removeFromGitBashPath(userBinDir);
+                removeFromGitBashPath(perAppPathDir);
             }
 
         } catch (IOException e) {
@@ -288,9 +316,11 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
      * @param pathUpdated whether the PATH was updated
      * @param gitBashPathUpdated whether the Git Bash path was updated
      * @param cliExePath the CLI launcher executable file, or null if not created
+     * @param sharedBinDir the shared bin directory where wrappers are stored
+     * @param perAppPathDir the per-app PATH directory for registry operations
      * @throws IOException if metadata file write fails
      */
-    private void persistMetadata(File appDir, List<File> createdWrappers, boolean pathUpdated, boolean gitBashPathUpdated, File cliExePath) throws IOException {
+    private void persistMetadata(File appDir, List<File> createdWrappers, boolean pathUpdated, boolean gitBashPathUpdated, File cliExePath, File sharedBinDir, File perAppPathDir) throws IOException {
         JSONObject metadata = new JSONObject();
 
         // Store list of created wrapper file names
@@ -305,6 +335,10 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
         // Store whether Git Bash path was updated
         metadata.put(CliInstallerConstants.GIT_BASH_PATH_UPDATED_KEY, gitBashPathUpdated);
+
+        // Store directory paths for uninstallation
+        metadata.put("sharedBinDir", sharedBinDir.getAbsolutePath());
+        metadata.put("perAppPathDir", perAppPathDir.getAbsolutePath());
 
         // Store CLI exe path if it exists
         if (cliExePath != null) {

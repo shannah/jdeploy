@@ -14,6 +14,7 @@ import java.io.File;
 public class CliCommandBinDirResolver {
 
     private static final String BIN_DIR_NAME = ".jdeploy/bin";
+    private static final String BIN_DIR_PREFIX = ".jdeploy/bin";
 
     /**
      * Computes the fully-qualified package name for CLI command installation.
@@ -76,5 +77,44 @@ public class CliCommandBinDirResolver {
 
         // Return the shared bin directory - all packages use the same directory
         return new File(userHome, BIN_DIR_NAME);
+    }
+
+    /**
+     * Convenience method to get the per-app bin directory for PATH operations.
+     * Returns a directory in the format: ~/.jdeploy/bin-{arch}/{fqpn}/
+     * where {arch} is the architecture suffix (e.g., "-arm64" or "-x64")
+     * and {fqpn} is the fully-qualified package name.
+     *
+     * @param packageName the package name
+     * @param source the GitHub source URL (null for NPM packages)
+     * @return the per-app bin directory File
+     * @throws IllegalArgumentException if packageName is null or empty
+     */
+    public static File getPerAppBinDir(String packageName, String source) {
+        String userHome = System.getProperty("user.home");
+        return getPerAppBinDir(packageName, source, new File(userHome));
+    }
+
+    /**
+     * Testable method to get the per-app bin directory with injectable base directory.
+     * Returns a directory in the format: ~/.jdeploy/bin-{arch}/{fqpn}/
+     * where {arch} is the architecture suffix (e.g., "-arm64" or "-x64")
+     * and {fqpn} is the fully-qualified package name.
+     *
+     * @param packageName the package name
+     * @param source the GitHub source URL (null for NPM packages)
+     * @param userHome the base directory (typically user home or test directory)
+     * @return the per-app bin directory File
+     * @throws IllegalArgumentException if packageName is null or empty
+     */
+    public static File getPerAppBinDir(String packageName, String source, File userHome) {
+        if (packageName == null || packageName.trim().isEmpty()) {
+            throw new IllegalArgumentException("packageName cannot be null or empty");
+        }
+
+        String archSuffix = ArchitectureUtil.getArchitectureSuffix();
+        String fqpn = computeFullyQualifiedPackageName(packageName, source);
+
+        return new File(userHome, BIN_DIR_PREFIX + archSuffix + File.separator + fqpn);
     }
 }
