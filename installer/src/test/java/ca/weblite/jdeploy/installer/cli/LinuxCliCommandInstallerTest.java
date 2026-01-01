@@ -576,6 +576,8 @@ public class LinuxCliCommandInstallerTest {
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-package");
+        settings.setSource(null);
 
         installer.installCommands(launcherPath, commands, settings);
 

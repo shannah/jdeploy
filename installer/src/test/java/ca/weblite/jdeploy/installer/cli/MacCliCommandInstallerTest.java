@@ -110,6 +110,8 @@ public class MacCliCommandInstallerTest {
         AppInfo appInfo = new AppInfo();
         appInfo.setTitle("My App");
         settings.setAppInfo(appInfo);
+        settings.setPackageName("test-package");
+        settings.setSource(null);
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
 
@@ -131,6 +133,8 @@ public class MacCliCommandInstallerTest {
         AppInfo appInfo = new AppInfo();
         appInfo.setTitle("My App");
         settings.setAppInfo(appInfo);
+        settings.setPackageName("test-package");
+        settings.setSource(null);
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
 
@@ -383,6 +387,8 @@ public class MacCliCommandInstallerTest {
         AppInfo appInfo = new AppInfo();
         appInfo.setTitle("My Awesome App");
         settings.setAppInfo(appInfo);
+        settings.setPackageName("test-package");
+        settings.setSource(null);
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
 
@@ -441,6 +447,8 @@ public class MacCliCommandInstallerTest {
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setPackageName("test-package");
+        settings.setSource(null);
 
         installer.installCommands(launcherPath, commands, settings);
 
@@ -461,6 +469,8 @@ public class MacCliCommandInstallerTest {
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setPackageName("test-package");
+        settings.setSource(null);
 
         installer.installCommands(launcherPath, commands, settings);
 

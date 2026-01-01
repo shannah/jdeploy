@@ -57,8 +57,9 @@ public class CliCommandInstallerIntegrationTest {
         binDir.mkdirs();
 
         // Compute the actual bin directory where scripts will be installed
-        // This is where CliCommandBinDirResolver puts scripts: ~/.jdeploy/bin
-        actualBinDir = new File(mockHome, ".jdeploy/bin");
+        // With the new per-app structure: ~/.jdeploy/bin-{arch}/{fullyQualifiedPackageName}/
+        String archSuffix = ca.weblite.jdeploy.installer.util.ArchitectureUtil.getArchitectureSuffix();
+        actualBinDir = new File(mockHome, ".jdeploy/bin" + archSuffix + "/test-app");
 
         // Create a mock launcher file
         assertTrue(launcherPath.createNewFile(), "Failed to create launcher file");
@@ -85,6 +86,8 @@ public class CliCommandInstallerIntegrationTest {
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliCommands(true);
         settings.setCommandLinePath(new File(actualBinDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-app");
+        settings.setSource(null);
 
         // Act - Install commands
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
@@ -137,6 +140,8 @@ public class CliCommandInstallerIntegrationTest {
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(actualBinDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-app");
+        settings.setSource(null);
 
         // Act
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
@@ -162,6 +167,8 @@ public class CliCommandInstallerIntegrationTest {
 
         InstallationSettings settings = new InstallationSettings();
         settings.setCommandLinePath(new File(actualBinDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-app");
+        settings.setSource(null);
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
 
         assertTrue(!installedFiles.isEmpty(), "Commands should be installed");
