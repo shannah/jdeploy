@@ -26,12 +26,17 @@ Unify all platforms to install CLI commands in a unified, architecture-specific,
 
 Where:
 
-- `{arch}` is the architecture suffix from `ArchitectureUtil.getArchitectureSuffix()`, which returns either `-arm64` or `-x64` (empty string for legacy/single-arch systems if needed).
+- `{arch}` is the architecture suffix from `ArchitectureUtil.getArchitectureSuffix()`, which returns either `-arm64` or `-x64`.
 - `{fullyQualifiedPackageName}` is computed as follows:
   - If `source` is null or empty (NPM registry package): use `packageName` directly
   - If `source` is set (GitHub or custom source): use `MD5.getMd5(source) + "." + packageName`
 
 This structure mirrors the existing architecture-specific package path pattern used in `PackagePathResolver` for consistency.
+
+### Definition of `source`
+
+- For GitHub releases: `source` is the full GitHub URL (e.g., `https://github.com/user/repo`)
+- For NPM registry packages: `source` is null or empty string
 
 ### Examples
 
@@ -44,12 +49,16 @@ This structure mirrors the existing architecture-specific package path pattern u
 
 **GitHub-sourced package "myapp" from "https://github.com/user/myapp-repo" on x64 Linux:**
 ```
-~/.jdeploy/bin-x64/a1b2c3d4e5f6.myapp/
+~/.jdeploy/bin-x64/356a192b7913b04c54574d18c28d46e6.myapp/
   myapp-cli
   myapp-admin
 ```
 
-Where `a1b2c3d4e5f6` is the first 12 characters of the MD5 hash of the source URL.
+Where `356a192b7913b04c54574d18c28d46e6` is the full MD5 hash of the source URL.
+
+### Limitations
+
+- Scoped NPM packages (e.g., `@myorg/myapp`) are not currently supported.
 
 ## Key Benefits
 
@@ -66,6 +75,23 @@ Where `a1b2c3d4e5f6` is the first 12 characters of the MD5 hash of the source UR
 6. **Future extensibility**: The per-app directory structure makes it easier to add app-specific configuration, metadata, or additional tooling in the future without polluting a shared namespace.
 
 ## Implementation Changes
+
+### InstallationSettings Changes
+
+The `InstallationSettings` class must expose the following fields:
+
+```java
+// Required additions to InstallationSettings:
+private String packageName;  // From NPMPackageVersion.getName() via bundle metadata
+private String source;       // From NPMPackageVersion.getSource() via bundle metadata
+
+public String getPackageName() { return packageName; }
+public void setPackageName(String packageName) { this.packageName = packageName; }
+public String getSource() { return source; }
+public void setSource(String source) { this.source = source; }
+```
+
+The method signature `getBinDir(InstallationSettings settings)` remains unchanged across all platform installers. The `InstallationSettings` class is extended with new fields to support computation of the fully qualified package name.
 
 ### Platform-Specific Behavior Changes
 
@@ -94,32 +120,76 @@ The following classes/methods must be modified:
    - Must compute and use `~/.jdeploy/bin-{arch}/{fullyQualifiedPackageName}/` instead
    - PATH registry updates must target the per-app directory
 
-4. **`InstallationSettings` class (if not already present)**
-   - Must expose `packageName` field (obtained from bundle metadata)
-   - Must expose `source` field (obtained from bundle metadata)
-   - These fields enable `getBinDir()` implementations to compute the fully qualified package name
-
-5. **New utility class: `CliCommandBinDirResolver`** (optional but recommended)
+4. **New utility class: `CliCommandBinDirResolver`** (required)
    - Centralize the computation of `~/.jdeploy/bin-{arch}/{fullyQualifiedPackageName}/`
    - Similar to how `PackagePathResolver` centralizes package path computation
    - Reduces code duplication across platform installers
 
-### Fully Qualified Package Name Computation
+### CliCommandBinDirResolver Specification
 
-Implement a helper method (either in a new `CliCommandBinDirResolver` or inline in each installer) to compute the fully qualified package name:
+Implement the `CliCommandBinDirResolver` utility class with proper validation:
 
 ```java
-public static String computeFullyQualifiedPackageName(String packageName, String source) {
-    if (source == null || source.isEmpty()) {
-        return packageName;
-    } else {
+public class CliCommandBinDirResolver {
+    /**
+     * Computes the fully qualified package name.
+     * @param packageName the package name (MUST NOT be null or empty)
+     * @param source the source URL (null or empty for NPM registry packages)
+     * @return the fully qualified package name
+     * @throws IllegalArgumentException if packageName is null or empty
+     */
+    public static String computeFullyQualifiedPackageName(String packageName, String source) {
+        if (packageName == null || packageName.isEmpty()) {
+            throw new IllegalArgumentException("packageName must not be null or empty");
+        }
+        if (source == null || source.isEmpty()) {
+            return packageName;
+        }
         String sourceHash = MD5.getMd5(source);
         return sourceHash + "." + packageName;
+    }
+
+    /**
+     * Resolves the CLI bin directory for installing commands.
+     * @param packageName the package name (MUST NOT be null or empty)
+     * @param source the source URL (null or empty for NPM registry packages)
+     * @return the bin directory path
+     * @throws IllegalArgumentException if packageName is null or empty
+     */
+    public static File getCliCommandBinDir(String packageName, String source) {
+        if (packageName == null || packageName.isEmpty()) {
+            throw new IllegalArgumentException("packageName must not be null or empty");
+        }
+        String archSuffix = ArchitectureUtil.getArchitectureSuffix();
+        String fqpn = computeFullyQualifiedPackageName(packageName, source);
+        return new File(
+            PackagePathResolver.getJDeployHome(),
+            "bin" + archSuffix + File.separator + fqpn
+        );
     }
 }
 ```
 
-### PATH Management Changes
+### Error Handling Requirements
+
+- If `packageName` is null or empty: throw `IllegalArgumentException` with descriptive message
+- If bin directory cannot be created: throw `IOException` with descriptive message including the path
+- If bin directory exists but is not writable: throw `IOException` before attempting to write scripts
+- All platform installers must validate directory accessibility before installation
+
+### PATH Management Strategy
+
+When updating PATH entries:
+1. Remove any existing PATH entry for this app's bin directory
+2. Add the new PATH entry at the end of the file/registry
+
+This ensures the most recently installed/updated app takes precedence in command resolution.
+
+**User Override:** Users can prevent automatic PATH management by adding a marker comment in their shell configuration:
+```sh
+# jdeploy:no-auto-path
+```
+If this marker is present, the installer will not modify PATH entries in that file.
 
 With the new per-app directory structure:
 
@@ -131,63 +201,56 @@ This is simpler than the current approach where all commands in a shared bin dir
 
 ### Metadata and Tracking
 
-The per-app bin directory itself serves as a natural boundary. The metadata file (`.jdeploy-cli.json`) should be stored in the app's installation directory (not in the bin directory), as is currently done:
+The per-app bin directory itself serves as a natural boundary. The metadata file should be stored in a dedicated manifests directory:
 
-- Linux/macOS: `~/.jdeploy/apps/{fullyQualifiedPackageName}/.jdeploy-cli.json`
-- Windows: `%USERPROFILE%\.jdeploy\apps\{AppName}\.jdeploy-cli.json`
+- Location: `~/.jdeploy/manifests/{arch}/{fullyQualifiedPackageName}/{packageName}-{timestamp}.json`
 
 The metadata tracks:
 - List of created wrapper files (relative names only)
 - Whether PATH was updated
 - The bin directory path (for uninstall)
 
-## Backward Compatibility
+### Cleanup on Uninstall
 
-### Existing Installations
+- Remove the app's bin directory: `~/.jdeploy/bin-{arch}/{fqpn}/`
+- Remove the app's manifest file from `~/.jdeploy/manifests/{arch}/{fqpn}/`
+- Remove the PATH entry for this app's bin directory
+- Do NOT remove parent directories (`~/.jdeploy/bin-{arch}/`, `~/.jdeploy/manifests/`) even if empty
 
-Existing installations in old locations (`~/bin`, `~/.local/bin`, `~/.jdeploy/bin`) will continue to function. However, they are not automatically migrated.
+## Distinction from CLI Launcher
 
-**Migration Strategy:**
-- When a user reinstalls or updates an app, the installer creates commands in the new location (`~/.jdeploy/bin-{arch}/{fqpn}/`)
-- Old commands in legacy locations remain on disk but are not used (assuming the user's PATH is updated to prefer the new location)
-- The uninstaller should check both old and new locations for cleanup
+This RFC addresses **CLI Commands** (`jdeploy.commands` - plural) only. It does NOT affect the existing **CLI Launcher** (`jdeploy.command` - singular).
 
-### Uninstall Behavior
+The CLI Launcher is a distinct feature currently used only on Linux to install a desktop launcher for the app via a symlink in the `~/.local/bin` directory. This behavior remains unchanged.
 
-The uninstaller should:
-1. Remove commands from the new location (`~/.jdeploy/bin-{arch}/{fqpn}/`)
-2. Check and remove commands from legacy locations if they still exist
-3. Update PATH to remove entries from both old and new locations
+| Feature | Directory | Purpose |
+|---------|-----------|---------|
+| CLI Launcher | `~/.local/bin` (Linux only) | Desktop launcher symlink |
+| CLI Commands | `~/.jdeploy/bin-{arch}/{fqpn}/` (all platforms) | Per-app command wrappers |
 
-This ensures backward compatibility while smoothly migrating to the new structure.
+## Relationship with cli-commands-in-installer.md
 
-### API Compatibility
+This RFC **supersedes** the collision handling and bin directory sections of **`rfc/cli-commands-in-installer.md`**.
 
-The `CliCommandInstaller` interface remains unchanged:
-```java
-List<File> installCommands(File launcherPath, List<CommandSpec> commands, InstallationSettings settings)
-void uninstallCommands(File appDir)
-boolean addToPath(File binDir)
-```
-
-Implementations simply change where `binDir` points.
-
-## Relationship to Existing RFC
-
-This RFC complements **`rfc/cli-commands-in-installer.md`**, which defines:
+The existing RFC defines:
 - The `jdeploy.commands` schema (command names, args, descriptions)
 - Command validation rules (regex patterns, sanitization)
 - Platform-specific script generation (shebang, quoting, escaping)
-- Collision handling (same-app overwrite, different-app skip/overwrite)
 
-The existing RFC addresses *what* commands are installed and *how* they are generated. This RFC addresses *where* they are installed and how to manage directories and PATH. The two RFCs are orthogonal.
+This RFC addresses:
+- Where commands are installed (`~/.jdeploy/bin-{arch}/{fqpn}/`)
+- How directories and PATH are managed
+- Collision elimination through per-app directories
+- Metadata storage and cleanup
+
+The collision handling sections in `cli-commands-in-installer.md` are superseded and should be removed or significantly reduced in a follow-up RFC update.
 
 **Collision Handling Simplification:**
 With per-app directories, collision handling becomes simpler:
 - **Same-app collisions**: Impossible by definition (each app has its own directory)
 - **Different-app collisions**: Eliminated entirely (different apps use different directories)
 
-The collision handler can be removed or simplified significantly.
+The collision handler can be removed entirely.
 
 ## Implementation Approach
 
@@ -295,14 +358,15 @@ This change improves user experience (no command conflicts), simplifies installe
 If this RFC is accepted, the implementation sequence should be:
 
 1. Create `CliCommandBinDirResolver` utility class
-2. Update `InstallationSettings` to expose `packageName` and `source` (if not already present)
+2. Update `InstallationSettings` to expose `packageName` and `source` fields
 3. Update `AbstractUnixCliCommandInstaller.getBinDir()` to use new utility
 4. Update `MacCliCommandInstaller.getBinDir()` to use new utility
 5. Update `WindowsCliCommandInstaller.installCommands()` to use new utility
-6. Update uninstall logic in all installers to check both old and new locations
-7. Add/update tests for all platform-specific installers
-8. Document migration path in installer help/UI
-9. Update user-facing documentation with new paths
+6. Update uninstall logic in all installers to clean up new directory structure
+7. Implement PATH management strategy with user override marker support
+8. Add/update tests for all platform-specific installers
+9. Document migration path in installer help/UI
+10. Update `cli-commands-in-installer.md` RFC to align with this RFC and remove superseded sections
 
 ## Appendix: Comparison with Existing Package Path Structure
 
