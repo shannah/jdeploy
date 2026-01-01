@@ -772,6 +772,10 @@ public class Main implements Runnable, Constants {
             fullyQualifiedPackageName = sourceHash + "." + fullyQualifiedPackageName;
         }
 
+        // Set packageName and source on InstallationSettings for CLI command bin directory resolution
+        installationSettings.setPackageName(appInfo().getNpmPackage());
+        installationSettings.setSource(appInfo().getNpmSource());
+
         // Enable CLI launcher creation if user requested CLI commands or launcher installation
         bundlerSettings.setCliCommandsEnabled(
             installationSettings.isInstallCliCommands()

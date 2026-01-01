@@ -2,7 +2,9 @@ package ca.weblite.jdeploy.installer.cli;
 
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.jdeploy.installer.util.DebugLogger;
+import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
 import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.tools.io.IOUtil;
 import org.json.JSONArray;
@@ -17,6 +19,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -43,28 +46,45 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
 
     /**
      * Determines the binary directory where CLI commands will be installed.
-     * Uses the path from settings if provided, otherwise defaults to ~/.local/bin.
+     * Uses CliCommandBinDirResolver to compute the per-app bin directory (~/.jdeploy/bin-{arch}/{fqpn}/).
+     * This is ONLY for CLI Commands (jdeploy.commands), NOT for CLI Launcher.
      *
-     * @param settings installation settings containing optional custom command line path
-     * @return the resolved binary directory
+     * @param settings installation settings containing package name and source
+     * @return the resolved binary directory (per-app in ~/.jdeploy/bin-{arch}/{fqpn}/)
+     * @throws IllegalArgumentException if packageName is null or empty
      */
     protected File getBinDir(InstallationSettings settings) {
-        if (settings != null && settings.getCommandLinePath() != null && !settings.getCommandLinePath().isEmpty()) {
-            return new File(settings.getCommandLinePath()).getParentFile();
+        if (settings == null || settings.getPackageName() == null || settings.getPackageName().trim().isEmpty()) {
+            throw new IllegalArgumentException("InstallationSettings must contain a non-empty packageName for CLI commands installation");
         }
-        return new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+        File homeDir = getHomeDir();
+        return CliCommandBinDirResolver.getPerAppBinDir(settings.getPackageName(), settings.getSource(), homeDir);
+    }
+
+    /**
+     * Returns the directory for CLI Launcher (single symlink) installation.
+     * This is ONLY for CLI Launcher (jdeploy.command), NOT for CLI Commands.
+     * On Linux, this returns ~/.local/bin for backwards compatibility.
+     *
+     * @return the CLI Launcher bin directory (~/.local/bin on Linux)
+     */
+    protected File getCliLauncherBinDir() {
+        File homeDir = getHomeDir();
+        return new File(homeDir, ".local" + File.separator + "bin");
     }
 
     /**
      * Saves metadata about installed CLI commands to a JSON file for later retrieval.
-     * Stores command names, PATH update status, and the bin directory location.
+     * Stores command names, PATH update status, the bin directory location, and package information.
      *
      * @param appDir       the application directory where metadata will be stored
      * @param createdFiles list of files created during installation
      * @param pathUpdated  whether the PATH was updated
      * @param binDir       the bin directory where commands were installed
+     * @param packageName  the package name (for manifest-based cleanup)
+     * @param source       the source URL (null for NPM packages, or GitHub URL for GitHub packages)
      */
-    protected void saveMetadata(File appDir, List<File> createdFiles, boolean pathUpdated, File binDir) {
+    protected void saveMetadata(File appDir, List<File> createdFiles, boolean pathUpdated, File binDir, String packageName, String source) {
         try {
             File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
             JSONObject metadata = new JSONObject();
@@ -78,6 +98,10 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
             metadata.put(CliInstallerConstants.PATH_UPDATED_KEY, pathUpdated);
             metadata.put("installedAt", System.currentTimeMillis());
             metadata.put("binDir", binDir.getAbsolutePath());
+            metadata.put("packageName", packageName);
+            if (source != null) {
+                metadata.put("source", source);
+            }
 
             // Write metadata to file
             try (FileOutputStream fos = new FileOutputStream(metadataFile)) {
@@ -114,8 +138,8 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
 
     /**
      * Uninstalls CLI commands that were previously installed.
-     * Loads metadata from appDir to find installed commands and removes them from the bin directory.
-     * Falls back to checking the default ~/.local/bin location for backwards compatibility.
+     * Uses manifest-based cleanup when available, falls back to legacy metadata for backwards compatibility.
+     * Removes command scripts, per-app directories, and manifest files.
      *
      * @param appDir the application directory that may contain the metadata file
      */
@@ -126,53 +150,116 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
             return;
         }
 
-        // Try to load metadata from appDir first
+        // First, try to load legacy metadata to get packageName and source
         JSONObject metadata = loadMetadata(appDir);
-        File metadataSearchDir = appDir;
-
-        // Fall back to checking ~/.local/bin (for backwards compatibility)
         if (metadata == null) {
+            // Fall back to checking ~/.local/bin (for backwards compatibility)
             File defaultBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
             metadata = loadMetadata(defaultBinDir);
-            if (metadata != null) {
-                metadataSearchDir = defaultBinDir;
-            }
         }
-
+        
         if (metadata == null) {
             return;
         }
 
-        // Get binDir from metadata (where scripts were actually installed)
-        File binDir;
-        if (metadata.has("binDir")) {
-            binDir = new File(metadata.getString("binDir"));
-        } else {
-            // Fallback to default
-            binDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+        // Extract packageName and source from metadata
+        String packageName = metadata.optString("packageName", null);
+        String source = metadata.optString("source", null);
+        if (source != null && source.isEmpty()) {
+            source = null;  // Treat empty string as null
         }
 
-        // Remove installed commands
-        if (metadata.has(CliInstallerConstants.CREATED_WRAPPERS_KEY)) {
-            JSONArray installedCommands = metadata.getJSONArray(CliInstallerConstants.CREATED_WRAPPERS_KEY);
+        // Try to load manifest from repository
+        CliCommandManifestRepository manifestRepository = createManifestRepository();
+        Optional<CliCommandManifest> manifestOpt = Optional.empty();
+        
+        if (packageName != null && !packageName.isEmpty()) {
+            try {
+                manifestOpt = manifestRepository.load(packageName, source);
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to load manifest: " + e.getMessage());
+            }
+        }
 
-            for (int i = 0; i < installedCommands.length(); i++) {
-                String cmdName = installedCommands.getString(i);
-                File scriptPath = new File(binDir, cmdName);
+        File binDir;
+        List<String> commandNames = new ArrayList<>();
+        boolean pathUpdated = false;
+        
+        if (manifestOpt.isPresent()) {
+            // Use manifest data
+            CliCommandManifest manifest = manifestOpt.get();
+            binDir = manifest.getBinDir();
+            commandNames = manifest.getCommandNames();
+            pathUpdated = manifest.isPathUpdated();
+        } else {
+            // Fall back to legacy metadata
+            if (metadata.has("binDir")) {
+                binDir = new File(metadata.getString("binDir"));
+            } else {
+                binDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+            }
+            
+            if (metadata.has(CliInstallerConstants.CREATED_WRAPPERS_KEY)) {
+                JSONArray installedCommands = metadata.getJSONArray(CliInstallerConstants.CREATED_WRAPPERS_KEY);
+                for (int i = 0; i < installedCommands.length(); i++) {
+                    commandNames.add(installedCommands.getString(i));
+                }
+            }
+            pathUpdated = metadata.optBoolean(CliInstallerConstants.PATH_UPDATED_KEY, false);
+        }
 
-                if (scriptPath.exists()) {
-                    try {
-                        scriptPath.delete();
-                        System.out.println("Removed command-line script: " + scriptPath.getAbsolutePath());
-                    } catch (Exception e) {
-                        System.err.println("Warning: Failed to remove command script for " + cmdName + ": " + e.getMessage());
-                    }
+        // Remove installed command scripts
+        for (String cmdName : commandNames) {
+            File scriptPath = new File(binDir, cmdName);
+            if (scriptPath.exists()) {
+                try {
+                    scriptPath.delete();
+                    System.out.println("Removed command-line script: " + scriptPath.getAbsolutePath());
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to remove command script for " + cmdName + ": " + e.getMessage());
                 }
             }
         }
 
-        // Remove metadata file from where it was found
-        File metadataFile = new File(metadataSearchDir, CliInstallerConstants.CLI_METADATA_FILE);
+        // Remove the per-app bin directory (~/.jdeploy/bin-{arch}/{fqpn}/)
+        // This is the binDir from manifest, NOT the shared bin directory
+        if (binDir != null && binDir.exists() && binDir.isDirectory()) {
+            // Only remove if it's a per-app directory (contains arch suffix pattern)
+            String binDirPath = binDir.getAbsolutePath();
+            if (binDirPath.contains(".jdeploy" + File.separator + "bin-")) {
+                // Remove the per-app bin directory but NOT parent directories
+                try {
+                    // Delete all remaining files in the directory
+                    File[] remainingFiles = binDir.listFiles();
+                    if (remainingFiles != null) {
+                        for (File f : remainingFiles) {
+                            f.delete();
+                        }
+                    }
+                    binDir.delete();
+                    System.out.println("Removed per-app bin directory: " + binDir.getAbsolutePath());
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to remove per-app bin directory: " + e.getMessage());
+                }
+            }
+        }
+
+        // Remove PATH entry if it was added (handled by subclasses or platform-specific logic)
+        // For Unix, we don't automatically remove PATH entries as they're in shell config files
+        // which users may have customized
+
+        // Delete manifest file via repository
+        if (packageName != null && !packageName.isEmpty()) {
+            try {
+                manifestRepository.delete(packageName, source);
+                System.out.println("Deleted manifest for package: " + packageName);
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to delete manifest: " + e.getMessage());
+            }
+        }
+
+        // Remove legacy metadata file from appDir
+        File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
         if (metadataFile.exists()) {
             try {
                 metadataFile.delete();
@@ -454,5 +541,14 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
             System.err.println("Warning: Failed to read existing script " + scriptPath + ": " + e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * Creates a manifest repository instance. Protected to allow test overrides.
+     * 
+     * @return a CliCommandManifestRepository instance
+     */
+    protected CliCommandManifestRepository createManifestRepository() {
+        return new FileCliCommandManifestRepository();
     }
 }

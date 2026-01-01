@@ -2,6 +2,8 @@ package ca.weblite.jdeploy.installer.cli;
 
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
+import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.RegistryOperations;
 import ca.weblite.jdeploy.models.CommandSpec;
@@ -15,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -56,19 +59,25 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             return createdFiles;
         }
 
-        // Determine bin directory location
-        File userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
+        // Determine per-app bin directory location for both wrappers and PATH registry
+        File userBinDir = CliCommandBinDirResolver.getPerAppBinDir(
+            settings.getPackageName(),
+            settings.getSource()
+        );
+
+        // Use the same per-app bin directory for PATH registry operations
+        File perAppPathDir = userBinDir;
 
         try {
             // Write .cmd wrappers for each command
             List<File> wrapperFiles = writeCommandWrappersForTest(userBinDir, launcherPath, commands);
             createdFiles.addAll(wrapperFiles);
 
-            // Update user PATH via registry
-            boolean pathUpdated = addToPath(userBinDir);
+            // Update user PATH via registry using per-app directory
+            boolean pathUpdated = addToPath(perAppPathDir);
 
-            // Update Git Bash path if applicable
-            boolean gitBashPathUpdated = addToGitBashPath(userBinDir);
+            // Update Git Bash path if applicable using per-app directory
+            boolean gitBashPathUpdated = addToGitBashPath(perAppPathDir);
 
             // Determine if the launcher is the CLI variant
             File cliExePath = null;
@@ -78,7 +87,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
             // Persist metadata for uninstall in the app directory
             File appDir = launcherPath.getParentFile();
-            persistMetadata(appDir, wrapperFiles, pathUpdated, gitBashPathUpdated, cliExePath);
+            persistMetadata(appDir, wrapperFiles, pathUpdated, gitBashPathUpdated, cliExePath, userBinDir, perAppPathDir, settings.getPackageName(), settings.getSource());
 
         } catch (IOException e) {
             System.err.println("Warning: Failed to install CLI commands: " + e.getMessage());
@@ -103,6 +112,25 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             String metadataContent = FileUtils.readFileToString(metadataFile, "UTF-8");
             JSONObject metadata = new JSONObject(metadataContent);
 
+            // Extract packageName and source from metadata
+            String packageName = metadata.optString("packageName", null);
+            String source = metadata.optString("source", null);
+            if (source != null && source.isEmpty()) {
+                source = null;  // Treat empty string as null
+            }
+
+            // Try to load manifest from repository
+            CliCommandManifestRepository manifestRepository = createManifestRepository();
+            Optional<CliCommandManifest> manifestOpt = Optional.empty();
+            
+            if (packageName != null && !packageName.isEmpty()) {
+                try {
+                    manifestOpt = manifestRepository.load(packageName, source);
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to load manifest: " + e.getMessage());
+                }
+            }
+
             // Clean up CLI exe if it was installed
             String cliExeName = metadata.optString(CliInstallerConstants.CLI_EXE_KEY, null);
             if (cliExeName != null && !cliExeName.isEmpty()) {
@@ -112,9 +140,29 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 }
             }
 
+            // Determine per-app bin directory for wrapper cleanup
+            File userBinDir;
+            if (metadata.has("sharedBinDir")) {
+                userBinDir = new File(metadata.getString("sharedBinDir"));
+            } else if (metadata.has("perAppPathDir")) {
+                userBinDir = new File(metadata.getString("perAppPathDir"));
+            } else {
+                // Fallback: compute the per-app directory from package name and source
+                String packageNameMeta = metadata.optString("packageName", null);
+                String sourceMeta = metadata.optString("source", null);
+                if (sourceMeta != null && sourceMeta.isEmpty()) {
+                    sourceMeta = null;
+                }
+                if (packageNameMeta != null && !packageNameMeta.isEmpty()) {
+                    userBinDir = CliCommandBinDirResolver.getPerAppBinDir(packageNameMeta, sourceMeta);
+                } else {
+                    // Last resort fallback for very old metadata without package info
+                    userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
+                }
+            }
+
             // Clean up wrapper files
             JSONArray wrappersArray = metadata.optJSONArray(CliInstallerConstants.CREATED_WRAPPERS_KEY);
-            File userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
             if (wrappersArray != null) {
                 for (int i = 0; i < wrappersArray.length(); i++) {
                     String wrapperName = wrappersArray.getString(i);
@@ -135,14 +183,51 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 }
             }
 
+            // Remove the per-app bin directory if it contains the arch suffix pattern
+            if (userBinDir != null && userBinDir.exists() && userBinDir.isDirectory()) {
+                String binDirPath = userBinDir.getAbsolutePath();
+                if (binDirPath.contains(".jdeploy" + File.separator + "bin-")) {
+                    try {
+                        File[] remainingFiles = userBinDir.listFiles();
+                        if (remainingFiles != null) {
+                            for (File f : remainingFiles) {
+                                f.delete();
+                            }
+                        }
+                        userBinDir.delete();
+                        System.out.println("Removed per-app bin directory: " + binDirPath);
+                    } catch (Exception e) {
+                        System.err.println("Warning: Failed to remove per-app bin directory: " + e.getMessage());
+                    }
+                }
+            }
+
+            // Use the same per-app directory for PATH cleanup
+            File perAppPathDir = userBinDir;
+
             // Remove from PATH if it was added
             if (metadata.optBoolean(CliInstallerConstants.PATH_UPDATED_KEY, false)) {
-                removeFromPath(userBinDir);
+                removeFromPath(perAppPathDir);
             }
 
             // Remove from Git Bash path if it was added
             if (metadata.optBoolean(CliInstallerConstants.GIT_BASH_PATH_UPDATED_KEY, false)) {
-                removeFromGitBashPath(userBinDir);
+                removeFromGitBashPath(perAppPathDir);
+            }
+
+            // Delete manifest file via repository
+            if (packageName != null && !packageName.isEmpty()) {
+                try {
+                    manifestRepository.delete(packageName, source);
+                    System.out.println("Deleted manifest for package: " + packageName);
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to delete manifest: " + e.getMessage());
+                }
+            }
+
+            // Delete legacy metadata file
+            if (!metadataFile.delete()) {
+                System.err.println("Warning: Failed to delete metadata file: " + metadataFile.getAbsolutePath());
             }
 
         } catch (IOException e) {
@@ -288,9 +373,13 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
      * @param pathUpdated whether the PATH was updated
      * @param gitBashPathUpdated whether the Git Bash path was updated
      * @param cliExePath the CLI launcher executable file, or null if not created
+     * @param sharedBinDir the shared bin directory where wrappers are stored
+     * @param perAppPathDir the per-app PATH directory for registry operations
+     * @param packageName the package name (for manifest-based cleanup)
+     * @param source the source URL (null for NPM packages, or GitHub URL for GitHub packages)
      * @throws IOException if metadata file write fails
      */
-    private void persistMetadata(File appDir, List<File> createdWrappers, boolean pathUpdated, boolean gitBashPathUpdated, File cliExePath) throws IOException {
+    private void persistMetadata(File appDir, List<File> createdWrappers, boolean pathUpdated, boolean gitBashPathUpdated, File cliExePath, File sharedBinDir, File perAppPathDir, String packageName, String source) throws IOException {
         JSONObject metadata = new JSONObject();
 
         // Store list of created wrapper file names
@@ -306,9 +395,19 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
         // Store whether Git Bash path was updated
         metadata.put(CliInstallerConstants.GIT_BASH_PATH_UPDATED_KEY, gitBashPathUpdated);
 
+        // Store directory paths for uninstallation
+        metadata.put("sharedBinDir", sharedBinDir.getAbsolutePath());
+        metadata.put("perAppPathDir", perAppPathDir.getAbsolutePath());
+
         // Store CLI exe path if it exists
         if (cliExePath != null) {
             metadata.put(CliInstallerConstants.CLI_EXE_KEY, cliExePath.getName());
+        }
+
+        // Store package information for manifest-based cleanup
+        metadata.put("packageName", packageName);
+        if (source != null) {
+            metadata.put("source", source);
         }
 
         // Write metadata file
@@ -353,7 +452,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 return true; // Already present
             }
 
-            String exportLine = "export PATH=\"$PATH:" + msysPath + "\"";
+            String exportLine = "export PATH=\"" + msysPath + ":$PATH\"";
             StringBuilder sb = new StringBuilder(content);
             if (!content.isEmpty() && !content.endsWith("\n")) {
                 sb.append("\n");
@@ -398,7 +497,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 return false;
             }
 
-            String exportLine = "export PATH=\"$PATH:" + msysPath + "\"";
+            String exportLine = "export PATH=\"" + msysPath + ":$PATH\"";
             String newContent = content.replace(exportLine + "\r\n", "")
                                        .replace(exportLine + "\n", "")
                                        .replace(exportLine, "");
@@ -448,5 +547,14 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             return new InstallWindowsRegistry(null, null, null, null, registryOperations);
         }
         return new InstallWindowsRegistry(null, null, null, null);
+    }
+
+    /**
+     * Creates a manifest repository instance. Protected to allow test overrides.
+     * 
+     * @return a CliCommandManifestRepository instance
+     */
+    protected CliCommandManifestRepository createManifestRepository() {
+        return new FileCliCommandManifestRepository();
     }
 }

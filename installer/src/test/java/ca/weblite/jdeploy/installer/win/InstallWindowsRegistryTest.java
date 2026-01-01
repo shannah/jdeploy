@@ -146,4 +146,74 @@ public class InstallWindowsRegistryTest {
         // If we get here, AutoCloseable contract was satisfied
         assertTrue("Test completed successfully", true);
     }
+
+    @Test
+    public void testComputePathRemoveThenAdd() {
+        String current = "C:\\Windows;C:\\Users\\me\\.jdeploy\\bin;C:\\Program Files";
+        String bin = "C:\\Users\\me\\.jdeploy\\bin";
+        
+        // Simulate remove-then-add strategy
+        String afterRemove = InstallWindowsRegistry.computePathWithRemoved(current, bin);
+        String afterAdd = InstallWindowsRegistry.computePathWithAdded(afterRemove, bin);
+        
+        assertEquals("C:\\Windows;C:\\Program Files;C:\\Users\\me\\.jdeploy\\bin", afterAdd);
+        // Verify the bin path is now at the end
+        assertTrue(afterAdd.endsWith(bin));
+    }
+
+    @Test
+    public void testComputePathRemoveThenAddIdempotent() {
+        String current = "C:\\Windows;C:\\Program Files";
+        String bin = "C:\\Users\\me\\.jdeploy\\bin";
+        
+        // First add
+        String withRemove1 = InstallWindowsRegistry.computePathWithRemoved(current, bin);
+        String withAdd1 = InstallWindowsRegistry.computePathWithAdded(withRemove1, bin);
+        
+        // Second add (should be idempotent)
+        String withRemove2 = InstallWindowsRegistry.computePathWithRemoved(withAdd1, bin);
+        String withAdd2 = InstallWindowsRegistry.computePathWithAdded(withRemove2, bin);
+        
+        assertEquals(withAdd1, withAdd2, "Remove-then-add should be idempotent");
+    }
+
+    @Test
+    public void testComputePathWithRemovedCaseInsensitive() {
+        String current = "C:\\Windows;c:\\users\\me\\.jdeploy\\bin;C:\\Program Files";
+        String bin = "C:\\Users\\me\\.jdeploy\\bin";
+        
+        String result = InstallWindowsRegistry.computePathWithRemoved(current, bin);
+        
+        assertEquals("C:\\Windows;C:\\Program Files", result);
+    }
+
+    @Test
+    public void testComputePathWithAddedNullCurrent() {
+        String bin = "C:\\Users\\me\\.jdeploy\\bin";
+        
+        String result = InstallWindowsRegistry.computePathWithAdded(null, bin);
+        
+        assertEquals(bin, result);
+    }
+
+    @Test
+    public void testComputePathWithRemovedNullCurrent() {
+        String bin = "C:\\Users\\me\\.jdeploy\\bin";
+        
+        String result = InstallWindowsRegistry.computePathWithRemoved(null, bin);
+        
+        assertNull(result);
+    }
+
+    @Test
+    public void testComputePathWithRemovedMultipleOccurrences() {
+        // Edge case: same path appears multiple times
+        String current = "C:\\Windows;C:\\Users\\me\\.jdeploy\\bin;C:\\Program Files;C:\\Users\\me\\.jdeploy\\bin";
+        String bin = "C:\\Users\\me\\.jdeploy\\bin";
+        
+        String result = InstallWindowsRegistry.computePathWithRemoved(current, bin);
+        
+        assertEquals("C:\\Windows;C:\\Program Files", result);
+        assertFalse(result.contains(bin));
+    }
 }

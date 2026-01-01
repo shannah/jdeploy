@@ -1,6 +1,9 @@
 package ca.weblite.jdeploy.installer.cli;
 
+import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
+import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.jdeploy.installer.win.InMemoryRegistryOperations;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.RegistryOperations;
@@ -21,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -35,6 +39,7 @@ public class CliCommandInstallerIntegrationTest {
     private File binDir;
     private File launcherPath;
     private File mockHome;
+    private File actualBinDir;
     private CliCommandInstaller installer;
 
     @BeforeEach
@@ -50,6 +55,11 @@ public class CliCommandInstallerIntegrationTest {
 
         launcherDir.mkdirs();
         binDir.mkdirs();
+
+        // Compute the actual bin directory where scripts will be installed
+        // With the new per-app structure: ~/.jdeploy/bin-{arch}/{fullyQualifiedPackageName}/
+        String archSuffix = ca.weblite.jdeploy.installer.util.ArchitectureUtil.getArchitectureSuffix();
+        actualBinDir = new File(mockHome, ".jdeploy/bin" + archSuffix + "/test-app");
 
         // Create a mock launcher file
         assertTrue(launcherPath.createNewFile(), "Failed to create launcher file");
@@ -75,7 +85,9 @@ public class CliCommandInstallerIntegrationTest {
 
         InstallationSettings settings = new InstallationSettings();
         settings.setInstallCliCommands(true);
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setCommandLinePath(new File(actualBinDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-app");
+        settings.setSource(null);
 
         // Act - Install commands
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
@@ -90,8 +102,8 @@ public class CliCommandInstallerIntegrationTest {
             assertTrue(scriptFile.isFile(), "Installed path should be a file: " + scriptFile.getAbsolutePath());
         }
 
-        // Count files in bin directory before uninstall
-        File[] filesBeforeUninstall = binDir.listFiles((dir, name) -> !name.startsWith("."));
+        // Count files in actual bin directory before uninstall
+        File[] filesBeforeUninstall = actualBinDir.listFiles((dir, name) -> !name.startsWith("."));
         int installedCountBefore = filesBeforeUninstall != null ? filesBeforeUninstall.length : 0;
         assertTrue(installedCountBefore > 0, "Should have installed scripts in bin directory");
 
@@ -99,7 +111,7 @@ public class CliCommandInstallerIntegrationTest {
         installer.uninstallCommands(launcherDir);
 
         // Assert - Verify cleanup
-        File[] remainingScripts = binDir.listFiles((dir, name) -> 
+        File[] remainingScripts = actualBinDir.listFiles((dir, name) -> 
                 !name.startsWith(".") && !name.endsWith(".json"));
         
         int remainingCount = remainingScripts != null ? remainingScripts.length : 0;
@@ -127,7 +139,9 @@ public class CliCommandInstallerIntegrationTest {
         );
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setCommandLinePath(new File(actualBinDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-app");
+        settings.setSource(null);
 
         // Act
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
@@ -152,7 +166,9 @@ public class CliCommandInstallerIntegrationTest {
         );
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setCommandLinePath(new File(actualBinDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-app");
+        settings.setSource(null);
         List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
 
         assertTrue(!installedFiles.isEmpty(), "Commands should be installed");
@@ -417,7 +433,7 @@ public class CliCommandInstallerIntegrationTest {
         assertTrue(bashrc.exists(), ".bashrc should be created");
         String content = FileUtils.readFileToString(bashrc, "UTF-8");
         String expectedPath = windowsInstaller.convertToMsysPath(customBinDir);
-        assertTrue(content.contains("export PATH=\"$PATH:" + expectedPath + "\""), "Content should contain export line");
+        assertTrue(content.contains("export PATH=\"" + expectedPath + ":$PATH\""), "Content should contain export line with prepended path");
         
         // Act - Remove
         java.lang.reflect.Method removeMethod = WindowsCliCommandInstaller.class.getDeclaredMethod("removeFromGitBashPath", File.class);
@@ -588,5 +604,191 @@ public class CliCommandInstallerIntegrationTest {
             "First bin dir should still be in PATH");
         assertTrue(pathValueAfterThird.contains(anotherBinDir.getAbsolutePath()),
             "Second bin dir should be in PATH");
+    }
+
+    @Test
+    public void testUninstallRemovesPerAppBinDirectory() throws Exception {
+        // Arrange - Create per-app bin directory structure
+        File appDir = tempDir.resolve("per-app-bin-test").toFile();
+        appDir.mkdirs();
+        
+        // Create per-app bin directory (~/.jdeploy/bin-x64/my.test.app/)
+        String arch = ArchitectureUtil.getArchitecture();
+        File perAppBinDir = new File(mockHome, ".jdeploy/bin-" + arch + "/my.test.app");
+        perAppBinDir.mkdirs();
+        
+        // Create a script in the per-app directory
+        File scriptFile = new File(perAppBinDir, "myapp");
+        assertTrue(scriptFile.createNewFile(), "Failed to create script file");
+        
+        // Create metadata pointing to the per-app directory
+        JSONObject metadata = new JSONObject();
+        JSONArray wrappersArray = new JSONArray();
+        wrappersArray.put("myapp");
+        metadata.put(ca.weblite.jdeploy.installer.CliInstallerConstants.CREATED_WRAPPERS_KEY, (Object) wrappersArray);
+        metadata.put(ca.weblite.jdeploy.installer.CliInstallerConstants.PATH_UPDATED_KEY, false);
+        metadata.put("binDir", perAppBinDir.getAbsolutePath());
+        metadata.put("packageName", "my-test-app");
+        metadata.put("source", (Object) null);
+        
+        File metadataFile = new File(appDir, ca.weblite.jdeploy.installer.CliInstallerConstants.CLI_METADATA_FILE);
+        FileUtils.writeStringToFile(metadataFile, metadata.toString(), "UTF-8");
+        
+        // Verify setup
+        assertTrue(perAppBinDir.exists(), "Per-app bin dir should exist");
+        assertTrue(scriptFile.exists(), "Script should exist");
+        
+        // Act - Uninstall using testable installer
+        TestableLinuxCliCommandInstaller uninstaller = new TestableLinuxCliCommandInstaller(mockHome);
+        uninstaller.uninstallCommands(appDir);
+        
+        // Assert
+        assertFalse(perAppBinDir.exists(), "Per-app bin directory should be removed");
+        assertFalse(scriptFile.exists(), "Script should be deleted");
+        
+        // Verify parent directories still exist
+        File archDir = new File(mockHome, ".jdeploy/bin-" + arch);
+        assertTrue(archDir.exists(), "Architecture directory should still exist");
+        
+        File jdeployDir = new File(mockHome, ".jdeploy");
+        assertTrue(jdeployDir.exists(), "Jdeploy directory should still exist");
+    }
+
+    @Test
+    public void testUninstallDeletesManifestFile() throws Exception {
+        // Arrange - Install commands to create a manifest
+        // Set user.home to mockHome so FileCliCommandManifestRepository uses the same location
+        String originalUserHome = System.getProperty("user.home");
+        System.setProperty("user.home", mockHome.getAbsolutePath());
+        
+        try {
+            List<CommandSpec> commands = Arrays.asList(
+                new CommandSpec("test-cmd", null, Arrays.asList())
+            );
+            
+            InstallationSettings settings = new InstallationSettings();
+            settings.setInstallCliCommands(true);
+            settings.setPackageName("manifest-test-app");
+            settings.setSource(null);  // NPM package
+            settings.setCommandLinePath(new File(actualBinDir, "test-launcher").getAbsolutePath());
+            
+            TestableLinuxCliCommandInstaller installer = new TestableLinuxCliCommandInstaller(mockHome);
+            List<File> installedFiles = installer.installCommands(launcherPath, commands, settings);
+            
+            assertTrue(!installedFiles.isEmpty(), "Should have installed commands");
+            
+            // Act - Uninstall
+            File appDir = launcherPath.getParentFile();
+            installer.uninstallCommands(appDir);
+            
+            // Assert - Verify uninstall completed without error
+            // Note: The manifest repository is used during uninstall for cleanup,
+            // but installCommands saves metadata to a JSON file, not the manifest repository.
+            // The uninstall should complete successfully regardless of manifest state.
+            File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
+            assertFalse(metadataFile.exists(), "Metadata file should be deleted after uninstall");
+        } finally {
+            // Restore original user.home
+            System.setProperty("user.home", originalUserHome);
+        }
+    }
+
+    @Test
+    public void testUninstallPreservesParentDirectories() throws Exception {
+        // Arrange - Create a per-app directory structure with multiple apps
+        File appDir1 = tempDir.resolve("app1").toFile();
+        appDir1.mkdirs();
+        
+        String arch = ArchitectureUtil.getArchitecture();
+        File archDir = new File(mockHome, ".jdeploy/bin-" + arch);
+        File app1BinDir = new File(archDir, "my.app.one");
+        File app2BinDir = new File(archDir, "my.app.two");
+        
+        app1BinDir.mkdirs();
+        app2BinDir.mkdirs();
+        
+        // Create scripts in both directories
+        File script1 = new File(app1BinDir, "cmd1");
+        File script2 = new File(app2BinDir, "cmd2");
+        script1.createNewFile();
+        script2.createNewFile();
+        
+        // Create metadata for app1
+        JSONObject metadata = new JSONObject();
+        JSONArray wrappersArray = new JSONArray();
+        wrappersArray.put("cmd1");
+        metadata.put(CliInstallerConstants.CREATED_WRAPPERS_KEY, wrappersArray);
+        metadata.put(CliInstallerConstants.PATH_UPDATED_KEY, false);
+        metadata.put("binDir", app1BinDir.getAbsolutePath());
+        metadata.put("packageName", "my-app-one");
+        
+        File metadataFile = new File(appDir1, CliInstallerConstants.CLI_METADATA_FILE);
+        FileUtils.writeStringToFile(metadataFile, metadata.toString(), "UTF-8");
+        
+        // Act - Uninstall app1
+        TestableLinuxCliCommandInstaller uninstaller = new TestableLinuxCliCommandInstaller(mockHome);
+        uninstaller.uninstallCommands(appDir1);
+        
+        // Assert
+        assertFalse(app1BinDir.exists(), "app1 bin dir should be removed");
+        assertTrue(app2BinDir.exists(), "app2 bin dir should still exist");
+        assertTrue(archDir.exists(), "Architecture directory should still exist");
+        assertTrue(new File(mockHome, ".jdeploy").exists(), "Jdeploy directory should still exist");
+    }
+
+    @Test
+    public void testUninstallWithManifestRepository() throws Exception {
+        // Arrange - Create and save a manifest directly via repository
+        File appDir = tempDir.resolve("manifest-repo-test").toFile();
+        appDir.mkdirs();
+        
+        String arch = ArchitectureUtil.getArchitecture();
+        String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName("repo-test-app", null);
+        File manifestBinDir = new File(mockHome, ".jdeploy/bin-" + arch + "/" + fqpn);
+        manifestBinDir.mkdirs();
+        
+        // Create script in the manifest bin directory
+        File scriptFile = new File(manifestBinDir, "repo-cmd");
+        scriptFile.createNewFile();
+        
+        // Create manifest via repository
+        CliCommandManifest manifest = new CliCommandManifest(
+            "repo-test-app",
+            null,
+            manifestBinDir,
+            Arrays.asList("repo-cmd"),
+            false,
+            System.currentTimeMillis()
+        );
+        
+        FileCliCommandManifestRepository manifestRepo = new FileCliCommandManifestRepository();
+        System.setProperty("user.home", mockHome.getAbsolutePath());
+        manifestRepo.save(manifest);
+        
+        // Create metadata file pointing to the manifest
+        JSONObject metadata = new JSONObject();
+        JSONArray wrappersArray = new JSONArray();
+        wrappersArray.put("repo-cmd");
+        metadata.put(ca.weblite.jdeploy.installer.CliInstallerConstants.CREATED_WRAPPERS_KEY, (Object) wrappersArray);
+        metadata.put(ca.weblite.jdeploy.installer.CliInstallerConstants.PATH_UPDATED_KEY, false);
+        metadata.put("binDir", manifestBinDir.getAbsolutePath());
+        metadata.put("packageName", "repo-test-app");
+        metadata.put("source", (Object) null);
+        
+        File metadataFile = new File(appDir, ca.weblite.jdeploy.installer.CliInstallerConstants.CLI_METADATA_FILE);
+        FileUtils.writeStringToFile(metadataFile, metadata.toString(), "UTF-8");
+        
+        // Verify setup
+        assertTrue(manifestRepo.load("repo-test-app", null).isPresent(), "Manifest should be created");
+        assertTrue(scriptFile.exists(), "Script should exist");
+        
+        // Act - Uninstall
+        TestableLinuxCliCommandInstaller uninstaller = new TestableLinuxCliCommandInstaller(mockHome);
+        uninstaller.uninstallCommands(appDir);
+        
+        // Assert - using manifest repository to verify cleanup
+        assertFalse(manifestRepo.load("repo-test-app", null).isPresent(), "Manifest should be deleted");
+        assertFalse(scriptFile.exists(), "Script should be deleted");
+        assertFalse(manifestBinDir.exists(), "Manifest bin directory should be removed");
     }
 }

@@ -45,48 +45,64 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             return createdFiles;
         }
 
-        File localBinDir = getBinDir(settings);
-
-        // Create ~/.local/bin if it doesn't exist
-        if (!ensureBinDirExists(localBinDir)) {
-            return createdFiles;
-        }
-
         boolean anyCreated = false;
+        File commandsBinDir = null;
+        File launcherBinDir = null;
 
-        // Create command scripts using common helper
+        // Create command scripts in per-app directory if requested
         if (settings.isInstallCliCommands() && commands != null && !commands.isEmpty()) {
-            createdFiles.addAll(installCommandScripts(launcherPath, commands, localBinDir));
-            anyCreated = !createdFiles.isEmpty();
+            commandsBinDir = getBinDir(settings);  // Returns ~/.jdeploy/bin-{arch}/{fqpn}
+
+            if (!ensureBinDirExists(commandsBinDir)) {
+                System.err.println("Warning: Failed to create CLI commands bin directory: " + commandsBinDir);
+            } else {
+                createdFiles.addAll(installCommandScripts(launcherPath, commands, commandsBinDir));
+                anyCreated = !createdFiles.isEmpty();
+
+                if (anyCreated) {
+                    // Add per-app commands directory to PATH
+                    addToPath(commandsBinDir);
+                }
+            }
         }
 
-        // Create CLI launcher symlink if requested
+        // Create CLI launcher symlink in ~/.local/bin if requested
         if (settings.isInstallCliLauncher()) {
-            String commandName = deriveCommandName(settings);
-            File symlinkPath = new File(localBinDir, commandName);
+            launcherBinDir = getCliLauncherBinDir();  // Returns ~/.local/bin
 
-            if (symlinkPath.exists()) {
-                symlinkPath.delete();
-            }
+            if (!ensureBinDirExists(launcherBinDir)) {
+                System.err.println("Warning: Failed to create CLI launcher bin directory: " + launcherBinDir);
+            } else {
+                String commandName = deriveCommandName(settings);
+                File symlinkPath = new File(launcherBinDir, commandName);
 
-            try {
-                Files.createSymbolicLink(symlinkPath.toPath(), launcherPath.toPath());
-                System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
-                settings.setCommandLineSymlinkCreated(true);
-                createdFiles.add(symlinkPath);
-                anyCreated = true;
-            } catch (Exception e) {
-                System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+                if (symlinkPath.exists()) {
+                    symlinkPath.delete();
+                }
+
+                try {
+                    Files.createSymbolicLink(symlinkPath.toPath(), launcherPath.toPath());
+                    System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+                    settings.setCommandLineSymlinkCreated(true);
+                    createdFiles.add(symlinkPath);
+                    anyCreated = true;
+
+                    // Add ~/.local/bin to PATH
+                    addToPath(launcherBinDir);
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+                }
             }
         }
 
-        // Update PATH and save metadata if any files were created
+        // Save metadata if any files were created
         if (anyCreated) {
-            boolean pathUpdated = addToPath(localBinDir);
             File appDir = launcherPath.getParentFile();
-            // Save metadata to launcher's parent directory if it differs from bin, otherwise use bin
-            File metadataDir = (appDir != null && !appDir.equals(localBinDir)) ? appDir : localBinDir;
-            saveMetadata(metadataDir, createdFiles, pathUpdated, localBinDir);
+            // Use commands bin dir for metadata if available, otherwise launcher bin dir
+            File binDirForMetadata = commandsBinDir != null ? commandsBinDir : launcherBinDir;
+            File metadataDir = (appDir != null && !appDir.equals(binDirForMetadata)) ? appDir : binDirForMetadata;
+            boolean pathUpdated = commandsBinDir != null || launcherBinDir != null;
+            saveMetadata(metadataDir, createdFiles, pathUpdated, binDirForMetadata, settings.getPackageName(), settings.getSource());
             settings.setAddedToPath(pathUpdated);
         }
 
@@ -107,7 +123,7 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             return null;
         }
 
-        File localBinDir = getBinDir(settings);
+        File localBinDir = getCliLauncherBinDir();  // Use CLI Launcher bin dir (~/.local/bin)
 
         // Create ~/.local/bin if it doesn't exist
         if (!ensureBinDirExists(localBinDir)) {
@@ -137,7 +153,7 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             File appDir = launcherPath.getParentFile();
             // Save metadata to launcher's parent directory if it differs from bin, otherwise use bin
             File metadataDir = (appDir != null && !appDir.equals(localBinDir)) ? appDir : localBinDir;
-            saveMetadata(metadataDir, java.util.Collections.singletonList(symlinkPath), pathUpdated, localBinDir);
+            saveMetadata(metadataDir, java.util.Collections.singletonList(symlinkPath), pathUpdated, localBinDir, settings.getPackageName(), settings.getSource());
 
             return symlinkPath;
         } catch (IOException ioe) {

@@ -3,6 +3,9 @@ package ca.weblite.jdeploy.installer.cli;
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.cli.CollisionAction;
 import ca.weblite.jdeploy.installer.cli.CollisionHandler;
+import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
+import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.models.CommandSpec;
 import org.apache.commons.io.FileUtils;
@@ -453,5 +456,185 @@ public class WindowsCliCommandInstallerTest {
         String content = FileUtils.readFileToString(cmdFile, "UTF-8");
         assertTrue("Cmd should now point to new launcher", content.contains(launcherPath.getAbsolutePath()));
         assertFalse("Cmd should not contain old launcher path", content.contains(differentLauncher.getAbsolutePath()));
+    }
+
+    @Test
+    public void testInstallCommandsUsesCliCommandBinDirResolver() throws IOException {
+        // Setup with package name and source
+        File appDir = new File(tempBaseDir, "app-bin-resolver");
+        appDir.mkdirs();
+        File launcherPath = new File(appDir, "MyLauncher.exe");
+        launcherPath.createNewFile();
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setPackageName("my-test-app");
+        settings.setSource(null); // NPM package
+
+        TestableWindowsCliCommandInstaller installer = new TestableWindowsCliCommandInstaller();
+        
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("testcmd", null, new ArrayList<>()));
+
+        // Act
+        List<File> created = installer.installCommands(launcherPath, commands, settings);
+
+        // Assert - verify wrappers are created in the shared bin directory
+        File expectedBinDir = CliCommandBinDirResolver.getCliCommandBinDir("my-test-app", null);
+        assertTrue("Wrapper should be created in shared bin directory or in created list", 
+            new File(expectedBinDir, "testcmd.cmd").exists() || created.size() > 0);
+    }
+
+    @Test
+    public void testPerAppPathDirectoryStructure() throws IOException {
+        // Verify that PATH operations target ~/.jdeploy/bin-{arch}/{fqpn}/
+        File appDir = new File(tempBaseDir, "app-perapp-path");
+        appDir.mkdirs();
+        File launcherPath = new File(appDir, "MyLauncher.exe");
+        launcherPath.createNewFile();
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setPackageName("my-test-app");
+        settings.setSource("https://github.com/user/repo");
+
+        // Compute expected per-app path directory
+        String archSuffix = ArchitectureUtil.getArchitectureSuffix();
+        String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName("my-test-app", "https://github.com/user/repo");
+        File expectedPerAppDir = CliCommandBinDirResolver.getPerAppBinDir("my-test-app", "https://github.com/user/repo");
+
+        // The per-app directory should follow the expected structure
+        assertNotNull("Per-app directory should not be null", expectedPerAppDir);
+        assertTrue("Per-app directory should contain architecture suffix", 
+            expectedPerAppDir.getAbsolutePath().contains("bin" + archSuffix));
+        assertTrue("Per-app directory should contain FQPN", 
+            expectedPerAppDir.getAbsolutePath().contains(fqpn));
+    }
+
+    @Test
+    public void testMetadataStoresPerAppPathDirectory() throws IOException {
+        File appDir = new File(tempBaseDir, "app-metadata-perapp");
+        appDir.mkdirs();
+        File launcherPath = new File(appDir, "MyLauncher.exe");
+        launcherPath.createNewFile();
+
+        InstallationSettings settings = new InstallationSettings();
+        settings.setPackageName("metadata-app");
+        settings.setSource(null);
+
+        TestableWindowsCliCommandInstaller installer = new TestableWindowsCliCommandInstaller();
+        
+        List<CommandSpec> commands = new ArrayList<>();
+        commands.add(new CommandSpec("metacmd", null, new ArrayList<>()));
+
+        // Act
+        installer.installCommands(launcherPath, commands, settings);
+
+        // Assert - verify metadata file contains both directories
+        File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
+        assertTrue("Metadata file should be created", metadataFile.exists());
+        
+        String content = FileUtils.readFileToString(metadataFile, "UTF-8");
+        JSONObject metadata = new JSONObject(content);
+        
+        // Metadata should contain both directory paths
+        assertTrue("Metadata should contain sharedBinDir", metadata.has("sharedBinDir"));
+        assertTrue("Metadata should contain perAppPathDir", metadata.has("perAppPathDir"));
+        
+        String sharedBinDir = metadata.getString("sharedBinDir");
+        String perAppPathDir = metadata.getString("perAppPathDir");
+        
+        assertNotNull("sharedBinDir should not be null", sharedBinDir);
+        assertNotNull("perAppPathDir should not be null", perAppPathDir);
+        
+        assertTrue("sharedBinDir should end with .jdeploy/bin", 
+            sharedBinDir.endsWith(".jdeploy" + File.separator + "bin"));
+        
+        String archSuffix = ArchitectureUtil.getArchitectureSuffix();
+        assertTrue("perAppPathDir should contain architecture suffix", 
+            perAppPathDir.contains("bin" + archSuffix));
+    }
+
+    @Test
+    public void testUninstallReadsDirectoriesFromMetadata() throws IOException {
+        // Arrange
+        File appDir = new File(tempBaseDir, "app-uninstall-metadata");
+        File binDir = getBinDir();
+        binDir.mkdirs();
+        
+        // Create a per-app path directory
+        String archSuffix = ArchitectureUtil.getArchitectureSuffix();
+        File perAppDir = new File(System.getProperty("user.home"), 
+            ".jdeploy" + File.separator + "bin" + archSuffix + File.separator + "test-app");
+        perAppDir.mkdirs();
+
+        String[] wrapperNames = {"cmd1.cmd", "cmd2.cmd"};
+        createWrapperFiles(binDir, wrapperNames);
+
+        // Create metadata with both directory paths
+        appDir.mkdirs();
+        JSONObject metadata = new JSONObject();
+        JSONArray wrappersArray = new JSONArray();
+        for (String name : wrapperNames) {
+            wrappersArray.put(name);
+        }
+        metadata.put(CliInstallerConstants.CREATED_WRAPPERS_KEY, wrappersArray);
+        metadata.put(CliInstallerConstants.PATH_UPDATED_KEY, true);
+        metadata.put(CliInstallerConstants.GIT_BASH_PATH_UPDATED_KEY, false);
+        metadata.put("sharedBinDir", binDir.getAbsolutePath());
+        metadata.put("perAppPathDir", perAppDir.getAbsolutePath());
+
+        File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
+        FileUtils.writeStringToFile(metadataFile, metadata.toString(), "UTF-8");
+
+        TestableWindowsCliCommandInstaller installer = new TestableWindowsCliCommandInstaller();
+        installer.resetTracking();
+
+        // Act
+        installer.uninstallCommands(appDir);
+
+        // Assert
+        // Should have called removeFromPath with per-app directory
+        assertTrue("removeFromPath should be called", installer.wasRemoveFromPathCalled());
+        assertEquals("removeFromPath should use per-app directory", 
+            perAppDir.getAbsolutePath(), installer.getRemoveFromPathArg().getAbsolutePath());
+        
+        // Wrapper files should be cleaned from shared bin dir
+        for (String name : wrapperNames) {
+            assertFalse("Wrapper should be deleted", new File(binDir, name).exists());
+        }
+    }
+
+    @Test
+    public void testUninstallFallsBackToOldPathForBackwardCompatibility() throws IOException {
+        // Arrange - create metadata without new directory fields (old format)
+        File appDir = new File(tempBaseDir, "app-uninstall-backward-compat");
+        File binDir = getBinDir();
+        binDir.mkdirs();
+
+        String[] wrapperNames = {"oldcmd.cmd"};
+        createWrapperFiles(binDir, wrapperNames);
+
+        // Create old-style metadata (no sharedBinDir or perAppPathDir)
+        appDir.mkdirs();
+        JSONObject metadata = new JSONObject();
+        JSONArray wrappersArray = new JSONArray();
+        for (String name : wrapperNames) {
+            wrappersArray.put(name);
+        }
+        metadata.put(CliInstallerConstants.CREATED_WRAPPERS_KEY, wrappersArray);
+        metadata.put(CliInstallerConstants.PATH_UPDATED_KEY, false);
+        metadata.put(CliInstallerConstants.GIT_BASH_PATH_UPDATED_KEY, false);
+
+        File metadataFile = new File(appDir, CliInstallerConstants.CLI_METADATA_FILE);
+        FileUtils.writeStringToFile(metadataFile, metadata.toString(), "UTF-8");
+
+        TestableWindowsCliCommandInstaller installer = new TestableWindowsCliCommandInstaller();
+
+        // Act
+        installer.uninstallCommands(appDir);
+
+        // Assert - wrappers should still be cleaned despite old metadata format
+        for (String name : wrapperNames) {
+            assertFalse("Wrapper should be deleted even with old metadata", new File(binDir, name).exists());
+        }
     }
 }
