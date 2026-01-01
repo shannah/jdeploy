@@ -106,13 +106,48 @@ NOTE: The launcher is a black box to this project.  We include these specificati
 
 ## Platform behaviors
 
-High-level goal: CLI command scripts/wrappers are installed per-user, in a user-writable directory that is on (or added to) the user's PATH.
+High-level goal: CLI command scripts/wrappers are installed per-user, in a per-app, architecture-specific directory that is added to the user's PATH.
+
+### Unified Directory Structure
+
+All platforms install CLI commands in a unified, architecture-specific, per-app directory:
+
+```
+~/.jdeploy/bin-{arch}/{fullyQualifiedPackageName}/
+```
+
+Where:
+- `{arch}` is the architecture suffix (`-arm64` or `-x64`) from `ArchitectureUtil.getArchitectureSuffix()`
+- `{fullyQualifiedPackageName}` is computed as:
+  - For NPM registry packages (source is null/empty): use `packageName` directly
+  - For GitHub/custom source packages: use `{MD5(source)}.{packageName}`
+
+**Benefits of this structure:**
+- **No command name collisions**: Each app has its own isolated directory
+- **Independent PATH management**: Each app's directory is added/removed from PATH independently
+- **Simplified uninstallation**: Remove the entire app directory; no need to track individual files
+- **Platform consistency**: All platforms use the same structure
+- **Architecture coexistence**: ARM64 and x64 versions can coexist (e.g., for Rosetta 2 on macOS)
+
+**Examples:**
+
+NPM package "myapp" on ARM64 macOS:
+```
+~/.jdeploy/bin-arm64/myapp/
+  myapp-cli
+  myapp-admin
+```
+
+GitHub-sourced "myapp" from "https://github.com/user/myapp-repo" on x64 Linux:
+```
+~/.jdeploy/bin-x64/356a192b7913b04c54574d18c28d46e6.myapp/
+  myapp-cli
+  myapp-admin
+```
 
 ### Linux
 
-- Location:
-  - Preferred: `~/.local/bin` (per XDG spec, user-local executables). This location is commonly on the PATH in modern distros/shells or can be added if missing.
-  - Alternative (if current implementation already uses a different directory for binary symlinks): install the scripts alongside the binary symlink (same directory).
+- Location: `~/.jdeploy/bin-{arch}/{fullyQualifiedPackageName}/`
 - Script format:
   - A POSIX shell script with the executable bit set (0o755).
   - It should `exec` the launcher binary to replace the script process, preserving signals and exit codes.
@@ -121,100 +156,75 @@ High-level goal: CLI command scripts/wrappers are installed per-user, in a user-
     #!/usr/bin/env sh
     exec "/home/alice/.jdeploy/apps/my-npm-package/my-app" --jdeploy:command=myapp-cli -- "$@"
     ```
-- Path construction:
-  - App directory: `~/.jdeploy/apps/{fullyQualifiedPackageName}/`
-    - For NPM-released apps: `fullyQualifiedPackageName` = the npm package name (e.g., `my-npm-package`)
-    - For GitHub-released apps: `fullyQualifiedPackageName` = `{MD5(npmSource)}.{npmPackageName}` (e.g., `a1b2c3d4.my-app`)
-  - Binary name: derived from the app title by converting to lowercase, replacing spaces with hyphens, and removing non-alphanumeric characters (except hyphens)
-    - Example: app title "My App" → binary name `my-app`
-  - Branch suffix: for `0.0.0-{branch}` versions (e.g., GitHub branch builds), the branch name is appended with a hyphen
-    - Example: version `0.0.0-main` with title "My App" → binary name `my-app-main`
 - Quoting: pass user args via `-- "$@"` so user args are forwarded safely and unambiguously.
-- Uninstall: remove the script file(s) and if the install directory was created by the installer and is now empty, optionally remove it. Do not touch unrelated files or user-owned content.
+- Uninstall: remove the entire app bin directory `~/.jdeploy/bin-{arch}/{fullyQualifiedPackageName}/`. Do not remove parent directories even if empty.
 
 ### macOS
 
-Challenges:
-- GUI macOS apps are typically packaged as `.app` bundles. Launching from the terminal should avoid the macOS GUI app life-cycle that would attempt to spawn an AppKit application (or pop UI).
-- On macOS, calling the same launcher inside a `.app` bundle can sometimes trigger GUI initialization or behave differently when invoked from the command line.
-
-Solution (dual-binary approach):
-- When `jdeploy.commands` is present, the bundler creates a second binary in the app bundle at:
-  ```
-  MyApp.app/Contents/MacOS/Client4JLauncher-cli
-  ```
-  This file is a byte-identical copy of the GUI launcher binary (or equivalent wrapper) but named differently. The reasons for a second binary are:
-  - macOS processes often treat `argv[0]` or the executable name specially (AppKit/NSApplication behavior can be influenced by program name).
-  - Avoids accidental GUI initialization caused by frameworks that inspect the process name or bundle context on startup.
-  - Keeps the GUI launcher unchanged; the CLI-entry binary can be treated as the CLI entrypoint that purposely avoids GUI initialization.
-- Install per-command scripts (shell scripts) in `~/.local/bin` that call `.../MyApp.app/Contents/MacOS/Client4JLauncher-cli`.
-  - Example script:
+- Location: `~/.jdeploy/bin-{arch}/{fullyQualifiedPackageName}/`
+- Dual-binary approach:
+  - When `jdeploy.commands` is present, the bundler creates a second binary in the app bundle:
+    ```
+    MyApp.app/Contents/MacOS/Client4JLauncher-cli
+    ```
+  - This is a byte-identical copy of the GUI launcher but named differently to avoid GUI initialization triggered by AppKit/NSApplication inspecting the process name.
+- Script format:
+  - Shell scripts that call `Client4JLauncher-cli`:
     ```sh
     #!/usr/bin/env sh
     exec "/Users/alice/Applications/MyApp.app/Contents/MacOS/Client4JLauncher-cli" --jdeploy:command=myapp-cli -- "$@"
     ```
-
-Per-user script location:
-- Scripts are installed in `~/.local/bin` to follow Linux/XDG conventions and encourage cross-platform consistency. This location is simple and already used by many tools; users can add it to PATH in their shell config if necessary.
-
-PATH management:
-- Installer detects whether the script directory (`~/.local/bin`) is already on PATH (by checking shell config or current environment).
-- If not on PATH, the installer appends a shell profile snippet to `~/.profile` / `~/.bash_profile` / `~/.zprofile` (depending on the user's shell) to add the directory. This is a minimal, non-intrusive change.
-- The installer does not ask for user consent for this modification (it is a standard practice and reversal is straightforward).
-
-Uninstall:
-- Remove the scripts and the `Client4JLauncher-cli` file in the `.app` bundle (if the app bundle itself is being removed).
-- If installer added PATH entries or profile snippets, revert those changes or notify the user to revert; the uninstall should attempt to undo edits made during install.
+- PATH management:
+  - Add the app's bin directory to PATH via shell profile (`~/.profile`, `~/.bash_profile`, `~/.zprofile`)
+  - Detect and respect user override marker (`# jdeploy:no-auto-path`) to prevent automatic PATH modification
+- Uninstall:
+  - Remove the app's bin directory
+  - Remove the `Client4JLauncher-cli` file in the `.app` bundle
+  - Remove the app's PATH entry from shell profiles
 
 ### Windows
 
-- Location:
-  - Recommend: `%USERPROFILE%\.jdeploy\bin` (or `%USERPROFILE%\.local\bin`), a per-user directory the installer controls.
-  - Rationale: per-user installs do not require elevation and keep crates under user control. This directory is easy to reference in CMD wrappers.
-- Wrapper format:
-  - Create a `.cmd` file for each command. `.cmd` wrappers are recognized by `cmd.exe` and PowerShell too.
-  - Wrapper should forward all user args (`%*`).
-  - Example `.cmd` wrapper:
-    ```cmd
-    @echo off
-    REM Path to installed CLI launcher exe
-    set "LAUNCHER=%USERPROFILE%\.jdeploy\apps\MyApp\MyApp-cli.exe"
-    "%LAUNCHER%" --jdeploy:command=myapp-cli -- %*
-    ```
-- CLI launcher binary:
-  - When `jdeploy.commands` is present, the bundler creates a second executable with the `-cli` suffix:
+- Location: `%USERPROFILE%\.jdeploy\bin-{arch}\{fullyQualifiedPackageName}\`
+- Dual-binary approach:
+  - When `jdeploy.commands` is present, the bundler creates a CLI-specific executable:
     ```
     %USERPROFILE%\.jdeploy\apps\MyApp\MyApp-cli.exe
     ```
-  - This CLI variant has its PE subsystem modified from GUI (2) to Console (3), ensuring Windows creates a console window when launched from the command line.
-  - The `.cmd` wrapper scripts invoke this CLI launcher instead of the main GUI executable.
-  - This mirrors the macOS dual-binary approach where `Client4JLauncher-cli` is created for CLI invocations.
-- PATH management (CMD/PowerShell):
-  - Installer should add the per-user bin directory to the user's PATH via the HKCU\Environment `PATH` registry value.
-  - When adding an entry to PATH, preserve the rest of the user's PATH value and only append/prepend the directory. Record that the installer modified PATH so the uninstaller can revert.
-  - Note: Updating HKCU\Environment PATH does not immediately change PATH in existing console windows; the user may need to log out/log in or restart shells. The installer should notify the user about this.
-
+  - This CLI variant has its PE subsystem modified from GUI (2) to Console (3), ensuring proper console behavior
+- Wrapper format:
+  - Create a `.cmd` file for each command for CMD/PowerShell:
+    ```cmd
+    @echo off
+    set "LAUNCHER=%USERPROFILE%\.jdeploy\apps\MyApp\MyApp-cli.exe"
+    "%LAUNCHER%" --jdeploy:command=myapp-cli -- %*
+    ```
 - Git Bash / MSYS2 Support:
-  - Windows users often use Git Bash (MSYS2-based). To support this, the installer employs a dual-script approach.
-  - For every command, the installer creates two files in the bin directory:
-    1. A `.cmd` wrapper for CMD/PowerShell.
-    2. An extensionless POSIX shell script for Git Bash.
-  - MSYS2 Path Conversion: Since Git Bash expects POSIX-style paths (e.g., `/c/Users/` instead of `C:\Users\`), the installer converts Windows absolute paths to MSYS2 format for use inside the shell scripts.
-  - Git Bash PATH Management: The installer detects the user's Git Bash configuration (preferring `.bash_profile` or `.bashrc`) and appends an `export PATH="$PATH:/msys/path/to/bin"` line.
-
+  - Create an extensionless POSIX shell script for each command for Git Bash compatibility
+  - Convert Windows paths to MSYS2 format (e.g., `/c/Users/` instead of `C:\Users\`)
+  - Update Git Bash configuration (`.bash_profile` or `.bashrc`) with PATH entry using POSIX-style paths
+- PATH management:
+  - Add the app's bin directory to user PATH via `HKCU\Environment` registry value
+  - Detect and respect user override marker (`# jdeploy:no-auto-path`) in Git Bash config
+  - Note: PATH changes require logout/login or shell restart to take effect
 - Uninstall:
-  - Remove the generated `.cmd` and extensionless shell script files.
-  - Remove the Windows Registry PATH modification.
-  - Remove the `export` line from Git Bash configuration files if it was added.
-  - Ensure the uninstaller only removes entries it created (do not remove the entire PATH).
+  - Remove the app's bin directory (containing both `.cmd` and shell script files)
+  - Remove the app's PATH entry from Windows registry
+  - Remove the app's PATH export line from Git Bash configuration
 
 ## Uninstall behavior (cross-platform)
 
-- The uninstaller must remove only files created by the installer:
-  - Remove per-command script/wrapper files.
-  - Remove CLI-specific executables (e.g., `MyApp-cli.exe` on Windows, `Client4JLauncher-cli` on macOS) if CLI commands were installed.
-  - Revert any PATH/profile modifications the installer itself made. The installer should record the changes (e.g., a small manifest in the installation directory) so the uninstaller can undo them reliably.
-- The uninstaller should not remove user-created files or modifications outside the scope of what the installer created.
+With the per-app directory structure, uninstallation is simplified:
+
+- Remove the app's bin directory: `~/.jdeploy/bin-{arch}/{fullyQualifiedPackageName}/`
+- Remove CLI-specific launcher binaries:
+  - macOS: `Client4JLauncher-cli` in the `.app` bundle
+  - Windows: `{AppName}-cli.exe` in the app directory
+- Remove the app's PATH entry from:
+  - Unix: shell profile files (`~/.profile`, `~/.bash_profile`, `~/.zprofile`)
+  - Windows: `HKCU\Environment` registry and Git Bash configuration files
+- Remove metadata file: `~/.jdeploy/manifests/{arch}/{fullyQualifiedPackageName}/.jdeploy-cli.json`
+- Do NOT remove parent directories (`~/.jdeploy/bin-{arch}/`, `~/.jdeploy/manifests/`) even if empty
+- Uninstall operations should be idempotent: missing files are skipped without error
 
 ## Security considerations
 
@@ -234,11 +244,9 @@ Uninstall:
   - On Windows, ensure wrapper `.cmd` files are writable by the user only as necessary.
 - Least privilege:
   - Stick to per-user locations to avoid requiring elevated privileges that could otherwise be exploited.
-- Integrity:
-  - Consider recording metadata about the created scripts (e.g., manifest file with checksums) so the uninstaller can detect tampering; optional for initial implementation.
 - Command name collisions:
-  - **Same-app collisions** (reinstalling the same app): if a command name is already present from a previous installation of the same app, it is silently overwritten. The installer records which files it creates, enabling clean removal during uninstall.
-  - **Different-app collisions** (different app claims the same command name): the installer detects this and prompts the user interactively (if GUI installer) to skip installation of that command, overwrite the existing command, or install under a different name. Headless installers abort with a clear error message unless a CLI flag indicates "overwrite".
+  - The per-app directory structure eliminates command name collisions between different apps
+  - Reinstalling the same app silently overwrites commands in its own directory
 
 ## Backward compatibility
 
@@ -250,97 +258,30 @@ Uninstall:
 
 (No open questions at this time. Key design decisions have been resolved and documented in the main RFC body.)
 
-## Implementation notes (non-normative)
+## Metadata Format
 
-### Dependency Chain
-
-The CLI commands feature requires coordination between multiple components:
-
-1. **Packager** (at publish time):
-   - Author defines `commands` in `package.json`
-   - Packager validates the schema and embeds `jdeploy.commands` into installer metadata
-
-2. **Bundler** (at install time, invoked by installer):
-   - Creates the app bundle including launcher binaries
-   - On macOS: Creates `Client4JLauncher-cli` when `BundlerSettings.isCliCommandsEnabled()` is true
-
-3. **Installer** (at install time, after bundler):
-   - Reads command specs from installer metadata
-   - Creates per-command wrapper scripts in the user's bin directory
-   - Updates PATH if needed and records changes in install manifest
-
-4. **Uninstaller**:
-   - Reads install manifest
-   - Removes created scripts
-   - Reverts PATH modifications
-
-### Bundler/Installer Relationship
-
-**Important**: The bundler is run **at install time** by the installer. The installer:
-1. Invokes the bundler to create the app (including `Client4JLauncher-cli` on macOS when CLI commands are enabled)
-2. Creates wrapper shell scripts pointing to the launcher binary built by the bundler
-
-The `Client4JLauncher-cli` binary on macOS is created by the bundler (`MacBundler.maybeCreateCliLauncher()`) when `BundlerSettings.isCliCommandsEnabled()` is true. Similarly, on Windows, `WindowsBundler2.maybeCreateCliLauncher()` creates `{appname}-cli.exe` with its PE subsystem modified to Console mode.
-
-### Install Manifest Format
-
-The installer persists metadata about installed CLI commands in a JSON file located in the app directory:
+The installer persists metadata about installed CLI commands in `~/.jdeploy/manifests/{arch}/{fullyQualifiedPackageName}/.jdeploy-cli.json`:
 
 ```json
 {
-  "createdWrappers": ["myapp-cli.cmd", "myapp-admin.cmd"],
+  "createdWrappers": ["myapp-cli", "myapp-admin"],
   "pathUpdated": true,
-  "cliExe": "MyApp-cli.exe"
+  "binDir": "/Users/alice/.jdeploy/bin-arm64/myapp"
 }
 ```
-
-**File location:** The metadata file is stored in the application installation directory:
-- Linux: `~/.jdeploy/apps/{fullyQualifiedPackageName}/.jdeploy-cli.json`
-- macOS: `~/Applications/{AppName}.app/Contents/MacOS/.jdeploy-cli.json` (or in bin directory as fallback)
-- Windows: `%USERPROFILE%\.jdeploy\apps\{AppName}\.jdeploy-cli.json`
 
 Fields:
 - `createdWrappers`: Array of created wrapper script/file names (relative names only)
 - `pathUpdated`: Boolean indicating if the installer modified the user's PATH
-- `cliExe`: (Windows only) Name of the CLI launcher executable (e.g., "MyApp-cli.exe") if created
-
-### Implementation Constants
-
-The following constants are defined in `CliInstallerConstants.java` and should be used consistently across all platform implementations:
-
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `CLI_METADATA_FILE` | `.jdeploy-cli.json` | Metadata file name for tracking CLI installation state |
-| `CREATED_WRAPPERS_KEY` | `createdWrappers` | JSON key for array of created wrapper file names |
-| `PATH_UPDATED_KEY` | `pathUpdated` | JSON key for boolean flag indicating PATH modification |
-| `JDEPLOY_COMMAND_ARG_PREFIX` | `--jdeploy:command=` | Command-line argument prefix for command dispatch |
-| `CLI_LAUNCHER_NAME` | `Client4JLauncher-cli` | Name of CLI-dedicated launcher binary on macOS |
-| `CLI_EXE_KEY` | `cliExe` | JSON key for CLI launcher executable path (Windows) |
-
-### Default Collision Handling
-
-When a command name collision is detected and no UI is available for user prompting:
-- The `DefaultCollisionHandler` returns `SKIP` action
-- This prevents accidental overwrites in headless/automated scenarios
-- GUI installers use `UIAwareCollisionHandler` which prompts the user interactively
-
-### General Implementation Notes
-
-- Bundler/packager must include `jdeploy.commands` verbatim in installer metadata.
-- Installer runtime must:
-  - Read command specs from installer metadata.
-  - Create per-command wrappers in the chosen per-user bin directory.
-  - Ensure executability and proper quoting.
-  - Record created entries in an install manifest so uninstall can remove them.
-- The packaged launcher should implement a reliable early check for `--jdeploy:command`. When present, it must run CLI-only initialization (avoid GUI).
+- `binDir`: The bin directory path for this app (used during uninstall)
 
 ## Example artifacts
 
 Linux shell script (example):
 ```sh
 #!/usr/bin/env sh
-# Installed at: ~/.local/bin/myapp-cli
-exec "/home/alice/.jdeploy/apps/my-npm-package/my-app" \
+# Installed at: ~/.jdeploy/bin-x64/myapp/myapp-cli
+exec "/home/alice/.jdeploy/apps/myapp/my-app" \
   --jdeploy:command=myapp-cli \
   -- \
   "$@"
@@ -349,7 +290,7 @@ exec "/home/alice/.jdeploy/apps/my-npm-package/my-app" \
 macOS script (example):
 ```sh
 #!/usr/bin/env sh
-# Installed at: ~/.local/bin/myapp-cli
+# Installed at: ~/.jdeploy/bin-arm64/myapp/myapp-cli
 exec "/Users/alice/Applications/MyApp.app/Contents/MacOS/Client4JLauncher-cli" \
   --jdeploy:command=myapp-cli \
   -- \
@@ -359,7 +300,7 @@ exec "/Users/alice/Applications/MyApp.app/Contents/MacOS/Client4JLauncher-cli" \
 Windows `.cmd` wrapper (example):
 ```cmd
 @echo off
-REM Installed at: %USERPROFILE%\.jdeploy\bin\myapp-cli.cmd
+REM Installed at: %USERPROFILE%\.jdeploy\bin-x64\myapp\myapp-cli.cmd
 set "LAUNCHER=%USERPROFILE%\.jdeploy\apps\MyApp\MyApp-cli.exe"
 "%LAUNCHER%" --jdeploy:command=myapp-cli -- %*
 ```
@@ -428,14 +369,17 @@ When `jdeploy.commands` contains at least one command, the installation form SHO
 
 | Criterion | Verification Method |
 |-----------|---------------------|
-| Command scripts created in correct location | Check `~/.local/bin/` (Unix) or `%USERPROFILE%\.jdeploy\bin\` (Windows) |
+| Command scripts created in correct location | Check `~/.jdeploy/bin-{arch}/{fqpn}/` on all platforms |
+| Architecture suffix applied correctly | Verify `-arm64` or `-x64` suffix in path |
+| Fully qualified package name computed correctly | NPM packages use name only; GitHub packages use `{MD5}.{name}` |
 | Dual-scripts on Windows | Verify both `.cmd` and extensionless files exist in bin directory |
 | MSYS2 Path Conversion | Verify Windows shell scripts use `/c/path` style paths |
 | Scripts are executable | `stat` shows 0755 permissions on Unix |
 | Commands invoke launcher with `--jdeploy:command=<name>` | Inspect script content |
 | User args passed after `--` separator | Test: `myapp-cli foo bar` passes `foo bar` to app |
-| Uninstall removes only installer-created files | Metadata file tracks created files |
-| PATH modifications are reversible | Uninstall restores original PATH and removes Git Bash config lines |
+| Uninstall removes app bin directory | Entire `~/.jdeploy/bin-{arch}/{fqpn}/` is removed |
+| PATH modifications are reversible | Uninstall removes app's PATH entry; other apps unaffected |
+| No command collisions across apps | Install two apps with same command name; both work independently |
 | Empty commands object results in no scripts | Install with `"commands": {}` creates no wrappers |
 | Invalid command names rejected | Names with `/`, `\`, or control chars fail validation |
 
@@ -457,28 +401,14 @@ When `jdeploy.commands` contains at least one command, the installation form SHO
 ## Summary / Recommendation
 
 - Add an optional `jdeploy.commands` object to `package.json` to let package authors declare per-user CLI commands.
-- Installer will create per-command wrappers that invoke the packaged launcher with `--jdeploy:command=<name>` and the declared `args`, forwarding user arguments.
+- Installer will create per-command wrappers in a unified, architecture-specific, per-app directory: `~/.jdeploy/bin-{arch}/{fullyQualifiedPackageName}/`
+- Wrappers invoke the packaged launcher with `--jdeploy:command=<name>` and the declared `args`, forwarding user arguments.
 - Platform specifics:
-  - Linux: install scripts in `~/.local/bin`.
-  - macOS: create a second binary `Contents/MacOS/Client4JLauncher-cli` and install scripts in `~/.local/bin` (or optionally `~/Library/Application Support/jdeploy/bin`); recommend `~/.local/bin`.
-  - Windows: install `.cmd` wrappers in `%USERPROFILE%\.jdeploy\bin` and add that directory to HKCU\Environment PATH.
-- Prefer the macOS dual-binary strategy to avoid GUI init side-effects; revisit later if launcher codebase can guarantee early CLI-only startup.
+  - All platforms use the unified directory structure for consistency
+  - macOS: create a second binary `Contents/MacOS/Client4JLauncher-cli` to avoid GUI initialization
+  - Windows: create a CLI-specific executable with Console subsystem and dual wrappers (`.cmd` + shell script) for Git Bash support
+- Benefits: eliminates command name collisions, simplifies PATH management, enables clean per-app uninstallation
 
 ## Backward Compatibility
 
 The `jdeploy.command` property (singular) predates this RFC and controls the CLI Launcher feature. It is unaffected by the addition of `jdeploy.commands` (plural). Packages can use both properties independently.
-
-## Implementation roadmap
-
-If this RFC is accepted, next steps are:
-
-1. Add model/parser support for `jdeploy.commands` to the bundler and packager.
-2. Ensure packaging embeds `jdeploy.commands` into installer metadata.
-3. Implement bundler logic:
-   - On macOS: create `Client4JLauncher-cli` when `BundlerSettings.isCliCommandsEnabled()` is true.
-4. Implement installer logic for creating/removing per-command wrappers and PATH/profile management:
-   - Linux: create shell scripts in `~/.local/bin`.
-   - macOS: create shell scripts in `~/.local/bin` that reference `Client4JLauncher-cli`.
-   - Windows: create `.cmd` wrappers in `%USERPROFILE%\.jdeploy\bin` and update HKCU\Environment PATH.
-   - Implement collision detection and handling (same-app silent overwrite, different-app user prompt).
-5. Add tests for schema validation, script generation, uninstall manifest handling, and PATH management.
