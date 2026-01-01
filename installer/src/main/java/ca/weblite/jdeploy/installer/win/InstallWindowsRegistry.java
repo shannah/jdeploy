@@ -953,10 +953,10 @@ public class InstallWindowsRegistry {
      */
     public boolean addToUserPath(File binDir) {
         if (binDir == null) return false;
-        
+
         try (PathUpdateLock lock = new PathUpdateLock()) {
             lock.acquire(30000); // 30 second timeout
-            
+
             String binPath = binDir.getAbsolutePath();
             String key = "Environment";
             String curr = null;
@@ -965,11 +965,19 @@ public class InstallWindowsRegistry {
             } else {
                 curr = System.getenv("PATH");
             }
-            
+
+            // Check if binPath is already at the end - if so, no change needed (idempotent)
+            if (curr != null) {
+                if (curr.equalsIgnoreCase(binPath) ||
+                    curr.toLowerCase().endsWith(";" + binPath.toLowerCase())) {
+                    return false;
+                }
+            }
+
             // First remove any existing entry for this binPath, then add at the end
             String withoutOld = computePathWithRemoved(curr, binPath);
             String newPath = computePathWithAdded(withoutOld, binPath);
-            
+
             if (newPath == null) newPath = binPath;
             if (curr != null && curr.equals(newPath)) {
                 return false;

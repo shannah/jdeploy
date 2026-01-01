@@ -78,7 +78,9 @@ public class MacCliCommandInstallerBinDirTest {
             "macOS scoped NPM package should use .jdeploy structure");
         assertTrue(binPath.contains(".jdeploy" + File.separator + "bin-"),
             "macOS scoped NPM package should use per-app bin-{arch} structure");
-        assertTrue(binPath.endsWith(File.separator + "@myorg/my-app"),
+        // Use File to construct the expected path suffix to handle platform-specific separators
+        String expectedSuffix = new File("@myorg/my-app").getPath();
+        assertTrue(binPath.endsWith(File.separator + expectedSuffix),
             "macOS scoped NPM package bin directory should end with scoped package name");
     }
 
