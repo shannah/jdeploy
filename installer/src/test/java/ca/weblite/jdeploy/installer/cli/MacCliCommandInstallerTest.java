@@ -3,6 +3,7 @@ package ca.weblite.jdeploy.installer.cli;
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.cli.CollisionAction;
+import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.models.CommandSpec;
 import org.apache.commons.io.FileUtils;
@@ -45,7 +46,9 @@ public class MacCliCommandInstallerTest {
         homeDir = new File(tempDir, "home");
         homeDir.mkdirs();
 
-        binDir = new File(new File(homeDir, ".jdeploy"), "bin");
+        // Compute the expected bin directory - must match what the installer uses
+        String archSuffix = ArchitectureUtil.getArchitectureSuffix();
+        binDir = new File(homeDir, ".jdeploy" + File.separator + "bin" + archSuffix + File.separator + "test-package");
         binDir.mkdirs();
 
         installer = new TestableMacCliCommandInstaller(homeDir);
@@ -82,9 +85,10 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("othercmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-package");
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
 
@@ -139,6 +143,7 @@ public class MacCliCommandInstallerTest {
         List<CommandSpec> commands = new ArrayList<>();
 
         InstallationSettings settings = new InstallationSettings();
+        settings.setPackageName("test-package");
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
@@ -154,6 +159,7 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
+        settings.setPackageName("test-package");
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
         settings.setInstallCliCommands(true);
 
@@ -169,9 +175,10 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-package");
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         // Create launcher with double quotes in path
         File specialDir = new File(tempDir, "My \"Special\" App");
@@ -199,9 +206,10 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", null, args));
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-package");
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         installer.installCommands(launcherPath, commands, settings);
 
@@ -305,9 +313,10 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("cmd2", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-package");
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
         assertEquals(2, created.size());
@@ -343,9 +352,10 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-package");
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         installer.installCommands(launcherPath, commands, settings);
 
@@ -386,9 +396,10 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-package");
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         // Create initial script
         File scriptFile = new File(binDir, "mycmd");
@@ -410,9 +421,10 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-package");
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         installer.installCommands(launcherPath, commands, settings);
 
@@ -465,6 +477,7 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
+        settings.setPackageName("test-package");
         settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(true);
@@ -483,9 +496,10 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-package");
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         installer.installCommands(launcherPath, commands, settings);
 
@@ -505,9 +519,10 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("cmd2", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-package");
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         installer.installCommands(launcherPath, commands, settings);
 
@@ -541,9 +556,10 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("testcmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-package");
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
 
@@ -585,9 +601,10 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-package");
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
 
@@ -623,9 +640,10 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-package");
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
 
@@ -665,9 +683,10 @@ public class MacCliCommandInstallerTest {
         commands.add(new CommandSpec("mycmd", null, new ArrayList<>()));
 
         InstallationSettings settings = new InstallationSettings();
-        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
+        settings.setPackageName("test-package");
         settings.setInstallCliCommands(true);
         settings.setInstallCliLauncher(false);
+        settings.setCommandLinePath(new File(binDir, "test-launcher").getAbsolutePath());
 
         List<File> created = installer.installCommands(launcherPath, commands, settings);
 
