@@ -59,17 +59,14 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             return createdFiles;
         }
 
-        // Determine bin directory locations
-        File userBinDir = CliCommandBinDirResolver.getCliCommandBinDir(
+        // Determine per-app bin directory location for both wrappers and PATH registry
+        File userBinDir = CliCommandBinDirResolver.getPerAppBinDir(
             settings.getPackageName(),
             settings.getSource()
         );
 
-        // Compute per-app PATH directory for registry operations
-        File perAppPathDir = CliCommandBinDirResolver.getPerAppBinDir(
-            settings.getPackageName(),
-            settings.getSource()
-        );
+        // Use the same per-app bin directory for PATH registry operations
+        File perAppPathDir = userBinDir;
 
         try {
             // Write .cmd wrappers for each command
@@ -143,13 +140,25 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 }
             }
 
-            // Determine shared bin directory for wrapper cleanup
+            // Determine per-app bin directory for wrapper cleanup
             File userBinDir;
             if (metadata.has("sharedBinDir")) {
                 userBinDir = new File(metadata.getString("sharedBinDir"));
+            } else if (metadata.has("perAppPathDir")) {
+                userBinDir = new File(metadata.getString("perAppPathDir"));
             } else {
-                // Fallback to old hardcoded path for backward compatibility
-                userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
+                // Fallback: compute the per-app directory from package name and source
+                String packageNameMeta = metadata.optString("packageName", null);
+                String sourceMeta = metadata.optString("source", null);
+                if (sourceMeta != null && sourceMeta.isEmpty()) {
+                    sourceMeta = null;
+                }
+                if (packageNameMeta != null && !packageNameMeta.isEmpty()) {
+                    userBinDir = CliCommandBinDirResolver.getPerAppBinDir(packageNameMeta, sourceMeta);
+                } else {
+                    // Last resort fallback for very old metadata without package info
+                    userBinDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
+                }
             }
 
             // Clean up wrapper files
@@ -174,37 +183,27 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 }
             }
 
-            // Remove the per-app bin directory if using manifest
-            if (manifestOpt.isPresent()) {
-                CliCommandManifest manifest = manifestOpt.get();
-                File manifestBinDir = manifest.getBinDir();
-                if (manifestBinDir != null && manifestBinDir.exists() && manifestBinDir.isDirectory()) {
-                    String binDirPath = manifestBinDir.getAbsolutePath();
-                    if (binDirPath.contains(".jdeploy" + File.separator + "bin-")) {
-                        try {
-                            File[] remainingFiles = manifestBinDir.listFiles();
-                            if (remainingFiles != null) {
-                                for (File f : remainingFiles) {
-                                    f.delete();
-                                }
+            // Remove the per-app bin directory if it contains the arch suffix pattern
+            if (userBinDir != null && userBinDir.exists() && userBinDir.isDirectory()) {
+                String binDirPath = userBinDir.getAbsolutePath();
+                if (binDirPath.contains(".jdeploy" + File.separator + "bin-")) {
+                    try {
+                        File[] remainingFiles = userBinDir.listFiles();
+                        if (remainingFiles != null) {
+                            for (File f : remainingFiles) {
+                                f.delete();
                             }
-                            manifestBinDir.delete();
-                            System.out.println("Removed per-app bin directory: " + manifestBinDir.getAbsolutePath());
-                        } catch (Exception e) {
-                            System.err.println("Warning: Failed to remove per-app bin directory: " + e.getMessage());
                         }
+                        userBinDir.delete();
+                        System.out.println("Removed per-app bin directory: " + binDirPath);
+                    } catch (Exception e) {
+                        System.err.println("Warning: Failed to remove per-app bin directory: " + e.getMessage());
                     }
                 }
             }
 
-            // Determine per-app PATH directory for cleanup
-            File perAppPathDir;
-            if (metadata.has("perAppPathDir")) {
-                perAppPathDir = new File(metadata.getString("perAppPathDir"));
-            } else {
-                // Fallback to old hardcoded path for backward compatibility
-                perAppPathDir = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "bin");
-            }
+            // Use the same per-app directory for PATH cleanup
+            File perAppPathDir = userBinDir;
 
             // Remove from PATH if it was added
             if (metadata.optBoolean(CliInstallerConstants.PATH_UPDATED_KEY, false)) {

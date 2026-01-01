@@ -46,19 +46,20 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
 
     /**
      * Determines the binary directory where CLI commands will be installed.
-     * Uses CliCommandBinDirResolver to compute the shared bin directory (~/.jdeploy/bin).
-     * Falls back to the same default if settings are not available.
+     * Uses CliCommandBinDirResolver to compute the per-app bin directory (~/.jdeploy/bin-{arch}/{fqpn}/).
+     * Falls back to a default per-app directory if settings are not available.
      *
      * @param settings installation settings containing package name and source
-     * @return the resolved binary directory (shared across all packages)
+     * @return the resolved binary directory (per-app in ~/.jdeploy/bin-{arch}/{fqpn}/)
      */
     protected File getBinDir(InstallationSettings settings) {
         File homeDir = getHomeDir();
         if (settings != null && settings.getPackageName() != null && !settings.getPackageName().trim().isEmpty()) {
-            return CliCommandBinDirResolver.getCliCommandBinDir(settings.getPackageName(), settings.getSource(), homeDir);
+            return CliCommandBinDirResolver.getPerAppBinDir(settings.getPackageName(), settings.getSource(), homeDir);
         }
-        // Fallback: use default shared bin directory if package name not available
-        return new File(homeDir, ".jdeploy" + File.separator + "bin");
+        // Fallback: use default per-app bin directory if package name not available
+        String archSuffix = ArchitectureUtil.getArchitectureSuffix();
+        return new File(homeDir, ".jdeploy" + File.separator + "bin" + archSuffix + File.separator + "default");
     }
 
     /**
