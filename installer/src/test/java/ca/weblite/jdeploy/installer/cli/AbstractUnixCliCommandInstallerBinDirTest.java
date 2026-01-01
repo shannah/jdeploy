@@ -41,110 +41,132 @@ public class AbstractUnixCliCommandInstallerBinDirTest {
     public void testGetBinDirWithNpmPackage() {
         settings.setPackageName("my-app");
         settings.setSource(null); // NPM package has no source
-        
+
         File binDir = installer.getBinDir(settings);
-        
+
         assertNotNull(binDir);
         String binPath = binDir.getAbsolutePath();
-        assertTrue(binPath.contains(".jdeploy"), 
+        assertTrue(binPath.contains(".jdeploy"),
             "NPM package bin dir should use .jdeploy structure");
-        assertTrue(binPath.endsWith(".jdeploy" + File.separator + "bin"), 
-            "Bin directory should be the shared .jdeploy/bin directory");
+        assertTrue(binPath.contains(".jdeploy" + File.separator + "bin-"),
+            "Bin directory should use per-app bin-{arch} structure");
+        assertTrue(binPath.endsWith(File.separator + "my-app"),
+            "Bin directory should end with package name");
     }
 
     @Test
     public void testGetBinDirWithGithubPackage() {
         settings.setPackageName("my-app");
         settings.setSource("https://github.com/user/my-repo");
-        
+
         File binDir = installer.getBinDir(settings);
-        
+
         assertNotNull(binDir);
         String binPath = binDir.getAbsolutePath();
-        assertTrue(binPath.contains(".jdeploy"), 
+        assertTrue(binPath.contains(".jdeploy"),
             "GitHub package bin dir should use .jdeploy structure");
-        assertTrue(binPath.endsWith(".jdeploy" + File.separator + "bin"), 
-            "Bin directory should be the shared .jdeploy/bin directory");
+        assertTrue(binPath.contains(".jdeploy" + File.separator + "bin-"),
+            "Bin directory should use per-app bin-{arch} structure");
+        // For GitHub packages, the directory includes MD5 hash, so we just check it doesn't end with "my-app" alone
+        assertFalse(binPath.endsWith(File.separator + "my-app"),
+            "GitHub package bin dir should include MD5 hash prefix");
+        assertTrue(binPath.contains("my-app"),
+            "GitHub package bin dir should contain package name");
     }
 
     @Test
     public void testGetBinDirWithDifferentPackageNames() {
         File binDir1 = installer.getBinDir(createSettings("app1", null));
         File binDir2 = installer.getBinDir(createSettings("app2", null));
-        
+
         assertNotNull(binDir1);
         assertNotNull(binDir2);
-        // All packages share the same bin directory
-        assertEquals(binDir1.getAbsolutePath(), binDir2.getAbsolutePath(),
-            "Different packages should share the same bin directory");
-        assertTrue(binDir1.getAbsolutePath().endsWith(".jdeploy" + File.separator + "bin"),
-            "Bin directory should be the shared .jdeploy/bin directory");
+        // Each package should have its own per-app directory
+        assertNotEquals(binDir1.getAbsolutePath(), binDir2.getAbsolutePath(),
+            "Different packages should have separate per-app directories");
+        assertTrue(binDir1.getAbsolutePath().contains(".jdeploy" + File.separator + "bin-"),
+            "Bin directory should use per-app bin-{arch} structure");
+        assertTrue(binDir2.getAbsolutePath().contains(".jdeploy" + File.separator + "bin-"),
+            "Bin directory should use per-app bin-{arch} structure");
+        assertTrue(binDir1.getAbsolutePath().endsWith(File.separator + "app1"),
+            "Bin directory should end with package name app1");
+        assertTrue(binDir2.getAbsolutePath().endsWith(File.separator + "app2"),
+            "Bin directory should end with package name app2");
     }
 
     @Test
     public void testGetBinDirWithGithubCollisionAvoidance() {
         // Two different GitHub sources with the same package name
-        // should resolve to the same shared bin directory
+        // should resolve to DIFFERENT per-app directories
         File binDir1 = installer.getBinDir(
             createSettings("my-app", "https://github.com/user1/my-repo"));
         File binDir2 = installer.getBinDir(
             createSettings("my-app", "https://github.com/user2/my-repo"));
-        
+
         assertNotNull(binDir1);
         assertNotNull(binDir2);
-        // All packages share the same bin directory
-        assertEquals(binDir1.getAbsolutePath(), binDir2.getAbsolutePath(),
-            "All packages should share the same bin directory");
+        // Each package should have its own per-app directory
+        assertNotEquals(binDir1.getAbsolutePath(), binDir2.getAbsolutePath(),
+            "Different GitHub sources should have separate per-app directories to avoid collisions");
+
+        // Both should contain the bin-{arch} pattern
+        assertTrue(binDir1.getAbsolutePath().contains(".jdeploy" + File.separator + "bin-"),
+            "Should use per-app bin-{arch} structure");
+        assertTrue(binDir2.getAbsolutePath().contains(".jdeploy" + File.separator + "bin-"),
+            "Should use per-app bin-{arch} structure");
     }
 
     @Test
     public void testGetBinDirWithNullSettings() {
-        File binDir = installer.getBinDir(null);
-        
-        assertNotNull(binDir);
-        String binPath = binDir.getAbsolutePath();
-        assertTrue(binPath.contains(".jdeploy" + File.separator + "bin"),
-            "Null settings should fall back to default .jdeploy/bin");
+        try {
+            installer.getBinDir(null);
+            fail("getBinDir should throw IllegalArgumentException when settings is null");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("packageName"),
+                "Exception message should mention packageName");
+        }
     }
 
     @Test
     public void testGetBinDirWithNullPackageName() {
         settings.setPackageName(null);
         settings.setSource(null);
-        
-        File binDir = installer.getBinDir(settings);
-        
-        assertNotNull(binDir);
-        String binPath = binDir.getAbsolutePath();
-        assertTrue(binPath.contains(".jdeploy" + File.separator + "bin"),
-            "Null package name should fall back to default .jdeploy/bin");
+
+        try {
+            installer.getBinDir(settings);
+            fail("getBinDir should throw IllegalArgumentException when packageName is null");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("packageName"),
+                "Exception message should mention packageName");
+        }
     }
 
     @Test
     public void testGetBinDirWithEmptyPackageName() {
         settings.setPackageName("");
         settings.setSource(null);
-        
-        File binDir = installer.getBinDir(settings);
-        
-        assertNotNull(binDir);
-        String binPath = binDir.getAbsolutePath();
-        assertTrue(binPath.contains(".jdeploy" + File.separator + "bin"),
-            "Empty package name should fall back to default .jdeploy/bin");
+
+        try {
+            installer.getBinDir(settings);
+            fail("getBinDir should throw IllegalArgumentException when packageName is empty");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("packageName"),
+                "Exception message should mention packageName");
+        }
     }
 
     @Test
     public void testGetBinDirWithWhitespacePackageName() {
         settings.setPackageName("   ");
         settings.setSource(null);
-        
-        File binDir = installer.getBinDir(settings);
-        
-        assertNotNull(binDir);
-        String binPath = binDir.getAbsolutePath();
-        // Whitespace-only package names are treated as empty, falling back to default
-        assertTrue(binPath.endsWith(".jdeploy" + File.separator + "bin"),
-            "Whitespace-only package name should fall back to default .jdeploy/bin");
+
+        try {
+            installer.getBinDir(settings);
+            fail("getBinDir should throw IllegalArgumentException when packageName is whitespace");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("packageName"),
+                "Exception message should mention packageName");
+        }
     }
 
     @Test
@@ -166,15 +188,17 @@ public class AbstractUnixCliCommandInstallerBinDirTest {
     public void testGetBinDirWithScopedNpmPackage() {
         settings.setPackageName("@myorg/my-app");
         settings.setSource(null);
-        
+
         File binDir = installer.getBinDir(settings);
-        
+
         assertNotNull(binDir);
         String binPath = binDir.getAbsolutePath();
         assertTrue(binPath.contains(".jdeploy"),
             "Scoped NPM package should use .jdeploy structure");
-        assertTrue(binPath.endsWith(".jdeploy" + File.separator + "bin"),
-            "Scoped NPM package should use shared .jdeploy/bin directory");
+        assertTrue(binPath.contains(".jdeploy" + File.separator + "bin-"),
+            "Scoped NPM package should use per-app bin-{arch} structure");
+        assertTrue(binPath.endsWith(File.separator + "@myorg/my-app"),
+            "Scoped NPM package bin directory should end with scoped package name");
     }
 
     @Test

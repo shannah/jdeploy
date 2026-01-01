@@ -15,8 +15,8 @@ import java.util.List;
 
 /**
  * macOS implementation of CLI command installation.
- * 
- * Handles installation of CLI commands to ~/.local/bin, creation of symlinks
+ *
+ * Handles installation of CLI commands to ~/.jdeploy/bin-{arch}/{fqpn}, creation of symlinks
  * to the CLI launcher, PATH management, and persistence of command metadata.
  */
 public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
@@ -42,9 +42,9 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
         // Log entry with key parameters
         if (DebugLogger.isEnabled()) {
             int commandCount = (commands != null) ? commands.size() : 0;
-            DebugLogger.log("MacCliCommandInstaller.installCommands() entry - launcherPath: " + launcherPath + 
-                            ", commands count: " + commandCount + 
-                            ", isInstallCliCommands: " + settings.isInstallCliCommands() + 
+            DebugLogger.log("MacCliCommandInstaller.installCommands() entry - launcherPath: " + launcherPath +
+                            ", commands count: " + commandCount +
+                            ", isInstallCliCommands: " + settings.isInstallCliCommands() +
                             ", isInstallCliLauncher: " + settings.isInstallCliLauncher());
         }
 
@@ -53,68 +53,87 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             return createdFiles;
         }
 
-        File localBinDir = getBinDir(settings);
-        DebugLogger.log("Determined binDir: " + localBinDir);
-
-        // Create ~/.local/bin if it doesn't exist
-        DebugLogger.log("Calling ensureBinDirExists() for: " + localBinDir);
-        if (!ensureBinDirExists(localBinDir)) {
-            DebugLogger.log("ensureBinDirExists() failed, returning empty list");
-            return createdFiles;
-        }
-        DebugLogger.log("ensureBinDirExists() succeeded");
-
         boolean anyCreated = false;
+        File commandsBinDir = null;
+        File launcherBinDir = null;
 
-        // Create per-command scripts if requested and commands are present
+        // Create per-command scripts in per-app directory if requested
         if (settings.isInstallCliCommands() && commands != null && !commands.isEmpty()) {
-            DebugLogger.log("Starting installCommandScripts() for " + commands.size() + " commands");
-            createdFiles.addAll(installCommandScripts(launcherPath, commands, localBinDir));
-            DebugLogger.log("installCommandScripts() completed, created " + createdFiles.size() + " files");
-            anyCreated = !createdFiles.isEmpty();
+            commandsBinDir = getBinDir(settings);  // Returns ~/.jdeploy/bin-{arch}/{fqpn}
+            DebugLogger.log("Determined commands binDir: " + commandsBinDir);
+
+            DebugLogger.log("Calling ensureBinDirExists() for: " + commandsBinDir);
+            if (!ensureBinDirExists(commandsBinDir)) {
+                DebugLogger.log("ensureBinDirExists() failed for commands bin dir");
+                System.err.println("Warning: Failed to create CLI commands bin directory: " + commandsBinDir);
+            } else {
+                DebugLogger.log("ensureBinDirExists() succeeded");
+                DebugLogger.log("Starting installCommandScripts() for " + commands.size() + " commands");
+                createdFiles.addAll(installCommandScripts(launcherPath, commands, commandsBinDir));
+                DebugLogger.log("installCommandScripts() completed, created " + createdFiles.size() + " files");
+                anyCreated = !createdFiles.isEmpty();
+
+                if (anyCreated) {
+                    // Add per-app commands directory to PATH
+                    DebugLogger.log("Calling addToPath() for: " + commandsBinDir);
+                    addToPath(commandsBinDir);
+                }
+            }
         } else {
-            DebugLogger.log("Skipping installCommandScripts() - isInstallCliCommands: " + settings.isInstallCliCommands() + 
+            DebugLogger.log("Skipping installCommandScripts() - isInstallCliCommands: " + settings.isInstallCliCommands() +
                             ", commands: " + (commands != null ? commands.size() : "null"));
         }
 
-        // Create traditional single symlink for primary command if requested
+        // Create CLI launcher symlink in the same per-app directory if requested
+        // Note: On macOS, CLI Launcher uses the same directory as CLI Commands (unlike Linux)
         if (settings.isInstallCliLauncher()) {
-            String commandName = deriveCommandName(settings);
-            File symlinkPath = new File(localBinDir, commandName);
-            DebugLogger.log("Creating symlink for primary command: " + commandName + " at " + symlinkPath);
+            // Use commands bin dir if available, otherwise create a new per-app bin dir for the launcher
+            launcherBinDir = commandsBinDir != null ? commandsBinDir : getBinDir(settings);
+            DebugLogger.log("Determined launcher binDir: " + launcherBinDir);
 
-            if (symlinkPath.exists()) {
-                symlinkPath.delete();
-            }
+            if (!ensureBinDirExists(launcherBinDir)) {
+                DebugLogger.log("ensureBinDirExists() failed for launcher bin dir");
+                System.err.println("Warning: Failed to create CLI launcher bin directory: " + launcherBinDir);
+            } else {
+                String commandName = deriveCommandName(settings);
+                File symlinkPath = new File(launcherBinDir, commandName);
+                DebugLogger.log("Creating symlink for primary command: " + commandName + " at " + symlinkPath);
 
-            try {
-                Files.createSymbolicLink(symlinkPath.toPath(), launcherPath.toPath());
-                System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
-                DebugLogger.log("Symlink created successfully: " + symlinkPath);
-                settings.setCommandLineSymlinkCreated(true);
-                createdFiles.add(symlinkPath);
-                anyCreated = true;
-            } catch (Exception e) {
-                System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
-                DebugLogger.log("Failed to create symlink: " + e.getMessage());
+                if (symlinkPath.exists()) {
+                    symlinkPath.delete();
+                }
+
+                try {
+                    Files.createSymbolicLink(symlinkPath.toPath(), launcherPath.toPath());
+                    System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+                    DebugLogger.log("Symlink created successfully: " + symlinkPath);
+                    settings.setCommandLineSymlinkCreated(true);
+                    createdFiles.add(symlinkPath);
+                    anyCreated = true;
+
+                    // Add to PATH if not already added for commands
+                    if (commandsBinDir == null) {
+                        DebugLogger.log("Calling addToPath() for: " + launcherBinDir);
+                        addToPath(launcherBinDir);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+                    DebugLogger.log("Failed to create symlink: " + e.getMessage());
+                }
             }
         } else {
             DebugLogger.log("Skipping symlink creation - isInstallCliLauncher is false");
         }
 
-        // Add to PATH and save metadata if any files were created
+        // Save metadata if any files were created
         if (anyCreated) {
-            DebugLogger.log("Calling addToPath() for: " + localBinDir);
-            boolean pathUpdated = addToPath(localBinDir);
-            DebugLogger.log("addToPath() completed, pathUpdated: " + pathUpdated);
-
-            // Save metadata to launcher's parent directory (appDir) if it differs from binDir
             File appDir = launcherPath.getParentFile();
-            File metadataDir = (appDir != null && !appDir.equals(localBinDir)) ? appDir : localBinDir;
+            // Use commands bin dir for metadata if available, otherwise launcher bin dir
+            File binDirForMetadata = commandsBinDir != null ? commandsBinDir : launcherBinDir;
+            File metadataDir = (appDir != null && !appDir.equals(binDirForMetadata)) ? appDir : binDirForMetadata;
+            boolean pathUpdated = commandsBinDir != null || launcherBinDir != null;
             DebugLogger.log("Saving metadata to: " + metadataDir + " with " + createdFiles.size() + " files");
-            saveMetadata(metadataDir, createdFiles, pathUpdated, localBinDir, settings.getPackageName(), settings.getSource());
-
-            // Update settings
+            saveMetadata(metadataDir, createdFiles, pathUpdated, binDirForMetadata, settings.getPackageName(), settings.getSource());
             settings.setAddedToPath(pathUpdated);
             DebugLogger.log("Updated settings - addedToPath: " + pathUpdated);
         } else {

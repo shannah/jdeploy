@@ -47,19 +47,30 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
     /**
      * Determines the binary directory where CLI commands will be installed.
      * Uses CliCommandBinDirResolver to compute the per-app bin directory (~/.jdeploy/bin-{arch}/{fqpn}/).
-     * Falls back to a default per-app directory if settings are not available.
+     * This is ONLY for CLI Commands (jdeploy.commands), NOT for CLI Launcher.
      *
      * @param settings installation settings containing package name and source
      * @return the resolved binary directory (per-app in ~/.jdeploy/bin-{arch}/{fqpn}/)
+     * @throws IllegalArgumentException if packageName is null or empty
      */
     protected File getBinDir(InstallationSettings settings) {
-        File homeDir = getHomeDir();
-        if (settings != null && settings.getPackageName() != null && !settings.getPackageName().trim().isEmpty()) {
-            return CliCommandBinDirResolver.getPerAppBinDir(settings.getPackageName(), settings.getSource(), homeDir);
+        if (settings == null || settings.getPackageName() == null || settings.getPackageName().trim().isEmpty()) {
+            throw new IllegalArgumentException("InstallationSettings must contain a non-empty packageName for CLI commands installation");
         }
-        // Fallback: use default per-app bin directory if package name not available
-        String archSuffix = ArchitectureUtil.getArchitectureSuffix();
-        return new File(homeDir, ".jdeploy" + File.separator + "bin" + archSuffix + File.separator + "default");
+        File homeDir = getHomeDir();
+        return CliCommandBinDirResolver.getPerAppBinDir(settings.getPackageName(), settings.getSource(), homeDir);
+    }
+
+    /**
+     * Returns the directory for CLI Launcher (single symlink) installation.
+     * This is ONLY for CLI Launcher (jdeploy.command), NOT for CLI Commands.
+     * On Linux, this returns ~/.local/bin for backwards compatibility.
+     *
+     * @return the CLI Launcher bin directory (~/.local/bin on Linux)
+     */
+    protected File getCliLauncherBinDir() {
+        File homeDir = getHomeDir();
+        return new File(homeDir, ".local" + File.separator + "bin");
     }
 
     /**

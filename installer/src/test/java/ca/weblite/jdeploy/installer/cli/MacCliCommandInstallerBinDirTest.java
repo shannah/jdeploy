@@ -32,119 +32,140 @@ public class MacCliCommandInstallerBinDirTest {
     public void testMacGetBinDirWithNpmPackage() {
         settings.setPackageName("my-app");
         settings.setSource(null); // NPM package has no source
-        
+
         File binDir = installer.getBinDir(settings);
-        
+
         assertNotNull(binDir);
         String binPath = binDir.getAbsolutePath();
-        assertTrue(binPath.contains(".jdeploy"), 
+        assertTrue(binPath.contains(".jdeploy"),
             "macOS NPM package bin dir should use .jdeploy structure");
-        assertTrue(binPath.endsWith(".jdeploy" + File.separator + "bin"), 
-            "macOS bin directory should be the shared .jdeploy/bin directory");
+        assertTrue(binPath.contains(".jdeploy" + File.separator + "bin-"),
+            "macOS bin directory should use per-app bin-{arch} structure");
+        assertTrue(binPath.endsWith(File.separator + "my-app"),
+            "macOS bin directory should end with package name");
     }
 
     @Test
     public void testMacGetBinDirWithGithubPackage() {
         settings.setPackageName("my-app");
         settings.setSource("https://github.com/user/my-repo");
-        
+
         File binDir = installer.getBinDir(settings);
-        
+
         assertNotNull(binDir);
         String binPath = binDir.getAbsolutePath();
-        assertTrue(binPath.contains(".jdeploy"), 
+        assertTrue(binPath.contains(".jdeploy"),
             "macOS GitHub package bin dir should use .jdeploy structure");
-        assertTrue(binPath.endsWith(".jdeploy" + File.separator + "bin"), 
-            "macOS bin directory should be the shared .jdeploy/bin directory");
+        assertTrue(binPath.contains(".jdeploy" + File.separator + "bin-"),
+            "macOS bin directory should use per-app bin-{arch} structure");
+        // GitHub packages include MD5 hash prefix
+        assertFalse(binPath.endsWith(File.separator + "my-app"),
+            "GitHub package bin dir should include MD5 hash prefix");
+        assertTrue(binPath.contains("my-app"),
+            "GitHub package bin dir should contain package name");
     }
 
     @Test
     public void testMacGetBinDirWithScopedNpmPackage() {
         settings.setPackageName("@myorg/my-app");
         settings.setSource(null);
-        
+
         File binDir = installer.getBinDir(settings);
-        
+
         assertNotNull(binDir);
         String binPath = binDir.getAbsolutePath();
         assertTrue(binPath.contains(".jdeploy"),
             "macOS scoped NPM package should use .jdeploy structure");
-        assertTrue(binPath.endsWith(".jdeploy" + File.separator + "bin"),
-            "macOS scoped NPM package should use shared .jdeploy/bin directory");
+        assertTrue(binPath.contains(".jdeploy" + File.separator + "bin-"),
+            "macOS scoped NPM package should use per-app bin-{arch} structure");
+        assertTrue(binPath.endsWith(File.separator + "@myorg/my-app"),
+            "macOS scoped NPM package bin directory should end with scoped package name");
     }
 
     @Test
     public void testMacGetBinDirWithNullSettings() {
-        File binDir = installer.getBinDir(null);
-        
-        assertNotNull(binDir);
-        String binPath = binDir.getAbsolutePath();
-        assertTrue(binPath.contains(".jdeploy" + File.separator + "bin"),
-            "macOS null settings should fall back to default .jdeploy/bin");
+        try {
+            installer.getBinDir(null);
+            fail("getBinDir should throw IllegalArgumentException when settings is null");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("packageName"),
+                "Exception message should mention packageName");
+        }
     }
 
     @Test
     public void testMacGetBinDirWithNullPackageName() {
         settings.setPackageName(null);
         settings.setSource(null);
-        
-        File binDir = installer.getBinDir(settings);
-        
-        assertNotNull(binDir);
-        String binPath = binDir.getAbsolutePath();
-        assertTrue(binPath.contains(".jdeploy" + File.separator + "bin"),
-            "macOS null package name should fall back to default .jdeploy/bin");
+
+        try {
+            installer.getBinDir(settings);
+            fail("getBinDir should throw IllegalArgumentException when packageName is null");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("packageName"),
+                "Exception message should mention packageName");
+        }
     }
 
     @Test
     public void testMacGetBinDirWithEmptyPackageName() {
         settings.setPackageName("");
         settings.setSource(null);
-        
-        File binDir = installer.getBinDir(settings);
-        
-        assertNotNull(binDir);
-        String binPath = binDir.getAbsolutePath();
-        assertTrue(binPath.contains(".jdeploy" + File.separator + "bin"),
-            "macOS empty package name should fall back to default .jdeploy/bin");
+
+        try {
+            installer.getBinDir(settings);
+            fail("getBinDir should throw IllegalArgumentException when packageName is empty");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("packageName"),
+                "Exception message should mention packageName");
+        }
     }
 
     @Test
     public void testMacGetBinDirUnifiedStructure() {
-        // Verify that macOS uses the same unified structure as other Unix platforms
+        // Verify that macOS uses the per-app bin directory structure
         settings.setPackageName("test-app");
         settings.setSource(null);
-        
+
         File binDir = installer.getBinDir(settings);
         String userHome = System.getProperty("user.home");
-        
+
         assertNotNull(binDir);
         assertTrue(binDir.getAbsolutePath().startsWith(userHome),
             "macOS bin directory should be under user home");
-        assertTrue(binDir.getAbsolutePath().endsWith(".jdeploy" + File.separator + "bin"),
-            "macOS should use unified .jdeploy/bin structure, not ~/bin");
-        assertFalse(binDir.getAbsolutePath().endsWith(File.separator + "bin") &&
-                    binDir.getAbsolutePath().equals(new File(userHome, "bin").getAbsolutePath()),
+        assertTrue(binDir.getAbsolutePath().contains(".jdeploy" + File.separator + "bin-"),
+            "macOS should use per-app .jdeploy/bin-{arch}/{fqpn} structure");
+        assertTrue(binDir.getAbsolutePath().endsWith(File.separator + "test-app"),
+            "macOS bin directory should end with package name");
+        assertFalse(binDir.getAbsolutePath().equals(new File(userHome, "bin").getAbsolutePath()),
             "macOS should not use legacy ~/bin directory");
     }
 
     @Test
-    public void testMacGetBinDirMultiplePackagesSameDirectory() {
-        // Different packages should all use the same shared bin directory on macOS
+    public void testMacGetBinDirMultiplePackagesDifferentDirectories() {
+        // Different packages should use different per-app directories on macOS
         File binDir1 = installer.getBinDir(createSettings("app1", null));
         File binDir2 = installer.getBinDir(createSettings("app2", null));
-        File binDir3 = installer.getBinDir(createSettings("app3", 
+        File binDir3 = installer.getBinDir(createSettings("app3",
             "https://github.com/user/app3-repo"));
-        
+
         assertNotNull(binDir1);
         assertNotNull(binDir2);
         assertNotNull(binDir3);
-        
-        // All should be the same shared directory
-        assertEquals(binDir1.getAbsolutePath(), binDir2.getAbsolutePath(),
-            "macOS: different NPM packages should share the same bin directory");
-        assertEquals(binDir1.getAbsolutePath(), binDir3.getAbsolutePath(),
-            "macOS: NPM and GitHub packages should share the same bin directory");
+
+        // Each should have its own per-app directory
+        assertNotEquals(binDir1.getAbsolutePath(), binDir2.getAbsolutePath(),
+            "macOS: different NPM packages should have separate per-app directories");
+        assertNotEquals(binDir1.getAbsolutePath(), binDir3.getAbsolutePath(),
+            "macOS: NPM and GitHub packages should have separate per-app directories");
+
+        // Verify they all contain the bin-{arch} pattern
+        assertTrue(binDir1.getAbsolutePath().contains(".jdeploy" + File.separator + "bin-"),
+            "All directories should use bin-{arch} pattern");
+        assertTrue(binDir2.getAbsolutePath().contains(".jdeploy" + File.separator + "bin-"),
+            "All directories should use bin-{arch} pattern");
+        assertTrue(binDir3.getAbsolutePath().contains(".jdeploy" + File.separator + "bin-"),
+            "All directories should use bin-{arch} pattern");
     }
 
     @Test
