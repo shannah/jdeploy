@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -89,7 +90,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
             // Persist metadata for uninstall in the app directory
             File appDir = launcherPath.getParentFile();
-            persistMetadata(appDir, wrapperFiles, pathUpdated, gitBashPathUpdated, cliExePath, userBinDir, perAppPathDir);
+            persistMetadata(appDir, wrapperFiles, pathUpdated, gitBashPathUpdated, cliExePath, userBinDir, perAppPathDir, settings.getPackageName(), settings.getSource());
 
         } catch (IOException e) {
             System.err.println("Warning: Failed to install CLI commands: " + e.getMessage());
@@ -113,6 +114,25 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
         try {
             String metadataContent = FileUtils.readFileToString(metadataFile, "UTF-8");
             JSONObject metadata = new JSONObject(metadataContent);
+
+            // Extract packageName and source from metadata
+            String packageName = metadata.optString("packageName", null);
+            String source = metadata.optString("source", null);
+            if (source != null && source.isEmpty()) {
+                source = null;  // Treat empty string as null
+            }
+
+            // Try to load manifest from repository
+            CliCommandManifestRepository manifestRepository = createManifestRepository();
+            Optional<CliCommandManifest> manifestOpt = Optional.empty();
+            
+            if (packageName != null && !packageName.isEmpty()) {
+                try {
+                    manifestOpt = manifestRepository.load(packageName, source);
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to load manifest: " + e.getMessage());
+                }
+            }
 
             // Clean up CLI exe if it was installed
             String cliExeName = metadata.optString(CliInstallerConstants.CLI_EXE_KEY, null);
@@ -154,6 +174,29 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 }
             }
 
+            // Remove the per-app bin directory if using manifest
+            if (manifestOpt.isPresent()) {
+                CliCommandManifest manifest = manifestOpt.get();
+                File manifestBinDir = manifest.getBinDir();
+                if (manifestBinDir != null && manifestBinDir.exists() && manifestBinDir.isDirectory()) {
+                    String binDirPath = manifestBinDir.getAbsolutePath();
+                    if (binDirPath.contains(".jdeploy" + File.separator + "bin-")) {
+                        try {
+                            File[] remainingFiles = manifestBinDir.listFiles();
+                            if (remainingFiles != null) {
+                                for (File f : remainingFiles) {
+                                    f.delete();
+                                }
+                            }
+                            manifestBinDir.delete();
+                            System.out.println("Removed per-app bin directory: " + manifestBinDir.getAbsolutePath());
+                        } catch (Exception e) {
+                            System.err.println("Warning: Failed to remove per-app bin directory: " + e.getMessage());
+                        }
+                    }
+                }
+            }
+
             // Determine per-app PATH directory for cleanup
             File perAppPathDir;
             if (metadata.has("perAppPathDir")) {
@@ -171,6 +214,21 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             // Remove from Git Bash path if it was added
             if (metadata.optBoolean(CliInstallerConstants.GIT_BASH_PATH_UPDATED_KEY, false)) {
                 removeFromGitBashPath(perAppPathDir);
+            }
+
+            // Delete manifest file via repository
+            if (packageName != null && !packageName.isEmpty()) {
+                try {
+                    manifestRepository.delete(packageName, source);
+                    System.out.println("Deleted manifest for package: " + packageName);
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to delete manifest: " + e.getMessage());
+                }
+            }
+
+            // Delete legacy metadata file
+            if (!metadataFile.delete()) {
+                System.err.println("Warning: Failed to delete metadata file: " + metadataFile.getAbsolutePath());
             }
 
         } catch (IOException e) {
@@ -318,9 +376,11 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
      * @param cliExePath the CLI launcher executable file, or null if not created
      * @param sharedBinDir the shared bin directory where wrappers are stored
      * @param perAppPathDir the per-app PATH directory for registry operations
+     * @param packageName the package name (for manifest-based cleanup)
+     * @param source the source URL (null for NPM packages, or GitHub URL for GitHub packages)
      * @throws IOException if metadata file write fails
      */
-    private void persistMetadata(File appDir, List<File> createdWrappers, boolean pathUpdated, boolean gitBashPathUpdated, File cliExePath, File sharedBinDir, File perAppPathDir) throws IOException {
+    private void persistMetadata(File appDir, List<File> createdWrappers, boolean pathUpdated, boolean gitBashPathUpdated, File cliExePath, File sharedBinDir, File perAppPathDir, String packageName, String source) throws IOException {
         JSONObject metadata = new JSONObject();
 
         // Store list of created wrapper file names
@@ -343,6 +403,12 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
         // Store CLI exe path if it exists
         if (cliExePath != null) {
             metadata.put(CliInstallerConstants.CLI_EXE_KEY, cliExePath.getName());
+        }
+
+        // Store package information for manifest-based cleanup
+        metadata.put("packageName", packageName);
+        if (source != null) {
+            metadata.put("source", source);
         }
 
         // Write metadata file
@@ -482,5 +548,14 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             return new InstallWindowsRegistry(null, null, null, null, registryOperations);
         }
         return new InstallWindowsRegistry(null, null, null, null);
+    }
+
+    /**
+     * Creates a manifest repository instance. Protected to allow test overrides.
+     * 
+     * @return a CliCommandManifestRepository instance
+     */
+    protected CliCommandManifestRepository createManifestRepository() {
+        return new FileCliCommandManifestRepository();
     }
 }

@@ -86,7 +86,7 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             File appDir = launcherPath.getParentFile();
             // Save metadata to launcher's parent directory if it differs from bin, otherwise use bin
             File metadataDir = (appDir != null && !appDir.equals(localBinDir)) ? appDir : localBinDir;
-            saveMetadata(metadataDir, createdFiles, pathUpdated, localBinDir);
+            saveMetadata(metadataDir, createdFiles, pathUpdated, localBinDir, settings.getPackageName(), settings.getSource());
             settings.setAddedToPath(pathUpdated);
         }
 
@@ -137,7 +137,7 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             File appDir = launcherPath.getParentFile();
             // Save metadata to launcher's parent directory if it differs from bin, otherwise use bin
             File metadataDir = (appDir != null && !appDir.equals(localBinDir)) ? appDir : localBinDir;
-            saveMetadata(metadataDir, java.util.Collections.singletonList(symlinkPath), pathUpdated, localBinDir);
+            saveMetadata(metadataDir, java.util.Collections.singletonList(symlinkPath), pathUpdated, localBinDir, settings.getPackageName(), settings.getSource());
 
             return symlinkPath;
         } catch (IOException ioe) {

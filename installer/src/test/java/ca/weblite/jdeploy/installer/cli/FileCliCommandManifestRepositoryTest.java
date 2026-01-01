@@ -211,13 +211,13 @@ public class FileCliCommandManifestRepositoryTest {
         String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName(packageName, null);
         File expectedDir = new File(tempDir, ".jdeploy/manifests/" + arch + "/" + fqpn);
         
-        assertTrue(expectedDir.exists(), "Expected manifest directory to exist: " + expectedDir);
+        assertTrue(expectedDir.exists(), () -> "Expected manifest directory to exist: " + expectedDir);
         
         File[] files = expectedDir.listFiles((dir, name) -> name.endsWith(".json"));
         assertNotNull(files);
         assertEquals(1, files.length);
-        assertTrue(files[0].getName().contains(packageName));
-        assertTrue(files[0].getName().contains(String.valueOf(timestamp)));
+        assertTrue(files[0].getName().contains(packageName), () -> "Filename should contain packageName");
+        assertTrue(files[0].getName().contains(String.valueOf(timestamp)), () -> "Filename should contain timestamp");
     }
 
     @Test

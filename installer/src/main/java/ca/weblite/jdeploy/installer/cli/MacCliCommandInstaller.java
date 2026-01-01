@@ -112,7 +112,7 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             File appDir = launcherPath.getParentFile();
             File metadataDir = (appDir != null && !appDir.equals(localBinDir)) ? appDir : localBinDir;
             DebugLogger.log("Saving metadata to: " + metadataDir + " with " + createdFiles.size() + " files");
-            saveMetadata(metadataDir, createdFiles, pathUpdated, localBinDir);
+            saveMetadata(metadataDir, createdFiles, pathUpdated, localBinDir, settings.getPackageName(), settings.getSource());
 
             // Update settings
             settings.setAddedToPath(pathUpdated);
