@@ -25,6 +25,8 @@ public class InstallationSettings {
     private File installFilesDir;
     private URL websiteURL;
     private boolean websiteVerified;
+    private String packageName;
+    private String source;
 
     private AutoUpdateSettings autoUpdate = AutoUpdateSettings.Stable;
 
@@ -186,5 +188,21 @@ public class InstallationSettings {
 
     public void setInstallCliCommands(boolean installCliCommands) {
         this.installCliCommands = installCliCommands;
+    }
+
+    public String getPackageName() {
+        return packageName;
+    }
+
+    public void setPackageName(String packageName) {
+        this.packageName = packageName;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
     }
 }
