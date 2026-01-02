@@ -640,6 +640,24 @@ public class Main implements Runnable, Constants {
             installationSettings.setInstallCliCommands(false);
         }
 
+        // Rule 4: If both CLI Launcher and CLI Commands are enabled, check for name conflicts
+        // If a CLI command has the same name as the launcher, prefer the CLI command
+        if (installationSettings.isInstallCliLauncher() && installationSettings.isInstallCliCommands()) {
+            String launcherName = deriveCommandName();
+            boolean hasConflict = false;
+            for (CommandSpec command : commands) {
+                if (launcherName.equals(command.getName())) {
+                    hasConflict = true;
+                    break;
+                }
+            }
+            if (hasConflict) {
+                // Disable CLI launcher installation - prefer CLI command
+                installationSettings.setInstallCliLauncher(false);
+                System.out.println("CLI launcher '" + launcherName + "' conflicts with a CLI command - preferring CLI command");
+            }
+        }
+
         InstallationForm view = uiFactory.createInstallationForm(installationSettings);
         view.setEventDispatcher(new InstallationFormEventDispatcher(view));
         this.installationForm = view;
