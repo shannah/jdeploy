@@ -6,6 +6,7 @@ import ca.weblite.tools.io.IOUtil;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -208,7 +209,7 @@ public class UnixPathManager {
      * @param homeDir the user's home directory (for computing relative paths)
      * @return true if any entry was removed, false otherwise
      */
-    static boolean removePathFromConfigFile(File configFile, File binDir, File homeDir) {
+    public static boolean removePathFromConfigFile(File configFile, File binDir, File homeDir) {
         if (configFile == null || !configFile.exists()) {
             return false;
         }
