@@ -11,6 +11,8 @@ import org.mockito.Mockito;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.time.Instant;
+import java.util.Collections;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -82,10 +84,25 @@ public class InstallationDetectionServiceTest {
         // Setup: No package directory, but manifest exists
         String packageName = "test-package";
         String source = "https://github.com/test/repo";
-        UninstallManifest mockManifest = Mockito.mock(UninstallManifest.class);
+
+        // Create a minimal real UninstallManifest instance (cannot mock final class)
+        UninstallManifest manifest = UninstallManifest.builder()
+            .version("1.0")
+            .packageInfo(UninstallManifest.PackageInfo.builder()
+                .name(packageName)
+                .source(source)
+                .version("1.0.0")
+                .fullyQualifiedName(packageName)
+                .architecture("x64")
+                .installedAt(Instant.now())
+                .installerVersion("1.0")
+                .build())
+            .files(Collections.emptyList())
+            .directories(Collections.emptyList())
+            .build();
 
         // Mock: Uninstall manifest exists
-        when(mockRepository.load(eq(packageName), eq(source))).thenReturn(Optional.of(mockManifest));
+        when(mockRepository.load(eq(packageName), eq(source))).thenReturn(Optional.of(manifest));
 
         // Test
         boolean result = service.isInstalled(packageName, source);
@@ -102,8 +119,23 @@ public class InstallationDetectionServiceTest {
         File packagePath = PackagePathResolver.resolvePackagePath(packageName, null, source);
         packagePath.mkdirs();
 
-        UninstallManifest mockManifest = Mockito.mock(UninstallManifest.class);
-        when(mockRepository.load(eq(packageName), eq(source))).thenReturn(Optional.of(mockManifest));
+        // Create a minimal real UninstallManifest instance (cannot mock final class)
+        UninstallManifest manifest = UninstallManifest.builder()
+            .version("1.0")
+            .packageInfo(UninstallManifest.PackageInfo.builder()
+                .name(packageName)
+                .source(source)
+                .version("1.0.0")
+                .fullyQualifiedName(packageName)
+                .architecture("x64")
+                .installedAt(Instant.now())
+                .installerVersion("1.0")
+                .build())
+            .files(Collections.emptyList())
+            .directories(Collections.emptyList())
+            .build();
+
+        when(mockRepository.load(eq(packageName), eq(source))).thenReturn(Optional.of(manifest));
 
         try {
             // Test
