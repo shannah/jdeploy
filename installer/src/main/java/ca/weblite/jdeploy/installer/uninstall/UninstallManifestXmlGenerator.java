@@ -81,8 +81,8 @@ public class UninstallManifestXmlGenerator {
 
         for (UninstallManifest.InstalledFile file : files) {
             Element fileElement = document.createElementNS(NAMESPACE, "file");
-            appendTextElement(fileElement, "type", file.getType().getValue());
             appendTextElement(fileElement, "path", file.getPath());
+            appendTextElement(fileElement, "type", file.getType().getValue());
             if (file.getDescription() != null) {
                 appendTextElement(fileElement, "description", file.getDescription());
             }
@@ -100,8 +100,8 @@ public class UninstallManifestXmlGenerator {
 
         for (UninstallManifest.InstalledDirectory directory : directories) {
             Element dirElement = document.createElementNS(NAMESPACE, "directory");
-            appendTextElement(dirElement, "cleanup", directory.getCleanup().getValue());
             appendTextElement(dirElement, "path", directory.getPath());
+            appendTextElement(dirElement, "cleanup", directory.getCleanup().getValue());
             if (directory.getDescription() != null) {
                 appendTextElement(dirElement, "description", directory.getDescription());
             }
@@ -135,12 +135,12 @@ public class UninstallManifestXmlGenerator {
         for (UninstallManifest.ModifiedRegistryValue value : registry.getModifiedValues()) {
             Element valueElement = document.createElementNS(NAMESPACE, "modifiedValue");
             appendTextElement(valueElement, "root", value.getRoot().getValue());
-            appendTextElement(valueElement, "previousType", value.getPreviousType().getValue());
             appendTextElement(valueElement, "path", value.getPath());
             appendTextElement(valueElement, "name", value.getName());
             if (value.getPreviousValue() != null) {
                 appendTextElement(valueElement, "previousValue", value.getPreviousValue());
             }
+            appendTextElement(valueElement, "previousType", value.getPreviousType().getValue());
             if (value.getDescription() != null) {
                 appendTextElement(valueElement, "description", value.getDescription());
             }

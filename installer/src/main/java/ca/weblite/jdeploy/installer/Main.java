@@ -1105,26 +1105,35 @@ public class Main implements Runnable, Constants {
             }
             
             // Add shell profile PATH modifications if PATH was updated
+            // The CLI installer adds the app-specific bin directory to PATH, so we need to check for that
             if (installationSettings.isAddedToPath()) {
                 String userHome = System.getProperty("user.home");
-                
-                // Add bash profile entry
-                String bashrcPath = userHome + File.separator + ".bashrc";
-                String bashProfilePath = userHome + File.separator + ".bash_profile";
-                String binDirName = ".jdeploy/bin-" + ArchitectureUtil.getArchitectureSuffix();
-                String pathExportLine = "export PATH=\"" + userHome + File.separator + binDirName + ":$PATH\"";
-                
-                builder.addShellProfileEntry(bashrcPath, pathExportLine, "PATH modification for bash");
-                builder.addShellProfileEntry(bashProfilePath, pathExportLine, "PATH modification for bash profile");
-                
-                // Add zsh profile entry
-                String zprofilePath = userHome + File.separator + ".zprofile";
-                builder.addShellProfileEntry(zprofilePath, pathExportLine, "PATH modification for zsh");
-                
-                // Add fish config entry
-                String fishConfigPath = userHome + File.separator + ".config" + File.separator + "fish" + File.separator + "config.fish";
-                String fishPathLine = "set -gx PATH \"" + userHome + File.separator + binDirName + "\" $PATH";
-                builder.addShellProfileEntry(fishConfigPath, fishPathLine, "PATH modification for fish shell");
+                File homeDir = new File(userHome);
+
+                // Get the app-specific bin directory that was actually added to PATH by the CLI installer
+                File appBinDir = ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver.getPerAppBinDir(
+                        packageName, packageSource, homeDir);
+
+                // Construct the PATH export line using $HOME format (same as UnixPathManager)
+                String pathWithHome = computePathWithHome(appBinDir, homeDir);
+                String pathExportLine = "export PATH=\"" + pathWithHome + ":$PATH\"";
+
+                // Check and add bash profile entries if they exist and contain the PATH modification
+                // UnixPathManager modifies both .bash_profile and .bashrc for bash
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".bashrc",
+                        pathExportLine, "PATH modification for bash");
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".bash_profile",
+                        pathExportLine, "PATH modification for bash profile");
+
+                // Check and add zsh config entry
+                // UnixPathManager uses .zshrc for zsh (not .zprofile)
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".zshrc",
+                        pathExportLine, "PATH modification for zsh");
+
+                // Check and add .profile for other shells (fish, etc.)
+                // UnixPathManager uses .profile for fish and other non-standard shells
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".profile",
+                        pathExportLine, "PATH modification for other shells");
             }
             
             // Build and write manifest
@@ -1245,27 +1254,32 @@ public class Main implements Runnable, Constants {
             }
             
             // Add shell profile PATH modifications if PATH was updated
+            // Linux uses a shared ~/.local/bin directory for all apps
             if (installationSettings.isAddedToPath()) {
                 String userHome = System.getProperty("user.home");
-                
-                // Add bash profile entries
-                String bashrcPath = userHome + File.separator + ".bashrc";
-                String bashProfilePath = userHome + File.separator + ".bash_profile";
-                String localBinPath = userHome + File.separator + ".local" + File.separator + "bin";
-                String pathExportLine = "export PATH=\"" + localBinPath + ":$PATH\"";
-                
-                builder.addShellProfileEntry(bashrcPath, pathExportLine, "PATH modification for bash");
-                builder.addShellProfileEntry(bashProfilePath, pathExportLine, "PATH modification for bash profile");
-                
-                // Add zsh profile entry
-                String zprofilePath = userHome + File.separator + ".zprofile";
-                builder.addShellProfileEntry(zprofilePath, pathExportLine, "PATH modification for zsh");
-                
-                // Add fish config entry
-                String fishConfigPath = userHome + File.separator + ".config" + File.separator + "fish" + 
-                        File.separator + "config.fish";
-                String fishPathLine = "set -gx PATH \"" + localBinPath + "\" $PATH";
-                builder.addShellProfileEntry(fishConfigPath, fishPathLine, "PATH modification for fish shell");
+                File homeDir = new File(userHome);
+                File localBin = new File(homeDir, ".local" + File.separator + "bin");
+
+                // Use $HOME format for the path (same as UnixPathManager)
+                String pathWithHome = computePathWithHome(localBin, homeDir);
+                String pathExportLine = "export PATH=\"" + pathWithHome + ":$PATH\"";
+
+                // Check and add bash profile entries if they exist and contain the PATH modification
+                // UnixPathManager modifies both .bash_profile and .bashrc for bash
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".bashrc",
+                        pathExportLine, "PATH modification for bash");
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".bash_profile",
+                        pathExportLine, "PATH modification for bash profile");
+
+                // Check and add zsh config entry
+                // UnixPathManager uses .zshrc for zsh (not .zprofile)
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".zshrc",
+                        pathExportLine, "PATH modification for zsh");
+
+                // Check and add .profile for other shells (fish, etc.)
+                // UnixPathManager uses .profile for fish and other non-standard shells
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".profile",
+                        pathExportLine, "PATH modification for other shells");
             }
             
             // Add mimetype registrations if document types were installed
@@ -1586,6 +1600,62 @@ public class Main implements Runnable, Constants {
         // Persist uninstall manifest with all collected artifacts
         persistLinuxInstallationManifest(launcherFile, pngIcon, desktopFiles, applicationsDesktopFiles,
                 adminLauncherFile, cliScriptFiles, title);
+    }
+
+    /**
+     * Converts an absolute path to use $HOME if it's under the home directory.
+     * This matches the format used by UnixPathManager.
+     *
+     * @param path     The file path to convert
+     * @param homeDir  The user's home directory
+     * @return The path with $HOME prefix if applicable, otherwise the absolute path
+     */
+    private String computePathWithHome(File path, File homeDir) {
+        String homePath = homeDir.getAbsolutePath();
+        String absolutePath = path.getAbsolutePath();
+
+        if (absolutePath.startsWith(homePath)) {
+            // Remove homeDir prefix and leading separator
+            String relativePath = absolutePath.substring(homePath.length());
+            if (relativePath.startsWith(File.separator)) {
+                relativePath = relativePath.substring(1);
+            }
+            return "$HOME/" + relativePath.replace(File.separatorChar, '/');
+        }
+        return absolutePath;
+    }
+
+    /**
+     * Helper method to add a shell profile entry to the manifest if the file exists
+     * and contains the specified export line.
+     * This will include entries even if they were added in a previous installation,
+     * ensuring the uninstaller can clean them up.
+     *
+     * @param builder       The UninstallManifestBuilder to add the entry to
+     * @param filePath      The absolute path to the shell profile file
+     * @param exportLine    The PATH export line to look for
+     * @param description   Description for the manifest entry
+     */
+    private void addShellProfileEntryIfExists(UninstallManifestBuilder builder, String filePath,
+                                               String exportLine, String description) {
+        File file = new File(filePath);
+
+        // Only add if file exists
+        if (!file.exists()) {
+            return;
+        }
+
+        // Check if the file contains the export line (from any installation)
+        try {
+            String content = new String(java.nio.file.Files.readAllBytes(file.toPath()),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            if (content.contains(exportLine)) {
+                builder.addShellProfileEntry(filePath, exportLine, description);
+            }
+        } catch (java.io.IOException e) {
+            // If we can't read the file, don't add it to the manifest
+            System.err.println("Warning: Could not read " + filePath + " to verify PATH modification: " + e.getMessage());
+        }
     }
 
 }
