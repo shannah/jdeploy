@@ -10,6 +10,9 @@ import ca.weblite.jdeploy.installer.events.InstallationFormEventDispatcher;
 import ca.weblite.jdeploy.installer.linux.LinuxAdminLauncherGenerator;
 import ca.weblite.jdeploy.installer.linux.MimeTypeHelper;
 import ca.weblite.jdeploy.installer.mac.MacAdminLauncherGenerator;
+import ca.weblite.jdeploy.installer.uninstall.UninstallManifestBuilder;
+import ca.weblite.jdeploy.installer.uninstall.UninstallManifestWriter;
+import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest;
 import ca.weblite.jdeploy.installer.models.AutoUpdateSettings;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.npm.NPMPackage;
@@ -33,6 +36,9 @@ import ca.weblite.jdeploy.installer.cli.MacCliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.LinuxCliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.UIAwareCollisionHandler;
+import ca.weblite.jdeploy.installer.uninstall.UninstallManifestBuilder;
+import ca.weblite.jdeploy.installer.uninstall.UninstallManifestWriter;
+import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.platform.Platform;
 import org.apache.commons.io.FileUtils;
@@ -43,6 +49,7 @@ import java.awt.Desktop;
 import java.io.*;
 import java.net.URL;
 import java.util.*;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import static ca.weblite.tools.io.IOUtil.copyResourceToFile;
@@ -860,6 +867,7 @@ public class Main implements Runnable, Constants {
             }
             installedApp = installAppPath;
             File adminWrapper = null;
+            File desktopAlias = null;
 
             if (appInfo().isRequireRunAsAdmin() || appInfo().isAllowRunAsAdmin()) {
                 MacAdminLauncherGenerator macAdminLauncherGenerator = new MacAdminLauncherGenerator();
@@ -872,7 +880,7 @@ public class Main implements Runnable, Constants {
             }
 
             if (installationSettings.isAddToDesktop()) {
-                File desktopAlias = new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + appName + ".app");
+                desktopAlias = new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + appName + ".app");
                 if (desktopAlias.exists()) {
                     desktopAlias.delete();
                 }
@@ -919,6 +927,10 @@ public class Main implements Runnable, Constants {
                 Runtime.getRuntime().exec(shellScript.getAbsolutePath());
             }
 
+            // Collect installation artifacts for manifest
+            List<File> cliScriptFiles = new ArrayList<>();
+            File cliLauncherSymlink = null;
+            
             // Install CLI scripts/launchers on macOS (in ~/.local/bin) if the user requested either feature.
             if (installationSettings.isInstallCliCommands() || installationSettings.isInstallCliLauncher()) {
                 File cliLauncher = new File(installAppPath, "Contents" + File.separator + "MacOS" + File.separator + CliInstallerConstants.CLI_LAUNCHER_NAME);
@@ -933,8 +945,19 @@ public class Main implements Runnable, Constants {
                 MacCliCommandInstaller macCliInstaller = new MacCliCommandInstaller();
                 // Wire collision handler for GUI-aware prompting
                 macCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
-                macCliInstaller.installCommands(cliLauncher, commands, installationSettings);
+                cliScriptFiles.addAll(macCliInstaller.installCommands(cliLauncher, commands, installationSettings));
+                
+                // Track the CLI launcher symlink if it was created
+                if (installationSettings.isInstallCliLauncher() && installationSettings.isCommandLineSymlinkCreated()) {
+                    String commandName = deriveCommandName();
+                    File binDir = new File(System.getProperty("user.home"), ".jdeploy" + File.separator + "bin-" + ArchitectureUtil.getArchitectureSuffix());
+                    cliLauncherSymlink = new File(binDir, commandName);
+                }
             }
+            
+            // Build and persist uninstall manifest
+            persistMacInstallationManifest(installAppPath, adminWrapper, desktopAlias, 
+                    cliScriptFiles, cliLauncherSymlink, appName);
         } else if (Platform.getSystemPlatform().isLinux()) {
             File tmpExePath = null;
             for (File exeCandidate : Objects.requireNonNull(new File(tmpBundles, target).listFiles())) {
@@ -997,6 +1020,296 @@ public class Main implements Runnable, Constants {
 
     private String deriveLinuxBinaryNameFromTitle(String title) {
         return title.toLowerCase().replace(" ", "-").replaceAll("[^a-z0-9\\-]", "");
+    }
+
+    /**
+     * Persists the uninstall manifest for a macOS installation.
+     * Collects all installed artifacts and writes them to the manifest.
+     *
+     * @param appBundle       The installed .app bundle directory
+     * @param adminWrapper    The admin launcher wrapper if created (may be null)
+     * @param desktopAlias    The desktop alias if created (may be null)
+     * @param cliScriptFiles  List of CLI script files installed
+     * @param cliLauncherSymlink The CLI launcher symlink if created (may be null)
+     * @param appName         The application name (for descriptions)
+     */
+    private void persistMacInstallationManifest(File appBundle, File adminWrapper, File desktopAlias,
+                                                List<File> cliScriptFiles, File cliLauncherSymlink,
+                                                String appName) {
+        try {
+            // Create builder with package info
+            UninstallManifestBuilder builder = new UninstallManifestBuilder();
+            
+            String packageName = appInfo().getNpmPackage();
+            String packageSource = appInfo().getNpmSource();
+            String packageVersion = npmPackageVersion() != null ? npmPackageVersion().getVersion() : appInfo().getNpmVersion();
+            String arch = ArchitectureUtil.getArchitecture();
+            
+            builder.withPackageInfo(packageName, packageSource, packageVersion, arch);
+            
+            // Set installer version
+            String launcherVersion = appInfo().getLauncherVersion();
+            if (launcherVersion != null && !launcherVersion.isEmpty()) {
+                builder.withInstallerVersion(launcherVersion);
+            }
+            
+            // Add .app bundle as installed directory (always delete completely)
+            if (appBundle != null && appBundle.exists()) {
+                builder.addDirectory(appBundle.getAbsolutePath(), 
+                        UninstallManifest.CleanupStrategy.ALWAYS,
+                        "Installed application bundle: " + appName + ".app");
+            }
+            
+            // Add admin wrapper if created
+            if (adminWrapper != null && adminWrapper.exists()) {
+                builder.addDirectory(adminWrapper.getAbsolutePath(),
+                        UninstallManifest.CleanupStrategy.ALWAYS,
+                        "Admin launcher wrapper for " + appName);
+            }
+            
+            // Add desktop alias if created
+            if (desktopAlias != null && desktopAlias.exists()) {
+                builder.addFile(desktopAlias.getAbsolutePath(),
+                        UninstallManifest.FileType.LINK,
+                        "Desktop alias for " + appName);
+            }
+            
+            // Add CLI script files
+            if (cliScriptFiles != null && !cliScriptFiles.isEmpty()) {
+                for (File scriptFile : cliScriptFiles) {
+                    if (scriptFile.exists()) {
+                        String fileType = scriptFile.isDirectory() ? 
+                                "Directory for CLI scripts" : 
+                                "CLI command script";
+                        builder.addFile(scriptFile.getAbsolutePath(),
+                                UninstallManifest.FileType.SCRIPT,
+                                fileType);
+                    }
+                }
+            }
+            
+            // Add CLI launcher symlink if created
+            if (cliLauncherSymlink != null && cliLauncherSymlink.exists()) {
+                builder.addFile(cliLauncherSymlink.getAbsolutePath(),
+                        UninstallManifest.FileType.LINK,
+                        "CLI launcher symlink for " + appName);
+            }
+            
+            // Add bin directory to cleanup if CLI scripts were installed
+            if ((cliScriptFiles != null && !cliScriptFiles.isEmpty()) || cliLauncherSymlink != null) {
+                String binDirPath = System.getProperty("user.home") + File.separator + ".jdeploy" + 
+                        File.separator + "bin-" + ArchitectureUtil.getArchitectureSuffix();
+                builder.addDirectory(binDirPath,
+                        UninstallManifest.CleanupStrategy.IF_EMPTY,
+                        "CLI bin directory for macOS");
+            }
+            
+            // Add shell profile PATH modifications if PATH was updated
+            // The CLI installer adds the app-specific bin directory to PATH, so we need to check for that
+            if (installationSettings.isAddedToPath()) {
+                String userHome = System.getProperty("user.home");
+                File homeDir = new File(userHome);
+
+                // Get the app-specific bin directory that was actually added to PATH by the CLI installer
+                File appBinDir = ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver.getPerAppBinDir(
+                        packageName, packageSource, homeDir);
+
+                // Construct the PATH export line using $HOME format (same as UnixPathManager)
+                String pathWithHome = computePathWithHome(appBinDir, homeDir);
+                String pathExportLine = "export PATH=\"" + pathWithHome + ":$PATH\"";
+
+                // Check and add bash profile entries if they exist and contain the PATH modification
+                // UnixPathManager modifies both .bash_profile and .bashrc for bash
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".bashrc",
+                        pathExportLine, "PATH modification for bash");
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".bash_profile",
+                        pathExportLine, "PATH modification for bash profile");
+
+                // Check and add zsh config entry
+                // UnixPathManager uses .zshrc for zsh (not .zprofile)
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".zshrc",
+                        pathExportLine, "PATH modification for zsh");
+
+                // Check and add .profile for other shells (fish, etc.)
+                // UnixPathManager uses .profile for fish and other non-standard shells
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".profile",
+                        pathExportLine, "PATH modification for other shells");
+            }
+            
+            // Build and write manifest
+            UninstallManifest manifest = builder.build();
+            UninstallManifestWriter writer = new UninstallManifestWriter();
+            File manifestFile = writer.write(manifest);
+            
+            System.out.println("Uninstall manifest written to: " + manifestFile.getAbsolutePath());
+        } catch (Exception e) {
+            System.err.println("Failed to write uninstall manifest: " + e.getMessage());
+            e.printStackTrace(System.err);
+            throw new RuntimeException("Failed to write uninstall manifest", e);
+        }
+    }
+
+    /**
+     * Persists the uninstall manifest for a Linux installation.
+     * Collects all installed artifacts and writes them to the manifest.
+     *
+     * @param launcherFile        The installed launcher executable
+     * @param iconFile            The icon file (icon.png)
+     * @param desktopFiles        List of desktop .desktop files created on Desktop
+     * @param applicationsFiles   List of .desktop files created in ~/.local/share/applications
+     * @param adminLauncher       The admin launcher wrapper if created (may be null)
+     * @param cliScriptFiles      List of CLI script files installed
+     * @param appName             The application name (for descriptions)
+     */
+    private void persistLinuxInstallationManifest(File launcherFile, File iconFile,
+                                                  List<File> desktopFiles, List<File> applicationsFiles,
+                                                  File adminLauncher, List<File> cliScriptFiles,
+                                                  String appName) {
+        try {
+            // Create builder with package info
+            UninstallManifestBuilder builder = new UninstallManifestBuilder();
+            
+            String packageName = appInfo().getNpmPackage();
+            String packageSource = appInfo().getNpmSource();
+            String packageVersion = npmPackageVersion() != null ? npmPackageVersion().getVersion() : appInfo().getNpmVersion();
+            String arch = ArchitectureUtil.getArchitecture();
+            
+            builder.withPackageInfo(packageName, packageSource, packageVersion, arch);
+            
+            // Set installer version
+            String launcherVersion = appInfo().getLauncherVersion();
+            if (launcherVersion != null && !launcherVersion.isEmpty()) {
+                builder.withInstallerVersion(launcherVersion);
+            }
+            
+            // Add launcher executable as installed file
+            if (launcherFile != null && launcherFile.exists()) {
+                builder.addFile(launcherFile.getAbsolutePath(),
+                        UninstallManifest.FileType.BINARY,
+                        "Application launcher executable: " + appName);
+            }
+            
+            // Add icon file
+            if (iconFile != null && iconFile.exists()) {
+                builder.addFile(iconFile.getAbsolutePath(),
+                        UninstallManifest.FileType.ICON,
+                        "Application icon: " + appName);
+            }
+            
+            // Add desktop .desktop files if created
+            if (desktopFiles != null && !desktopFiles.isEmpty()) {
+                for (File desktopFile : desktopFiles) {
+                    if (desktopFile.exists()) {
+                        builder.addFile(desktopFile.getAbsolutePath(),
+                                UninstallManifest.FileType.CONFIG,
+                                "Desktop shortcut for " + appName);
+                    }
+                }
+            }
+            
+            // Add applications directory .desktop files if created
+            if (applicationsFiles != null && !applicationsFiles.isEmpty()) {
+                for (File appFile : applicationsFiles) {
+                    if (appFile.exists()) {
+                        builder.addFile(appFile.getAbsolutePath(),
+                                UninstallManifest.FileType.CONFIG,
+                                "Applications menu entry for " + appName);
+                    }
+                }
+            }
+            
+            // Add admin launcher if created
+            if (adminLauncher != null && adminLauncher.exists()) {
+                builder.addFile(adminLauncher.getAbsolutePath(),
+                        UninstallManifest.FileType.SCRIPT,
+                        "Admin launcher wrapper for " + appName);
+            }
+            
+            // Add CLI script files
+            if (cliScriptFiles != null && !cliScriptFiles.isEmpty()) {
+                for (File scriptFile : cliScriptFiles) {
+                    if (scriptFile.exists()) {
+                        builder.addFile(scriptFile.getAbsolutePath(),
+                                UninstallManifest.FileType.SCRIPT,
+                                "CLI command script or symlink for " + appName);
+                    }
+                }
+            }
+            
+            // Add application directory to cleanup if it exists and is empty
+            File appDir = launcherFile.getParentFile();
+            if (appDir != null && appDir.exists()) {
+                builder.addDirectory(appDir.getAbsolutePath(),
+                        UninstallManifest.CleanupStrategy.IF_EMPTY,
+                        "Application installation directory");
+            }
+            
+            // Add bin directory to cleanup if CLI scripts/launcher were installed
+            if ((cliScriptFiles != null && !cliScriptFiles.isEmpty()) || installationSettings.isCommandLineSymlinkCreated()) {
+                String binDirPath = System.getProperty("user.home") + File.separator + ".local" + 
+                        File.separator + "bin";
+                builder.addDirectory(binDirPath,
+                        UninstallManifest.CleanupStrategy.IF_EMPTY,
+                        "CLI bin directory for Linux");
+            }
+            
+            // Add shell profile PATH modifications if PATH was updated
+            // Linux uses a shared ~/.local/bin directory for all apps
+            if (installationSettings.isAddedToPath()) {
+                String userHome = System.getProperty("user.home");
+                File homeDir = new File(userHome);
+                File localBin = new File(homeDir, ".local" + File.separator + "bin");
+
+                // Use $HOME format for the path (same as UnixPathManager)
+                String pathWithHome = computePathWithHome(localBin, homeDir);
+                String pathExportLine = "export PATH=\"" + pathWithHome + ":$PATH\"";
+
+                // Check and add bash profile entries if they exist and contain the PATH modification
+                // UnixPathManager modifies both .bash_profile and .bashrc for bash
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".bashrc",
+                        pathExportLine, "PATH modification for bash");
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".bash_profile",
+                        pathExportLine, "PATH modification for bash profile");
+
+                // Check and add zsh config entry
+                // UnixPathManager uses .zshrc for zsh (not .zprofile)
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".zshrc",
+                        pathExportLine, "PATH modification for zsh");
+
+                // Check and add .profile for other shells (fish, etc.)
+                // UnixPathManager uses .profile for fish and other non-standard shells
+                addShellProfileEntryIfExists(builder, userHome + File.separator + ".profile",
+                        pathExportLine, "PATH modification for other shells");
+            }
+            
+            // Add mimetype registrations if document types were installed
+            if (appInfo().hasDocumentTypes()) {
+                // Add a metadata file noting mimetype registrations
+                String mimetypeData = "Mimetypes registered for: " + appName;
+                if (appInfo().hasDocumentTypes()) {
+                    StringBuilder extensions = new StringBuilder();
+                    for (String ext : appInfo().getExtensions()) {
+                        if (extensions.length() > 0) extensions.append(", ");
+                        String mimetype = appInfo().getMimetype(ext);
+                        extensions.append(ext).append(" (").append(mimetype).append(")");
+                    }
+                    mimetypeData += "\nExtensions: " + extensions.toString();
+                }
+                // Note: Mimetype registrations are handled via MimeTypeHelper, which modifies system files
+                // These are tracked for informational purposes in the manifest
+            }
+            
+            // Build and write manifest
+            UninstallManifest manifest = builder.build();
+            UninstallManifestWriter writer = new UninstallManifestWriter();
+            File manifestFile = writer.write(manifest);
+            
+            System.out.println("Uninstall manifest written to: " + manifestFile.getAbsolutePath());
+        } catch (Exception e) {
+            System.err.println("Failed to write uninstall manifest: " + e.getMessage());
+            e.printStackTrace(System.err);
+            throw new RuntimeException("Failed to write uninstall manifest", e);
+        }
     }
 
     /**
@@ -1174,7 +1487,8 @@ public class Main implements Runnable, Constants {
         FileUtil.writeStringToFile(contents, dest);
     }
 
-    private void addLinuxDesktopFile(File desktopDir, String filePrefix, String title, File pngIcon, File launcherFile) throws IOException {
+    private File addLinuxDesktopFile(File desktopDir, String filePrefix, String title, File pngIcon, File launcherFile) throws IOException {
+        File createdDesktopFile = null;
         if (desktopDir.exists()) {
             File desktopFile = new File(desktopDir, filePrefix+".desktop");
             File runAsAdminFile = new File(desktopDir, filePrefix+" (Run as Admin).desktop");
@@ -1213,7 +1527,9 @@ public class Main implements Runnable, Constants {
                 writeLinuxDesktopFile(desktopFile, title, pngIcon, launcherFile);
             }
             desktopFile.setExecutable(true);
+            createdDesktopFile = desktopFile;
         }
+        return createdDesktopFile;
     }
 
     public void installLinuxLinks(File launcherFile, String title) throws Exception {
@@ -1230,17 +1546,29 @@ public class Main implements Runnable, Constants {
 
         boolean hasDesktop = isDesktopEnvironmentAvailable();
 
+        // Track artifacts for uninstall manifest
+        List<File> desktopFiles = new ArrayList<>();
+        List<File> applicationsDesktopFiles = new ArrayList<>();
+        File adminLauncherFile = null;
+        List<File> cliScriptFiles = new ArrayList<>();
+
         // Install desktop shortcuts only if desktop environment is available
         if (hasDesktop) {
             if (installationSettings.isAddToDesktop()) {
                 File desktopDir = new File(System.getProperty("user.home"), "Desktop");
-                addLinuxDesktopFile(desktopDir, title, title, pngIcon, launcherFile);
+                File desktopFile = addLinuxDesktopFile(desktopDir, title, title, pngIcon, launcherFile);
+                if (desktopFile != null) {
+                    desktopFiles.add(desktopFile);
+                }
             }
             if (installationSettings.isAddToPrograms()) {
                 File homeDir = new File(System.getProperty("user.home"));
                 File applicationsDir = new File(homeDir, ".local"+File.separator+"share"+File.separator+"applications");
                 applicationsDir.mkdirs();
-                addLinuxDesktopFile(applicationsDir, title, title, pngIcon, launcherFile);
+                File desktopFile = addLinuxDesktopFile(applicationsDir, title, title, pngIcon, launcherFile);
+                if (desktopFile != null) {
+                    applicationsDesktopFiles.add(desktopFile);
+                }
 
                 // We need to run update desktop database before file type associations and url schemes will be
                 // recognized. Only do this if desktop environment is available.
@@ -1264,9 +1592,69 @@ public class Main implements Runnable, Constants {
             LinuxCliCommandInstaller linuxCliInstaller = new LinuxCliCommandInstaller();
             // Wire collision handler for GUI-aware prompting
             linuxCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
-            linuxCliInstaller.installCommands(launcherFile, commands, installationSettings);
+            cliScriptFiles.addAll(linuxCliInstaller.installCommands(launcherFile, commands, installationSettings));
         } else {
             System.out.println("Skipping CLI command and launcher installation (user opted out)");
+        }
+
+        // Persist uninstall manifest with all collected artifacts
+        persistLinuxInstallationManifest(launcherFile, pngIcon, desktopFiles, applicationsDesktopFiles,
+                adminLauncherFile, cliScriptFiles, title);
+    }
+
+    /**
+     * Converts an absolute path to use $HOME if it's under the home directory.
+     * This matches the format used by UnixPathManager.
+     *
+     * @param path     The file path to convert
+     * @param homeDir  The user's home directory
+     * @return The path with $HOME prefix if applicable, otherwise the absolute path
+     */
+    private String computePathWithHome(File path, File homeDir) {
+        String homePath = homeDir.getAbsolutePath();
+        String absolutePath = path.getAbsolutePath();
+
+        if (absolutePath.startsWith(homePath)) {
+            // Remove homeDir prefix and leading separator
+            String relativePath = absolutePath.substring(homePath.length());
+            if (relativePath.startsWith(File.separator)) {
+                relativePath = relativePath.substring(1);
+            }
+            return "$HOME/" + relativePath.replace(File.separatorChar, '/');
+        }
+        return absolutePath;
+    }
+
+    /**
+     * Helper method to add a shell profile entry to the manifest if the file exists
+     * and contains the specified export line.
+     * This will include entries even if they were added in a previous installation,
+     * ensuring the uninstaller can clean them up.
+     *
+     * @param builder       The UninstallManifestBuilder to add the entry to
+     * @param filePath      The absolute path to the shell profile file
+     * @param exportLine    The PATH export line to look for
+     * @param description   Description for the manifest entry
+     */
+    private void addShellProfileEntryIfExists(UninstallManifestBuilder builder, String filePath,
+                                               String exportLine, String description) {
+        File file = new File(filePath);
+
+        // Only add if file exists
+        if (!file.exists()) {
+            return;
+        }
+
+        // Check if the file contains the export line (from any installation)
+        try {
+            String content = new String(java.nio.file.Files.readAllBytes(file.toPath()),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            if (content.contains(exportLine)) {
+                builder.addShellProfileEntry(filePath, exportLine, description);
+            }
+        } catch (java.io.IOException e) {
+            // If we can't read the file, don't add it to the manifest
+            System.err.println("Warning: Could not read " + filePath + " to verify PATH modification: " + e.getMessage());
         }
     }
 
