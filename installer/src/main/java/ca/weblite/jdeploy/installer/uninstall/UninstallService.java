@@ -11,6 +11,8 @@ import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest.RegistryKe
 import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest.ShellProfileEntry;
 import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest.GitBashProfileEntry;
 import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest.WindowsPathEntry;
+import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
+import ca.weblite.jdeploy.installer.util.PackagePathResolver;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.RegistryOperations;
 import org.apache.commons.io.FileUtils;
@@ -29,14 +31,17 @@ import java.util.logging.Logger;
 
 /**
  * Service for orchestrating the uninstallation of jDeploy packages.
- * 
- * Loads uninstall manifests and executes cleanup phases in the correct order:
- * 1. Files - delete in listed order
- * 2. Directories - process by cleanup strategy
- * 3. Registry (Windows only) - delete created keys, restore modified values
- * 4. PATH modifications - Windows registry PATH and Unix shell profiles
- * 5. Self-cleanup - delete manifest file and empty parent directories
- * 
+ *
+ * Loads uninstall manifests (if available) and executes cleanup phases in the correct order:
+ * 1. Files - delete in listed order (from manifest)
+ * 2. Directories - process by cleanup strategy (from manifest)
+ * 3. Registry (Windows only) - delete created keys, restore modified values (from manifest)
+ * 4. PATH modifications - Windows registry PATH and Unix shell profiles (from manifest)
+ * 5. Package directories - delete package and commands directories
+ * 6. Self-cleanup - delete manifest file and empty parent directories
+ *
+ * If no manifest exists, logs a warning and continues with package directory cleanup.
+ *
  * Idempotent and fault-tolerant: skips already-deleted items with logging,
  * continues on individual failures, and aggregates all errors for reporting.
  */
@@ -57,67 +62,70 @@ public class UninstallService {
     }
 
     /**
-     * Uninstalls a package by loading its manifest and executing cleanup phases.
-     * 
+     * Uninstalls a package by loading its manifest (if available) and executing cleanup phases.
+     *
      * @param packageName the package name (e.g., "my-package")
      * @param source the source identifier (e.g., "npm", "github", or null for default)
      * @return UninstallResult containing success/failure counts and error messages
      */
     public UninstallResult uninstall(String packageName, String source) {
         UninstallResult result = new UninstallResult();
-        
+
         // Load manifest from repository
-        Optional<UninstallManifest> manifestOpt;
+        Optional<UninstallManifest> manifestOpt = Optional.empty();
         try {
             manifestOpt = manifestRepository.load(packageName, source);
         } catch (Exception e) {
-            LOGGER.warning("Failed to load uninstall manifest for package: " + packageName + 
+            LOGGER.warning("Failed to load uninstall manifest for package: " + packageName +
                          (source != null ? " (source: " + source + ")" : "") + " - " + e.getMessage());
-            result.addError("Failed to load uninstall manifest: " + e.getMessage());
-            result.incrementFailureCount();
-            return result;
         }
-        
+
         if (!manifestOpt.isPresent()) {
-            LOGGER.warning("No uninstall manifest found for package: " + packageName + 
-                         (source != null ? " (source: " + source + ")" : ""));
-            result.addError("No uninstall manifest found for package: " + packageName);
-            result.incrementFailureCount();
-            return result;
+            LOGGER.info("No uninstall manifest found for package: " + packageName +
+                         (source != null ? " (source: " + source + ")" : "") +
+                         " - will attempt cleanup of package directories");
         }
-        
-        UninstallManifest manifest = manifestOpt.get();
-        
+
         try {
-            // Phase 1: Delete files
-            deleteInstalledFiles(manifest.getFiles(), result);
-            
-            // Phase 2: Clean up directories
-            cleanupDirectories(manifest.getDirectories(), result);
-            
-            // Phase 3: Clean up registry (Windows only)
-            cleanupRegistry(manifest.getRegistry(), result);
-            
-            // Phase 4: Clean up PATH modifications
-            cleanupPathModifications(manifest.getPathModifications(), result);
-            
-            // Phase 5: Self-cleanup (delete manifest and empty parent dirs)
-            selfCleanup(packageName, source, result);
-            
+            // Phase 1-4: Process manifest-based cleanup if manifest exists
+            if (manifestOpt.isPresent()) {
+                UninstallManifest manifest = manifestOpt.get();
+
+                // Phase 1: Delete files
+                deleteInstalledFiles(manifest.getFiles(), result);
+
+                // Phase 2: Clean up directories
+                cleanupDirectories(manifest.getDirectories(), result);
+
+                // Phase 3: Clean up registry (Windows only)
+                cleanupRegistry(manifest.getRegistry(), result);
+
+                // Phase 4: Clean up PATH modifications
+                cleanupPathModifications(manifest.getPathModifications(), result);
+            }
+
+            // Phase 5: Clean up package directories (always execute, even without manifest)
+            cleanupPackageDirectories(packageName, source, result);
+
+            // Phase 6: Self-cleanup (delete manifest and empty parent dirs)
+            if (manifestOpt.isPresent()) {
+                selfCleanup(packageName, source, result);
+            }
+
         } catch (Exception e) {
             LOGGER.severe("Unexpected error during uninstall: " + e.getMessage());
             result.addError("Unexpected error during uninstall: " + e.getMessage());
         }
-        
+
         // Log overall uninstall completion status
         if (result.isSuccess()) {
-            LOGGER.info("Uninstall completed successfully for package: " + packageName + 
+            LOGGER.info("Uninstall completed successfully for package: " + packageName +
                        (source != null ? " (source: " + source + ")" : ""));
         } else {
-            LOGGER.info("Uninstall completed with " + result.getFailureCount() + " error(s) for package: " + 
+            LOGGER.info("Uninstall completed with " + result.getFailureCount() + " error(s) for package: " +
                        packageName + (source != null ? " (source: " + source + ")" : ""));
         }
-        
+
         return result;
     }
 
@@ -423,7 +431,101 @@ public class UninstallService {
     }
 
     /**
-     * Phase 5: Self-cleanup - delete the manifest file and empty parent directories.
+     * Phase 5: Clean up package directories - delete package, commands, apps, and uninstaller directories.
+     * This runs even if no manifest exists, ensuring directories are cleaned up.
+     *
+     * Deletes:
+     * - Package directory (from PackagePathResolver - both arch-specific and legacy paths)
+     * - Commands directory (from CliCommandBinDirResolver - per-app bin directory)
+     * - Apps directory (~/.jdeploy/apps/{fullyQualifiedPackageName})
+     * - Uninstallers directory (~/.jdeploy/uninstallers/{fullyQualifiedPackageName})
+     */
+    private void cleanupPackageDirectories(String packageName, String source, UninstallResult result) {
+        // Clean up package directories (both architecture-specific and legacy)
+        File[] packagePaths = PackagePathResolver.getAllPossiblePackagePaths(packageName, null, source);
+        for (File packagePath : packagePaths) {
+            if (packagePath.exists()) {
+                try {
+                    FileUtils.deleteDirectory(packagePath);
+                    result.incrementSuccessCount();
+                    LOGGER.info("Deleted package directory: " + packagePath.getAbsolutePath());
+                } catch (IOException e) {
+                    String errorMsg = "Failed to delete package directory: " + packagePath.getAbsolutePath() +
+                                    " - " + e.getMessage();
+                    LOGGER.warning(errorMsg);
+                    result.addError(errorMsg);
+                    result.incrementFailureCount();
+                }
+            } else {
+                LOGGER.fine("Package directory does not exist: " + packagePath.getAbsolutePath());
+            }
+        }
+
+        // Clean up commands directory (per-app bin directory)
+        try {
+            File commandsDir = CliCommandBinDirResolver.getPerAppBinDir(packageName, source);
+            if (commandsDir.exists()) {
+                FileUtils.deleteDirectory(commandsDir);
+                result.incrementSuccessCount();
+                LOGGER.info("Deleted commands directory: " + commandsDir.getAbsolutePath());
+            } else {
+                LOGGER.fine("Commands directory does not exist: " + commandsDir.getAbsolutePath());
+            }
+        } catch (Exception e) {
+            String errorMsg = "Failed to delete commands directory for package: " + packageName +
+                            " - " + e.getMessage();
+            LOGGER.warning(errorMsg);
+            result.addError(errorMsg);
+            result.incrementFailureCount();
+        }
+
+        // Clean up apps directory (~/.jdeploy/apps/{fullyQualifiedPackageName})
+        try {
+            String fullyQualifiedName = CliCommandBinDirResolver.computeFullyQualifiedPackageName(packageName, source);
+            File jdeployHome = new File(System.getProperty("user.home"), ".jdeploy");
+            File appsDir = new File(jdeployHome, "apps");
+            File appDir = new File(appsDir, fullyQualifiedName);
+
+            if (appDir.exists()) {
+                FileUtils.deleteDirectory(appDir);
+                result.incrementSuccessCount();
+                LOGGER.info("Deleted apps directory: " + appDir.getAbsolutePath());
+            } else {
+                LOGGER.fine("Apps directory does not exist: " + appDir.getAbsolutePath());
+            }
+        } catch (Exception e) {
+            String errorMsg = "Failed to delete apps directory for package: " + packageName +
+                            " - " + e.getMessage();
+            LOGGER.warning(errorMsg);
+            result.addError(errorMsg);
+            result.incrementFailureCount();
+        }
+
+        // Clean up uninstallers directory (~/.jdeploy/uninstallers/{fullyQualifiedPackageName})
+        try {
+            String fullyQualifiedName = CliCommandBinDirResolver.computeFullyQualifiedPackageName(packageName, source);
+            File jdeployHome = new File(System.getProperty("user.home"), ".jdeploy");
+            File uninstallersDir = new File(jdeployHome, "uninstallers");
+            File uninstallerDir = new File(uninstallersDir, fullyQualifiedName);
+
+            if (uninstallerDir.exists()) {
+                FileUtils.deleteDirectory(uninstallerDir);
+                result.incrementSuccessCount();
+                LOGGER.info("Deleted uninstallers directory: " + uninstallerDir.getAbsolutePath());
+            } else {
+                LOGGER.fine("Uninstallers directory does not exist: " + uninstallerDir.getAbsolutePath());
+            }
+        } catch (Exception e) {
+            String errorMsg = "Failed to delete uninstallers directory for package: " + packageName +
+                            " - " + e.getMessage();
+            LOGGER.warning(errorMsg);
+            result.addError(errorMsg);
+            result.incrementFailureCount();
+        }
+    }
+
+    /**
+     * Phase 6: Self-cleanup - delete the manifest file and empty parent directories.
      */
     private void selfCleanup(String packageName, String source, UninstallResult result) {
         try {

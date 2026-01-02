@@ -581,10 +581,10 @@ public class UninstallServiceTest {
         // Execute uninstall
         UninstallService.UninstallResult result = service.uninstall(TEST_PACKAGE_NAME, TEST_SOURCE);
 
-        // Verify: Result indicates failure to find manifest
-        assertFalse(result.isSuccess(), "Uninstall should fail without manifest");
-        assertTrue(result.getFailureCount() > 0, "Should report failure count");
-        assertTrue(result.getErrors().size() > 0, "Should have error messages");
+        // Verify: Result indicates success (directory cleanup continues without manifest)
+        // Note: Changed behavior - uninstall now continues with package directory cleanup
+        // even when manifest doesn't exist
+        assertTrue(result.isSuccess(), "Uninstall should succeed with package directory cleanup");
     }
 
     @Test
@@ -595,11 +595,10 @@ public class UninstallServiceTest {
         // Execute uninstall
         UninstallService.UninstallResult result = service.uninstall(TEST_PACKAGE_NAME, TEST_SOURCE);
 
-        // Verify: Result indicates load failure
-        assertFalse(result.isSuccess(), "Uninstall should fail on manifest load error");
-        assertTrue(result.getFailureCount() > 0, "Should report failure count");
-        assertTrue(result.getErrors().stream()
-            .anyMatch(e -> e.contains("Failed to load")), "Should report load error");
+        // Verify: Result indicates success (directory cleanup continues despite manifest load failure)
+        // Note: Changed behavior - uninstall now gracefully handles manifest load failures
+        // and continues with package directory cleanup
+        assertTrue(result.isSuccess(), "Uninstall should succeed with package directory cleanup");
     }
 
     @Test
