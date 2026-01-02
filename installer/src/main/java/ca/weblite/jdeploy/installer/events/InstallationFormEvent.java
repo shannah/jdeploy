@@ -35,12 +35,16 @@ public class InstallationFormEvent {
 
     public static enum Type {
         InstallClicked,
+        UpdateClicked,
+        UninstallClicked,
         InstallCompleteOpenApp,
         InstallCompleteRevealApp,
         InstallCompleteCloseInstaller,
+        UninstallCompleteQuit,
         VisitSoftwareHomepage,
         CancelInstallation,
-        ProceedWithInstallation
+        ProceedWithInstallation,
+        ProceedWithUninstallation
     }
 
 }

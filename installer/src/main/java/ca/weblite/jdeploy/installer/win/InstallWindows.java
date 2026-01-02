@@ -238,7 +238,18 @@ public class InstallWindows {
                 for (String registryPath : registryInstaller.getCreatedRegistryPaths()) {
                     manifestBuilder.addCreatedRegistryKey(UninstallManifest.RegistryRoot.HKEY_CURRENT_USER, registryPath);
                 }
-                
+
+                // Add the RegisteredApplications value as a modified value (not a created key)
+                // because Software\RegisteredApplications is a shared system key - we only add a value to it
+                manifestBuilder.addModifiedRegistryValue(
+                        UninstallManifest.RegistryRoot.HKEY_CURRENT_USER,
+                        registryInstaller.getRegisteredApplicationsKeyPath(),
+                        registryInstaller.getRegisteredApplicationsValueName(),
+                        null, // No previous value - the value did not exist before
+                        UninstallManifest.RegistryValueType.REG_SZ,
+                        "Registered application entry"
+                );
+
                 // Add PATH modifications if CLI commands were installed
                 if (installationSettings.isInstallCliCommands() && commands != null && !commands.isEmpty()) {
                     File perAppBinDir = CliCommandBinDirResolver.getPerAppBinDir(
