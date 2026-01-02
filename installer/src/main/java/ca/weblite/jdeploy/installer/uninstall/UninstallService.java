@@ -210,9 +210,17 @@ public class UninstallService {
      * Phase 3: Clean up Windows registry entries.
      * - Delete created keys (in reverse order of creation for safety)
      * - Restore modified values (or delete if no previous value exists)
+     * Only runs on Windows; skipped on other operating systems.
      */
     private void cleanupRegistry(UninstallManifest.RegistryInfo registryInfo, UninstallResult result) {
         if (registryInfo == null) {
+            return;
+        }
+        
+        // Guard: Only process registry on Windows
+        String osName = System.getProperty("os.name");
+        if (osName == null || !osName.toLowerCase().contains("windows")) {
+            LOGGER.fine("Skipping registry cleanup on non-Windows OS: " + osName);
             return;
         }
         
