@@ -175,7 +175,7 @@ public class UninstallService {
                 
                 switch (strategy) {
                     case ALWAYS:
-                        FileUtils.forceDelete(dirFile);
+                        FileUtils.deleteDirectory(dirFile);
                         result.incrementSuccessCount();
                         LOGGER.fine("Deleted directory (ALWAYS): " + dir.getPath());
                         break;
