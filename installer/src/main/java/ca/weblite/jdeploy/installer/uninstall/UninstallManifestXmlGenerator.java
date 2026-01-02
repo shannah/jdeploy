@@ -34,7 +34,7 @@ public class UninstallManifestXmlGenerator {
         DocumentBuilder builder = factory.newDocumentBuilder();
         this.document = builder.newDocument();
 
-        Element root = document.createElementNS(NAMESPACE, "uninstall-manifest");
+        Element root = document.createElementNS(NAMESPACE, "uninstallManifest");
         root.setAttribute("version", MANIFEST_VERSION);
         root.setAttribute("xmlns", NAMESPACE);
         document.appendChild(root);
@@ -55,20 +55,20 @@ public class UninstallManifestXmlGenerator {
     }
 
     /**
-     * Creates the package-info XML element.
+     * Creates the packageInfo XML element.
      */
     private Element createPackageInfoElement(UninstallManifest.PackageInfo packageInfo) {
-        Element element = document.createElementNS(NAMESPACE, "package-info");
+        Element element = document.createElementNS(NAMESPACE, "packageInfo");
 
         appendTextElement(element, "name", packageInfo.getName());
         if (packageInfo.getSource() != null) {
             appendTextElement(element, "source", packageInfo.getSource());
         }
         appendTextElement(element, "version", packageInfo.getVersion());
-        appendTextElement(element, "fully-qualified-name", packageInfo.getFullyQualifiedName());
+        appendTextElement(element, "fullyQualifiedName", packageInfo.getFullyQualifiedName());
         appendTextElement(element, "architecture", packageInfo.getArchitecture());
-        appendTextElement(element, "installed-at", packageInfo.getInstalledAt().toString());
-        appendTextElement(element, "installer-version", packageInfo.getInstallerVersion());
+        appendTextElement(element, "installedAt", packageInfo.getInstalledAt().toString());
+        appendTextElement(element, "installerVersion", packageInfo.getInstallerVersion());
 
         return element;
     }
@@ -81,8 +81,8 @@ public class UninstallManifestXmlGenerator {
 
         for (UninstallManifest.InstalledFile file : files) {
             Element fileElement = document.createElementNS(NAMESPACE, "file");
-            fileElement.setAttribute("type", file.getType().getValue());
             appendTextElement(fileElement, "path", file.getPath());
+            appendTextElement(fileElement, "type", file.getType().getValue());
             if (file.getDescription() != null) {
                 appendTextElement(fileElement, "description", file.getDescription());
             }
@@ -100,8 +100,8 @@ public class UninstallManifestXmlGenerator {
 
         for (UninstallManifest.InstalledDirectory directory : directories) {
             Element dirElement = document.createElementNS(NAMESPACE, "directory");
-            dirElement.setAttribute("cleanup", directory.getCleanup().getValue());
             appendTextElement(dirElement, "path", directory.getPath());
+            appendTextElement(dirElement, "cleanup", directory.getCleanup().getValue());
             if (directory.getDescription() != null) {
                 appendTextElement(dirElement, "description", directory.getDescription());
             }
@@ -118,10 +118,10 @@ public class UninstallManifestXmlGenerator {
         Element element = document.createElementNS(NAMESPACE, "registry");
 
         // Created keys
-        Element createdKeysElement = document.createElementNS(NAMESPACE, "created-keys");
+        Element createdKeysElement = document.createElementNS(NAMESPACE, "createdKeys");
         for (UninstallManifest.RegistryKey key : registry.getCreatedKeys()) {
-            Element keyElement = document.createElementNS(NAMESPACE, "key");
-            keyElement.setAttribute("root", key.getRoot().getValue());
+            Element keyElement = document.createElementNS(NAMESPACE, "createdKey");
+            appendTextElement(keyElement, "root", key.getRoot().getValue());
             appendTextElement(keyElement, "path", key.getPath());
             if (key.getDescription() != null) {
                 appendTextElement(keyElement, "description", key.getDescription());
@@ -131,16 +131,16 @@ public class UninstallManifestXmlGenerator {
         element.appendChild(createdKeysElement);
 
         // Modified values
-        Element modifiedValuesElement = document.createElementNS(NAMESPACE, "modified-values");
+        Element modifiedValuesElement = document.createElementNS(NAMESPACE, "modifiedValues");
         for (UninstallManifest.ModifiedRegistryValue value : registry.getModifiedValues()) {
-            Element valueElement = document.createElementNS(NAMESPACE, "value");
-            valueElement.setAttribute("root", value.getRoot().getValue());
-            valueElement.setAttribute("previous-type", value.getPreviousType().getValue());
+            Element valueElement = document.createElementNS(NAMESPACE, "modifiedValue");
+            appendTextElement(valueElement, "root", value.getRoot().getValue());
             appendTextElement(valueElement, "path", value.getPath());
             appendTextElement(valueElement, "name", value.getName());
             if (value.getPreviousValue() != null) {
-                appendTextElement(valueElement, "previous-value", value.getPreviousValue());
+                appendTextElement(valueElement, "previousValue", value.getPreviousValue());
             }
+            appendTextElement(valueElement, "previousType", value.getPreviousType().getValue());
             if (value.getDescription() != null) {
                 appendTextElement(valueElement, "description", value.getDescription());
             }
@@ -152,17 +152,17 @@ public class UninstallManifestXmlGenerator {
     }
 
     /**
-     * Creates the path-modifications XML element containing PATH and shell profile modifications.
+     * Creates the pathModifications XML element containing PATH and shell profile modifications.
      */
     private Element createPathModificationsElement(UninstallManifest.PathModifications pathMods) {
-        Element element = document.createElementNS(NAMESPACE, "path-modifications");
+        Element element = document.createElementNS(NAMESPACE, "pathModifications");
 
         // Windows PATH entries
         if (!pathMods.getWindowsPaths().isEmpty()) {
-            Element windowsElement = document.createElementNS(NAMESPACE, "windows-paths");
+            Element windowsElement = document.createElementNS(NAMESPACE, "windowsPaths");
             for (UninstallManifest.WindowsPathEntry entry : pathMods.getWindowsPaths()) {
-                Element entryElement = document.createElementNS(NAMESPACE, "entry");
-                appendTextElement(entryElement, "added-entry", entry.getAddedEntry());
+                Element entryElement = document.createElementNS(NAMESPACE, "windowsPath");
+                appendTextElement(entryElement, "addedEntry", entry.getAddedEntry());
                 if (entry.getDescription() != null) {
                     appendTextElement(entryElement, "description", entry.getDescription());
                 }
@@ -173,11 +173,11 @@ public class UninstallManifestXmlGenerator {
 
         // Shell profile entries
         if (!pathMods.getShellProfiles().isEmpty()) {
-            Element shellElement = document.createElementNS(NAMESPACE, "shell-profiles");
+            Element shellElement = document.createElementNS(NAMESPACE, "shellProfiles");
             for (UninstallManifest.ShellProfileEntry entry : pathMods.getShellProfiles()) {
-                Element entryElement = document.createElementNS(NAMESPACE, "entry");
+                Element entryElement = document.createElementNS(NAMESPACE, "shellProfile");
                 appendTextElement(entryElement, "file", entry.getFile());
-                appendTextElement(entryElement, "export-line", entry.getExportLine());
+                appendTextElement(entryElement, "exportLine", entry.getExportLine());
                 if (entry.getDescription() != null) {
                     appendTextElement(entryElement, "description", entry.getDescription());
                 }
@@ -188,11 +188,11 @@ public class UninstallManifestXmlGenerator {
 
         // Git Bash profile entries
         if (!pathMods.getGitBashProfiles().isEmpty()) {
-            Element gitBashElement = document.createElementNS(NAMESPACE, "git-bash-profiles");
+            Element gitBashElement = document.createElementNS(NAMESPACE, "gitBashProfiles");
             for (UninstallManifest.GitBashProfileEntry entry : pathMods.getGitBashProfiles()) {
-                Element entryElement = document.createElementNS(NAMESPACE, "entry");
+                Element entryElement = document.createElementNS(NAMESPACE, "gitBashProfile");
                 appendTextElement(entryElement, "file", entry.getFile());
-                appendTextElement(entryElement, "export-line", entry.getExportLine());
+                appendTextElement(entryElement, "exportLine", entry.getExportLine());
                 if (entry.getDescription() != null) {
                     appendTextElement(entryElement, "description", entry.getDescription());
                 }

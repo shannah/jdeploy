@@ -216,9 +216,9 @@ public class UninstallManifestWriter {
             rootName = document.getDocumentElement().getNodeName();
         }
         
-        if (!"uninstall-manifest".equals(rootName)) {
+        if (!"uninstallManifest".equals(rootName)) {
             throw new ManifestValidationException(
-                "Expected root element 'uninstall-manifest', got '" + rootName + "'"
+                "Expected root element 'uninstallManifest', got '" + rootName + "'"
             );
         }
         

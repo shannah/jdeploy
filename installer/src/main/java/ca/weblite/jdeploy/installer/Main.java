@@ -1134,9 +1134,9 @@ public class Main implements Runnable, Constants {
             
             System.out.println("Uninstall manifest written to: " + manifestFile.getAbsolutePath());
         } catch (Exception e) {
-            // Log but don't fail installation if manifest writing fails
-            System.err.println("Warning: Failed to write uninstall manifest: " + e.getMessage());
+            System.err.println("Failed to write uninstall manifest: " + e.getMessage());
             e.printStackTrace(System.err);
+            throw new RuntimeException("Failed to write uninstall manifest", e);
         }
     }
 
@@ -1292,9 +1292,9 @@ public class Main implements Runnable, Constants {
             
             System.out.println("Uninstall manifest written to: " + manifestFile.getAbsolutePath());
         } catch (Exception e) {
-            // Log but don't fail installation if manifest writing fails
-            System.err.println("Warning: Failed to write uninstall manifest: " + e.getMessage());
+            System.err.println("Failed to write uninstall manifest: " + e.getMessage());
             e.printStackTrace(System.err);
+            throw new RuntimeException("Failed to write uninstall manifest", e);
         }
     }
 
