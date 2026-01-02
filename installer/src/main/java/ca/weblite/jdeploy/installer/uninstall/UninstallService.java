@@ -74,6 +74,7 @@ public class UninstallService {
             LOGGER.warning("Failed to load uninstall manifest for package: " + packageName + 
                          (source != null ? " (source: " + source + ")" : "") + " - " + e.getMessage());
             result.addError("Failed to load uninstall manifest: " + e.getMessage());
+            result.incrementFailureCount();
             return result;
         }
         
@@ -81,6 +82,7 @@ public class UninstallService {
             LOGGER.warning("No uninstall manifest found for package: " + packageName + 
                          (source != null ? " (source: " + source + ")" : ""));
             result.addError("No uninstall manifest found for package: " + packageName);
+            result.incrementFailureCount();
             return result;
         }
         
