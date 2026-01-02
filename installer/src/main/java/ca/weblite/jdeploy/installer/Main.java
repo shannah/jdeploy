@@ -623,6 +623,23 @@ public class Main implements Runnable, Constants {
             installationSettings.setCommandLinePath(symlinkPath.getAbsolutePath());
         }
 
+        // Configure CLI installation settings based on platform and available commands
+        // Rule 1: On Linux, always install CLI Launcher
+        if (Platform.getSystemPlatform().isLinux()) {
+            installationSettings.setInstallCliLauncher(true);
+        } else {
+            // Rule 3: On Mac and Windows, never install CLI Launcher
+            installationSettings.setInstallCliLauncher(false);
+        }
+
+        // Rule 2: On all platforms, if commands are defined, always install them
+        List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
+        if (!commands.isEmpty()) {
+            installationSettings.setInstallCliCommands(true);
+        } else {
+            installationSettings.setInstallCliCommands(false);
+        }
+
         InstallationForm view = uiFactory.createInstallationForm(installationSettings);
         view.setEventDispatcher(new InstallationFormEventDispatcher(view));
         this.installationForm = view;
