@@ -183,4 +183,78 @@ public class CliCommandsPanelTest {
         assertEquals(1, cmd2Args.length());
         assertEquals("arg2", cmd2Args.getString(0));
     }
+
+    @Test
+    public void testImplementsPropertySaveAndLoad() {
+        // Create a command with implements array
+        JSONObject jdeploy = new JSONObject();
+        JSONObject commands = new JSONObject();
+
+        JSONObject cmd1 = new JSONObject();
+        cmd1.put("description", "Updater command");
+        JSONArray impl1 = new JSONArray();
+        impl1.put("updater");
+        cmd1.put("implements", impl1);
+
+        JSONObject cmd2 = new JSONObject();
+        cmd2.put("description", "Launcher command");
+        JSONArray impl2 = new JSONArray();
+        impl2.put("launcher");
+        cmd2.put("implements", impl2);
+
+        JSONObject cmd3 = new JSONObject();
+        cmd3.put("description", "Service controller with updater");
+        JSONArray impl3 = new JSONArray();
+        impl3.put("service_controller");
+        impl3.put("updater");
+        cmd3.put("implements", impl3);
+
+        commands.put("updater-cmd", cmd1);
+        commands.put("launcher-cmd", cmd2);
+        commands.put("service-cmd", cmd3);
+        jdeploy.put("commands", commands);
+
+        // Load and verify
+        panel.load(jdeploy);
+
+        // Save and verify implements are preserved
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+
+        JSONObject savedCommands = saved.getJSONObject("commands");
+        assertEquals(3, savedCommands.length());
+
+        // Verify updater-cmd has updater implementation
+        assertTrue(savedCommands.has("updater-cmd"));
+        JSONObject savedCmd1 = savedCommands.getJSONObject("updater-cmd");
+        assertTrue(savedCmd1.has("implements"));
+        JSONArray savedImpl1 = savedCmd1.getJSONArray("implements");
+        assertEquals(1, savedImpl1.length());
+        assertEquals("updater", savedImpl1.getString(0));
+
+        // Verify launcher-cmd has launcher implementation
+        assertTrue(savedCommands.has("launcher-cmd"));
+        JSONObject savedCmd2 = savedCommands.getJSONObject("launcher-cmd");
+        assertTrue(savedCmd2.has("implements"));
+        JSONArray savedImpl2 = savedCmd2.getJSONArray("implements");
+        assertEquals(1, savedImpl2.length());
+        assertEquals("launcher", savedImpl2.getString(0));
+
+        // Verify service-cmd has both implementations
+        assertTrue(savedCommands.has("service-cmd"));
+        JSONObject savedCmd3 = savedCommands.getJSONObject("service-cmd");
+        assertTrue(savedCmd3.has("implements"));
+        JSONArray savedImpl3 = savedCmd3.getJSONArray("implements");
+        assertEquals(2, savedImpl3.length());
+        // Note: Order might vary, so check both are present
+        boolean hasServiceController = false;
+        boolean hasUpdater = false;
+        for (int i = 0; i < savedImpl3.length(); i++) {
+            String impl = savedImpl3.getString(i);
+            if ("service_controller".equals(impl)) hasServiceController = true;
+            if ("updater".equals(impl)) hasUpdater = true;
+        }
+        assertTrue(hasServiceController, "Should have service_controller implementation");
+        assertTrue(hasUpdater, "Should have updater implementation");
+    }
 }
