@@ -148,6 +148,9 @@ public class UninstallManifestValidator {
                     }
                 }
                 
+                String errorMessage = "Manifest XML does not conform to schema:\n" + detailedMessage.toString();
+                System.err.println(errorMessage);
+                
                 throw new ManifestValidationException(
                     "Manifest XML does not conform to schema",
                     detailedMessage.toString()
@@ -157,7 +160,12 @@ public class UninstallManifestValidator {
         } catch (ManifestValidationException e) {
             throw e;
         } catch (SAXException e) {
-            throw new ManifestValidationException("XML parsing error during validation: " + e.getMessage(), e);
+            String errorMessage = "XML parsing error during validation: " + e.getMessage();
+            System.err.println(errorMessage);
+            if (e.getCause() != null) {
+                System.err.println("Cause: " + e.getCause().getMessage());
+            }
+            throw new ManifestValidationException(errorMessage, e);
         } catch (IOException e) {
             throw new ManifestValidationException("IO error during validation: " + e.getMessage(), e);
         }
