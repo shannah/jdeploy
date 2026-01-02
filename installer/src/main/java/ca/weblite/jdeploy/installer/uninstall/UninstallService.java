@@ -9,6 +9,7 @@ import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest.ModifiedRe
 import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest.PathModifications;
 import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest.RegistryKey;
 import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest.ShellProfileEntry;
+import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest.GitBashProfileEntry;
 import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest.WindowsPathEntry;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.RegistryOperations;
@@ -287,7 +288,8 @@ public class UninstallService {
     /**
      * Phase 4: Clean up PATH modifications.
      * - Windows: remove entries from HKCU\Environment\Path
-     * - Unix: remove export lines from shell configuration files
+     * - Unix/macOS: remove export lines from shell configuration files
+     * - Git Bash: remove entries from Git Bash profiles (.bashrc, .bash_profile)
      */
     private void cleanupPathModifications(PathModifications pathMods, UninstallResult result) {
         if (pathMods == null) {
@@ -295,60 +297,116 @@ public class UninstallService {
         }
         
         // Windows PATH cleanup
-        List<WindowsPathEntry> windowsPaths = pathMods.getWindowsPaths();
-        if (windowsPaths != null && !windowsPaths.isEmpty()) {
-            for (WindowsPathEntry entry : windowsPaths) {
-                try {
-                    File binDir = new File(entry.getAddedEntry());
-                    InstallWindowsRegistry winRegistry = new InstallWindowsRegistry(
-                        null, null, null, null, registryOperations
-                    );
-                    if (winRegistry.removeFromUserPath(binDir)) {
-                        result.incrementSuccessCount();
-                        LOGGER.fine("Removed from Windows PATH: " + entry.getAddedEntry());
-                    } else {
-                        LOGGER.fine("Windows PATH entry not found or already removed: " + 
-                                  entry.getAddedEntry());
-                    }
-                } catch (Exception e) {
-                    String errorMsg = "Failed to remove from Windows PATH: " + 
-                                    entry.getAddedEntry() + " - " + e.getMessage();
-                    LOGGER.warning(errorMsg);
-                    result.addError(errorMsg);
-                    result.incrementFailureCount();
-                }
-            }
-        }
+        cleanupWindowsPaths(pathMods.getWindowsPaths(), result);
         
         // Unix shell profile cleanup
-        List<ShellProfileEntry> shellProfiles = pathMods.getShellProfiles();
-        if (shellProfiles != null && !shellProfiles.isEmpty()) {
-            String homeDir = System.getProperty("user.home");
-            File homeDirFile = new File(homeDir);
-            
-            for (ShellProfileEntry entry : shellProfiles) {
-                try {
-                    File configFile = new File(entry.getFile());
-                    File binDir = extractBinDirFromExportLine(entry.getExportLine());
-                    
-                    boolean removed = false;
-                    if (binDir != null) {
-                        removed = UnixPathManager.removePathFromConfigFile(configFile, binDir, homeDirFile);
-                    }
-                    if (removed) {
-                        result.incrementSuccessCount();
-                        LOGGER.fine("Removed from shell profile: " + entry.getFile());
-                    } else {
-                        LOGGER.fine("Shell profile entry not found or already removed: " + 
-                                  entry.getFile());
-                    }
-                } catch (Exception e) {
-                    String errorMsg = "Failed to remove from shell profile: " + 
-                                    entry.getFile() + " - " + e.getMessage();
-                    LOGGER.warning(errorMsg);
-                    result.addError(errorMsg);
-                    result.incrementFailureCount();
+        cleanupUnixShellProfiles(pathMods.getShellProfiles(), result);
+        
+        // Git Bash profile cleanup
+        cleanupGitBashProfiles(pathMods.getGitBashProfiles(), result);
+    }
+
+    /**
+     * Clean up Windows PATH entries from HKCU\Environment\Path registry.
+     */
+    private void cleanupWindowsPaths(List<WindowsPathEntry> windowsPaths, UninstallResult result) {
+        if (windowsPaths == null || windowsPaths.isEmpty()) {
+            return;
+        }
+        
+        for (WindowsPathEntry entry : windowsPaths) {
+            try {
+                File binDir = new File(entry.getAddedEntry());
+                InstallWindowsRegistry winRegistry = new InstallWindowsRegistry(
+                    null, null, null, null, registryOperations
+                );
+                if (winRegistry.removeFromUserPath(binDir)) {
+                    result.incrementSuccessCount();
+                    LOGGER.fine("Removed from Windows PATH: " + entry.getAddedEntry());
+                } else {
+                    LOGGER.fine("Windows PATH entry not found or already removed: " + 
+                              entry.getAddedEntry());
                 }
+            } catch (Exception e) {
+                String errorMsg = "Failed to remove from Windows PATH: " + 
+                                entry.getAddedEntry() + " - " + e.getMessage();
+                LOGGER.warning(errorMsg);
+                result.addError(errorMsg);
+                result.incrementFailureCount();
+            }
+        }
+    }
+
+    /**
+     * Clean up Unix/macOS shell profile entries from configuration files.
+     */
+    private void cleanupUnixShellProfiles(List<ShellProfileEntry> shellProfiles, UninstallResult result) {
+        if (shellProfiles == null || shellProfiles.isEmpty()) {
+            return;
+        }
+        
+        String homeDir = System.getProperty("user.home");
+        File homeDirFile = new File(homeDir);
+        
+        for (ShellProfileEntry entry : shellProfiles) {
+            try {
+                File configFile = new File(entry.getFile());
+                File binDir = extractBinDirFromExportLine(entry.getExportLine());
+                
+                boolean removed = false;
+                if (binDir != null) {
+                    removed = UnixPathManager.removePathFromConfigFile(configFile, binDir, homeDirFile);
+                }
+                if (removed) {
+                    result.incrementSuccessCount();
+                    LOGGER.fine("Removed from shell profile: " + entry.getFile());
+                } else {
+                    LOGGER.fine("Shell profile entry not found or already removed: " + 
+                              entry.getFile());
+                }
+            } catch (Exception e) {
+                String errorMsg = "Failed to remove from shell profile: " + 
+                                entry.getFile() + " - " + e.getMessage();
+                LOGGER.warning(errorMsg);
+                result.addError(errorMsg);
+                result.incrementFailureCount();
+            }
+        }
+    }
+
+    /**
+     * Clean up Git Bash profile entries from configuration files (.bashrc, .bash_profile).
+     */
+    private void cleanupGitBashProfiles(List<GitBashProfileEntry> gitBashProfiles, UninstallResult result) {
+        if (gitBashProfiles == null || gitBashProfiles.isEmpty()) {
+            return;
+        }
+        
+        String homeDir = System.getProperty("user.home");
+        File homeDirFile = new File(homeDir);
+        
+        for (GitBashProfileEntry entry : gitBashProfiles) {
+            try {
+                File configFile = new File(entry.getFile());
+                File binDir = extractBinDirFromExportLine(entry.getExportLine());
+                
+                boolean removed = false;
+                if (binDir != null) {
+                    removed = UnixPathManager.removePathFromConfigFile(configFile, binDir, homeDirFile);
+                }
+                if (removed) {
+                    result.incrementSuccessCount();
+                    LOGGER.fine("Removed from Git Bash profile: " + entry.getFile());
+                } else {
+                    LOGGER.fine("Git Bash profile entry not found or already removed: " + 
+                              entry.getFile());
+                }
+            } catch (Exception e) {
+                String errorMsg = "Failed to remove from Git Bash profile: " + 
+                                entry.getFile() + " - " + e.getMessage();
+                LOGGER.warning(errorMsg);
+                result.addError(errorMsg);
+                result.incrementFailureCount();
             }
         }
     }
@@ -410,7 +468,8 @@ public class UninstallService {
 
     /**
      * Helper to extract bin directory path from an export line.
-     * Parses lines like: export PATH="/path/to/bin:$PATH"
+     * Parses lines like: export PATH="/path/to/bin:$PATH" or export PATH="$HOME/bin:$PATH"
+     * Handles both absolute paths and $HOME-relative paths.
      */
     private File extractBinDirFromExportLine(String exportLine) {
         if (exportLine == null || exportLine.isEmpty()) {
@@ -423,10 +482,18 @@ public class UninstallService {
             int endIndex = exportLine.indexOf("\"", pathIndex + 1);
             if (endIndex > pathIndex) {
                 String pathValue = exportLine.substring(pathIndex + 1, endIndex);
+                
                 // Remove :$PATH suffix if present
                 if (pathValue.contains(":")) {
                     pathValue = pathValue.substring(0, pathValue.indexOf(":"));
                 }
+                
+                // Expand $HOME to actual home directory path
+                if (pathValue.contains("$HOME")) {
+                    String homeDir = System.getProperty("user.home");
+                    pathValue = pathValue.replace("$HOME", homeDir);
+                }
+                
                 if (!pathValue.isEmpty()) {
                     return new File(pathValue);
                 }
