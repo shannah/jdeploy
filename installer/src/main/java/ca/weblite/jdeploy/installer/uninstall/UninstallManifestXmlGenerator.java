@@ -36,6 +36,7 @@ public class UninstallManifestXmlGenerator {
 
         Element root = document.createElementNS(NAMESPACE, "uninstall-manifest");
         root.setAttribute("version", MANIFEST_VERSION);
+        root.setAttribute("xmlns", NAMESPACE);
         document.appendChild(root);
 
         root.appendChild(createPackageInfoElement(manifest.getPackageInfo()));
