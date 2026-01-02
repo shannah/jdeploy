@@ -34,7 +34,7 @@ public class UninstallManifestValidatorTest {
     public void testBasicStructureValidation() throws Exception {
         // Test that basic structure validation passes for well-formed documents
         Document doc = createDocumentBuilder().newDocument();
-        Element root = doc.createElementNS(NAMESPACE, "uninstall-manifest");
+        Element root = doc.createElementNS(NAMESPACE, "uninstallManifest");
         root.setAttribute("version", "1.0");
         doc.appendChild(root);
         
@@ -62,7 +62,7 @@ public class UninstallManifestValidatorTest {
         
         // Verify document has correct root element and version
         assertNotNull(doc.getDocumentElement());
-        assertEquals("uninstall-manifest", doc.getDocumentElement().getLocalName());
+        assertEquals("uninstallManifest", doc.getDocumentElement().getLocalName());
         assertTrue(doc.getDocumentElement().hasAttribute("version"));
     }
 
@@ -82,7 +82,7 @@ public class UninstallManifestValidatorTest {
     @Test
     public void testMissingPackageInfoCaughtBySchemaValidation() throws Exception {
         Document doc = createDocumentBuilder().newDocument();
-        Element root = doc.createElementNS(NAMESPACE, "uninstall-manifest");
+        Element root = doc.createElementNS(NAMESPACE, "uninstallManifest");
         root.setAttribute("version", "1.0");
         doc.appendChild(root);
         
@@ -106,7 +106,7 @@ public class UninstallManifestValidatorTest {
     @Test
     public void testMissingMandatoryManifestVersionAttribute() throws Exception {
         Document doc = createDocumentBuilder().newDocument();
-        Element root = doc.createElementNS(NAMESPACE, "uninstall-manifest");
+        Element root = doc.createElementNS(NAMESPACE, "uninstallManifest");
         // Missing version attribute - should fail basic validation
         doc.appendChild(root);
         
@@ -122,22 +122,22 @@ public class UninstallManifestValidatorTest {
     @Test
     public void testSchemaValidationRejectsInvalidFileType() throws Exception {
         Document doc = createDocumentBuilder().newDocument();
-        Element root = doc.createElementNS(NAMESPACE, "uninstall-manifest");
+        Element root = doc.createElementNS(NAMESPACE, "uninstallManifest");
         root.setAttribute("version", "1.0");
         doc.appendChild(root);
         
-        Element packageInfo = doc.createElementNS(NAMESPACE, "package-info");
+        Element packageInfo = doc.createElementNS(NAMESPACE, "packageInfo");
         appendTextElement(doc, packageInfo, "name", "test-app");
         appendTextElement(doc, packageInfo, "version", "1.0.0");
-        appendTextElement(doc, packageInfo, "fully-qualified-name", "hash.test-app");
+        appendTextElement(doc, packageInfo, "fullyQualifiedName", "hash.test-app");
         appendTextElement(doc, packageInfo, "architecture", "x64");
-        appendTextElement(doc, packageInfo, "installed-at", "2024-01-15T10:30:45Z");
-        appendTextElement(doc, packageInfo, "installer-version", "2.0.0");
+        appendTextElement(doc, packageInfo, "installedAt", "2024-01-15T10:30:45Z");
+        appendTextElement(doc, packageInfo, "installerVersion", "2.0.0");
         root.appendChild(packageInfo);
         
         Element files = doc.createElementNS(NAMESPACE, "files");
         Element invalidFile = doc.createElementNS(NAMESPACE, "file");
-        invalidFile.setAttribute("type", "invalidType");
+        appendTextElement(doc, invalidFile, "type", "invalidType");
         Element path = doc.createElementNS(NAMESPACE, "path");
         path.setTextContent("/path/to/file");
         invalidFile.appendChild(path);
@@ -160,17 +160,17 @@ public class UninstallManifestValidatorTest {
     @Test
     public void testSchemaValidationRejectsInvalidCleanupStrategy() throws Exception {
         Document doc = createDocumentBuilder().newDocument();
-        Element root = doc.createElementNS(NAMESPACE, "uninstall-manifest");
+        Element root = doc.createElementNS(NAMESPACE, "uninstallManifest");
         root.setAttribute("version", "1.0");
         doc.appendChild(root);
         
-        Element packageInfo = doc.createElementNS(NAMESPACE, "package-info");
+        Element packageInfo = doc.createElementNS(NAMESPACE, "packageInfo");
         appendTextElement(doc, packageInfo, "name", "test-app");
         appendTextElement(doc, packageInfo, "version", "1.0.0");
-        appendTextElement(doc, packageInfo, "fully-qualified-name", "hash.test-app");
+        appendTextElement(doc, packageInfo, "fullyQualifiedName", "hash.test-app");
         appendTextElement(doc, packageInfo, "architecture", "x64");
-        appendTextElement(doc, packageInfo, "installed-at", "2024-01-15T10:30:45Z");
-        appendTextElement(doc, packageInfo, "installer-version", "2.0.0");
+        appendTextElement(doc, packageInfo, "installedAt", "2024-01-15T10:30:45Z");
+        appendTextElement(doc, packageInfo, "installerVersion", "2.0.0");
         root.appendChild(packageInfo);
         
         Element files = doc.createElementNS(NAMESPACE, "files");
@@ -178,7 +178,7 @@ public class UninstallManifestValidatorTest {
         
         Element directories = doc.createElementNS(NAMESPACE, "directories");
         Element invalidDir = doc.createElementNS(NAMESPACE, "directory");
-        invalidDir.setAttribute("cleanup", "invalidStrategy");
+        appendTextElement(doc, invalidDir, "cleanup", "invalidStrategy");
         Element dirPath = doc.createElementNS(NAMESPACE, "path");
         dirPath.setTextContent("/path/to/dir");
         invalidDir.appendChild(dirPath);
@@ -198,17 +198,17 @@ public class UninstallManifestValidatorTest {
     @Test
     public void testSchemaValidationRejectsInvalidRegistryRoot() throws Exception {
         Document doc = createDocumentBuilder().newDocument();
-        Element root = doc.createElementNS(NAMESPACE, "uninstall-manifest");
+        Element root = doc.createElementNS(NAMESPACE, "uninstallManifest");
         root.setAttribute("version", "1.0");
         doc.appendChild(root);
         
-        Element packageInfo = doc.createElementNS(NAMESPACE, "package-info");
+        Element packageInfo = doc.createElementNS(NAMESPACE, "packageInfo");
         appendTextElement(doc, packageInfo, "name", "test-app");
         appendTextElement(doc, packageInfo, "version", "1.0.0");
-        appendTextElement(doc, packageInfo, "fully-qualified-name", "hash.test-app");
+        appendTextElement(doc, packageInfo, "fullyQualifiedName", "hash.test-app");
         appendTextElement(doc, packageInfo, "architecture", "x64");
-        appendTextElement(doc, packageInfo, "installed-at", "2024-01-15T10:30:45Z");
-        appendTextElement(doc, packageInfo, "installer-version", "2.0.0");
+        appendTextElement(doc, packageInfo, "installedAt", "2024-01-15T10:30:45Z");
+        appendTextElement(doc, packageInfo, "installerVersion", "2.0.0");
         root.appendChild(packageInfo);
         
         Element files = doc.createElementNS(NAMESPACE, "files");
@@ -218,16 +218,16 @@ public class UninstallManifestValidatorTest {
         root.appendChild(directories);
         
         Element registry = doc.createElementNS(NAMESPACE, "registry");
-        Element createdKeys = doc.createElementNS(NAMESPACE, "created-keys");
-        Element invalidKey = doc.createElementNS(NAMESPACE, "key");
-        invalidKey.setAttribute("root", "INVALID_ROOT");
+        Element createdKeys = doc.createElementNS(NAMESPACE, "createdKeys");
+        Element invalidKey = doc.createElementNS(NAMESPACE, "createdKey");
+        appendTextElement(doc, invalidKey, "root", "INVALID_ROOT");
         Element keyPath = doc.createElementNS(NAMESPACE, "path");
         keyPath.setTextContent("Software\\Test");
         invalidKey.appendChild(keyPath);
         createdKeys.appendChild(invalidKey);
         registry.appendChild(createdKeys);
         
-        Element modifiedValues = doc.createElementNS(NAMESPACE, "modified-values");
+        Element modifiedValues = doc.createElementNS(NAMESPACE, "modifiedValues");
         registry.appendChild(modifiedValues);
         
         root.appendChild(registry);
@@ -245,17 +245,17 @@ public class UninstallManifestValidatorTest {
     @Test
     public void testSchemaValidationRejectsInvalidRegistryValueType() throws Exception {
         Document doc = createDocumentBuilder().newDocument();
-        Element root = doc.createElementNS(NAMESPACE, "uninstall-manifest");
+        Element root = doc.createElementNS(NAMESPACE, "uninstallManifest");
         root.setAttribute("version", "1.0");
         doc.appendChild(root);
         
-        Element packageInfo = doc.createElementNS(NAMESPACE, "package-info");
+        Element packageInfo = doc.createElementNS(NAMESPACE, "packageInfo");
         appendTextElement(doc, packageInfo, "name", "test-app");
         appendTextElement(doc, packageInfo, "version", "1.0.0");
-        appendTextElement(doc, packageInfo, "fully-qualified-name", "hash.test-app");
+        appendTextElement(doc, packageInfo, "fullyQualifiedName", "hash.test-app");
         appendTextElement(doc, packageInfo, "architecture", "x64");
-        appendTextElement(doc, packageInfo, "installed-at", "2024-01-15T10:30:45Z");
-        appendTextElement(doc, packageInfo, "installer-version", "2.0.0");
+        appendTextElement(doc, packageInfo, "installedAt", "2024-01-15T10:30:45Z");
+        appendTextElement(doc, packageInfo, "installerVersion", "2.0.0");
         root.appendChild(packageInfo);
         
         Element files = doc.createElementNS(NAMESPACE, "files");
@@ -265,13 +265,13 @@ public class UninstallManifestValidatorTest {
         root.appendChild(directories);
         
         Element registry = doc.createElementNS(NAMESPACE, "registry");
-        Element createdKeys = doc.createElementNS(NAMESPACE, "created-keys");
+        Element createdKeys = doc.createElementNS(NAMESPACE, "createdKeys");
         registry.appendChild(createdKeys);
         
-        Element modifiedValues = doc.createElementNS(NAMESPACE, "modified-values");
-        Element invalidValue = doc.createElementNS(NAMESPACE, "value");
-        invalidValue.setAttribute("root", "HKEY_CURRENT_USER");
-        invalidValue.setAttribute("previous-type", "INVALID_TYPE");
+        Element modifiedValues = doc.createElementNS(NAMESPACE, "modifiedValues");
+        Element invalidValue = doc.createElementNS(NAMESPACE, "modifiedValue");
+        appendTextElement(doc, invalidValue, "root", "HKEY_CURRENT_USER");
+        appendTextElement(doc, invalidValue, "previousType", "INVALID_TYPE");
         Element valuePath = doc.createElementNS(NAMESPACE, "path");
         valuePath.setTextContent("Environment");
         Element valueName = doc.createElementNS(NAMESPACE, "name");
@@ -296,7 +296,7 @@ public class UninstallManifestValidatorTest {
     @Test
     public void testDetailedErrorMessageOnMissingVersion() throws Exception {
         Document doc = createDocumentBuilder().newDocument();
-        Element root = doc.createElementNS(NAMESPACE, "uninstall-manifest");
+        Element root = doc.createElementNS(NAMESPACE, "uninstallManifest");
         // Missing version attribute intentionally
         doc.appendChild(root);
         
@@ -391,14 +391,14 @@ public class UninstallManifestValidatorTest {
         
         // Verify basic structure is correct
         assertNotNull(doc.getDocumentElement());
-        assertEquals("uninstall-manifest", doc.getDocumentElement().getLocalName());
+        assertEquals("uninstallManifest", doc.getDocumentElement().getLocalName());
         assertEquals("1.0", doc.getDocumentElement().getAttribute("version"));
     }
 
     @Test
     public void testSchemaValidationErrorIncludesDetails() throws Exception {
         Document doc = createDocumentBuilder().newDocument();
-        Element root = doc.createElementNS(NAMESPACE, "uninstall-manifest");
+        Element root = doc.createElementNS(NAMESPACE, "uninstallManifest");
         root.setAttribute("version", "1.0");
         doc.appendChild(root);
         
@@ -436,7 +436,7 @@ public class UninstallManifestValidatorTest {
     @Test
     public void testWrongRootElementName() throws Exception {
         Document doc = createDocumentBuilder().newDocument();
-        Element root = doc.createElementNS(NAMESPACE, "wrong-element");
+        Element root = doc.createElementNS(NAMESPACE, "wrongElement");
         root.setAttribute("version", "1.0");
         doc.appendChild(root);
         
@@ -445,7 +445,7 @@ public class UninstallManifestValidatorTest {
             () -> validator.validate(doc)
         );
         
-        assertTrue(ex.getMessage().contains("uninstall-manifest") || ex.getMessage().contains("wrong-element"),
+        assertTrue(ex.getMessage().contains("uninstallManifest") || ex.getMessage().contains("wrongElement"),
             "Expected error about wrong root element, got: " + ex.getMessage());
     }
 

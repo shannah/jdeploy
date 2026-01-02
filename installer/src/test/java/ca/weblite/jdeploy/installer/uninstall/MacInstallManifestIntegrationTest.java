@@ -218,7 +218,7 @@ public class MacInstallManifestIntegrationTest {
 
         // Verify XML content structure
         String content = new String(Files.readAllBytes(written.toPath()));
-        assertTrue(content.contains("<uninstall-manifest"));
+        assertTrue(content.contains("<uninstallManifest"));
         assertTrue(content.contains("version=\"1.0\""));
         assertTrue(content.contains("<name>test-package</name>"));
         assertTrue(content.contains("<version>2.0.0</version>"));

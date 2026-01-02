@@ -97,7 +97,7 @@ public class UninstallManifestWriterTest {
         writer.write(manifest, destination);
 
         String content = FileUtils.readFileToString(destination, "UTF-8");
-        assertTrue(content.contains("<package-info>"), "Should contain package-info element");
+        assertTrue(content.contains("<packageInfo>"), "Should contain packageInfo element");
         assertTrue(content.contains("<name>test-package</name>"), "Should contain package name");
         assertTrue(content.contains("<version>1.0.0</version>"), "Should contain package version");
     }
@@ -153,7 +153,7 @@ public class UninstallManifestWriterTest {
         
         String content = FileUtils.readFileToString(destination, "UTF-8");
         assertTrue(content.contains("<registry>"), "Should contain registry element");
-        assertTrue(content.contains("<path-modifications>"), "Should contain path-modifications element");
+        assertTrue(content.contains("<pathModifications>"), "Should contain pathModifications element");
     }
 
     @Test
@@ -211,8 +211,8 @@ public class UninstallManifestWriterTest {
         writer.write(manifest, destination);
 
         String content = FileUtils.readFileToString(destination, "UTF-8");
-        assertTrue(content.contains("<created-keys>"), "Should contain created-keys");
-        assertTrue(content.contains("<modified-values>"), "Should contain modified-values");
+        assertTrue(content.contains("<createdKeys>"), "Should contain createdKeys");
+        assertTrue(content.contains("<modifiedValues>"), "Should contain modifiedValues");
         assertTrue(content.contains("HKEY_CURRENT_USER"), "Should contain registry root");
     }
 
@@ -224,9 +224,9 @@ public class UninstallManifestWriterTest {
         writer.write(manifest, destination);
 
         String content = FileUtils.readFileToString(destination, "UTF-8");
-        assertTrue(content.contains("<windows-paths>"), "Should contain windows-paths");
-        assertTrue(content.contains("<shell-profiles>"), "Should contain shell-profiles");
-        assertTrue(content.contains("<git-bash-profiles>"), "Should contain git-bash-profiles");
+        assertTrue(content.contains("<windowsPaths>"), "Should contain windowsPaths");
+        assertTrue(content.contains("<shellProfiles>"), "Should contain shellProfiles");
+        assertTrue(content.contains("<gitBashProfiles>"), "Should contain gitBashProfiles");
     }
 
     @Test

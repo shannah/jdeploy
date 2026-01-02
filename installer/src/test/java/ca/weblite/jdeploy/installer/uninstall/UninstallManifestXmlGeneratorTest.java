@@ -42,7 +42,7 @@ public class UninstallManifestXmlGeneratorTest {
         assertEquals(1, doc.getChildNodes().getLength());
         
         Element root = doc.getDocumentElement();
-        assertEquals("uninstall-manifest", root.getLocalName());
+        assertEquals("uninstallManifest", root.getLocalName());
         assertEquals(NAMESPACE, root.getNamespaceURI());
         assertEquals("1.0", root.getAttribute("version"));
     }
@@ -53,7 +53,7 @@ public class UninstallManifestXmlGeneratorTest {
         Document doc = generator.generate(manifest);
 
         Element root = doc.getDocumentElement();
-        assertEquals("uninstall-manifest", root.getLocalName());
+        assertEquals("uninstallManifest", root.getLocalName());
         assertEquals(NAMESPACE, root.getNamespaceURI());
         assertEquals("1.0", root.getAttribute("version"));
     }
@@ -63,7 +63,7 @@ public class UninstallManifestXmlGeneratorTest {
         UninstallManifest manifest = createCompleteManifest();
         Document doc = generator.generate(manifest);
 
-        NodeList packageInfos = doc.getElementsByTagNameNS(NAMESPACE, "package-info");
+        NodeList packageInfos = doc.getElementsByTagNameNS(NAMESPACE, "packageInfo");
         assertEquals(1, packageInfos.getLength());
         
         Element packageInfo = (Element) packageInfos.item(0);
@@ -81,15 +81,15 @@ public class UninstallManifestXmlGeneratorTest {
                 .build();
 
         Document doc = generator.generate(manifest);
-        Element packageInfo = (Element) doc.getElementsByTagNameNS(NAMESPACE, "package-info").item(0);
+        Element packageInfo = (Element) doc.getElementsByTagNameNS(NAMESPACE, "packageInfo").item(0);
 
         assertEquals(info.getName(), getElementTextContent(packageInfo, "name"));
         assertEquals(info.getSource(), getElementTextContent(packageInfo, "source"));
         assertEquals(info.getVersion(), getElementTextContent(packageInfo, "version"));
-        assertEquals(info.getFullyQualifiedName(), getElementTextContent(packageInfo, "fully-qualified-name"));
+        assertEquals(info.getFullyQualifiedName(), getElementTextContent(packageInfo, "fullyQualifiedName"));
         assertEquals(info.getArchitecture(), getElementTextContent(packageInfo, "architecture"));
-        assertEquals(info.getInstalledAt().toString(), getElementTextContent(packageInfo, "installed-at"));
-        assertEquals(info.getInstallerVersion(), getElementTextContent(packageInfo, "installer-version"));
+        assertEquals(info.getInstalledAt().toString(), getElementTextContent(packageInfo, "installedAt"));
+        assertEquals(info.getInstallerVersion(), getElementTextContent(packageInfo, "installerVersion"));
     }
 
     @Test
@@ -126,12 +126,12 @@ public class UninstallManifestXmlGeneratorTest {
         assertEquals(2, fileElements.getLength());
 
         Element file1 = (Element) fileElements.item(0);
-        assertEquals("binary", file1.getAttribute("type"));
+        assertEquals("binary", getElementTextContent(file1, "type"));
         assertEquals("/usr/local/bin/myapp", getElementTextContent(file1, "path"));
         assertEquals("Main executable", getElementTextContent(file1, "description"));
 
         Element file2 = (Element) fileElements.item(1);
-        assertEquals("config", file2.getAttribute("type"));
+        assertEquals("config", getElementTextContent(file2, "type"));
         assertEquals("/etc/myapp.conf", getElementTextContent(file2, "path"));
     }
 
@@ -169,12 +169,12 @@ public class UninstallManifestXmlGeneratorTest {
         assertEquals(2, dirElements.getLength());
 
         Element dir1 = (Element) dirElements.item(0);
-        assertEquals("always", dir1.getAttribute("cleanup"));
+        assertEquals("always", getElementTextContent(dir1, "cleanup"));
         assertEquals("/opt/myapp", getElementTextContent(dir1, "path"));
         assertEquals("Main app directory", getElementTextContent(dir1, "description"));
 
         Element dir2 = (Element) dirElements.item(1);
-        assertEquals("ifEmpty", dir2.getAttribute("cleanup"));
+        assertEquals("ifEmpty", getElementTextContent(dir2, "cleanup"));
         assertEquals("/var/myapp/logs", getElementTextContent(dir2, "path"));
     }
 
@@ -210,11 +210,11 @@ public class UninstallManifestXmlGeneratorTest {
                 .build();
 
         Document doc = generator.generate(manifest);
-        NodeList keyElements = doc.getElementsByTagNameNS(NAMESPACE, "key");
+        NodeList keyElements = doc.getElementsByTagNameNS(NAMESPACE, "createdKey");
         assertEquals(1, keyElements.getLength());
 
         Element key = (Element) keyElements.item(0);
-        assertEquals("HKEY_CURRENT_USER", key.getAttribute("root"));
+        assertEquals("HKEY_CURRENT_USER", getElementTextContent(key, "root"));
         assertEquals("Software\\MyApp", getElementTextContent(key, "path"));
         assertEquals("Application registry key", getElementTextContent(key, "description"));
     }
@@ -245,15 +245,15 @@ public class UninstallManifestXmlGeneratorTest {
                 .build();
 
         Document doc = generator.generate(manifest);
-        NodeList valueElements = doc.getElementsByTagNameNS(NAMESPACE, "value");
+        NodeList valueElements = doc.getElementsByTagNameNS(NAMESPACE, "modifiedValue");
         assertEquals(1, valueElements.getLength());
 
         Element value = (Element) valueElements.item(0);
-        assertEquals("HKEY_CURRENT_USER", value.getAttribute("root"));
-        assertEquals("REG_EXPAND_SZ", value.getAttribute("previous-type"));
+        assertEquals("HKEY_CURRENT_USER", getElementTextContent(value, "root"));
+        assertEquals("REG_EXPAND_SZ", getElementTextContent(value, "previousType"));
         assertEquals("Environment", getElementTextContent(value, "path"));
         assertEquals("PATH", getElementTextContent(value, "name"));
-        assertEquals("C:\\Program Files\\OldApp;", getElementTextContent(value, "previous-value"));
+        assertEquals("C:\\Program Files\\OldApp;", getElementTextContent(value, "previousValue"));
         assertEquals("PATH environment variable modification", getElementTextContent(value, "description"));
     }
 
@@ -262,7 +262,7 @@ public class UninstallManifestXmlGeneratorTest {
         UninstallManifest manifest = createCompleteManifest();
         Document doc = generator.generate(manifest);
 
-        NodeList pathMods = doc.getElementsByTagNameNS(NAMESPACE, "path-modifications");
+        NodeList pathMods = doc.getElementsByTagNameNS(NAMESPACE, "pathModifications");
         assertEquals(1, pathMods.getLength());
     }
 
@@ -289,18 +289,16 @@ public class UninstallManifestXmlGeneratorTest {
                 .build();
 
         Document doc = generator.generate(manifest);
-        NodeList winPathEntries = doc.getElementsByTagNameNS(NAMESPACE, "entry");
-        assertTrue(winPathEntries.getLength() >= 1);
 
-        // Find the windows-paths element and its entry
-        NodeList windowsElements = doc.getElementsByTagNameNS(NAMESPACE, "windows-paths");
+        // Find the windowsPaths element and its windowsPath entry
+        NodeList windowsElements = doc.getElementsByTagNameNS(NAMESPACE, "windowsPaths");
         assertEquals(1, windowsElements.getLength());
         Element windowsElement = (Element) windowsElements.item(0);
-        NodeList windowsEntries = windowsElement.getElementsByTagNameNS(NAMESPACE, "entry");
+        NodeList windowsEntries = windowsElement.getElementsByTagNameNS(NAMESPACE, "windowsPath");
         assertEquals(1, windowsEntries.getLength());
 
         Element entry = (Element) windowsEntries.item(0);
-        assertEquals("C:\\Program Files\\MyApp\\bin", getElementTextContent(entry, "added-entry"));
+        assertEquals("C:\\Program Files\\MyApp\\bin", getElementTextContent(entry, "addedEntry"));
         assertEquals("Main bin directory", getElementTextContent(entry, "description"));
     }
 
@@ -328,16 +326,16 @@ public class UninstallManifestXmlGeneratorTest {
                 .build();
 
         Document doc = generator.generate(manifest);
-        NodeList shellElements = doc.getElementsByTagNameNS(NAMESPACE, "shell-profiles");
+        NodeList shellElements = doc.getElementsByTagNameNS(NAMESPACE, "shellProfiles");
         assertEquals(1, shellElements.getLength());
 
         Element shellElement = (Element) shellElements.item(0);
-        NodeList shellEntries = shellElement.getElementsByTagNameNS(NAMESPACE, "entry");
+        NodeList shellEntries = shellElement.getElementsByTagNameNS(NAMESPACE, "shellProfile");
         assertEquals(1, shellEntries.getLength());
 
         Element entry = (Element) shellEntries.item(0);
         assertEquals("~/.bashrc", getElementTextContent(entry, "file"));
-        assertEquals("export PATH=$PATH:/usr/local/myapp/bin", getElementTextContent(entry, "export-line"));
+        assertEquals("export PATH=$PATH:/usr/local/myapp/bin", getElementTextContent(entry, "exportLine"));
         assertEquals("Bash profile entry", getElementTextContent(entry, "description"));
     }
 
@@ -365,16 +363,16 @@ public class UninstallManifestXmlGeneratorTest {
                 .build();
 
         Document doc = generator.generate(manifest);
-        NodeList gitBashElements = doc.getElementsByTagNameNS(NAMESPACE, "git-bash-profiles");
+        NodeList gitBashElements = doc.getElementsByTagNameNS(NAMESPACE, "gitBashProfiles");
         assertEquals(1, gitBashElements.getLength());
 
         Element gitBashElement = (Element) gitBashElements.item(0);
-        NodeList gitBashEntries = gitBashElement.getElementsByTagNameNS(NAMESPACE, "entry");
+        NodeList gitBashEntries = gitBashElement.getElementsByTagNameNS(NAMESPACE, "gitBashProfile");
         assertEquals(1, gitBashEntries.getLength());
 
         Element entry = (Element) gitBashEntries.item(0);
         assertEquals("~/.bash_profile", getElementTextContent(entry, "file"));
-        assertEquals("export PATH=$PATH:/usr/local/myapp/bin", getElementTextContent(entry, "export-line"));
+        assertEquals("export PATH=$PATH:/usr/local/myapp/bin", getElementTextContent(entry, "exportLine"));
         assertEquals("Git Bash profile entry", getElementTextContent(entry, "description"));
     }
 
@@ -395,7 +393,7 @@ public class UninstallManifestXmlGeneratorTest {
                 .build();
 
         Document doc = generator.generate(manifest);
-        NodeList pathModsElements = doc.getElementsByTagNameNS(NAMESPACE, "path-modifications");
+        NodeList pathModsElements = doc.getElementsByTagNameNS(NAMESPACE, "pathModifications");
         assertEquals(1, pathModsElements.getLength());
 
         Element pathModsElement = (Element) pathModsElements.item(0);
@@ -409,10 +407,10 @@ public class UninstallManifestXmlGeneratorTest {
         Document doc = generator.generate(manifest);
 
         Element root = doc.getDocumentElement();
-        assertEquals("uninstall-manifest", root.getLocalName());
+        assertEquals("uninstallManifest", root.getLocalName());
         assertEquals("1.0", root.getAttribute("version"));
 
-        NodeList packageInfos = root.getElementsByTagNameNS(NAMESPACE, "package-info");
+        NodeList packageInfos = root.getElementsByTagNameNS(NAMESPACE, "packageInfo");
         assertEquals(1, packageInfos.getLength());
 
         NodeList filesElements = root.getElementsByTagNameNS(NAMESPACE, "files");
@@ -424,7 +422,7 @@ public class UninstallManifestXmlGeneratorTest {
         NodeList registryElements = root.getElementsByTagNameNS(NAMESPACE, "registry");
         assertEquals(1, registryElements.getLength());
 
-        NodeList pathModsElements = root.getElementsByTagNameNS(NAMESPACE, "path-modifications");
+        NodeList pathModsElements = root.getElementsByTagNameNS(NAMESPACE, "pathModifications");
         assertEquals(1, pathModsElements.getLength());
     }
 
@@ -481,8 +479,8 @@ public class UninstallManifestXmlGeneratorTest {
 
         for (int i = 0; i < fileElements.getLength(); i++) {
             Element file = (Element) fileElements.item(i);
-            assertTrue(file.hasAttribute("type"));
-            String typeValue = file.getAttribute("type");
+            String typeValue = getElementTextContent(file, "type");
+            assertNotNull(typeValue, "File element should have type child element");
             assertTrue(typeValue.matches("binary|script|link|config|icon|metadata"));
         }
     }
@@ -510,8 +508,8 @@ public class UninstallManifestXmlGeneratorTest {
 
         for (int i = 0; i < dirElements.getLength(); i++) {
             Element dir = (Element) dirElements.item(i);
-            assertTrue(dir.hasAttribute("cleanup"));
-            String cleanupValue = dir.getAttribute("cleanup");
+            String cleanupValue = getElementTextContent(dir, "cleanup");
+            assertNotNull(cleanupValue, "Directory element should have cleanup child element");
             assertTrue(cleanupValue.matches("always|ifEmpty|contentsOnly"));
         }
     }

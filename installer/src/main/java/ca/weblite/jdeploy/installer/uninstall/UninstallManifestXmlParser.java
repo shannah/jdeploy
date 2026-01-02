@@ -30,7 +30,7 @@ public class UninstallManifestXmlParser {
         
         String version = root.getAttribute("version");
         
-        Element packageInfoElem = getElementByTagName(root, "package-info");
+        Element packageInfoElem = getElementByTagName(root, "packageInfo");
         UninstallManifest.PackageInfo packageInfo = parsePackageInfo(packageInfoElem);
         
         List<UninstallManifest.InstalledFile> files = parseFiles(root);
@@ -43,7 +43,7 @@ public class UninstallManifestXmlParser {
         }
         
         UninstallManifest.PathModifications pathMods = null;
-        Element pathElem = getElementByTagName(root, "path-modifications");
+        Element pathElem = getElementByTagName(root, "pathModifications");
         if (pathElem != null) {
             pathMods = parsePathModifications(pathElem);
         }
@@ -62,10 +62,10 @@ public class UninstallManifestXmlParser {
         String name = getTextContent(elem, "name");
         String source = getTextContent(elem, "source");
         String version = getTextContent(elem, "version");
-        String fqn = getTextContent(elem, "fully-qualified-name");
+        String fqn = getTextContent(elem, "fullyQualifiedName");
         String arch = getTextContent(elem, "architecture");
-        String installedAtStr = getTextContent(elem, "installed-at");
-        String installerVersion = getTextContent(elem, "installer-version");
+        String installedAtStr = getTextContent(elem, "installedAt");
+        String installerVersion = getTextContent(elem, "installerVersion");
         
         return UninstallManifest.PackageInfo.builder()
             .name(name)
@@ -83,11 +83,11 @@ public class UninstallManifestXmlParser {
         Element filesElem = getElementByTagName(root, "files");
         
         if (filesElem != null) {
-            NodeList fileElems = filesElem.getElementsByTagName("file");
+            NodeList fileElems = filesElem.getElementsByTagNameNS(NAMESPACE, "file");
             for (int i = 0; i < fileElems.getLength(); i++) {
                 Element fileElem = (Element) fileElems.item(i);
                 String path = getTextContent(fileElem, "path");
-                String typeStr = fileElem.getAttribute("type");
+                String typeStr = getTextContent(fileElem, "type");
                 String description = getTextContent(fileElem, "description");
                 
                 files.add(UninstallManifest.InstalledFile.builder()
@@ -106,11 +106,11 @@ public class UninstallManifestXmlParser {
         Element dirsElem = getElementByTagName(root, "directories");
         
         if (dirsElem != null) {
-            NodeList dirElems = dirsElem.getElementsByTagName("directory");
+            NodeList dirElems = dirsElem.getElementsByTagNameNS(NAMESPACE, "directory");
             for (int i = 0; i < dirElems.getLength(); i++) {
                 Element dirElem = (Element) dirElems.item(i);
                 String path = getTextContent(dirElem, "path");
-                String cleanupStr = dirElem.getAttribute("cleanup");
+                String cleanupStr = getTextContent(dirElem, "cleanup");
                 String description = getTextContent(dirElem, "description");
                 
                 directories.add(UninstallManifest.InstalledDirectory.builder()
@@ -126,12 +126,12 @@ public class UninstallManifestXmlParser {
 
     private UninstallManifest.RegistryInfo parseRegistry(Element elem) {
         List<UninstallManifest.RegistryKey> createdKeys = new ArrayList<>();
-        Element keysElem = getElementByTagName(elem, "created-keys");
+        Element keysElem = getElementByTagName(elem, "createdKeys");
         if (keysElem != null) {
-            NodeList keyElems = keysElem.getElementsByTagName("key");
+            NodeList keyElems = keysElem.getElementsByTagNameNS(NAMESPACE, "createdKey");
             for (int i = 0; i < keyElems.getLength(); i++) {
                 Element keyElem = (Element) keyElems.item(i);
-                String rootStr = keyElem.getAttribute("root");
+                String rootStr = getTextContent(keyElem, "root");
                 String path = getTextContent(keyElem, "path");
                 String description = getTextContent(keyElem, "description");
                 
@@ -144,16 +144,16 @@ public class UninstallManifestXmlParser {
         }
         
         List<UninstallManifest.ModifiedRegistryValue> modifiedValues = new ArrayList<>();
-        Element valuesElem = getElementByTagName(elem, "modified-values");
+        Element valuesElem = getElementByTagName(elem, "modifiedValues");
         if (valuesElem != null) {
-            NodeList valueElems = valuesElem.getElementsByTagName("value");
+            NodeList valueElems = valuesElem.getElementsByTagNameNS(NAMESPACE, "modifiedValue");
             for (int i = 0; i < valueElems.getLength(); i++) {
                 Element valueElem = (Element) valueElems.item(i);
-                String rootStr = valueElem.getAttribute("root");
+                String rootStr = getTextContent(valueElem, "root");
                 String path = getTextContent(valueElem, "path");
                 String name = getTextContent(valueElem, "name");
-                String previousValue = getTextContent(valueElem, "previous-value");
-                String typeStr = valueElem.getAttribute("previous-type");
+                String previousValue = getTextContent(valueElem, "previousValue");
+                String typeStr = getTextContent(valueElem, "previousType");
                 String description = getTextContent(valueElem, "description");
                 
                 modifiedValues.add(UninstallManifest.ModifiedRegistryValue.builder()
@@ -175,12 +175,12 @@ public class UninstallManifestXmlParser {
 
     private UninstallManifest.PathModifications parsePathModifications(Element elem) {
         List<UninstallManifest.WindowsPathEntry> windowsPaths = new ArrayList<>();
-        Element windowsElem = getElementByTagName(elem, "windows-paths");
+        Element windowsElem = getElementByTagName(elem, "windowsPaths");
         if (windowsElem != null) {
-            NodeList entryElems = windowsElem.getElementsByTagName("entry");
+            NodeList entryElems = windowsElem.getElementsByTagNameNS(NAMESPACE, "windowsPath");
             for (int i = 0; i < entryElems.getLength(); i++) {
                 Element entryElem = (Element) entryElems.item(i);
-                String entry = getTextContent(entryElem, "added-entry");
+                String entry = getTextContent(entryElem, "addedEntry");
                 String description = getTextContent(entryElem, "description");
                 
                 windowsPaths.add(UninstallManifest.WindowsPathEntry.builder()
@@ -191,13 +191,13 @@ public class UninstallManifestXmlParser {
         }
         
         List<UninstallManifest.ShellProfileEntry> shellProfiles = new ArrayList<>();
-        Element shellElem = getElementByTagName(elem, "shell-profiles");
+        Element shellElem = getElementByTagName(elem, "shellProfiles");
         if (shellElem != null) {
-            NodeList profileElems = shellElem.getElementsByTagName("entry");
+            NodeList profileElems = shellElem.getElementsByTagNameNS(NAMESPACE, "shellProfile");
             for (int i = 0; i < profileElems.getLength(); i++) {
                 Element profileElem = (Element) profileElems.item(i);
                 String file = getTextContent(profileElem, "file");
-                String exportLine = getTextContent(profileElem, "export-line");
+                String exportLine = getTextContent(profileElem, "exportLine");
                 String description = getTextContent(profileElem, "description");
                 
                 shellProfiles.add(UninstallManifest.ShellProfileEntry.builder()
@@ -209,13 +209,13 @@ public class UninstallManifestXmlParser {
         }
         
         List<UninstallManifest.GitBashProfileEntry> gitBashProfiles = new ArrayList<>();
-        Element gitBashElem = getElementByTagName(elem, "git-bash-profiles");
+        Element gitBashElem = getElementByTagName(elem, "gitBashProfiles");
         if (gitBashElem != null) {
-            NodeList profileElems = gitBashElem.getElementsByTagName("entry");
+            NodeList profileElems = gitBashElem.getElementsByTagNameNS(NAMESPACE, "gitBashProfile");
             for (int i = 0; i < profileElems.getLength(); i++) {
                 Element profileElem = (Element) profileElems.item(i);
                 String file = getTextContent(profileElem, "file");
-                String exportLine = getTextContent(profileElem, "export-line");
+                String exportLine = getTextContent(profileElem, "exportLine");
                 String description = getTextContent(profileElem, "description");
                 
                 gitBashProfiles.add(UninstallManifest.GitBashProfileEntry.builder()

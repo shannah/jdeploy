@@ -229,7 +229,7 @@ public class LinuxInstallManifestIntegrationTest {
         
         // Verify content
         String xmlContent = new String(Files.readAllBytes(manifestFile.toPath()), StandardCharsets.UTF_8);
-        assertTrue(xmlContent.contains("<uninstall-manifest"));
+        assertTrue(xmlContent.contains("<uninstallManifest"));
         assertTrue(xmlContent.contains(packageName));
         assertTrue(xmlContent.contains(version));
         assertTrue(xmlContent.contains(arch));
