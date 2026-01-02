@@ -9,6 +9,7 @@ import java.io.*;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Scanner;
@@ -232,6 +233,38 @@ public class InstallWindowsRegistry {
                 getFullyQualifiedPackageName() + File.separator +
                 appInfo.getNpmPackage()+suffix+"-uninstall.exe");
 
+    }
+
+    /**
+     * Returns a list of registry key paths that are created/used during installation.
+     * These are all under HKEY_CURRENT_USER.
+     * 
+     * @return List of registry key paths
+     */
+    public List<String> getCreatedRegistryPaths() {
+        List<String> paths = new ArrayList<>();
+        paths.add(getRegistryPath());
+        paths.add(getCapabilitiesPath());
+        if (appInfo.hasDocumentTypes()) {
+            paths.add(getFileAssociationsPath());
+            paths.add(getProgBaseKey());
+        }
+        if (appInfo.hasUrlSchemes()) {
+            paths.add(getURLAssociationsPath());
+            for (String scheme : appInfo.getUrlSchemes()) {
+                if (canChangeURLSchemeEntry(scheme)) {
+                    paths.add(getURLSchemeRegistryKey(scheme));
+                }
+            }
+        }
+        if (appInfo.hasDirectoryAssociation()) {
+            String progId = getProgId();
+            paths.add("Software\\Classes\\Directory\\shell\\" + progId);
+            paths.add("Software\\Classes\\Directory\\Background\\shell\\" + progId);
+        }
+        paths.add(getUninstallKey());
+        paths.add("Software\\RegisteredApplications");
+        return paths;
     }
 
     public String getFullyQualifiedPackageName() {

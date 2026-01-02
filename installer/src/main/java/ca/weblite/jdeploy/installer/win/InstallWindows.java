@@ -7,7 +7,11 @@ import ca.weblite.jdeploy.installer.Main;
 import ca.weblite.jdeploy.installer.cli.CollisionHandler;
 import ca.weblite.jdeploy.installer.cli.UIAwareCollisionHandler;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.installer.uninstall.UninstallManifestBuilder;
+import ca.weblite.jdeploy.installer.uninstall.UninstallManifestWriter;
+import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest;
 import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
+import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.tools.io.FileUtil;
 import com.izforge.izpack.util.os.ShellLink;
 import com.joshondesign.appbundler.win.WindowsPESubsystemModifier;
@@ -111,7 +115,7 @@ public class InstallWindows {
         if (Files.exists(bundleIcon.toPath())) {
             FileUtil.copy(bundleIcon, iconPath);
         }
-        installWindowsLinks(
+        List<File> shortcutFiles = installWindowsLinks(
                 appInfo,
                 installationSettings,
                 exePath,
@@ -143,12 +147,13 @@ public class InstallWindows {
 
             // Install CLI commands if user requested
             List<ca.weblite.jdeploy.models.CommandSpec> commands = npmPackageVersion != null ? npmPackageVersion.getCommands() : null;
+            List<File> cliWrapperFiles = null;
             if (installationSettings.isInstallCliCommands() && commands != null && !commands.isEmpty()) {
                 ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller cliInstaller = 
                     new ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller();
                 cliInstaller.setCollisionHandler(collisionHandler);
                 File launcherForCommands = cliExePath != null ? cliExePath : exePath;
-                cliInstaller.installCommands(launcherForCommands, commands, installationSettings);
+                cliWrapperFiles = cliInstaller.installCommands(launcherForCommands, commands, installationSettings);
             }
 
             //Try to copy the uninstaller
@@ -186,6 +191,76 @@ public class InstallWindows {
                     )
             );
 
+            // Build and write uninstall manifest
+            try {
+                UninstallManifestBuilder manifestBuilder = new UninstallManifestBuilder();
+                
+                // Set package info
+                String arch = ArchitectureUtil.getArchitecture();
+                manifestBuilder.withPackageInfo(
+                    appInfo.getNpmPackage(),
+                    appInfo.getNpmSource(),
+                    appInfo.getNpmVersion(),
+                    arch
+                );
+                manifestBuilder.withInstallerVersion(appInfo.getLauncherVersion() != null ? appInfo.getLauncherVersion() : "1.0");
+                
+                // Add executable
+                manifestBuilder.addFile(exePath.getAbsolutePath(), UninstallManifest.FileType.BINARY, "Main application executable");
+                
+                // Add CLI executable if created
+                if (cliExePath != null && cliExePath.exists()) {
+                    manifestBuilder.addFile(cliExePath.getAbsolutePath(), UninstallManifest.FileType.BINARY, "CLI launcher executable");
+                }
+                
+                // Add icon files
+                if (iconPath.exists()) {
+                    manifestBuilder.addFile(iconPath.getAbsolutePath(), UninstallManifest.FileType.ICON, "Application icon (PNG)");
+                }
+                if (icoPath.exists()) {
+                    manifestBuilder.addFile(icoPath.getAbsolutePath(), UninstallManifest.FileType.ICON, "Application icon (ICO)");
+                }
+                
+                // Add shortcuts (shortcutFiles is the List<File> returned from installWindowsLinks)
+                for (File shortcut : shortcutFiles) {
+                    manifestBuilder.addFile(shortcut.getAbsolutePath(), UninstallManifest.FileType.LINK, "Windows shortcut");
+                }
+                
+                // Add CLI command wrappers (cliWrapperFiles from WindowsCliCommandInstaller.installCommands())
+                if (cliWrapperFiles != null) {
+                    for (File wrapper : cliWrapperFiles) {
+                        manifestBuilder.addFile(wrapper.getAbsolutePath(), UninstallManifest.FileType.SCRIPT, "CLI command wrapper");
+                    }
+                }
+                
+                // Add registry keys from InstallWindowsRegistry
+                // The registry installer creates keys under HKEY_CURRENT_USER
+                for (String registryPath : registryInstaller.getCreatedRegistryPaths()) {
+                    manifestBuilder.addCreatedRegistryKey(UninstallManifest.RegistryRoot.HKEY_CURRENT_USER, registryPath);
+                }
+                
+                // Add PATH modifications if CLI commands were installed
+                if (installationSettings.isInstallCliCommands() && commands != null && !commands.isEmpty()) {
+                    File perAppBinDir = CliCommandBinDirResolver.getPerAppBinDir(
+                        installationSettings.getPackageName(),
+                        installationSettings.getSource()
+                    );
+                    manifestBuilder.addWindowsPathEntry(perAppBinDir.getAbsolutePath(), "CLI commands bin directory");
+                }
+                
+                // Add app directory
+                manifestBuilder.addDirectory(appDir.getAbsolutePath(), UninstallManifest.CleanupStrategy.ALWAYS, "Application directory");
+                
+                // Write manifest
+                UninstallManifestWriter writer = new UninstallManifestWriter(true); // skip schema validation
+                UninstallManifest manifest = manifestBuilder.build();
+                writer.write(manifest);
+                
+            } catch (Exception e) {
+                // Log but don't fail installation if manifest writing fails
+                System.err.println("Warning: Failed to write uninstall manifest: " + e.getMessage());
+            }
+
             return exePath;
 
         } catch (Exception ex) {
@@ -206,7 +281,7 @@ public class InstallWindows {
         }
     }
 
-    private void installWindowsLink(
+    private File installWindowsLink(
             AppInfo appInfo,
             int type,
             File exePath,
@@ -229,15 +304,33 @@ public class InstallWindows {
             link.setRunAsAdministrator(true);
         }
         link.save();
+        
+        // Compute and return the shortcut file path based on type
+        String userHome = System.getProperty("user.home");
+        String appData = System.getenv("APPDATA");
+        
+        switch (type) {
+            case ShellLink.DESKTOP:
+                return new File(userHome, "Desktop" + File.separator + appTitle + ".lnk");
+            case ShellLink.PROGRAM_MENU:
+                return new File(appData, "Microsoft" + File.separator + "Windows" + File.separator + 
+                               "Start Menu" + File.separator + "Programs" + File.separator + appTitle + ".lnk");
+            case ShellLink.START_MENU:
+                return new File(appData, "Microsoft" + File.separator + "Windows" + File.separator + 
+                               "Start Menu" + File.separator + appTitle + ".lnk");
+            default:
+                return null;
+        }
     }
 
-    private void installWindowsLinks(
+    private List<File> installWindowsLinks(
             AppInfo appInfo,
             InstallationSettings installationSettings,
             File exePath,
             File appDir,
             String appTitle
     ) throws Exception {
+        List<File> shortcutFiles = new ArrayList<>();
         File pngIconPath = new File(appDir, "icon.png");
         File icoPath = new File(appDir.getCanonicalFile(), "icon.ico");
 
@@ -253,12 +346,16 @@ public class InstallWindows {
         if (installationSettings.isAddToDesktop()) {
             try {
                 if (appInfo.isRequireRunAsAdmin()) {
-                    installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle, true);
+                    File shortcut = installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle, true);
+                    if (shortcut != null) shortcutFiles.add(shortcut);
                 } else if (appInfo.isAllowRunAsAdmin()) {
-                    installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle, false);
-                    installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle + RUN_AS_ADMIN_SUFFIX, true);
+                    File shortcut = installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle, false);
+                    if (shortcut != null) shortcutFiles.add(shortcut);
+                    File shortcutAdmin = installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle + RUN_AS_ADMIN_SUFFIX, true);
+                    if (shortcutAdmin != null) shortcutFiles.add(shortcutAdmin);
                 } else {
-                    installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle, false);
+                    File shortcut = installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle, false);
+                    if (shortcut != null) shortcutFiles.add(shortcut);
                 }
 
             } catch (Exception ex) {
@@ -268,12 +365,16 @@ public class InstallWindows {
         if (installationSettings.isAddToPrograms()) {
             try {
                 if (appInfo.isRequireRunAsAdmin()) {
-                    installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle, true);
+                    File shortcut = installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle, true);
+                    if (shortcut != null) shortcutFiles.add(shortcut);
                 } else if (appInfo.isAllowRunAsAdmin()) {
-                    installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle, false);
-                    installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle + RUN_AS_ADMIN_SUFFIX, true);
+                    File shortcut = installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle, false);
+                    if (shortcut != null) shortcutFiles.add(shortcut);
+                    File shortcutAdmin = installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle + RUN_AS_ADMIN_SUFFIX, true);
+                    if (shortcutAdmin != null) shortcutFiles.add(shortcutAdmin);
                 } else {
-                    installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle, false);
+                    File shortcut = installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle, false);
+                    if (shortcut != null) shortcutFiles.add(shortcut);
                 }
 
             } catch (Exception ex) {
@@ -284,17 +385,23 @@ public class InstallWindows {
         if (installationSettings.isAddToStartMenu()) {
             try {
                 if (appInfo.isRequireRunAsAdmin()) {
-                    installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle, true);
+                    File shortcut = installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle, true);
+                    if (shortcut != null) shortcutFiles.add(shortcut);
                 } else if (appInfo.isAllowRunAsAdmin()) {
-                    installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle, false);
-                    installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle + RUN_AS_ADMIN_SUFFIX, true);
+                    File shortcut = installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle, false);
+                    if (shortcut != null) shortcutFiles.add(shortcut);
+                    File shortcutAdmin = installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle + RUN_AS_ADMIN_SUFFIX, true);
+                    if (shortcutAdmin != null) shortcutFiles.add(shortcutAdmin);
                 } else {
-                    installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle, false);
+                    File shortcut = installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle, false);
+                    if (shortcut != null) shortcutFiles.add(shortcut);
                 }
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to install start menu shortcut", ex);
             }
         }
+        
+        return shortcutFiles;
     }
 
     private void convertWindowsIcon(File srcPng, File destIco) throws IOException {
