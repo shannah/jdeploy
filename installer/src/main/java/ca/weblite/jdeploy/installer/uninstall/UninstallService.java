@@ -107,6 +107,15 @@ public class UninstallService {
             result.addError("Unexpected error during uninstall: " + e.getMessage());
         }
         
+        // Log overall uninstall completion status
+        if (result.isSuccess()) {
+            LOGGER.info("Uninstall completed successfully for package: " + packageName + 
+                       (source != null ? " (source: " + source + ")" : ""));
+        } else {
+            LOGGER.info("Uninstall completed with " + result.getFailureCount() + " error(s) for package: " + 
+                       packageName + (source != null ? " (source: " + source + ")" : ""));
+        }
+        
         return result;
     }
 
@@ -419,10 +428,14 @@ public class UninstallService {
             // Delete the manifest file via repository
             manifestRepository.delete(packageName, source);
             result.incrementSuccessCount();
-            LOGGER.fine("Deleted uninstall manifest for: " + packageName);
+            LOGGER.info("Deleted uninstall manifest for: " + packageName);
             
             // Attempt to clean up empty parent directories
             cleanupEmptyParentDirs(packageName, source, result);
+            
+            // Log completion of manifest self-cleanup phase
+            LOGGER.info("Manifest self-cleanup phase completed for package: " + packageName + 
+                       (source != null ? " (source: " + source + ")" : ""));
             
         } catch (Exception e) {
             String errorMsg = "Failed to delete manifest: " + e.getMessage();
