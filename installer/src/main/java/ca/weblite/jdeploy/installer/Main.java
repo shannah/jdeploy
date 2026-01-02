@@ -10,8 +10,11 @@ import ca.weblite.jdeploy.installer.events.InstallationFormEventDispatcher;
 import ca.weblite.jdeploy.installer.linux.LinuxAdminLauncherGenerator;
 import ca.weblite.jdeploy.installer.linux.MimeTypeHelper;
 import ca.weblite.jdeploy.installer.mac.MacAdminLauncherGenerator;
+import ca.weblite.jdeploy.installer.services.InstallationDetectionService;
+import ca.weblite.jdeploy.installer.uninstall.FileUninstallManifestRepository;
 import ca.weblite.jdeploy.installer.uninstall.UninstallManifestBuilder;
 import ca.weblite.jdeploy.installer.uninstall.UninstallManifestWriter;
+import ca.weblite.jdeploy.installer.uninstall.UninstallService;
 import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest;
 import ca.weblite.jdeploy.installer.models.AutoUpdateSettings;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
@@ -27,10 +30,13 @@ import ca.weblite.jdeploy.installer.views.UIFactory;
 import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
 import ca.weblite.jdeploy.installer.win.InstallWindows;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
+import ca.weblite.jdeploy.installer.win.JnaRegistryOperations;
+import ca.weblite.jdeploy.installer.win.RegistryOperations;
 import ca.weblite.jdeploy.installer.win.UninstallWindows;
 
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 import ca.weblite.jdeploy.models.CommandSpec;
+import javax.swing.JOptionPane;
 import ca.weblite.jdeploy.installer.cli.CliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.MacCliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.LinuxCliCommandInstaller;
@@ -63,6 +69,7 @@ public class Main implements Runnable, Constants {
     private final InstallationSettings installationSettings;
     private UIFactory uiFactory = new DefaultUIFactory();
     private InstallationForm installationForm;
+    private InstallationDetectionService installationDetectionService = new InstallationDetectionService();
 
     private Main() {
         this(new InstallationSettings());
@@ -619,10 +626,19 @@ public class Main implements Runnable, Constants {
         InstallationForm view = uiFactory.createInstallationForm(installationSettings);
         view.setEventDispatcher(new InstallationFormEventDispatcher(view));
         this.installationForm = view;
+        // Detect if app is already installed
+        detectAndUpdateInstallationState(view);
+
         view.getEventDispatcher().addEventListener(evt->{
             switch (evt.getType()) {
                 case InstallClicked:
                     onInstallClicked(evt);
+                    break;
+                case UpdateClicked:
+                    onUpdateClicked(evt);
+                    break;
+                case UninstallClicked:
+                    onUninstallClicked(evt);
                     break;
                 case InstallCompleteOpenApp:
                     onInstallCompleteOpenApp(evt);
@@ -633,11 +649,17 @@ public class Main implements Runnable, Constants {
                 case InstallCompleteCloseInstaller:
                     onInstallCompleteCloseInstaller(evt);
                     break;
+                case UninstallCompleteQuit:
+                    onUninstallCompleteQuit(evt);
+                    break;
                 case VisitSoftwareHomepage:
                     onVisitSoftwareHomepage(evt);
                     break;
                 case ProceedWithInstallation:
                     onProceedWithInstallation(evt);
+                    break;
+                case ProceedWithUninstallation:
+                    onProceedWithUninstallation(evt);
                     break;
                 case CancelInstallation:
                     onCancelInstallation(evt);
@@ -647,6 +669,65 @@ public class Main implements Runnable, Constants {
     }
 
     private void onCancelInstallation(InstallationFormEvent evt) {
+        System.exit(0);
+    }
+
+    private void detectAndUpdateInstallationState(InstallationForm view) {
+        String packageName = appInfo().getNpmPackage();
+        String source = appInfo().getNpmSource();
+        boolean isInstalled = installationDetectionService.isInstalled(packageName, source);
+        view.setAppAlreadyInstalled(isInstalled);
+    }
+
+    private void onUpdateClicked(InstallationFormEvent evt) {
+        // Update is the same as install - just reinstall over the existing version
+        onInstallClicked(evt);
+    }
+
+    private void onUninstallClicked(InstallationFormEvent evt) {
+        int choice = JOptionPane.showConfirmDialog(
+                (java.awt.Component) evt.getInstallationForm(),
+                "Are you sure you want to uninstall " + appInfo().getTitle() + "?",
+                "Confirm Uninstall",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+
+        if (choice == JOptionPane.YES_OPTION) {
+            InstallationFormEvent proceedEvent = new InstallationFormEvent(InstallationFormEvent.Type.ProceedWithUninstallation);
+            evt.getInstallationForm().getEventDispatcher().fireEvent(proceedEvent);
+        }
+    }
+
+    private void onProceedWithUninstallation(InstallationFormEvent evt) {
+        evt.setConsumed(true);
+        evt.getInstallationForm().setInProgress(true, "Uninstalling. Please wait...");
+        new Thread(() -> {
+            try {
+                performUninstall();
+                invokeLater(() -> evt.getInstallationForm().setInProgress(false, ""));
+                invokeLater(() -> evt.getInstallationForm().showUninstallCompleteDialog());
+            } catch (Exception ex) {
+                invokeLater(() -> evt.getInstallationForm().setInProgress(false, ""));
+                ex.printStackTrace(System.err);
+                String message = ex.getMessage();
+                if (ex instanceof UserLangRuntimeException) {
+                    UserLangRuntimeException userEx = (UserLangRuntimeException) ex;
+                    if (userEx.hasUserFriendlyMessage()) {
+                        message = userEx.getUserFriendlyMessage();
+                    }
+                }
+                String finalMessage = message;
+                invokeLater(() -> uiFactory.showModalErrorDialog(
+                        evt.getInstallationForm(),
+                        "Uninstallation failed. " + finalMessage,
+                        "Failed"
+                ));
+            }
+        }).start();
+    }
+
+    private void onUninstallCompleteQuit(InstallationFormEvent evt) {
         System.exit(0);
     }
 
@@ -734,6 +815,28 @@ public class Main implements Runnable, Constants {
     }
 
     private File installedApp;
+
+    private void performUninstall() throws Exception {
+        UninstallService uninstallService = createUninstallService();
+        String packageName = appInfo().getNpmPackage();
+        String source = appInfo().getNpmSource();
+
+        UninstallService.UninstallResult result = uninstallService.uninstall(packageName, source);
+
+        if (!result.isSuccess()) {
+            StringBuilder errorMessage = new StringBuilder("Uninstallation completed with errors:\n");
+            for (String error : result.getErrors()) {
+                errorMessage.append("- ").append(error).append("\n");
+            }
+            throw new Exception(errorMessage.toString());
+        }
+    }
+
+    private UninstallService createUninstallService() {
+        FileUninstallManifestRepository manifestRepository = new FileUninstallManifestRepository();
+        RegistryOperations registryOperations = new JnaRegistryOperations();
+        return new UninstallService(manifestRepository, registryOperations);
+    }
 
     private void install() throws Exception {
 

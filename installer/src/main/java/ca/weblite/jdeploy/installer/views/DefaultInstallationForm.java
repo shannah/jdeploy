@@ -24,8 +24,11 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
     private InstallationSettings installationSettings;
     private InstallationFormEventDispatcher dispatcher;
     private JButton installButton;
+    private JButton updateButton;
+    private JButton uninstallButton;
     private JProgressBar progressBar;
     private JCheckBox cliCommandsCheckBox;
+    private boolean appAlreadyInstalled = false;
 
 
     private void fireEvent(InstallationFormEvent event) {
@@ -146,10 +149,25 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         installButton.addActionListener(evt->{
             fireEvent(new InstallationFormEvent(InstallationFormEvent.Type.InstallClicked));
         });
+
+        updateButton = new JButton("Update");
+        updateButton.addActionListener(evt->{
+            fireEvent(new InstallationFormEvent(InstallationFormEvent.Type.UpdateClicked));
+        });
+        updateButton.setVisible(false);
+
+        uninstallButton = new JButton("Uninstall");
+        uninstallButton.addActionListener(evt->{
+            fireEvent(new InstallationFormEvent(InstallationFormEvent.Type.UninstallClicked));
+        });
+        uninstallButton.setVisible(false);
+
         getContentPane().setLayout(new BorderLayout());
 
         JPanel buttonsPanel = new JPanel();
         buttonsPanel.add(installButton);
+        buttonsPanel.add(updateButton);
+        buttonsPanel.add(uninstallButton);
 
         File splash = installationSettings.getInstallSplashImage();
         if (splash.exists()) {
@@ -364,14 +382,51 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
     @Override
     public void setInProgress(boolean inProgress, String message) {
         if (inProgress) {
-            installButton.setEnabled(false);
+            disableAllButtons();
             if (message != null) {
                 progressBar.setToolTipText(message);
             }
             progressBar.setVisible(true);
         } else {
-            installButton.setEnabled(true);
+            enableAppropriateButtons();
             progressBar.setVisible(false);
+        }
+    }
+
+    @Override
+    public void setAppAlreadyInstalled(boolean installed) {
+        this.appAlreadyInstalled = installed;
+        updateButtonVisibility();
+    }
+
+    @Override
+    public void showUninstallCompleteDialog() {
+        JOptionPane.showMessageDialog(this,
+                "The application has been successfully removed from your system.",
+                "Uninstall Complete",
+                JOptionPane.INFORMATION_MESSAGE);
+
+        fireEvent(new InstallationFormEvent(InstallationFormEvent.Type.UninstallCompleteQuit));
+    }
+
+    private void updateButtonVisibility() {
+        installButton.setVisible(!appAlreadyInstalled);
+        updateButton.setVisible(appAlreadyInstalled);
+        uninstallButton.setVisible(appAlreadyInstalled);
+    }
+
+    private void disableAllButtons() {
+        installButton.setEnabled(false);
+        updateButton.setEnabled(false);
+        uninstallButton.setEnabled(false);
+    }
+
+    private void enableAppropriateButtons() {
+        if (appAlreadyInstalled) {
+            updateButton.setEnabled(true);
+            uninstallButton.setEnabled(true);
+        } else {
+            installButton.setEnabled(true);
         }
     }
 }
