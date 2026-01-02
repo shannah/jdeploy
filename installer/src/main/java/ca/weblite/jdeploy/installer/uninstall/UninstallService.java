@@ -18,6 +18,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -112,21 +114,31 @@ public class UninstallService {
      * Skips non-existent files with logging (idempotent).
      */
     private void deleteInstalledFiles(List<InstalledFile> files, UninstallResult result) {
+        deleteFiles(files, result);
+    }
+
+    /**
+     * Delete files using Files.deleteIfExists(), handling both regular files and symbolic links.
+     * Iterates through files in order, logs successes, and records failures without aborting.
+     * 
+     * @param files list of InstalledFile objects to delete
+     * @param result UninstallResult to accumulate success/failure counts and error messages
+     */
+    private void deleteFiles(List<InstalledFile> files, UninstallResult result) {
         if (files == null || files.isEmpty()) {
             return;
         }
         
         for (InstalledFile file : files) {
             try {
-                File f = new File(file.getPath());
-                if (!f.exists()) {
-                    LOGGER.fine("File already deleted or does not exist: " + file.getPath());
-                    continue;
-                }
+                boolean deleted = Files.deleteIfExists(Paths.get(file.getPath()));
                 
-                FileUtils.forceDelete(f);
-                result.incrementSuccessCount();
-                LOGGER.fine("Deleted file: " + file.getPath());
+                if (deleted) {
+                    result.incrementSuccessCount();
+                    LOGGER.fine("Deleted file: " + file.getPath());
+                } else {
+                    LOGGER.fine("File already deleted or does not exist: " + file.getPath());
+                }
                 
             } catch (IOException e) {
                 String errorMsg = "Failed to delete file: " + file.getPath() + " - " + e.getMessage();
