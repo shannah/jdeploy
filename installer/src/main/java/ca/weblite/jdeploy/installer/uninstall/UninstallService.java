@@ -108,8 +108,11 @@ public class UninstallService {
             cleanupPackageDirectories(packageName, source, result);
 
             // Phase 6: Self-cleanup (delete manifest and empty parent dirs)
-            if (manifestOpt.isPresent()) {
+            // ONLY delete manifest if all prior phases succeeded - preserves manifest for retry if errors occurred
+            if (manifestOpt.isPresent() && result.isSuccess()) {
                 selfCleanup(packageName, source, result);
+            } else if (manifestOpt.isPresent() && !result.isSuccess()) {
+                LOGGER.info("Skipping manifest deletion due to prior errors - manifest preserved for retry");
             }
 
         } catch (Exception e) {
@@ -236,14 +239,14 @@ public class UninstallService {
         if (registryInfo == null) {
             return;
         }
-        
+
         // Guard: Only process registry on Windows
         String osName = System.getProperty("os.name");
         if (osName == null || !osName.toLowerCase().contains("windows")) {
             LOGGER.fine("Skipping registry cleanup on non-Windows OS: " + osName);
             return;
         }
-        
+
         // Delete created keys in reverse order
         List<RegistryKey> createdKeys = registryInfo.getCreatedKeys();
         if (createdKeys != null && !createdKeys.isEmpty()) {
@@ -252,14 +255,15 @@ public class UninstallService {
                 RegistryKey key = createdKeys.get(i);
                 try {
                     if (registryOperations.keyExists(key.getPath())) {
-                        registryOperations.deleteKey(key.getPath());
+                        // Use recursive deletion to handle keys with subkeys/values
+                        deleteKeyRecursive(key.getPath());
                         result.incrementSuccessCount();
                         LOGGER.fine("Deleted registry key: " + key.getPath());
                     } else {
                         LOGGER.fine("Registry key already deleted or does not exist: " + key.getPath());
                     }
                 } catch (Exception e) {
-                    String errorMsg = "Failed to delete registry key: " + key.getPath() + 
+                    String errorMsg = "Failed to delete registry key: " + key.getPath() +
                                     " - " + e.getMessage();
                     LOGGER.warning(errorMsg);
                     result.addError(errorMsg);
@@ -629,6 +633,27 @@ public class UninstallService {
         }
         File[] files = dir.listFiles();
         return files == null || files.length == 0;
+    }
+
+    /**
+     * Recursively delete a registry key and all its subkeys and values.
+     *
+     * @param key the registry key path to delete
+     */
+    private void deleteKeyRecursive(String key) {
+        if (!registryOperations.keyExists(key)) {
+            return;
+        }
+        // First delete all subkeys recursively
+        for (String subkey : registryOperations.getKeys(key)) {
+            deleteKeyRecursive(key + "\\" + subkey);
+        }
+        // Then delete all values
+        for (String valueKey : registryOperations.getValues(key).keySet()) {
+            registryOperations.deleteValue(key, valueKey);
+        }
+        // Finally delete the key itself
+        registryOperations.deleteKey(key);
     }
 
     /**

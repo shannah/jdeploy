@@ -644,6 +644,36 @@ public class UninstallServiceTest {
         assertTrue(manifestRepository.wasDeleteCalled(), "Repository delete should be called");
     }
 
+    @Test
+    public void testManifestNotDeletedWhenErrorsOccur() throws IOException {
+        // Setup: Create a directory with content that will fail when treated as a file
+        File nonEmptyDir = tempDir.resolve("non-empty-dir").toFile();
+        assertTrue(nonEmptyDir.mkdirs());
+        File fileInDir = new File(nonEmptyDir, "file.txt");
+        assertTrue(fileInDir.createNewFile());
+
+        // Create manifest that references the directory as a file (which will fail to delete)
+        List<InstalledFile> files = Collections.singletonList(
+            InstalledFile.builder()
+                .path(nonEmptyDir.getAbsolutePath())  // A directory, not a file!
+                .type(FileType.CONFIG)
+                .build()
+        );
+        UninstallManifest manifest = createManifestWithFiles(files, Collections.emptyList());
+        manifestRepository.setManifest(manifest);
+
+        // Execute uninstall
+        UninstallService.UninstallResult result = service.uninstall(TEST_PACKAGE_NAME, TEST_SOURCE);
+
+        // Verify: Uninstall had errors
+        assertFalse(result.isSuccess(), "Uninstall should have errors when file deletion fails");
+        assertTrue(result.getFailureCount() > 0, "Failure count should be greater than zero");
+
+        // Verify: Manifest was NOT deleted because there were errors
+        assertFalse(manifestRepository.wasDeleteCalled(),
+            "Manifest should NOT be deleted when there are errors - preserved for retry");
+    }
+
     // ==================== Helper Methods ====================
 
     private UninstallManifest createManifestWithFiles(

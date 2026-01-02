@@ -238,7 +238,9 @@ public class InstallWindowsRegistry {
     /**
      * Returns a list of registry key paths that are created/used during installation.
      * These are all under HKEY_CURRENT_USER.
-     * 
+     * Note: Does not include shared system keys like Software\RegisteredApplications -
+     * use {@link #getRegisteredApplicationsValueName()} for the value added to that key.
+     *
      * @return List of registry key paths
      */
     public List<String> getCreatedRegistryPaths() {
@@ -263,8 +265,30 @@ public class InstallWindowsRegistry {
             paths.add("Software\\Classes\\Directory\\Background\\shell\\" + progId);
         }
         paths.add(getUninstallKey());
-        paths.add("Software\\RegisteredApplications");
+        // Note: Software\RegisteredApplications is NOT included here because it's a shared
+        // system key. We only add a VALUE to it, not create the key itself.
+        // Use getRegisteredApplicationsValueName() to get the value name that was added.
         return paths;
+    }
+
+    /**
+     * Returns the registry key path for RegisteredApplications.
+     * This is a shared system key - only the value should be deleted, not the key itself.
+     *
+     * @return the path to the RegisteredApplications key
+     */
+    public String getRegisteredApplicationsKeyPath() {
+        return "Software\\RegisteredApplications";
+    }
+
+    /**
+     * Returns the value name that was added to Software\RegisteredApplications.
+     * During uninstall, this value should be deleted (not the key itself).
+     *
+     * @return the value name (same as getRegisteredAppName())
+     */
+    public String getRegisteredApplicationsValueName() {
+        return getRegisteredAppName();
     }
 
     public String getFullyQualifiedPackageName() {
