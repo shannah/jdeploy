@@ -40,6 +40,7 @@ Add an optional `jdeploy.commands` object to `package.json` where command names 
 
 - `args` (array of strings, optional): extra static arguments to pass to the launcher when this command is invoked (commonly JVM properties like `-D...` or app-specific flags).
 - `description` (string, optional): a short description of what the command does, displayed in the installer UI to help users understand the command's purpose.
+- `implements` (array of strings, optional): specifies special behaviors for this command. Each string must be one of: `"updater"`, `"service_controller"`, `"launcher"`. See "Command Implementations" section below for detailed behavior specifications.
 
 Example:
 ```json
@@ -49,14 +50,23 @@ Example:
       "args": [
         "-Dmy.system.prop=foo",
         "--my-app-arg=bar"
-      ]
+      ],
+      "implements": ["updater"]
     },
     "myapp-admin": {
       "args": [
         "--mode=admin"
       ]
+    },
+    "myapp": {
+      "description": "Open files in MyApp",
+      "implements": ["launcher"]
+    },
+    "myappctl": {
+      "description": "Control MyApp services",
+      "implements": ["service_controller", "updater"]
     }
-  ]
+  }
 }
 ```
 
@@ -67,6 +77,7 @@ Validation rules:
   - This prevents attempts to place commands into arbitrary paths or overwrite paths by containing `../`.
 - `args` if present MUST be an array of strings. Empty arrays are allowed.
 - `description` if present MUST be a string. It is used to display context about the command in the installer UI. The description should be concise (recommended: under 80 characters) and provide a brief explanation of what the command does.
+- `implements` if present MUST be an array of strings. Each string MUST be one of: `"updater"`, `"service_controller"`, `"launcher"`. Empty arrays are allowed. Invalid values should be rejected at build-time.
 - The `commands` object itself may be empty (`"commands": {}` is valid and results in no CLI command wrappers being installed).
 - The installer should validate this schema at bundle/installer build-time and reject invalid configs (or warn + skip installing bad entries).
 
@@ -103,6 +114,60 @@ The launcher (binary) MUST interpret the presence of `--jdeploy:command=<name>` 
 If the launcher receives `--jdeploy:command` it must stop any GUI bootstrap early to avoid creating GUI resources on headless invocations.
 
 NOTE: The launcher is a black box to this project.  We include these specifications here to ensure the installer and packaging work correctly with the launcher behavior.
+
+## Command Implementations
+
+Commands may declare special behaviors via the optional `implements` array. Each implementation type modifies how the command wrapper script behaves:
+
+### Updater Implementation
+
+When a command includes `"updater"` in its `implements` array, the wrapper script checks for a single `update` argument:
+
+- **If called with exactly one argument `update`**: The wrapper calls the app's CLI binary with `--jdeploy:update` (omitting the usual `--jdeploy:command={commandName}`).
+  - Example: `myapp-cli update` → `launcher --jdeploy:update`
+- **If called with no arguments or with additional arguments**: The wrapper behaves like a normal command, passing `--jdeploy:command={commandName}`.
+  - Example: `myapp-cli` → `launcher --jdeploy:command=myapp-cli --`
+  - Example: `myapp-cli foo bar` → `launcher --jdeploy:command=myapp-cli -- foo bar`
+
+**Use case**: Allows users to trigger application updates from the command line using a dedicated CLI command.
+
+### Launcher Implementation
+
+When a command includes `"launcher"` in its `implements` array, the wrapper script launches the desktop application instead of invoking CLI mode:
+
+- **Behavior**: All arguments are passed through to the binary and are assumed to be URLs or file paths to open.
+- **Platform-specific handling**:
+  - **macOS**: Use the `open` command to launch the `.app` bundle with arguments.
+    - Example: `myapp file.txt` → `open -a MyApp.app file.txt`
+  - **Windows/Linux**: Call the app binary script directly with arguments.
+    - Example: `myapp file.txt` → `launcher file.txt`
+- **No `--jdeploy:command` flag**: The launcher implementation does NOT pass the `--jdeploy:command={commandName}` flag.
+
+**Use case**: Provides a convenient CLI shortcut to open files or URLs in the GUI application.
+
+### Service Controller Implementation
+
+When a command includes `"service_controller"` in its `implements` array, the wrapper script intercepts calls where the first argument is `service`:
+
+- **If the first argument is `service`**: The wrapper calls the app's CLI binary with `--jdeploy:command={commandName}` and `--jdeploy:service` followed by the remaining arguments.
+  - Example: `myappctl service start` → `launcher --jdeploy:command=myappctl --jdeploy:service start`
+  - Example: `myappctl service stop` → `launcher --jdeploy:command=myappctl --jdeploy:service stop`
+  - Example: `myappctl service status` → `launcher --jdeploy:command=myappctl --jdeploy:service status`
+- **If the first argument is NOT `service`**: The wrapper processes the call like a normal command.
+  - Example: `myappctl version` → `launcher --jdeploy:command=myappctl -- version`
+
+**Use case**: Provides a standardized interface for controlling background services or daemons managed by the application.
+
+### Multiple Implementations
+
+A command may include multiple implementation types in its `implements` array. The wrapper script MUST check for special behaviors in the following order:
+
+1. Check for `launcher` implementation (if present, launch desktop app and exit)
+2. Check for `updater` implementation and single `update` argument (if match, call with `--jdeploy:update` and exit)
+3. Check for `service_controller` implementation and first argument `service` (if match, call with `--jdeploy:service` and exit)
+4. If no special behavior matches, invoke as a normal command with `--jdeploy:command={commandName}`
+
+**Note**: In practice, `launcher` is mutually exclusive with other implementations since it does not use `--jdeploy:command`. Combining `updater` and `service_controller` is valid and allows a single command to handle both updates and service control.
 
 ## Platform behaviors
 
@@ -277,7 +342,9 @@ Fields:
 
 ## Example artifacts
 
-Linux shell script (example):
+### Standard Command (no special implementations)
+
+Linux shell script:
 ```sh
 #!/usr/bin/env sh
 # Installed at: ~/.jdeploy/bin-x64/myapp/myapp-cli
@@ -287,7 +354,7 @@ exec "/home/alice/.jdeploy/apps/myapp/my-app" \
   "$@"
 ```
 
-macOS script (example):
+macOS script:
 ```sh
 #!/usr/bin/env sh
 # Installed at: ~/.jdeploy/bin-arm64/myapp/myapp-cli
@@ -297,12 +364,107 @@ exec "/Users/alice/Applications/MyApp.app/Contents/MacOS/Client4JLauncher-cli" \
   "$@"
 ```
 
-Windows `.cmd` wrapper (example):
+Windows `.cmd` wrapper:
 ```cmd
 @echo off
 REM Installed at: %USERPROFILE%\.jdeploy\bin-x64\myapp\myapp-cli.cmd
 set "LAUNCHER=%USERPROFILE%\.jdeploy\apps\MyApp\MyApp-cli.exe"
 "%LAUNCHER%" --jdeploy:command=myapp-cli -- %*
+```
+
+### Command with Updater Implementation
+
+Linux/macOS script with `"implements": ["updater"]`:
+```sh
+#!/usr/bin/env sh
+# Check if single argument is "update"
+if [ "$#" -eq 1 ] && [ "$1" = "update" ]; then
+  exec "/home/alice/.jdeploy/apps/myapp/my-app" --jdeploy:update
+else
+  exec "/home/alice/.jdeploy/apps/myapp/my-app" --jdeploy:command=myapp-cli -- "$@"
+fi
+```
+
+Windows `.cmd` wrapper with `"implements": ["updater"]`:
+```cmd
+@echo off
+REM Check if single argument is "update"
+if "%~1"=="update" if "%~2"=="" (
+  "%LAUNCHER%" --jdeploy:update
+) else (
+  "%LAUNCHER%" --jdeploy:command=myapp-cli -- %*
+)
+```
+
+### Command with Launcher Implementation
+
+macOS script with `"implements": ["launcher"]`:
+```sh
+#!/usr/bin/env sh
+# Launch the desktop app using the open command
+exec open -a "/Users/alice/Applications/MyApp.app" "$@"
+```
+
+Linux script with `"implements": ["launcher"]`:
+```sh
+#!/usr/bin/env sh
+# Launch the desktop app directly
+exec "/home/alice/.jdeploy/apps/myapp/my-app" "$@"
+```
+
+Windows `.cmd` wrapper with `"implements": ["launcher"]`:
+```cmd
+@echo off
+set "LAUNCHER=%USERPROFILE%\.jdeploy\apps\MyApp\MyApp.exe"
+"%LAUNCHER%" %*
+```
+
+### Command with Service Controller Implementation
+
+Linux/macOS script with `"implements": ["service_controller"]`:
+```sh
+#!/usr/bin/env sh
+# Check if first argument is "service"
+if [ "$1" = "service" ]; then
+  shift
+  exec "/home/alice/.jdeploy/apps/myapp/my-app" --jdeploy:command=myappctl --jdeploy:service "$@"
+else
+  exec "/home/alice/.jdeploy/apps/myapp/my-app" --jdeploy:command=myappctl -- "$@"
+fi
+```
+
+Windows `.cmd` wrapper with `"implements": ["service_controller"]`:
+```cmd
+@echo off
+set "LAUNCHER=%USERPROFILE%\.jdeploy\apps\MyApp\MyApp-cli.exe"
+if "%~1"=="service" (
+  shift
+  "%LAUNCHER%" --jdeploy:command=myappctl --jdeploy:service %*
+) else (
+  "%LAUNCHER%" --jdeploy:command=myappctl -- %*
+)
+```
+
+### Command with Multiple Implementations
+
+Linux/macOS script with `"implements": ["service_controller", "updater"]`:
+```sh
+#!/usr/bin/env sh
+LAUNCHER="/home/alice/.jdeploy/apps/myapp/my-app"
+
+# Check for updater: single "update" argument
+if [ "$#" -eq 1 ] && [ "$1" = "update" ]; then
+  exec "$LAUNCHER" --jdeploy:update
+fi
+
+# Check for service_controller: first argument is "service"
+if [ "$1" = "service" ]; then
+  shift
+  exec "$LAUNCHER" --jdeploy:command=myappctl --jdeploy:service "$@"
+fi
+
+# Default: normal command
+exec "$LAUNCHER" --jdeploy:command=myappctl -- "$@"
 ```
 
 ## Auto-Update Behavior

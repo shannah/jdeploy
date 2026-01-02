@@ -298,15 +298,15 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             // Check for collision with existing wrapper (check .cmd as the primary indicator)
             if (cmdWrapper.exists()) {
                 String existingLauncherPath = extractLauncherPathFromCmdFile(cmdWrapper);
-                
+
                 if (existingLauncherPath != null && !existingLauncherPath.equals(launcherPath.getAbsolutePath())) {
                     // Different app owns this command - invoke collision handler
                     CollisionAction action = collisionHandler.handleCollision(
-                        name, 
-                        existingLauncherPath, 
+                        name,
+                        existingLauncherPath,
                         launcherPath.getAbsolutePath()
                     );
-                    
+
                     if (action == CollisionAction.SKIP) {
                         System.out.println("Skipping command '" + name + "' - already owned by another app");
                         continue;
@@ -321,21 +321,14 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 shWrapper.delete();
             }
 
-            // 1. Windows batch wrapper (.cmd): invoke the launcher with --jdeploy:command=<name> and forward all args
-            // We use \r\n for Windows batch files
-            String cmdContent = "@echo off\r\n\"" + launcherPath.getAbsolutePath() + "\" " + 
-                           CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX + name + " -- %*\r\n";
+            // Generate wrapper content based on implementations
+            String cmdContent = generateCmdContent(launcherPath, cs);
+            String shContent = generateShellContent(launcherPath, cs);
 
             FileUtils.writeStringToFile(cmdWrapper, cmdContent, "UTF-8");
             cmdWrapper.setExecutable(true, false);
             created.add(cmdWrapper);
 
-            // 2. Extensionless shell script for Git Bash / MSYS2
-            // We use \n for shell scripts
-            String msysLauncherPath = convertToMsysPath(launcherPath);
-            String shContent = "#!/bin/sh\n\"" + msysLauncherPath + "\" " + 
-                             CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX + name + " -- \"$@\"\n";
-            
             FileUtils.writeStringToFile(shWrapper, shContent, "UTF-8");
             shWrapper.setExecutable(true, false);
         }
@@ -344,9 +337,135 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
     }
 
     /**
+     * Generates Windows batch (.cmd) wrapper content based on command implementations.
+     *
+     * @param launcherPath the path to the launcher executable
+     * @param command      the command specification including implementations
+     * @return the .cmd file content with \r\n line endings
+     */
+    private String generateCmdContent(File launcherPath, CommandSpec command) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("@echo off\r\n");
+
+        String launcherPathStr = launcherPath.getAbsolutePath();
+        String commandName = command.getName();
+        List<String> implementations = command.getImplementations();
+
+        // Check for launcher implementation (highest priority, mutually exclusive)
+        if (implementations.contains("launcher")) {
+            // For launcher: just execute the binary directly with all args
+            sb.append("\"").append(launcherPathStr).append("\" %*\r\n");
+            return sb.toString();
+        }
+
+        boolean hasUpdater = implementations.contains("updater");
+        boolean hasServiceController = implementations.contains("service_controller");
+
+        if (hasUpdater || hasServiceController) {
+            // Generate conditional batch script
+
+            // Check for updater: single "update" argument
+            if (hasUpdater) {
+                sb.append("REM Check if single argument is \"update\"\r\n");
+                sb.append("if \"%~1\"==\"update\" if \"%~2\"==\"\" (\r\n");
+                sb.append("  \"").append(launcherPathStr).append("\" --jdeploy:update\r\n");
+                sb.append("  goto :eof\r\n");
+                sb.append(")\r\n\r\n");
+            }
+
+            // Check for service_controller: first argument is "service"
+            if (hasServiceController) {
+                sb.append("REM Check if first argument is \"service\"\r\n");
+                sb.append("if \"%~1\"==\"service\" (\r\n");
+                sb.append("  shift\r\n");
+                sb.append("  \"").append(launcherPathStr).append("\" ");
+                sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+                sb.append(" --jdeploy:service %*\r\n");
+                sb.append("  goto :eof\r\n");
+                sb.append(")\r\n\r\n");
+            }
+
+            // Default: normal command
+            sb.append("REM Default: normal command\r\n");
+            sb.append("\"").append(launcherPathStr).append("\" ");
+            sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+            sb.append(" -- %*\r\n");
+        } else {
+            // Standard command (no special implementations)
+            sb.append("\"").append(launcherPathStr).append("\" ");
+            sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+            sb.append(" -- %*\r\n");
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * Generates shell script wrapper content for Git Bash / MSYS2 based on command implementations.
+     *
+     * @param launcherPath the path to the launcher executable
+     * @param command      the command specification including implementations
+     * @return the shell script content with \n line endings
+     */
+    private String generateShellContent(File launcherPath, CommandSpec command) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("#!/bin/sh\n");
+
+        String msysLauncherPath = convertToMsysPath(launcherPath);
+        String commandName = command.getName();
+        List<String> implementations = command.getImplementations();
+
+        // Check for launcher implementation (highest priority, mutually exclusive)
+        if (implementations.contains("launcher")) {
+            // For launcher: just execute the binary directly with all args
+            sb.append("exec \"").append(msysLauncherPath).append("\" \"$@\"\n");
+            return sb.toString();
+        }
+
+        boolean hasUpdater = implementations.contains("updater");
+        boolean hasServiceController = implementations.contains("service_controller");
+
+        if (hasUpdater || hasServiceController) {
+            // Generate conditional shell script
+
+            // Check for updater: single "update" argument
+            if (hasUpdater) {
+                sb.append("# Check if single argument is \"update\"\n");
+                sb.append("if [ \"$#\" -eq 1 ] && [ \"$1\" = \"update\" ]; then\n");
+                sb.append("  exec \"").append(msysLauncherPath).append("\" --jdeploy:update\n");
+                sb.append("fi\n\n");
+            }
+
+            // Check for service_controller: first argument is "service"
+            if (hasServiceController) {
+                sb.append("# Check if first argument is \"service\"\n");
+                sb.append("if [ \"$1\" = \"service\" ]; then\n");
+                sb.append("  shift\n");
+                sb.append("  exec \"").append(msysLauncherPath).append("\" ");
+                sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+                sb.append(" --jdeploy:service \"$@\"\n");
+                sb.append("fi\n\n");
+            }
+
+            // Default: normal command
+            sb.append("# Default: normal command\n");
+            sb.append("exec \"").append(msysLauncherPath).append("\" ");
+            sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+            sb.append(" -- \"$@\"\n");
+        } else {
+            // Standard command (no special implementations)
+            sb.append("exec \"").append(msysLauncherPath).append("\" ");
+            sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+            sb.append(" -- \"$@\"\n");
+        }
+
+        return sb.toString();
+    }
+
+    /**
      * Extracts the launcher path from an existing .cmd wrapper file.
      * Parses the file looking for the pattern: "path\to\launcher.exe" --jdeploy:command=
-     * 
+     *
      * @param cmdFile the path to the existing .cmd file
      * @return the launcher path if found, or null if parsing fails
      */

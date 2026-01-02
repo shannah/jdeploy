@@ -358,7 +358,7 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
             }
 
             try {
-                writeCommandScript(scriptPath, launcherPath.getAbsolutePath(), cmdName, command.getArgs());
+                writeCommandScript(scriptPath, launcherPath.getAbsolutePath(), command);
                 System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
                 createdFiles.add(scriptPath);
             } catch (IOException ioe) {
@@ -375,11 +375,10 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
      *
      * @param scriptPath   the path where the script should be created
      * @param launcherPath the path to the launcher executable
-     * @param commandName  the command name to invoke
-     * @param args         additional command-line arguments (if any)
+     * @param command      the command specification including name, args, and implementations
      * @throws IOException if the script cannot be created
      */
-    protected abstract void writeCommandScript(File scriptPath, String launcherPath, String commandName, List<String> args) throws IOException;
+    protected abstract void writeCommandScript(File scriptPath, String launcherPath, CommandSpec command) throws IOException;
 
     /**
      * Computes a user-friendly display path (using ~ for home directory).

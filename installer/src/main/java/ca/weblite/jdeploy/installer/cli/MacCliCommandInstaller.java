@@ -145,23 +145,103 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
     }
 
     @Override
-    protected void writeCommandScript(File scriptPath, String launcherPath, String commandName, List<String> args) throws IOException {
-        StringBuilder script = new StringBuilder();
-        script.append("#!/bin/bash\n");
-        script.append("\"").append(escapeDoubleQuotes(launcherPath)).append("\" ");
-        script.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
-        script.append(" -- \"$@\"\n");
-
+    protected void writeCommandScript(File scriptPath, String launcherPath, CommandSpec command) throws IOException {
+        String content = generateContent(launcherPath, command);
         try (FileOutputStream fos = new FileOutputStream(scriptPath)) {
-            fos.write(script.toString().getBytes(StandardCharsets.UTF_8));
+            fos.write(content.getBytes(StandardCharsets.UTF_8));
         }
-
         scriptPath.setExecutable(true, false);
     }
 
     /**
+     * Generate the content of a bash script that executes the given launcher with
+     * the configured command name and forwards user-supplied args.
+     * Handles special implementations: updater, launcher, service_controller.
+     *
+     * @param launcherPath Absolute path to the CLI-capable launcher binary.
+     * @param command      The command specification including implementations.
+     * @return Script content (including shebang and trailing newline).
+     */
+    private static String generateContent(String launcherPath, CommandSpec command) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("#!/bin/bash\n");
+
+        String escapedLauncher = escapeDoubleQuotes(launcherPath);
+        String commandName = command.getName();
+        List<String> implementations = command.getImplementations();
+
+        // Check for launcher implementation (highest priority, mutually exclusive)
+        if (implementations.contains("launcher")) {
+            // For launcher on macOS: use 'open' command to launch the .app bundle
+            // Extract app bundle path if launcherPath is inside a .app
+            String appPath = extractAppBundlePath(launcherPath);
+            if (appPath != null) {
+                sb.append("exec open -a \"").append(escapeDoubleQuotes(appPath)).append("\" \"$@\"\n");
+            } else {
+                // Fallback: execute binary directly
+                sb.append("exec \"").append(escapedLauncher).append("\" \"$@\"\n");
+            }
+            return sb.toString();
+        }
+
+        boolean hasUpdater = implementations.contains("updater");
+        boolean hasServiceController = implementations.contains("service_controller");
+
+        if (hasUpdater || hasServiceController) {
+            // Generate conditional script with checks
+
+            // Check for updater: single "update" argument
+            if (hasUpdater) {
+                sb.append("# Check if single argument is \"update\"\n");
+                sb.append("if [ \"$#\" -eq 1 ] && [ \"$1\" = \"update\" ]; then\n");
+                sb.append("  exec \"").append(escapedLauncher).append("\" --jdeploy:update\n");
+                sb.append("fi\n\n");
+            }
+
+            // Check for service_controller: first argument is "service"
+            if (hasServiceController) {
+                sb.append("# Check if first argument is \"service\"\n");
+                sb.append("if [ \"$1\" = \"service\" ]; then\n");
+                sb.append("  shift\n");
+                sb.append("  exec \"").append(escapedLauncher).append("\" ");
+                sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+                sb.append(" --jdeploy:service \"$@\"\n");
+                sb.append("fi\n\n");
+            }
+
+            // Default: normal command
+            sb.append("# Default: normal command\n");
+            sb.append("exec \"").append(escapedLauncher).append("\" ");
+            sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+            sb.append(" -- \"$@\"\n");
+        } else {
+            // Standard command (no special implementations)
+            sb.append("exec \"").append(escapedLauncher).append("\" ");
+            sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+            sb.append(" -- \"$@\"\n");
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * Extracts the .app bundle path from a launcher path inside a .app bundle.
+     * For example: /Applications/MyApp.app/Contents/MacOS/Client4JLauncher-cli -> /Applications/MyApp.app
+     *
+     * @param launcherPath the launcher path
+     * @return the .app bundle path, or null if not inside a .app bundle
+     */
+    private static String extractAppBundlePath(String launcherPath) {
+        int appIndex = launcherPath.indexOf(".app/");
+        if (appIndex > 0) {
+            return launcherPath.substring(0, appIndex + 4); // Include .app
+        }
+        return null;
+    }
+
+    /**
      * Escapes double quotes in a string for shell script usage.
-     * 
+     *
      * @param s the string to escape
      * @return the escaped string
      */
