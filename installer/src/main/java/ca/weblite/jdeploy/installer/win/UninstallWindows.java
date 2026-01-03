@@ -4,6 +4,8 @@ import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.logging.InstallationLogger;
 import ca.weblite.jdeploy.installer.util.PackagePathResolver;
 import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
 import ca.weblite.tools.io.MD5;
 import org.apache.commons.io.FileUtils;
 
@@ -301,6 +303,7 @@ public class UninstallWindows {
         try {
             WindowsCliCommandInstaller cliInstaller = new WindowsCliCommandInstaller();
             cliInstaller.setInstallationLogger(installationLogger);
+            cliInstaller.setServiceDescriptorService(ServiceDescriptorServiceFactory.createDefault());
             cliInstaller.uninstallCommands(appDir);
         } catch (Exception ex) {
             System.err.println("Warning: Failed to uninstall CLI commands: " + ex.getMessage());

@@ -3,6 +3,8 @@ package ca.weblite.jdeploy.installer.cli;
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.logging.InstallationLogger;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptor;
 import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.jdeploy.installer.util.DebugLogger;
 import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
@@ -28,7 +30,7 @@ import java.util.regex.Pattern;
  * Abstract base class for Unix-like (macOS and Linux) CLI command installation.
  * Encapsulates shared logic for command script creation, metadata persistence,
  * PATH management, and uninstallation.
- * 
+ *
  * Subclasses must implement {@link #writeCommandScript} to provide platform-specific
  * script generation.
  */
@@ -36,6 +38,7 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
 
     private CollisionHandler collisionHandler = new DefaultCollisionHandler();
     protected InstallationLogger installationLogger;
+    private ServiceDescriptorService serviceDescriptorService;
 
     /**
      * Sets the collision handler for detecting and resolving command name conflicts.
@@ -53,6 +56,15 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
      */
     public void setInstallationLogger(InstallationLogger logger) {
         this.installationLogger = logger;
+    }
+
+    /**
+     * Sets the service descriptor service for managing service lifecycle.
+     *
+     * @param service the service descriptor service to use
+     */
+    public void setServiceDescriptorService(ServiceDescriptorService service) {
+        this.serviceDescriptorService = service;
     }
 
     /**
@@ -217,6 +229,15 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
                 }
             }
             pathUpdated = metadata.optBoolean(CliInstallerConstants.PATH_UPDATED_KEY, false);
+        }
+
+        // Stop and unregister services before removing command scripts
+        if (packageName != null && !packageName.isEmpty()) {
+            // Extract branch name from source if present (simplified - may need refinement)
+            String branchName = extractBranchName(source);
+            // Find launcher path from appDir
+            File launcherPath = findLauncherPath(appDir);
+            stopAndUnregisterServices(packageName, branchName, launcherPath);
         }
 
         // Remove installed command scripts
@@ -624,8 +645,170 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
     }
 
     /**
+     * Extracts the branch name from a source URL if present.
+     * For now, returns null (branch installations are handled separately).
+     * TODO: Implement branch name extraction logic when needed.
+     *
+     * @param source The source URL
+     * @return The branch name, or null
+     */
+    private String extractBranchName(String source) {
+        // Branch installations are typically handled with explicit branch names
+        // For now, return null for non-branch installations
+        return null;
+    }
+
+    /**
+     * Finds the launcher executable in the app directory.
+     * Looks for common launcher file names in the app directory.
+     *
+     * @param appDir The application directory
+     * @return The launcher file, or null if not found
+     */
+    private File findLauncherPath(File appDir) {
+        if (appDir == null || !appDir.exists()) {
+            return null;
+        }
+
+        // Look for common launcher names
+        String[] launcherNames = {"launcher", "Client4JLauncher", "jdeploy-launcher"};
+        for (String name : launcherNames) {
+            File launcher = new File(appDir, name);
+            if (launcher.exists() && launcher.canExecute()) {
+                return launcher;
+            }
+        }
+
+        // Look for any executable file
+        File[] files = appDir.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isFile() && file.canExecute()) {
+                    return file;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Registers services for commands that implement service_controller.
+     * Called after successful command installation.
+     *
+     * @param commands The list of installed commands
+     * @param packageName The package name
+     * @param version The package version
+     * @param branchName The branch name (always null since branches don't support CLI commands)
+     */
+    protected void registerServices(List<CommandSpec> commands, String packageName, String version, String branchName) {
+        if (serviceDescriptorService == null) {
+            // Service management not configured, skip registration
+            return;
+        }
+
+        if (commands == null || commands.isEmpty()) {
+            return;
+        }
+
+        // Branch installations should never reach here since CLI commands aren't installed for branches
+        // But check defensively anyway
+        if (branchName != null && !branchName.trim().isEmpty()) {
+            System.out.println("Skipping service registration for branch installation");
+            if (installationLogger != null) {
+                installationLogger.logInfo("Branch installation detected - skipping service registration");
+            }
+            return;
+        }
+
+        for (CommandSpec command : commands) {
+            if (command.implements_("service_controller")) {
+                try {
+                    serviceDescriptorService.registerService(command, packageName, version, branchName);
+                    System.out.println("Registered service: " + command.getName());
+                    if (installationLogger != null) {
+                        installationLogger.logInfo("Registered service: " + command.getName());
+                    }
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to register service " + command.getName() + ": " + e.getMessage());
+                    if (installationLogger != null) {
+                        installationLogger.logError("Failed to register service " + command.getName() + ": " + e.getMessage());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Stops and unregisters all services for a package.
+     * Called before uninstalling commands.
+     *
+     * @param packageName The package name
+     * @param branchName The branch name (null for non-branch installations)
+     * @param launcherPath The launcher executable (for stopping services)
+     */
+    protected void stopAndUnregisterServices(String packageName, String branchName, File launcherPath) {
+        if (serviceDescriptorService == null) {
+            // Service management not configured, skip
+            return;
+        }
+
+        try {
+            List<ServiceDescriptor> services = serviceDescriptorService.listServices(packageName, branchName);
+
+            for (ServiceDescriptor service : services) {
+                // Stop the service if launcher is available
+                if (launcherPath != null && launcherPath.exists()) {
+                    try {
+                        String commandName = service.getCommandName();
+                        System.out.println("Stopping service: " + commandName);
+
+                        // Execute: <command> service stop
+                        ProcessBuilder pb = new ProcessBuilder(commandName, "service", "stop");
+                        Process process = pb.start();
+                        int exitCode = process.waitFor();
+
+                        if (exitCode == 0) {
+                            System.out.println("Successfully stopped service: " + commandName);
+                            if (installationLogger != null) {
+                                installationLogger.logInfo("Stopped service: " + commandName);
+                            }
+                        } else {
+                            System.err.println("Warning: Service stop returned exit code " + exitCode + " for " + commandName);
+                        }
+                    } catch (Exception e) {
+                        System.err.println("Warning: Failed to stop service " + service.getCommandName() + ": " + e.getMessage());
+                        if (installationLogger != null) {
+                            installationLogger.logError("Failed to stop service " + service.getCommandName() + ": " + e.getMessage());
+                        }
+                    }
+                }
+
+                // Unregister the service
+                try {
+                    serviceDescriptorService.unregisterService(packageName, service.getCommandName(), branchName);
+                    System.out.println("Unregistered service: " + service.getCommandName());
+                    if (installationLogger != null) {
+                        installationLogger.logInfo("Unregistered service: " + service.getCommandName());
+                    }
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to unregister service " + service.getCommandName() + ": " + e.getMessage());
+                    if (installationLogger != null) {
+                        installationLogger.logError("Failed to unregister service " + service.getCommandName() + ": " + e.getMessage());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to stop/unregister services: " + e.getMessage());
+            if (installationLogger != null) {
+                installationLogger.logError("Failed to stop/unregister services: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
      * Creates a manifest repository instance. Protected to allow test overrides.
-     * 
+     *
      * @return a CliCommandManifestRepository instance
      */
     protected CliCommandManifestRepository createManifestRepository() {

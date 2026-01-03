@@ -3,6 +3,8 @@ package ca.weblite.jdeploy.installer.cli;
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.logging.InstallationLogger;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptor;
 import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
@@ -24,7 +26,7 @@ import java.util.regex.Pattern;
 
 /**
  * Windows implementation of CLI command installer.
- * 
+ *
  * Handles creation of .cmd wrapper scripts, PATH registry updates,
  * and metadata persistence for CLI command installation on Windows.
  */
@@ -33,6 +35,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
     private CollisionHandler collisionHandler = new DefaultCollisionHandler();
     private RegistryOperations registryOperations;
     private InstallationLogger installationLogger;
+    private ServiceDescriptorService serviceDescriptorService;
 
     /**
      * Sets the collision handler for detecting and resolving command name conflicts.
@@ -62,9 +65,27 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
         this.installationLogger = logger;
     }
 
+    /**
+     * Sets the service descriptor service for managing service lifecycle.
+     *
+     * @param service the service descriptor service to use
+     */
+    public void setServiceDescriptorService(ServiceDescriptorService service) {
+        this.serviceDescriptorService = service;
+    }
+
     @Override
     public List<File> installCommands(File launcherPath, List<CommandSpec> commands, InstallationSettings settings) {
         List<File> createdFiles = new ArrayList<>();
+
+        // Branch installations do not support CLI commands or launchers
+        if (settings.isBranchInstallation()) {
+            System.out.println("Skipping CLI command/launcher installation for branch installation");
+            if (installationLogger != null) {
+                installationLogger.logInfo("Branch installation detected - skipping CLI commands and launcher");
+            }
+            return createdFiles;
+        }
 
         if (commands == null || commands.isEmpty()) {
             return createdFiles;
@@ -100,6 +121,14 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             File appDir = launcherPath.getParentFile();
             persistMetadata(appDir, wrapperFiles, pathUpdated, gitBashPathUpdated, cliExePath, userBinDir, perAppPathDir, settings.getPackageName(), settings.getSource());
 
+            // Register services after successful installation
+            if (settings.getPackageName() != null) {
+                String version = settings.getNpmPackageVersion() != null ?
+                    settings.getNpmPackageVersion().getVersion() : "unknown";
+                String branchName = null; // TODO: Extract from settings if branch installation
+                registerServices(commands, settings.getPackageName(), version, branchName);
+            }
+
         } catch (IOException e) {
             System.err.println("Warning: Failed to install CLI commands: " + e.getMessage());
         }
@@ -128,6 +157,12 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             String source = metadata.optString("source", null);
             if (source != null && source.isEmpty()) {
                 source = null;  // Treat empty string as null
+            }
+
+            // Stop and unregister services before removing command scripts
+            if (packageName != null && !packageName.isEmpty()) {
+                String branchName = null; // TODO: Extract from source if branch installation
+                stopAndUnregisterServices(packageName, branchName, appDir);
             }
 
             // Try to load manifest from repository
@@ -830,8 +865,120 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
     }
 
     /**
+     * Registers services for commands that implement service_controller.
+     * Called after successful command installation.
+     *
+     * @param commands The list of installed commands
+     * @param packageName The package name
+     * @param version The package version
+     * @param branchName The branch name (always null since branches don't support CLI commands)
+     */
+    private void registerServices(List<CommandSpec> commands, String packageName, String version, String branchName) {
+        if (serviceDescriptorService == null) {
+            // Service management not configured, skip registration
+            return;
+        }
+
+        if (commands == null || commands.isEmpty()) {
+            return;
+        }
+
+        // Branch installations should never reach here since CLI commands aren't installed for branches
+        // But check defensively anyway
+        if (branchName != null && !branchName.trim().isEmpty()) {
+            System.out.println("Skipping service registration for branch installation");
+            if (installationLogger != null) {
+                installationLogger.logInfo("Branch installation detected - skipping service registration");
+            }
+            return;
+        }
+
+        for (CommandSpec command : commands) {
+            if (command.implements_("service_controller")) {
+                try {
+                    serviceDescriptorService.registerService(command, packageName, version, branchName);
+                    System.out.println("Registered service: " + command.getName());
+                    if (installationLogger != null) {
+                        installationLogger.logInfo("Registered service: " + command.getName());
+                    }
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to register service " + command.getName() + ": " + e.getMessage());
+                    if (installationLogger != null) {
+                        installationLogger.logError("Failed to register service " + command.getName() + ": " + e.getMessage());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Stops and unregisters all services for a package.
+     * Called before uninstalling commands.
+     *
+     * @param packageName The package name
+     * @param branchName The branch name (null for non-branch installations)
+     * @param appDir The application directory
+     */
+    private void stopAndUnregisterServices(String packageName, String branchName, File appDir) {
+        if (serviceDescriptorService == null) {
+            // Service management not configured, skip
+            return;
+        }
+
+        try {
+            List<ServiceDescriptor> services = serviceDescriptorService.listServices(packageName, branchName);
+
+            for (ServiceDescriptor service : services) {
+                // Stop the service
+                try {
+                    String commandName = service.getCommandName();
+                    System.out.println("Stopping service: " + commandName);
+
+                    // On Windows, execute: <command>.cmd service stop
+                    ProcessBuilder pb = new ProcessBuilder(commandName + ".cmd", "service", "stop");
+                    Process process = pb.start();
+                    int exitCode = process.waitFor();
+
+                    if (exitCode == 0) {
+                        System.out.println("Successfully stopped service: " + commandName);
+                        if (installationLogger != null) {
+                            installationLogger.logInfo("Stopped service: " + commandName);
+                        }
+                    } else {
+                        System.err.println("Warning: Service stop returned exit code " + exitCode + " for " + commandName);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to stop service " + service.getCommandName() + ": " + e.getMessage());
+                    if (installationLogger != null) {
+                        installationLogger.logError("Failed to stop service " + service.getCommandName() + ": " + e.getMessage());
+                    }
+                }
+
+                // Unregister the service
+                try {
+                    serviceDescriptorService.unregisterService(packageName, service.getCommandName(), branchName);
+                    System.out.println("Unregistered service: " + service.getCommandName());
+                    if (installationLogger != null) {
+                        installationLogger.logInfo("Unregistered service: " + service.getCommandName());
+                    }
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to unregister service " + service.getCommandName() + ": " + e.getMessage());
+                    if (installationLogger != null) {
+                        installationLogger.logError("Failed to unregister service " + service.getCommandName() + ": " + e.getMessage());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to stop/unregister services: " + e.getMessage());
+            if (installationLogger != null) {
+                installationLogger.logError("Failed to stop/unregister services: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
      * Creates a manifest repository instance. Protected to allow test overrides.
-     * 
+     *
      * @return a CliCommandManifestRepository instance
      */
     protected CliCommandManifestRepository createManifestRepository() {

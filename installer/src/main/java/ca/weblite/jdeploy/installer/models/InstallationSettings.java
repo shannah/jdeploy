@@ -205,4 +205,15 @@ public class InstallationSettings {
     public void setSource(String source) {
         this.source = source;
     }
+
+    /**
+     * Determines if this is a branch installation.
+     * Branch installations are identified by having a non-null, non-empty source URL.
+     * Branch installations do not support CLI commands, CLI launchers, or services.
+     *
+     * @return true if this is a branch installation, false otherwise
+     */
+    public boolean isBranchInstallation() {
+        return source != null && !source.trim().isEmpty();
+    }
 }

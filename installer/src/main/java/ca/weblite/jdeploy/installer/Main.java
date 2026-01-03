@@ -43,6 +43,8 @@ import ca.weblite.jdeploy.installer.cli.MacCliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.LinuxCliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.UIAwareCollisionHandler;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
 import ca.weblite.jdeploy.installer.uninstall.UninstallManifestBuilder;
 import ca.weblite.jdeploy.installer.uninstall.UninstallManifestWriter;
 import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest;
@@ -874,6 +876,10 @@ public class Main implements Runnable, Constants {
         return new UninstallService(manifestRepository, registryOperations);
     }
 
+    private ServiceDescriptorService createServiceDescriptorService() {
+        return ServiceDescriptorServiceFactory.createDefault();
+    }
+
     private void install() throws Exception {
 
         // Based on the user's settings, let's update the version in the appInfo
@@ -1118,6 +1124,7 @@ public class Main implements Runnable, Constants {
                     // Wire collision handler for GUI-aware prompting
                     macCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
                     macCliInstaller.setInstallationLogger(macInstallLogger);
+                    macCliInstaller.setServiceDescriptorService(createServiceDescriptorService());
                     cliScriptFiles.addAll(macCliInstaller.installCommands(cliLauncher, cliCommands, installationSettings));
 
                     // Track the CLI launcher symlink if it was created
@@ -1824,6 +1831,7 @@ public class Main implements Runnable, Constants {
             // Wire collision handler for GUI-aware prompting
             linuxCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
             linuxCliInstaller.setInstallationLogger(linuxInstallLogger);
+            linuxCliInstaller.setServiceDescriptorService(createServiceDescriptorService());
             cliScriptFiles.addAll(linuxCliInstaller.installCommands(launcherFile, commands, installationSettings));
         } else {
             System.out.println("Skipping CLI command and launcher installation (user opted out)");
