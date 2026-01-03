@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.cli;
 
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
+import ca.weblite.jdeploy.installer.logging.InstallationLogger;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.jdeploy.installer.util.DebugLogger;
@@ -34,14 +35,24 @@ import java.util.regex.Pattern;
 public abstract class AbstractUnixCliCommandInstaller implements CliCommandInstaller {
 
     private CollisionHandler collisionHandler = new DefaultCollisionHandler();
+    protected InstallationLogger installationLogger;
 
     /**
      * Sets the collision handler for detecting and resolving command name conflicts.
-     * 
+     *
      * @param collisionHandler the handler to use for collision resolution
      */
     public void setCollisionHandler(CollisionHandler collisionHandler) {
         this.collisionHandler = collisionHandler != null ? collisionHandler : new DefaultCollisionHandler();
+    }
+
+    /**
+     * Sets the installation logger for recording detailed operation logs.
+     *
+     * @param logger the installation logger to use
+     */
+    public void setInstallationLogger(InstallationLogger logger) {
+        this.installationLogger = logger;
     }
 
     /**
@@ -215,8 +226,16 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
                 try {
                     scriptPath.delete();
                     System.out.println("Removed command-line script: " + scriptPath.getAbsolutePath());
+                    if (installationLogger != null) {
+                        installationLogger.logCliCommand(cmdName, InstallationLogger.FileOperation.DELETED,
+                                scriptPath.getAbsolutePath(), null);
+                    }
                 } catch (Exception e) {
                     System.err.println("Warning: Failed to remove command script for " + cmdName + ": " + e.getMessage());
+                    if (installationLogger != null) {
+                        installationLogger.logCliCommand(cmdName, InstallationLogger.FileOperation.FAILED,
+                                scriptPath.getAbsolutePath(), e.getMessage());
+                    }
                 }
             }
         }
@@ -234,12 +253,24 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
                     if (remainingFiles != null) {
                         for (File f : remainingFiles) {
                             f.delete();
+                            if (installationLogger != null) {
+                                installationLogger.logFileOperation(InstallationLogger.FileOperation.DELETED,
+                                        f.getAbsolutePath(), "Remaining file in bin directory");
+                            }
                         }
                     }
                     binDir.delete();
                     System.out.println("Removed per-app bin directory: " + binDir.getAbsolutePath());
+                    if (installationLogger != null) {
+                        installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
+                                binDir.getAbsolutePath(), "Per-app CLI bin directory");
+                    }
                 } catch (Exception e) {
                     System.err.println("Warning: Failed to remove per-app bin directory: " + e.getMessage());
+                    if (installationLogger != null) {
+                        installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.FAILED,
+                                binDir.getAbsolutePath(), e.getMessage());
+                    }
                 }
             }
         }
@@ -253,8 +284,14 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
             try {
                 manifestRepository.delete(packageName, source);
                 System.out.println("Deleted manifest for package: " + packageName);
+                if (installationLogger != null) {
+                    installationLogger.logInfo("Deleted CLI command manifest for package: " + packageName);
+                }
             } catch (Exception e) {
                 System.err.println("Warning: Failed to delete manifest: " + e.getMessage());
+                if (installationLogger != null) {
+                    installationLogger.logError("Failed to delete manifest: " + e.getMessage());
+                }
             }
         }
 
@@ -263,8 +300,16 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
         if (metadataFile.exists()) {
             try {
                 metadataFile.delete();
+                if (installationLogger != null) {
+                    installationLogger.logFileOperation(InstallationLogger.FileOperation.DELETED,
+                            metadataFile.getAbsolutePath(), "CLI metadata file");
+                }
             } catch (Exception e) {
                 System.err.println("Warning: Failed to remove metadata file: " + e.getMessage());
+                if (installationLogger != null) {
+                    installationLogger.logFileOperation(InstallationLogger.FileOperation.FAILED,
+                            metadataFile.getAbsolutePath(), e.getMessage());
+                }
             }
         }
     }
@@ -344,10 +389,18 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
                     
                     if (action == CollisionAction.SKIP) {
                         System.out.println("Skipping command '" + cmdName + "' - already owned by another app");
+                        if (installationLogger != null) {
+                            installationLogger.logCliCommand(cmdName, InstallationLogger.FileOperation.SKIPPED_COLLISION,
+                                    scriptPath.getAbsolutePath(), "Owned by another app: " + existingLauncherPath);
+                        }
                         continue;
                     }
                     // OVERWRITE - fall through to delete and recreate
                     System.out.println("Overwriting command '" + cmdName + "' from another app");
+                    if (installationLogger != null) {
+                        installationLogger.logCliCommand(cmdName, InstallationLogger.FileOperation.OVERWRITTEN,
+                                scriptPath.getAbsolutePath(), "Overwriting from another app: " + existingLauncherPath);
+                    }
                 }
                 // Same app or couldn't parse - silently overwrite
                 try {
@@ -360,9 +413,17 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
             try {
                 writeCommandScript(scriptPath, launcherPath.getAbsolutePath(), command);
                 System.out.println("Created command-line script: " + scriptPath.getAbsolutePath());
+                if (installationLogger != null) {
+                    installationLogger.logCliCommand(cmdName, InstallationLogger.FileOperation.CREATED,
+                            scriptPath.getAbsolutePath(), null);
+                }
                 createdFiles.add(scriptPath);
             } catch (IOException ioe) {
                 System.err.println("Warning: Failed to create command script for " + cmdName + ": " + ioe.getMessage());
+                if (installationLogger != null) {
+                    installationLogger.logCliCommand(cmdName, InstallationLogger.FileOperation.FAILED,
+                            scriptPath.getAbsolutePath(), ioe.getMessage());
+                }
             }
         }
 
@@ -435,12 +496,16 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
             
             boolean created = binDir.mkdirs();
             DebugLogger.log("mkdirs() returned: " + created);
-            
+
             if (!created) {
                 // Check if it was created by another process (race condition)
                 if (binDir.exists() && binDir.isDirectory()) {
                     DebugLogger.log("Directory now exists (created by another process)");
                     System.out.println("Created " + displayPath + " directory");
+                    if (installationLogger != null) {
+                        installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED,
+                                binDir.getAbsolutePath(), "CLI bin directory (race condition)");
+                    }
                     return true;
                 }
                 
@@ -452,21 +517,37 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
                     DebugLogger.log("  Parent now exists: " + parent.exists());
                     DebugLogger.log("  Parent now canWrite: " + parent.canWrite());
                 }
-                
+
                 System.err.println("Warning: Failed to create " + displayPath + " directory");
+                if (installationLogger != null) {
+                    installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.FAILED,
+                            binDir.getAbsolutePath(), "Failed to create CLI bin directory");
+                }
                 return false;
             }
             DebugLogger.log("Successfully created directory: " + binDir.getAbsolutePath());
             System.out.println("Created " + displayPath + " directory");
+            if (installationLogger != null) {
+                installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED,
+                        binDir.getAbsolutePath(), "CLI bin directory");
+            }
         } else {
             DebugLogger.log("binDir already exists: " + binDir.getAbsolutePath());
             DebugLogger.log("  isDirectory: " + binDir.isDirectory());
             DebugLogger.log("  canWrite: " + binDir.canWrite());
-            
+
             if (!binDir.isDirectory()) {
                 DebugLogger.log("ensureBinDirExists() failed: path exists but is not a directory");
                 System.err.println("Warning: " + displayPath + " exists but is not a directory");
+                if (installationLogger != null) {
+                    installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.FAILED,
+                            binDir.getAbsolutePath(), "Path exists but is not a directory");
+                }
                 return false;
+            }
+            if (installationLogger != null) {
+                installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.SKIPPED_EXISTS,
+                        binDir.getAbsolutePath(), "CLI bin directory already exists");
             }
         }
         return true;

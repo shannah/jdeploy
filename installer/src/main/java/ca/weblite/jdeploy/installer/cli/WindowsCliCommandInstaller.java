@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.cli;
 
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
+import ca.weblite.jdeploy.installer.logging.InstallationLogger;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
@@ -31,6 +32,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
     private CollisionHandler collisionHandler = new DefaultCollisionHandler();
     private RegistryOperations registryOperations;
+    private InstallationLogger installationLogger;
 
     /**
      * Sets the collision handler for detecting and resolving command name conflicts.
@@ -44,11 +46,20 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
     /**
      * Sets the registry operations implementation for testing or custom scenarios.
      * If not set, JnaRegistryOperations will be used by default.
-     * 
+     *
      * @param registryOperations the RegistryOperations implementation to use
      */
     public void setRegistryOperations(RegistryOperations registryOperations) {
         this.registryOperations = registryOperations;
+    }
+
+    /**
+     * Sets the installation logger for detailed operation logging.
+     *
+     * @param logger the InstallationLogger to use (may be null)
+     */
+    public void setInstallationLogger(InstallationLogger logger) {
+        this.installationLogger = logger;
     }
 
     @Override
@@ -135,8 +146,19 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             String cliExeName = metadata.optString(CliInstallerConstants.CLI_EXE_KEY, null);
             if (cliExeName != null && !cliExeName.isEmpty()) {
                 File cliExeFile = new File(appDir, cliExeName);
-                if (cliExeFile.exists() && !cliExeFile.delete()) {
-                    System.err.println("Warning: Failed to delete CLI exe: " + cliExeFile.getAbsolutePath());
+                if (cliExeFile.exists()) {
+                    if (cliExeFile.delete()) {
+                        if (installationLogger != null) {
+                            installationLogger.logFileOperation(InstallationLogger.FileOperation.DELETED,
+                                cliExeFile.getAbsolutePath(), "CLI executable");
+                        }
+                    } else {
+                        System.err.println("Warning: Failed to delete CLI exe: " + cliExeFile.getAbsolutePath());
+                        if (installationLogger != null) {
+                            installationLogger.logFileOperation(InstallationLogger.FileOperation.FAILED,
+                                cliExeFile.getAbsolutePath(), "Failed to delete CLI executable");
+                        }
+                    }
                 }
             }
 
@@ -167,8 +189,19 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 for (int i = 0; i < wrappersArray.length(); i++) {
                     String wrapperName = wrappersArray.getString(i);
                     File wrapperFile = new File(userBinDir, wrapperName);
-                    if (wrapperFile.exists() && !wrapperFile.delete()) {
-                        System.err.println("Warning: Failed to delete wrapper file: " + wrapperFile.getAbsolutePath());
+                    if (wrapperFile.exists()) {
+                        if (wrapperFile.delete()) {
+                            if (installationLogger != null) {
+                                installationLogger.logCliCommand(wrapperName, InstallationLogger.FileOperation.DELETED,
+                                    wrapperFile.getAbsolutePath(), null);
+                            }
+                        } else {
+                            System.err.println("Warning: Failed to delete wrapper file: " + wrapperFile.getAbsolutePath());
+                            if (installationLogger != null) {
+                                installationLogger.logFileOperation(InstallationLogger.FileOperation.FAILED,
+                                    wrapperFile.getAbsolutePath(), "Failed to delete wrapper");
+                            }
+                        }
                     }
 
                     // Also attempt to delete the extensionless version (for Git Bash)
@@ -177,8 +210,15 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                             : wrapperName;
 
                     File shWrapperFile = new File(userBinDir, shWrapperName);
-                    if (shWrapperFile.exists() && !shWrapperFile.delete()) {
-                        System.err.println("Warning: Failed to delete shell wrapper file: " + shWrapperFile.getAbsolutePath());
+                    if (shWrapperFile.exists()) {
+                        if (shWrapperFile.delete()) {
+                            if (installationLogger != null) {
+                                installationLogger.logFileOperation(InstallationLogger.FileOperation.DELETED,
+                                    shWrapperFile.getAbsolutePath(), "Git Bash wrapper");
+                            }
+                        } else {
+                            System.err.println("Warning: Failed to delete shell wrapper file: " + shWrapperFile.getAbsolutePath());
+                        }
                     }
                 }
             }
@@ -196,8 +236,15 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                         }
                         userBinDir.delete();
                         System.out.println("Removed per-app bin directory: " + binDirPath);
+                        if (installationLogger != null) {
+                            installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
+                                binDirPath, "Per-app bin directory");
+                        }
                     } catch (Exception e) {
                         System.err.println("Warning: Failed to remove per-app bin directory: " + e.getMessage());
+                        if (installationLogger != null) {
+                            installationLogger.logError("Failed to remove per-app bin directory: " + binDirPath, e);
+                        }
                     }
                 }
             }
@@ -208,11 +255,17 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             // Remove from PATH if it was added
             if (metadata.optBoolean(CliInstallerConstants.PATH_UPDATED_KEY, false)) {
                 removeFromPath(perAppPathDir);
+                if (installationLogger != null) {
+                    installationLogger.logPathChange(false, perAppPathDir.getAbsolutePath(), "Windows user PATH");
+                }
             }
 
             // Remove from Git Bash path if it was added
             if (metadata.optBoolean(CliInstallerConstants.GIT_BASH_PATH_UPDATED_KEY, false)) {
                 removeFromGitBashPath(perAppPathDir);
+                if (installationLogger != null) {
+                    installationLogger.logInfo("Removed from Git Bash PATH: " + perAppPathDir.getAbsolutePath());
+                }
             }
 
             // Delete manifest file via repository
@@ -220,13 +273,21 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 try {
                     manifestRepository.delete(packageName, source);
                     System.out.println("Deleted manifest for package: " + packageName);
+                    if (installationLogger != null) {
+                        installationLogger.logInfo("Deleted CLI manifest for package: " + packageName);
+                    }
                 } catch (Exception e) {
                     System.err.println("Warning: Failed to delete manifest: " + e.getMessage());
                 }
             }
 
             // Delete legacy metadata file
-            if (!metadataFile.delete()) {
+            if (metadataFile.delete()) {
+                if (installationLogger != null) {
+                    installationLogger.logFileOperation(InstallationLogger.FileOperation.DELETED,
+                        metadataFile.getAbsolutePath(), "CLI metadata file");
+                }
+            } else {
                 System.err.println("Warning: Failed to delete metadata file: " + metadataFile.getAbsolutePath());
             }
 
@@ -244,9 +305,20 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
         try {
             // Use InstallWindowsRegistry to manage PATH via registry
             InstallWindowsRegistry registry = createRegistryHelper();
-            return registry.addToUserPath(binDir);
+            boolean result = registry.addToUserPath(binDir);
+            if (installationLogger != null) {
+                if (result) {
+                    installationLogger.logPathChange(true, binDir.getAbsolutePath(), "Windows user PATH");
+                } else {
+                    installationLogger.logInfo("PATH already contains: " + binDir.getAbsolutePath());
+                }
+            }
+            return result;
         } catch (Exception e) {
             System.err.println("Warning: Failed to update user PATH in registry: " + e.getMessage());
+            if (installationLogger != null) {
+                installationLogger.logError("Failed to update user PATH in registry", e);
+            }
             return false;
         }
     }
@@ -286,7 +358,15 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
         if (!binDir.exists()) {
             if (!binDir.mkdirs()) {
+                if (installationLogger != null) {
+                    installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.FAILED,
+                        binDir.getAbsolutePath(), "Failed to create");
+                }
                 throw new IOException("Failed to create bin directory: " + binDir.getAbsolutePath());
+            }
+            if (installationLogger != null) {
+                installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED,
+                    binDir.getAbsolutePath(), "CLI commands bin directory");
             }
         }
 
@@ -295,7 +375,12 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             File cmdWrapper = new File(binDir, name + ".cmd");
             File shWrapper = new File(binDir, name);
 
+            if (installationLogger != null) {
+                installationLogger.logInfo("Processing CLI command: " + name);
+            }
+
             // Check for collision with existing wrapper (check .cmd as the primary indicator)
+            boolean wasOverwritten = false;
             if (cmdWrapper.exists()) {
                 String existingLauncherPath = extractLauncherPathFromCmdFile(cmdWrapper);
 
@@ -309,16 +394,33 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
                     if (action == CollisionAction.SKIP) {
                         System.out.println("Skipping command '" + name + "' - already owned by another app");
+                        if (installationLogger != null) {
+                            installationLogger.logCliCommand(name, InstallationLogger.FileOperation.SKIPPED_COLLISION,
+                                cmdWrapper.getAbsolutePath(),
+                                "Owned by: " + existingLauncherPath);
+                        }
                         continue;
                     }
                     // OVERWRITE - fall through to delete and recreate
                     System.out.println("Overwriting command '" + name + "' from another app");
+                    if (installationLogger != null) {
+                        installationLogger.logInfo("Overwriting command from different app: " + existingLauncherPath);
+                    }
                 }
                 // Same app or couldn't parse - silently overwrite
+                wasOverwritten = true;
                 cmdWrapper.delete();
+                if (installationLogger != null) {
+                    installationLogger.logFileOperation(InstallationLogger.FileOperation.DELETED,
+                        cmdWrapper.getAbsolutePath(), "Existing wrapper (same app update)");
+                }
             }
             if (shWrapper.exists()) {
                 shWrapper.delete();
+                if (installationLogger != null) {
+                    installationLogger.logFileOperation(InstallationLogger.FileOperation.DELETED,
+                        shWrapper.getAbsolutePath(), "Existing shell wrapper");
+                }
             }
 
             // Generate wrapper content based on implementations
@@ -328,9 +430,20 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             FileUtils.writeStringToFile(cmdWrapper, cmdContent, "UTF-8");
             cmdWrapper.setExecutable(true, false);
             created.add(cmdWrapper);
+            if (installationLogger != null) {
+                installationLogger.logCliCommand(name,
+                    wasOverwritten ? InstallationLogger.FileOperation.OVERWRITTEN : InstallationLogger.FileOperation.CREATED,
+                    cmdWrapper.getAbsolutePath(),
+                    "Launcher: " + launcherPath.getAbsolutePath());
+            }
 
             FileUtils.writeStringToFile(shWrapper, shContent, "UTF-8");
             shWrapper.setExecutable(true, false);
+            if (installationLogger != null) {
+                installationLogger.logFileOperation(
+                    wasOverwritten ? InstallationLogger.FileOperation.OVERWRITTEN : InstallationLogger.FileOperation.CREATED,
+                    shWrapper.getAbsolutePath(), "Git Bash wrapper for " + name);
+            }
         }
 
         return created;

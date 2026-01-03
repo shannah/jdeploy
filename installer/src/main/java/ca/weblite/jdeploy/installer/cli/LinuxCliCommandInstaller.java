@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.cli;
 
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
+import ca.weblite.jdeploy.installer.logging.InstallationLogger;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.models.CommandSpec;
 
@@ -62,6 +63,9 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
                 if (anyCreated) {
                     // Add per-app commands directory to PATH
                     addToPath(commandsBinDir);
+                    if (installationLogger != null) {
+                        installationLogger.logPathChange(true, commandsBinDir.getAbsolutePath(), "Linux CLI commands");
+                    }
                 }
             }
         }
@@ -83,14 +87,25 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
                 try {
                     Files.createSymbolicLink(symlinkPath.toPath(), launcherPath.toPath());
                     System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+                    if (installationLogger != null) {
+                        installationLogger.logShortcut(InstallationLogger.FileOperation.CREATED,
+                                symlinkPath.getAbsolutePath(), launcherPath.getAbsolutePath());
+                    }
                     settings.setCommandLineSymlinkCreated(true);
                     createdFiles.add(symlinkPath);
                     anyCreated = true;
 
                     // Add ~/.local/bin to PATH
                     addToPath(launcherBinDir);
+                    if (installationLogger != null) {
+                        installationLogger.logPathChange(true, launcherBinDir.getAbsolutePath(), "Linux CLI launcher");
+                    }
                 } catch (Exception e) {
                     System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+                    if (installationLogger != null) {
+                        installationLogger.logShortcut(InstallationLogger.FileOperation.FAILED,
+                                symlinkPath.getAbsolutePath(), e.getMessage());
+                    }
                 }
             }
         }
@@ -146,10 +161,17 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             // Create symlink to the launcher
             Files.createSymbolicLink(symlinkPath.toPath(), launcherPath.toPath());
             System.out.println("Created launcher symlink: " + symlinkPath.getAbsolutePath());
+            if (installationLogger != null) {
+                installationLogger.logShortcut(InstallationLogger.FileOperation.CREATED,
+                        symlinkPath.getAbsolutePath(), launcherPath.getAbsolutePath());
+            }
             settings.setCommandLineSymlinkCreated(true);
 
             // Update PATH and save metadata
             boolean pathUpdated = addToPath(localBinDir);
+            if (pathUpdated && installationLogger != null) {
+                installationLogger.logPathChange(true, localBinDir.getAbsolutePath(), "Linux CLI launcher (installLauncher)");
+            }
             File appDir = launcherPath.getParentFile();
             // Save metadata to launcher's parent directory if it differs from bin, otherwise use bin
             File metadataDir = (appDir != null && !appDir.equals(localBinDir)) ? appDir : localBinDir;
@@ -158,6 +180,10 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             return symlinkPath;
         } catch (IOException ioe) {
             System.err.println("Warning: Failed to create launcher symlink: " + ioe.getMessage());
+            if (installationLogger != null) {
+                installationLogger.logShortcut(InstallationLogger.FileOperation.FAILED,
+                        symlinkPath.getAbsolutePath(), ioe.getMessage());
+            }
             return null;
         }
     }

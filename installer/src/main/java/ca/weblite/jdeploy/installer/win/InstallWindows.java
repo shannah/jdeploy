@@ -6,6 +6,7 @@ import ca.weblite.jdeploy.installer.InstallationContext;
 import ca.weblite.jdeploy.installer.Main;
 import ca.weblite.jdeploy.installer.cli.CollisionHandler;
 import ca.weblite.jdeploy.installer.cli.UIAwareCollisionHandler;
+import ca.weblite.jdeploy.installer.logging.InstallationLogger;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.uninstall.UninstallManifestBuilder;
 import ca.weblite.jdeploy.installer.uninstall.UninstallManifestWriter;
@@ -53,6 +54,32 @@ public class InstallWindows {
             ca.weblite.jdeploy.installer.npm.NPMPackageVersion npmPackageVersion,
             CollisionHandler collisionHandler
     ) throws Exception {
+        // Create installation logger
+        InstallationLogger logger = null;
+        try {
+            logger = new InstallationLogger(fullyQualifiedPackageName, InstallationLogger.OperationType.INSTALL);
+        } catch (IOException e) {
+            System.err.println("Warning: Failed to create installation logger: " + e.getMessage());
+        }
+
+        try {
+            return doInstall(context, installationSettings, fullyQualifiedPackageName, tmpBundles, npmPackageVersion, collisionHandler, logger);
+        } finally {
+            if (logger != null) {
+                logger.close();
+            }
+        }
+    }
+
+    private File doInstall(
+            InstallationContext context,
+            InstallationSettings installationSettings,
+            String fullyQualifiedPackageName,
+            File tmpBundles,
+            ca.weblite.jdeploy.installer.npm.NPMPackageVersion npmPackageVersion,
+            CollisionHandler collisionHandler,
+            InstallationLogger logger
+    ) throws Exception {
         AppInfo appInfo = installationSettings.getAppInfo();
         File tmpExePath = findTmpExeFile(tmpBundles);
         File appXmlFile = context.findAppXml();
@@ -60,7 +87,20 @@ public class InstallWindows {
         File jdeployHome = new File(userHome, ".jdeploy");
         File appsDir = new File(jdeployHome, "apps");
         File appDir = new File(appsDir, fullyQualifiedPackageName);
+
+        if (logger != null) {
+            logger.logInfo("Starting installation of " + appInfo.getTitle() + " version " + appInfo.getNpmVersion());
+            logger.logInfo("Package: " + appInfo.getNpmPackage());
+            logger.logInfo("Source: " + (appInfo.getNpmSource() != null ? appInfo.getNpmSource() : "NPM"));
+            logger.logSection("Creating Application Directory");
+        }
+
+        boolean appDirCreated = !appDir.exists();
         appDir.mkdirs();
+        if (logger != null && appDirCreated) {
+            logger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED, appDir.getAbsolutePath());
+        }
+
         String nameSuffix = "";
 
         if (appInfo.getNpmVersion().startsWith("0.0.0-")) {
@@ -79,17 +119,39 @@ public class InstallWindows {
 
         File cliExePath = null;
         try {
+            if (logger != null) {
+                logger.logSection("Installing Application Executable");
+            }
+            boolean exeExisted = exePath.exists();
             FileUtil.copy(tmpExePath, exePath);
             exePath.setExecutable(true, false);
-            
+            if (logger != null) {
+                logger.logFileOperation(
+                    exeExisted ? InstallationLogger.FileOperation.OVERWRITTEN : InstallationLogger.FileOperation.CREATED,
+                    exePath.getAbsolutePath(),
+                    "Main application executable"
+                );
+            }
+
             // Copy CLI launcher if CLI commands will be installed
             if (installationSettings.isInstallCliCommands()) {
                 cliExePath = new File(exePath.getParentFile(),
                         exePath.getName().replace(".exe", CliInstallerConstants.CLI_LAUNCHER_SUFFIX + ".exe"));
+                boolean cliExeExisted = cliExePath.exists();
                 WindowsPESubsystemModifier.copyAndModifySubsystem(exePath, cliExePath);
                 cliExePath.setExecutable(true, false);
+                if (logger != null) {
+                    logger.logFileOperation(
+                        cliExeExisted ? InstallationLogger.FileOperation.OVERWRITTEN : InstallationLogger.FileOperation.CREATED,
+                        cliExePath.getAbsolutePath(),
+                        "CLI launcher executable"
+                    );
+                }
             }
         } catch (IOException e) {
+            if (logger != null) {
+                logger.logError("Failed to copy application executable", e);
+            }
             String logPath = System.getProperty("user.home") + "\\.jdeploy\\log\\jdeploy-installer.log";
             String technicalMessage = "Failed to copy application executable to " + exePath.getAbsolutePath() + ": " + e.getMessage();
             String userMessage = "<html><body style='width: 400px;'>" +
@@ -108,25 +170,45 @@ public class InstallWindows {
         }
 
         // Copy the icon.png if it is present
+        if (logger != null) {
+            logger.logSection("Installing Application Icons");
+        }
         File bundleIcon = new File(appXmlFile.getParentFile(), "icon.png");
         File iconPath = new File(appDir, "icon.png");
         File icoPath =  new File(appDir, "icon.ico");
 
         if (Files.exists(bundleIcon.toPath())) {
+            boolean iconExisted = iconPath.exists();
             FileUtil.copy(bundleIcon, iconPath);
+            if (logger != null) {
+                logger.logFileOperation(
+                    iconExisted ? InstallationLogger.FileOperation.OVERWRITTEN : InstallationLogger.FileOperation.CREATED,
+                    iconPath.getAbsolutePath(),
+                    "Application icon (PNG)"
+                );
+            }
         }
+
         List<File> shortcutFiles = installWindowsLinks(
                 appInfo,
                 installationSettings,
                 exePath,
                 appDir,
-                appInfo.getTitle() + nameSuffix
+                appInfo.getTitle() + nameSuffix,
+                logger
         );
+
+        if (logger != null) {
+            logger.logSection("Registry Operations");
+        }
 
         File registryBackupLogs = new File(appDir, "registry-backup-logs");
 
         if (!registryBackupLogs.exists()) {
             registryBackupLogs.mkdirs();
+            if (logger != null) {
+                logger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED, registryBackupLogs.getAbsolutePath());
+            }
         }
         int nextLogIndex = 0;
         for (File child : registryBackupLogs.listFiles()) {
@@ -142,25 +224,41 @@ public class InstallWindows {
         }
         File registryBackupLog = new File(registryBackupLogs, nextLogIndex+".reg");
         try (FileOutputStream fos = new FileOutputStream(registryBackupLog)) {
-            InstallWindowsRegistry registryInstaller = new InstallWindowsRegistry(appInfo, exePath, icoPath, fos);
+            InstallWindowsRegistry registryInstaller = new InstallWindowsRegistry(appInfo, exePath, icoPath, fos, logger);
             registryInstaller.register();
 
             // Install CLI commands if user requested
             List<ca.weblite.jdeploy.models.CommandSpec> commands = npmPackageVersion != null ? npmPackageVersion.getCommands() : null;
             List<File> cliWrapperFiles = null;
             if (installationSettings.isInstallCliCommands() && commands != null && !commands.isEmpty()) {
-                ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller cliInstaller = 
+                if (logger != null) {
+                    logger.logSection("Installing CLI Commands");
+                    logger.logInfo("Installing " + commands.size() + " CLI command(s)");
+                }
+                ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller cliInstaller =
                     new ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller();
                 cliInstaller.setCollisionHandler(collisionHandler);
+                cliInstaller.setInstallationLogger(logger);
                 File launcherForCommands = cliExePath != null ? cliExePath : exePath;
                 cliWrapperFiles = cliInstaller.installCommands(launcherForCommands, commands, installationSettings);
+                if (logger != null) {
+                    logger.logInfo("CLI commands installation complete: " + (cliWrapperFiles != null ? cliWrapperFiles.size() : 0) + " wrapper(s) created");
+                }
             }
 
             //Try to copy the uninstaller
+            if (logger != null) {
+                logger.logSection("Installing Uninstaller");
+            }
             File uninstallerPath = registryInstaller.getUninstallerPath();
+            boolean uninstallerDirCreated = !uninstallerPath.getParentFile().exists();
             uninstallerPath.getParentFile().mkdirs();
+            if (logger != null && uninstallerDirCreated) {
+                logger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED, uninstallerPath.getParentFile().getAbsolutePath());
+            }
             File installerExePath = new File(System.getProperty("client4j.launcher.path"));
-            if (uninstallerPath.exists()) {
+            boolean uninstallerExisted = uninstallerPath.exists();
+            if (uninstallerExisted) {
                 if (!uninstallerPath.canWrite()) {
                     uninstallerPath.setWritable(true, false);
                     try {
@@ -171,7 +269,13 @@ public class InstallWindows {
                     }
                 }
                 if (!uninstallerPath.delete()) {
+                    if (logger != null) {
+                        logger.logFileOperation(InstallationLogger.FileOperation.FAILED, uninstallerPath.getAbsolutePath(), "Failed to delete existing uninstaller");
+                    }
                     throw new IOException("Failed to delete uninstaller: "+uninstallerPath);
+                }
+                if (logger != null) {
+                    logger.logFileOperation(InstallationLogger.FileOperation.DELETED, uninstallerPath.getAbsolutePath(), "Existing uninstaller");
                 }
 
                 try {
@@ -183,13 +287,14 @@ public class InstallWindows {
             }
             FileUtils.copyFile(installerExePath, uninstallerPath);
             uninstallerPath.setExecutable(true, false);
-            FileUtils.copyDirectory(
-                    context.findInstallFilesDir(),
-                    new File(
-                            uninstallerPath.getParentFile(),
-                            context.findInstallFilesDir().getName()
-                    )
-            );
+            if (logger != null) {
+                logger.logFileOperation(InstallationLogger.FileOperation.CREATED, uninstallerPath.getAbsolutePath(), "Uninstaller executable");
+            }
+            File jdeployFilesDestDir = new File(uninstallerPath.getParentFile(), context.findInstallFilesDir().getName());
+            FileUtils.copyDirectory(context.findInstallFilesDir(), jdeployFilesDestDir);
+            if (logger != null) {
+                logger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED, jdeployFilesDestDir.getAbsolutePath(), "jDeploy files for uninstaller");
+            }
 
             // Build and write uninstall manifest
             try {
@@ -339,37 +444,65 @@ public class InstallWindows {
             InstallationSettings installationSettings,
             File exePath,
             File appDir,
-            String appTitle
+            String appTitle,
+            InstallationLogger logger
     ) throws Exception {
+        if (logger != null) {
+            logger.logSection("Creating Windows Shortcuts");
+        }
         List<File> shortcutFiles = new ArrayList<>();
         File pngIconPath = new File(appDir, "icon.png");
         File icoPath = new File(appDir.getCanonicalFile(), "icon.ico");
 
         if (!Files.exists(pngIconPath.toPath())) {
             copyResourceToFile(Main.class, "icon.png", pngIconPath);
+            if (logger != null) {
+                logger.logFileOperation(InstallationLogger.FileOperation.CREATED, pngIconPath.getAbsolutePath(), "Default icon (PNG)");
+            }
         }
         if (!Files.exists(pngIconPath.toPath())) {
             throw new IOException("Failed to create the .ico file for some reason. "+icoPath);
         }
+        boolean icoExisted = icoPath.exists();
         convertWindowsIcon(pngIconPath.getCanonicalFile(), icoPath);
+        if (logger != null) {
+            logger.logFileOperation(
+                icoExisted ? InstallationLogger.FileOperation.OVERWRITTEN : InstallationLogger.FileOperation.CREATED,
+                icoPath.getAbsolutePath(),
+                "Windows icon (ICO)"
+            );
+        }
 
 
         if (installationSettings.isAddToDesktop()) {
             try {
                 if (appInfo.isRequireRunAsAdmin()) {
                     File shortcut = installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle, true);
-                    if (shortcut != null) shortcutFiles.add(shortcut);
+                    if (shortcut != null) {
+                        shortcutFiles.add(shortcut);
+                        if (logger != null) logger.logShortcut(InstallationLogger.FileOperation.CREATED, shortcut.getAbsolutePath(), exePath.getAbsolutePath());
+                    }
                 } else if (appInfo.isAllowRunAsAdmin()) {
                     File shortcut = installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle, false);
-                    if (shortcut != null) shortcutFiles.add(shortcut);
+                    if (shortcut != null) {
+                        shortcutFiles.add(shortcut);
+                        if (logger != null) logger.logShortcut(InstallationLogger.FileOperation.CREATED, shortcut.getAbsolutePath(), exePath.getAbsolutePath());
+                    }
                     File shortcutAdmin = installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle + RUN_AS_ADMIN_SUFFIX, true);
-                    if (shortcutAdmin != null) shortcutFiles.add(shortcutAdmin);
+                    if (shortcutAdmin != null) {
+                        shortcutFiles.add(shortcutAdmin);
+                        if (logger != null) logger.logShortcut(InstallationLogger.FileOperation.CREATED, shortcutAdmin.getAbsolutePath(), exePath.getAbsolutePath());
+                    }
                 } else {
                     File shortcut = installWindowsLink(appInfo, ShellLink.DESKTOP, exePath, icoPath, appTitle, false);
-                    if (shortcut != null) shortcutFiles.add(shortcut);
+                    if (shortcut != null) {
+                        shortcutFiles.add(shortcut);
+                        if (logger != null) logger.logShortcut(InstallationLogger.FileOperation.CREATED, shortcut.getAbsolutePath(), exePath.getAbsolutePath());
+                    }
                 }
 
             } catch (Exception ex) {
+                if (logger != null) logger.logError("Failed to install desktop shortcut", ex);
                 throw new RuntimeException("Failed to install desktop shortcut", ex);
             }
         }
@@ -377,18 +510,31 @@ public class InstallWindows {
             try {
                 if (appInfo.isRequireRunAsAdmin()) {
                     File shortcut = installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle, true);
-                    if (shortcut != null) shortcutFiles.add(shortcut);
+                    if (shortcut != null) {
+                        shortcutFiles.add(shortcut);
+                        if (logger != null) logger.logShortcut(InstallationLogger.FileOperation.CREATED, shortcut.getAbsolutePath(), exePath.getAbsolutePath());
+                    }
                 } else if (appInfo.isAllowRunAsAdmin()) {
                     File shortcut = installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle, false);
-                    if (shortcut != null) shortcutFiles.add(shortcut);
+                    if (shortcut != null) {
+                        shortcutFiles.add(shortcut);
+                        if (logger != null) logger.logShortcut(InstallationLogger.FileOperation.CREATED, shortcut.getAbsolutePath(), exePath.getAbsolutePath());
+                    }
                     File shortcutAdmin = installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle + RUN_AS_ADMIN_SUFFIX, true);
-                    if (shortcutAdmin != null) shortcutFiles.add(shortcutAdmin);
+                    if (shortcutAdmin != null) {
+                        shortcutFiles.add(shortcutAdmin);
+                        if (logger != null) logger.logShortcut(InstallationLogger.FileOperation.CREATED, shortcutAdmin.getAbsolutePath(), exePath.getAbsolutePath());
+                    }
                 } else {
                     File shortcut = installWindowsLink(appInfo, ShellLink.PROGRAM_MENU, exePath, icoPath, appTitle, false);
-                    if (shortcut != null) shortcutFiles.add(shortcut);
+                    if (shortcut != null) {
+                        shortcutFiles.add(shortcut);
+                        if (logger != null) logger.logShortcut(InstallationLogger.FileOperation.CREATED, shortcut.getAbsolutePath(), exePath.getAbsolutePath());
+                    }
                 }
 
             } catch (Exception ex) {
+                if (logger != null) logger.logError("Failed to install program menu shortcut", ex);
                 throw new RuntimeException("Failed to install program menu shortcut", ex);
 
             }
@@ -397,21 +543,34 @@ public class InstallWindows {
             try {
                 if (appInfo.isRequireRunAsAdmin()) {
                     File shortcut = installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle, true);
-                    if (shortcut != null) shortcutFiles.add(shortcut);
+                    if (shortcut != null) {
+                        shortcutFiles.add(shortcut);
+                        if (logger != null) logger.logShortcut(InstallationLogger.FileOperation.CREATED, shortcut.getAbsolutePath(), exePath.getAbsolutePath());
+                    }
                 } else if (appInfo.isAllowRunAsAdmin()) {
                     File shortcut = installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle, false);
-                    if (shortcut != null) shortcutFiles.add(shortcut);
+                    if (shortcut != null) {
+                        shortcutFiles.add(shortcut);
+                        if (logger != null) logger.logShortcut(InstallationLogger.FileOperation.CREATED, shortcut.getAbsolutePath(), exePath.getAbsolutePath());
+                    }
                     File shortcutAdmin = installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle + RUN_AS_ADMIN_SUFFIX, true);
-                    if (shortcutAdmin != null) shortcutFiles.add(shortcutAdmin);
+                    if (shortcutAdmin != null) {
+                        shortcutFiles.add(shortcutAdmin);
+                        if (logger != null) logger.logShortcut(InstallationLogger.FileOperation.CREATED, shortcutAdmin.getAbsolutePath(), exePath.getAbsolutePath());
+                    }
                 } else {
                     File shortcut = installWindowsLink(appInfo, ShellLink.START_MENU, exePath, icoPath, appTitle, false);
-                    if (shortcut != null) shortcutFiles.add(shortcut);
+                    if (shortcut != null) {
+                        shortcutFiles.add(shortcut);
+                        if (logger != null) logger.logShortcut(InstallationLogger.FileOperation.CREATED, shortcut.getAbsolutePath(), exePath.getAbsolutePath());
+                    }
                 }
             } catch (Exception ex) {
+                if (logger != null) logger.logError("Failed to install start menu shortcut", ex);
                 throw new RuntimeException("Failed to install start menu shortcut", ex);
             }
         }
-        
+
         return shortcutFiles;
     }
 
