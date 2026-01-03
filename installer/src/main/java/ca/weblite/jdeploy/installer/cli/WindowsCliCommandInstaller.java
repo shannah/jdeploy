@@ -466,8 +466,35 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
         // Check for launcher implementation (highest priority, mutually exclusive)
         if (implementations.contains("launcher")) {
-            // For launcher: just execute the binary directly with all args
-            sb.append("\"").append(launcherPathStr).append("\" %*\r\n");
+            // Convert relative file paths to absolute paths
+            sb.append("REM Convert relative file paths to absolute paths\r\n");
+            sb.append("setlocal enabledelayedexpansion\r\n");
+            sb.append("set CONVERTED_ARGS=\r\n");
+            sb.append(":loop\r\n");
+            sb.append("if \"%~1\"==\"\" goto endloop\r\n");
+            sb.append("set ARG=%~1\r\n");
+            sb.append("REM Check if the argument is a relative path to an existing file\r\n");
+            sb.append("if exist \"%ARG%\" (\r\n");
+            sb.append("  REM Check if it's not already absolute (doesn't start with drive letter or UNC path)\r\n");
+            sb.append("  echo !ARG! | findstr /r /c:\"^[A-Za-z]:\" /c:\"^\\\\\\\\\" >nul\r\n");
+            sb.append("  if errorlevel 1 (\r\n");
+            sb.append("    REM It's a relative path, convert to absolute\r\n");
+            sb.append("    set CONVERTED_ARGS=!CONVERTED_ARGS! \"%~f1\"\r\n");
+            sb.append("  ) else (\r\n");
+            sb.append("    REM Already absolute, keep as-is\r\n");
+            sb.append("    set CONVERTED_ARGS=!CONVERTED_ARGS! \"%ARG%\"\r\n");
+            sb.append("  )\r\n");
+            sb.append(") else (\r\n");
+            sb.append("  REM Not a file path, keep as-is\r\n");
+            sb.append("  set CONVERTED_ARGS=!CONVERTED_ARGS! \"%ARG%\"\r\n");
+            sb.append(")\r\n");
+            sb.append("shift\r\n");
+            sb.append("goto loop\r\n");
+            sb.append(":endloop\r\n");
+            sb.append("\r\n");
+
+            // For launcher: execute the binary directly with converted args
+            sb.append("\"").append(launcherPathStr).append("\" %CONVERTED_ARGS%\r\n");
             return sb.toString();
         }
 
@@ -530,8 +557,29 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
         // Check for launcher implementation (highest priority, mutually exclusive)
         if (implementations.contains("launcher")) {
-            // For launcher: just execute the binary directly with all args
-            sb.append("exec \"").append(msysLauncherPath).append("\" \"$@\"\n");
+            // Convert relative file paths to absolute paths
+            sb.append("\n");
+            sb.append("# Convert relative file paths to absolute paths\n");
+            sb.append("CONVERTED_ARGS=\"\"\n");
+            sb.append("for arg in \"$@\"; do\n");
+            sb.append("  if [ -e \"$arg\" ] && [ \"$arg\" = \"${arg#/}\" ]; then\n");
+            sb.append("    # It's a relative path that exists, convert to absolute\n");
+            sb.append("    if command -v realpath >/dev/null 2>&1; then\n");
+            sb.append("      arg_abs=\"$(realpath \"$arg\")\"\n");
+            sb.append("    else\n");
+            sb.append("      # Fallback for systems without realpath\n");
+            sb.append("      arg_abs=\"$(cd \"$(dirname \"$arg\")\" && pwd)/$(basename \"$arg\")\"\n");
+            sb.append("    fi\n");
+            sb.append("    CONVERTED_ARGS=\"$CONVERTED_ARGS $arg_abs\"\n");
+            sb.append("  else\n");
+            sb.append("    # Not a file path or already absolute, keep as-is\n");
+            sb.append("    CONVERTED_ARGS=\"$CONVERTED_ARGS $arg\"\n");
+            sb.append("  fi\n");
+            sb.append("done\n");
+            sb.append("\n");
+
+            // For launcher: execute the binary directly with converted args
+            sb.append("eval exec \"").append(msysLauncherPath).append("\" $CONVERTED_ARGS\n");
             return sb.toString();
         }
 

@@ -187,14 +187,34 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
 
         // Check for launcher implementation (highest priority, mutually exclusive)
         if (implementations.contains("launcher")) {
+            // Convert relative file paths to absolute paths
+            sb.append("\n");
+            sb.append("# Convert relative file paths to absolute paths\n");
+            sb.append("CONVERTED_ARGS=()\n");
+            sb.append("for arg in \"$@\"; do\n");
+            sb.append("  if [ -e \"$arg\" ] && [ \"$arg\" = \"${arg#/}\" ]; then\n");
+            sb.append("    # It's a relative path that exists, convert to absolute\n");
+            sb.append("    if command -v realpath >/dev/null 2>&1; then\n");
+            sb.append("      CONVERTED_ARGS+=(\"$(realpath \"$arg\")\")\n");
+            sb.append("    else\n");
+            sb.append("      # Fallback for systems without realpath\n");
+            sb.append("      CONVERTED_ARGS+=(\"$(cd \"$(dirname \"$arg\")\" && pwd)/$(basename \"$arg\")\")\n");
+            sb.append("    fi\n");
+            sb.append("  else\n");
+            sb.append("    # Not a file path or already absolute, keep as-is\n");
+            sb.append("    CONVERTED_ARGS+=(\"$arg\")\n");
+            sb.append("  fi\n");
+            sb.append("done\n");
+            sb.append("\n");
+
             // For launcher on macOS: use 'open' command to launch the .app bundle
             // Extract app bundle path if launcherPath is inside a .app
             String appPath = extractAppBundlePath(launcherPath);
             if (appPath != null) {
-                sb.append("exec open -a \"").append(escapeDoubleQuotes(appPath)).append("\" \"$@\"\n");
+                sb.append("exec open -a \"").append(escapeDoubleQuotes(appPath)).append("\" \"${CONVERTED_ARGS[@]}\"\n");
             } else {
                 // Fallback: execute binary directly
-                sb.append("exec \"").append(escapedLauncher).append("\" \"$@\"\n");
+                sb.append("exec \"").append(escapedLauncher).append("\" \"${CONVERTED_ARGS[@]}\"\n");
             }
             return sb.toString();
         }
