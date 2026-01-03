@@ -756,8 +756,8 @@ public class Main implements Runnable, Constants {
                 String finalMessage = message;
                 invokeLater(() -> uiFactory.showModalErrorDialog(
                         evt.getInstallationForm(),
-                        "Uninstallation failed. " + finalMessage,
-                        "Failed"
+                        finalMessage,
+                        "Uninstallation Failed"
                 ));
             }
         }).start();
@@ -786,7 +786,7 @@ public class Main implements Runnable, Constants {
                     }
                 }
                 String finalMessage = message;
-                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), "Installation failed. "+finalMessage, "Failed"));
+                invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), finalMessage, "Installation Failed"));
             }
         }).start();
     }
