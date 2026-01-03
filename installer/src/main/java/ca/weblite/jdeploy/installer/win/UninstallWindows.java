@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.win;
 
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
+import ca.weblite.jdeploy.installer.logging.InstallationLogger;
 import ca.weblite.jdeploy.installer.util.PackagePathResolver;
 import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
 import ca.weblite.tools.io.MD5;
@@ -23,6 +24,7 @@ public class UninstallWindows {
     private String source;
 
     private String appFileName;
+    private InstallationLogger installationLogger;
 
     public UninstallWindows(
             String packageName,
@@ -31,6 +33,17 @@ public class UninstallWindows {
             String appTitle,
             InstallWindowsRegistry installer
     ) {
+        this(packageName, source, version, appTitle, installer, null);
+    }
+
+    public UninstallWindows(
+            String packageName,
+            String source,
+            String version,
+            String appTitle,
+            InstallWindowsRegistry installer,
+            InstallationLogger logger
+    ) {
         this.packageName = packageName;
         this.source = source;
         this.version = version;
@@ -38,6 +51,7 @@ public class UninstallWindows {
         this.installWindowsRegistry = installer;
         this.fullyQualifiedPackageName = installer.getFullyQualifiedPackageName();
         this.appFileName = this.appTitle;
+        this.installationLogger = logger;
         if (version != null && version.startsWith("0.0.0-")) {
             this.appFileName += " " + version.substring(version.indexOf("-")+1);
         }
@@ -120,6 +134,9 @@ public class UninstallWindows {
     }
 
     private void deletePackage() throws IOException {
+        if (installationLogger != null) {
+            installationLogger.logSection("Deleting Package Files");
+        }
         // Delete from all possible locations (architecture-specific and legacy)
         File[] allPossiblePaths = PackagePathResolver.getAllPossiblePackagePaths(packageName, version, source);
 
@@ -133,12 +150,20 @@ public class UninstallWindows {
                             !child.getName().startsWith("0.0.0-")) {
                         System.out.println("Deleting version dir: " + child.getAbsolutePath());
                         FileUtils.deleteDirectory(child);
+                        if (installationLogger != null) {
+                            installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
+                                child.getAbsolutePath(), "Version directory");
+                        }
                     }
                 }
             } else if (possiblePath.exists()) {
                 // Delete specific version directory
                 System.out.println("Deleting version dir: " + possiblePath.getAbsolutePath());
                 FileUtils.deleteDirectory(possiblePath);
+                if (installationLogger != null) {
+                    installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
+                        possiblePath.getAbsolutePath(), "Version directory");
+                }
             }
         }
     }
@@ -174,15 +199,26 @@ public class UninstallWindows {
                 if (numVersionDirectoriesRemaining == 0) {
                     System.out.println("Deleting package dir: " + packageDir.getAbsolutePath());
                     FileUtils.deleteDirectory(packageDir);
+                    if (installationLogger != null) {
+                        installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
+                            packageDir.getAbsolutePath(), "Empty package directory");
+                    }
                 }
             }
         }
     }
 
     private void deleteApp() throws IOException {
+        if (installationLogger != null) {
+            installationLogger.logSection("Deleting Application Directory");
+        }
         if (getAppDirPath().exists()) {
             System.out.println("Deleting app dir: "+getAppDirPath().getAbsolutePath());
             FileUtils.deleteDirectory(getAppDirPath());
+            if (installationLogger != null) {
+                installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
+                    getAppDirPath().getAbsolutePath(), "Application directory");
+            }
         }
     }
 
@@ -204,6 +240,10 @@ public class UninstallWindows {
             if (getDesktopLink(suffix).exists()) {
                 System.out.println("Deleting desktop link: "+getDesktopLink(suffix).getAbsolutePath());
                 getDesktopLink(suffix).delete();
+                if (installationLogger != null) {
+                    installationLogger.logShortcut(InstallationLogger.FileOperation.DELETED,
+                        getDesktopLink(suffix).getAbsolutePath(), null);
+                }
             }
         }
     }
@@ -213,6 +253,10 @@ public class UninstallWindows {
             if (getStartMenuLink(suffix).exists()) {
                 System.out.println("Deleting start menu link: " + getStartMenuLink(suffix).getAbsolutePath());
                 getStartMenuLink(suffix).delete();
+                if (installationLogger != null) {
+                    installationLogger.logShortcut(InstallationLogger.FileOperation.DELETED,
+                        getStartMenuLink(suffix).getAbsolutePath(), null);
+                }
             }
         }
     }
@@ -222,32 +266,63 @@ public class UninstallWindows {
             if (getProgramsMenuLink(suffix).exists()) {
                 System.out.println("Deleting programs menu link: " + getProgramsMenuLink(suffix).getAbsolutePath());
                 getProgramsMenuLink(suffix).delete();
+                if (installationLogger != null) {
+                    installationLogger.logShortcut(InstallationLogger.FileOperation.DELETED,
+                        getProgramsMenuLink(suffix).getAbsolutePath(), null);
+                }
             }
         }
     }
 
 
     public void uninstall() throws IOException {
+        if (installationLogger != null) {
+            installationLogger.logInfo("Starting uninstallation of " + appTitle + " version " + version);
+            installationLogger.logSection("Removing Shortcuts");
+        }
+
         removeDesktopAlias();
         removeProgramsMenuLink();
         removeStartMenuLink();
         deletePackage();
         cleanupPackageDir();
         deleteApp();
-        installWindowsRegistry.unregister(null);
+
+        if (installationLogger != null) {
+            installationLogger.logSection("Removing Registry Entries");
+        }
+        installWindowsRegistry.unregister(installationLogger);
 
         // Delegate CLI command cleanup to WindowsCliCommandInstaller
+        if (installationLogger != null) {
+            installationLogger.logSection("Removing CLI Commands");
+        }
         File appDir = getAppDirPath();
         try {
             WindowsCliCommandInstaller cliInstaller = new WindowsCliCommandInstaller();
+            cliInstaller.setInstallationLogger(installationLogger);
             cliInstaller.uninstallCommands(appDir);
         } catch (Exception ex) {
             System.err.println("Warning: Failed to uninstall CLI commands: " + ex.getMessage());
+            if (installationLogger != null) {
+                installationLogger.logError("Failed to uninstall CLI commands", ex);
+            }
         }
 
+        if (installationLogger != null) {
+            installationLogger.logSection("Cleanup");
+        }
         File uninstallerJDeployFiles = new File(getUninstallerPath().getParentFile(), ".jdeploy-files");
         if (uninstallerJDeployFiles.exists()) {
             FileUtils.deleteDirectory(uninstallerJDeployFiles);
+            if (installationLogger != null) {
+                installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
+                    uninstallerJDeployFiles.getAbsolutePath(), "Uninstaller jDeploy files");
+            }
+        }
+
+        if (installationLogger != null) {
+            installationLogger.logInfo("Scheduling uninstaller self-deletion");
         }
         scheduleDeleteUninstaller();
 

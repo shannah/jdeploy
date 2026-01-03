@@ -9,6 +9,7 @@ import ca.weblite.jdeploy.installer.events.InstallationFormEvent;
 import ca.weblite.jdeploy.installer.events.InstallationFormEventDispatcher;
 import ca.weblite.jdeploy.installer.linux.LinuxAdminLauncherGenerator;
 import ca.weblite.jdeploy.installer.linux.MimeTypeHelper;
+import ca.weblite.jdeploy.installer.logging.InstallationLogger;
 import ca.weblite.jdeploy.installer.mac.MacAdminLauncherGenerator;
 import ca.weblite.jdeploy.installer.services.InstallationDetectionService;
 import ca.weblite.jdeploy.installer.uninstall.FileUninstallManifestRepository;
@@ -950,206 +951,274 @@ public class Main implements Runnable, Constants {
                     new UIAwareCollisionHandler(uiFactory, installationForm)
             );
         } else if (Platform.getSystemPlatform().isMac()) {
-            File jdeployAppsDir = new File(System.getProperty("user.home") + File.separator + "Applications");
-            if (!jdeployAppsDir.exists()) {
-                jdeployAppsDir.mkdirs();
-            }
-            String nameSuffix = "";
-            if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
-                nameSuffix = " " + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
-            }
-
-            String appName = appInfo().getTitle() + nameSuffix;
-            File installAppPath = new File(jdeployAppsDir, appName+".app");
-            if (installAppPath.exists() && installationSettings.isOverwriteApp()) {
-                FileUtils.deleteDirectory(installAppPath);
-            }
-            File tmpAppPath = null;
-            for (File candidateApp : new File(tmpBundles, target).listFiles()) {
-                if (candidateApp.getName().endsWith(".app")) {
-                    int result = Runtime.getRuntime().exec(new String[]{"mv", candidateApp.getAbsolutePath(), installAppPath.getAbsolutePath()}).waitFor();
-                    if (result != 0) {
-                        String logPath = System.getProperty("user.home") + "/.jdeploy/log/jdeploy-installer.log";
-                        String technicalMessage = "Failed to move application bundle to " + installAppPath.getAbsolutePath() + ". mv command returned exit code " + result;
-                        String userMessage = "<html><body style='width: 400px;'>" +
-                            "<h3>Installation Failed</h3>" +
-                            "<p>Could not install the application to:<br/><b>" + jdeployAppsDir.getAbsolutePath() + "</b></p>" +
-                            "<p><b>Possible causes:</b></p>" +
-                            "<ul>" +
-                            "<li>You don't have write permission to the Applications directory</li>" +
-                            "<li>The application is currently running (please close it and try again)</li>" +
-                            "</ul>" +
-                            "<p style='margin-top: 12px;'><small>For technical details, check the log file:<br/>" +
-                            logPath + "</small></p>" +
-                            "</body></html>";
-                        throw new UserLangRuntimeException(technicalMessage, userMessage);
-                    }
-                    break;
-                }
-            }
-            if (!installAppPath.exists()) {
-                String logPath = System.getProperty("user.home") + "/.jdeploy/log/jdeploy-installer.log";
-                String technicalMessage = "Application bundle does not exist at " + installAppPath.getAbsolutePath() + " after installation attempt";
-                String userMessage = "<html><body style='width: 400px;'>" +
-                    "<h3>Installation Failed</h3>" +
-                    "<p>Could not install the application to:<br/><b>" + jdeployAppsDir.getAbsolutePath() + "</b></p>" +
-                    "<p><b>Possible causes:</b></p>" +
-                    "<ul>" +
-                    "<li>You don't have write permission to the Applications directory</li>" +
-                    "<li>The application is currently running (please close it and try again)</li>" +
-                    "</ul>" +
-                    "<p style='margin-top: 12px;'><small>For technical details, check the log file:<br/>" +
-                    logPath + "</small></p>" +
-                    "</body></html>";
-                throw new UserLangRuntimeException(technicalMessage, userMessage);
-            }
-            installedApp = installAppPath;
-            File adminWrapper = null;
-            File desktopAlias = null;
-
-            if (appInfo().isRequireRunAsAdmin() || appInfo().isAllowRunAsAdmin()) {
-                MacAdminLauncherGenerator macAdminLauncherGenerator = new MacAdminLauncherGenerator();
-                adminWrapper  = macAdminLauncherGenerator.getAdminLauncherFile(installedApp);
-                if (adminWrapper.exists()) {
-                    // delete the old recursively
-                    FileUtils.deleteDirectory(adminWrapper);
-                }
-                adminWrapper = new MacAdminLauncherGenerator().generateAdminLauncher(installedApp);
-            }
-
-            if (installationSettings.isAddToDesktop()) {
-                desktopAlias = new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + appName + ".app");
-                if (desktopAlias.exists()) {
-                    desktopAlias.delete();
-                }
-                String targetPath = installAppPath.getAbsolutePath();
-                if (adminWrapper != null && appInfo().isRequireRunAsAdmin()) {
-                    targetPath = adminWrapper.getAbsolutePath();
-                }
-                int result = Runtime.getRuntime().exec(new String[]{"ln", "-s", targetPath, desktopAlias.getAbsolutePath()}).waitFor();
-                if (result != 0) {
-                    throw new RuntimeException("Failed to make desktop alias.");
-                }
-            }
-
-            if (installationSettings.isAddToDock()) {
-                /*
-                #!/bin/bash
-                    myapp="//Applications//System Preferences.app"
-                    defaults write com.apple.dock persistent-apps -array-add "<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>$myapp</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>"
-                    osascript -e 'tell application "Dock" to quit'
-                    osascript -e 'tell application "Dock" to activate'
-                 */
-                String targetPath = installAppPath.getAbsolutePath();
-                if (adminWrapper != null && appInfo().isRequireRunAsAdmin()) {
-                    targetPath = adminWrapper.getAbsolutePath();
-                }
-                String myapp = targetPath.replace('/', '#').replace("#", "//");
-                File shellScript = File.createTempFile("installondock", ".sh");
-                shellScript.deleteOnExit();
-
-                System.out.println("Adding to dock: "+myapp);
-                String[] commands = new String[]{
-                        "/usr/bin/defaults write com.apple.dock persistent-apps -array-add \"<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>"+myapp+"</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>\"",
-                        "/usr/bin/osascript -e 'tell application \"Dock\" to quit'",
-                        "/usr/bin/osascript -e 'tell application \"Dock\" to activate'"
-
-                };
-                try (PrintWriter printWriter = new PrintWriter(new FileOutputStream(shellScript))) {
-                    printWriter.println("#!/bin/bash");
-                    for (String cmd : commands) {
-                        printWriter.println(cmd);
-                    }
-                }
-                shellScript.setExecutable(true, false);
-                Runtime.getRuntime().exec(shellScript.getAbsolutePath());
-            }
-
-            // Collect installation artifacts for manifest
-            List<File> cliScriptFiles = new ArrayList<>();
-            File cliLauncherSymlink = null;
-            
-            // Install CLI scripts/launchers on macOS (in ~/.local/bin) if the user requested either feature.
-            if (installationSettings.isInstallCliCommands() || installationSettings.isInstallCliLauncher()) {
-                File cliLauncher = new File(installAppPath, "Contents" + File.separator + "MacOS" + File.separator + CliInstallerConstants.CLI_LAUNCHER_NAME);
-                if (!cliLauncher.exists()) {
-                    File fallback = new File(installAppPath, "Contents" + File.separator + "MacOS" + File.separator + "Client4JLauncher");
-                    if (fallback.exists()) {
-                        cliLauncher = fallback;
-                    }
-                }
-
-                List<CommandSpec> commands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
-                MacCliCommandInstaller macCliInstaller = new MacCliCommandInstaller();
-                // Wire collision handler for GUI-aware prompting
-                macCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
-                cliScriptFiles.addAll(macCliInstaller.installCommands(cliLauncher, commands, installationSettings));
-                
-                // Track the CLI launcher symlink if it was created
-                if (installationSettings.isInstallCliLauncher() && installationSettings.isCommandLineSymlinkCreated()) {
-                    String commandName = deriveCommandName();
-                    File binDir = new File(System.getProperty("user.home"), ".jdeploy" + File.separator + "bin-" + ArchitectureUtil.getArchitectureSuffix());
-                    cliLauncherSymlink = new File(binDir, commandName);
-                }
-            }
-            
-            // Build and persist uninstall manifest
-            persistMacInstallationManifest(installAppPath, adminWrapper, desktopAlias, 
-                    cliScriptFiles, cliLauncherSymlink, appName);
-        } else if (Platform.getSystemPlatform().isLinux()) {
-            File tmpExePath = null;
-            for (File exeCandidate : Objects.requireNonNull(new File(tmpBundles, target).listFiles())) {
-                tmpExePath = exeCandidate;
-            }
-            if (tmpExePath == null) {
-                throw new RuntimeException("Failed to find launcher file after creation.  Something must have gone wrong in generation process");
-            }
-            File userHome = new File(System.getProperty("user.home"));
-            File jdeployHome = new File(userHome, ".jdeploy");
-            File appsDir = new File(jdeployHome, "apps");
-            File appDir = new File(appsDir, fullyQualifiedPackageName);
-            appDir.mkdirs();
-
-            String nameSuffix = "";
-            String titleSuffix = "";
-            if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
-                String v = appInfo().getNpmVersion();
-                nameSuffix = "-" +v.substring(v.indexOf("-") + 1).trim();
-                titleSuffix = "-" + v.substring(v.indexOf("-") + 1).trim();
-            }
-
-            String exeName = deriveLinuxBinaryNameFromTitle(appInfo().getTitle()) + nameSuffix;
-            File exePath = new File(appDir, exeName);
+            // Create installation logger for Mac
+            InstallationLogger macLogger = null;
             try {
-                FileUtil.copy(tmpExePath, exePath);
+                macLogger = new InstallationLogger(fullyQualifiedPackageName, InstallationLogger.OperationType.INSTALL);
             } catch (IOException e) {
-                String logPath = System.getProperty("user.home") + "/.jdeploy/log/jdeploy-installer.log";
-                String technicalMessage = "Failed to copy application launcher to " + exePath.getAbsolutePath() + ": " + e.getMessage();
-                String userMessage = "<html><body style='width: 400px;'>" +
-                    "<h3>Installation Failed</h3>" +
-                    "<p>Could not install the application to:<br/><b>" + appDir.getAbsolutePath() + "</b></p>" +
-                    "<p><b>Possible causes:</b></p>" +
-                    "<ul>" +
-                    "<li>You don't have write permission to the directory</li>" +
-                    "<li>The application is currently running (please close it and try again)</li>" +
-                    "</ul>" +
-                    "<p style='margin-top: 12px;'><small>For technical details, check the log file:<br/>" +
-                    logPath + "</small></p>" +
-                    "</body></html>";
-                throw new UserLangRuntimeException(technicalMessage, userMessage, e);
+                System.err.println("Warning: Failed to create installation logger: " + e.getMessage());
             }
+            final InstallationLogger macInstallLogger = macLogger;
 
-            // Copy the icon.png if it is present
-            File bundleIcon = new File(findAppXmlFile().getParentFile(), "icon.png");
-            File iconPath = new File(exePath.getParentFile(), "icon.png");
-            if (bundleIcon.exists()) {
-                FileUtil.copy(bundleIcon, iconPath);
+            try {
+                File jdeployAppsDir = new File(System.getProperty("user.home") + File.separator + "Applications");
+                if (!jdeployAppsDir.exists()) {
+                    jdeployAppsDir.mkdirs();
+                    if (macInstallLogger != null) {
+                        macInstallLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED,
+                                jdeployAppsDir.getAbsolutePath(), "User Applications directory");
+                    }
+                }
+                String nameSuffix = "";
+                if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
+                    nameSuffix = " " + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
+                }
+
+                String appName = appInfo().getTitle() + nameSuffix;
+                File installAppPath = new File(jdeployAppsDir, appName+".app");
+                if (installAppPath.exists() && installationSettings.isOverwriteApp()) {
+                    FileUtils.deleteDirectory(installAppPath);
+                    if (macInstallLogger != null) {
+                        macInstallLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
+                                installAppPath.getAbsolutePath(), "Existing app bundle (overwrite)");
+                    }
+                }
+                File tmpAppPath = null;
+                for (File candidateApp : new File(tmpBundles, target).listFiles()) {
+                    if (candidateApp.getName().endsWith(".app")) {
+                        int result = Runtime.getRuntime().exec(new String[]{"mv", candidateApp.getAbsolutePath(), installAppPath.getAbsolutePath()}).waitFor();
+                        if (result != 0) {
+                            String logPath = System.getProperty("user.home") + "/.jdeploy/log/jdeploy-installer.log";
+                            String technicalMessage = "Failed to move application bundle to " + installAppPath.getAbsolutePath() + ". mv command returned exit code " + result;
+                            String userMessage = "<html><body style='width: 400px;'>" +
+                                "<h3>Installation Failed</h3>" +
+                                "<p>Could not install the application to:<br/><b>" + jdeployAppsDir.getAbsolutePath() + "</b></p>" +
+                                "<p><b>Possible causes:</b></p>" +
+                                "<ul>" +
+                                "<li>You don't have write permission to the Applications directory</li>" +
+                                "<li>The application is currently running (please close it and try again)</li>" +
+                                "</ul>" +
+                                "<p style='margin-top: 12px;'><small>For technical details, check the log file:<br/>" +
+                                logPath + "</small></p>" +
+                                "</body></html>";
+                            throw new UserLangRuntimeException(technicalMessage, userMessage);
+                        }
+                        if (macInstallLogger != null) {
+                            macInstallLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED,
+                                    installAppPath.getAbsolutePath(), "Installed application bundle");
+                        }
+                        break;
+                    }
+                }
+                if (!installAppPath.exists()) {
+                    String logPath = System.getProperty("user.home") + "/.jdeploy/log/jdeploy-installer.log";
+                    String technicalMessage = "Application bundle does not exist at " + installAppPath.getAbsolutePath() + " after installation attempt";
+                    String userMessage = "<html><body style='width: 400px;'>" +
+                        "<h3>Installation Failed</h3>" +
+                        "<p>Could not install the application to:<br/><b>" + jdeployAppsDir.getAbsolutePath() + "</b></p>" +
+                        "<p><b>Possible causes:</b></p>" +
+                        "<ul>" +
+                        "<li>You don't have write permission to the Applications directory</li>" +
+                        "<li>The application is currently running (please close it and try again)</li>" +
+                        "</ul>" +
+                        "<p style='margin-top: 12px;'><small>For technical details, check the log file:<br/>" +
+                        logPath + "</small></p>" +
+                        "</body></html>";
+                    throw new UserLangRuntimeException(technicalMessage, userMessage);
+                }
+                installedApp = installAppPath;
+                File adminWrapper = null;
+                File desktopAlias = null;
+
+                if (appInfo().isRequireRunAsAdmin() || appInfo().isAllowRunAsAdmin()) {
+                    MacAdminLauncherGenerator macAdminLauncherGenerator = new MacAdminLauncherGenerator();
+                    adminWrapper  = macAdminLauncherGenerator.getAdminLauncherFile(installedApp);
+                    if (adminWrapper.exists()) {
+                        // delete the old recursively
+                        FileUtils.deleteDirectory(adminWrapper);
+                    }
+                    adminWrapper = new MacAdminLauncherGenerator().generateAdminLauncher(installedApp);
+                    if (macInstallLogger != null) {
+                        macInstallLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED,
+                                adminWrapper.getAbsolutePath(), "Admin launcher wrapper");
+                    }
+                }
+
+                if (installationSettings.isAddToDesktop()) {
+                    desktopAlias = new File(System.getProperty("user.home") + File.separator + "Desktop" + File.separator + appName + ".app");
+                    if (desktopAlias.exists()) {
+                        desktopAlias.delete();
+                    }
+                    String targetPath = installAppPath.getAbsolutePath();
+                    if (adminWrapper != null && appInfo().isRequireRunAsAdmin()) {
+                        targetPath = adminWrapper.getAbsolutePath();
+                    }
+                    int result = Runtime.getRuntime().exec(new String[]{"ln", "-s", targetPath, desktopAlias.getAbsolutePath()}).waitFor();
+                    if (result != 0) {
+                        throw new RuntimeException("Failed to make desktop alias.");
+                    }
+                    if (macInstallLogger != null) {
+                        macInstallLogger.logShortcut(InstallationLogger.FileOperation.CREATED,
+                                desktopAlias.getAbsolutePath(), targetPath);
+                    }
+                }
+
+                if (installationSettings.isAddToDock()) {
+                    /*
+                    #!/bin/bash
+                        myapp="//Applications//System Preferences.app"
+                        defaults write com.apple.dock persistent-apps -array-add "<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>$myapp</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>"
+                        osascript -e 'tell application "Dock" to quit'
+                        osascript -e 'tell application "Dock" to activate'
+                     */
+                    String targetPath = installAppPath.getAbsolutePath();
+                    if (adminWrapper != null && appInfo().isRequireRunAsAdmin()) {
+                        targetPath = adminWrapper.getAbsolutePath();
+                    }
+                    String myapp = targetPath.replace('/', '#').replace("#", "//");
+                    File shellScript = File.createTempFile("installondock", ".sh");
+                    shellScript.deleteOnExit();
+
+                    System.out.println("Adding to dock: "+myapp);
+                    String[] commands = new String[]{
+                            "/usr/bin/defaults write com.apple.dock persistent-apps -array-add \"<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>"+myapp+"</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>\"",
+                            "/usr/bin/osascript -e 'tell application \"Dock\" to quit'",
+                            "/usr/bin/osascript -e 'tell application \"Dock\" to activate'"
+
+                    };
+                    try (PrintWriter printWriter = new PrintWriter(new FileOutputStream(shellScript))) {
+                        printWriter.println("#!/bin/bash");
+                        for (String cmd : commands) {
+                            printWriter.println(cmd);
+                        }
+                    }
+                    shellScript.setExecutable(true, false);
+                    Runtime.getRuntime().exec(shellScript.getAbsolutePath());
+                    if (macInstallLogger != null) {
+                        macInstallLogger.logInfo("Added application to Dock: " + targetPath);
+                    }
+                }
+
+                // Collect installation artifacts for manifest
+                List<File> cliScriptFiles = new ArrayList<>();
+                File cliLauncherSymlink = null;
+
+                // Install CLI scripts/launchers on macOS (in ~/.local/bin) if the user requested either feature.
+                if (installationSettings.isInstallCliCommands() || installationSettings.isInstallCliLauncher()) {
+                    File cliLauncher = new File(installAppPath, "Contents" + File.separator + "MacOS" + File.separator + CliInstallerConstants.CLI_LAUNCHER_NAME);
+                    if (!cliLauncher.exists()) {
+                        File fallback = new File(installAppPath, "Contents" + File.separator + "MacOS" + File.separator + "Client4JLauncher");
+                        if (fallback.exists()) {
+                            cliLauncher = fallback;
+                        }
+                    }
+
+                    List<CommandSpec> cliCommands = npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList();
+                    MacCliCommandInstaller macCliInstaller = new MacCliCommandInstaller();
+                    // Wire collision handler for GUI-aware prompting
+                    macCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
+                    macCliInstaller.setInstallationLogger(macInstallLogger);
+                    cliScriptFiles.addAll(macCliInstaller.installCommands(cliLauncher, cliCommands, installationSettings));
+
+                    // Track the CLI launcher symlink if it was created
+                    if (installationSettings.isInstallCliLauncher() && installationSettings.isCommandLineSymlinkCreated()) {
+                        String commandName = deriveCommandName();
+                        File binDir = new File(System.getProperty("user.home"), ".jdeploy" + File.separator + "bin-" + ArchitectureUtil.getArchitectureSuffix());
+                        cliLauncherSymlink = new File(binDir, commandName);
+                    }
+                }
+
+                // Build and persist uninstall manifest
+                persistMacInstallationManifest(installAppPath, adminWrapper, desktopAlias,
+                        cliScriptFiles, cliLauncherSymlink, appName);
+            } finally {
+                // Close the installation logger
+                if (macInstallLogger != null) {
+                    macInstallLogger.close();
+                }
             }
-            installLinuxMimetypes();
+        } else if (Platform.getSystemPlatform().isLinux()) {
+            // Create installation logger for Linux
+            InstallationLogger linuxLogger = null;
+            try {
+                linuxLogger = new InstallationLogger(fullyQualifiedPackageName, InstallationLogger.OperationType.INSTALL);
+            } catch (IOException e) {
+                System.err.println("Warning: Failed to create installation logger: " + e.getMessage());
+            }
+            final InstallationLogger linuxInstallLogger = linuxLogger;
 
-            installLinuxLinks(exePath, appInfo().getTitle() + titleSuffix);
-            installedApp = exePath;
+            try {
+                File tmpExePath = null;
+                for (File exeCandidate : Objects.requireNonNull(new File(tmpBundles, target).listFiles())) {
+                    tmpExePath = exeCandidate;
+                }
+                if (tmpExePath == null) {
+                    throw new RuntimeException("Failed to find launcher file after creation.  Something must have gone wrong in generation process");
+                }
+                File userHome = new File(System.getProperty("user.home"));
+                File jdeployHome = new File(userHome, ".jdeploy");
+                File appsDir = new File(jdeployHome, "apps");
+                File appDir = new File(appsDir, fullyQualifiedPackageName);
+                boolean appDirCreated = !appDir.exists();
+                appDir.mkdirs();
+                if (appDirCreated && linuxInstallLogger != null) {
+                    linuxInstallLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED,
+                            appDir.getAbsolutePath(), "Application directory");
+                }
 
+                String nameSuffix = "";
+                String titleSuffix = "";
+                if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
+                    String v = appInfo().getNpmVersion();
+                    nameSuffix = "-" +v.substring(v.indexOf("-") + 1).trim();
+                    titleSuffix = "-" + v.substring(v.indexOf("-") + 1).trim();
+                }
+
+                String exeName = deriveLinuxBinaryNameFromTitle(appInfo().getTitle()) + nameSuffix;
+                File exePath = new File(appDir, exeName);
+                try {
+                    FileUtil.copy(tmpExePath, exePath);
+                    if (linuxInstallLogger != null) {
+                        linuxInstallLogger.logFileOperation(InstallationLogger.FileOperation.CREATED,
+                                exePath.getAbsolutePath(), "Application launcher");
+                    }
+                } catch (IOException e) {
+                    String logPath = System.getProperty("user.home") + "/.jdeploy/log/jdeploy-installer.log";
+                    String technicalMessage = "Failed to copy application launcher to " + exePath.getAbsolutePath() + ": " + e.getMessage();
+                    String userMessage = "<html><body style='width: 400px;'>" +
+                        "<h3>Installation Failed</h3>" +
+                        "<p>Could not install the application to:<br/><b>" + appDir.getAbsolutePath() + "</b></p>" +
+                        "<p><b>Possible causes:</b></p>" +
+                        "<ul>" +
+                        "<li>You don't have write permission to the directory</li>" +
+                        "<li>The application is currently running (please close it and try again)</li>" +
+                        "</ul>" +
+                        "<p style='margin-top: 12px;'><small>For technical details, check the log file:<br/>" +
+                        logPath + "</small></p>" +
+                        "</body></html>";
+                    throw new UserLangRuntimeException(technicalMessage, userMessage, e);
+                }
+
+                // Copy the icon.png if it is present
+                File bundleIcon = new File(findAppXmlFile().getParentFile(), "icon.png");
+                File iconPath = new File(exePath.getParentFile(), "icon.png");
+                if (bundleIcon.exists()) {
+                    FileUtil.copy(bundleIcon, iconPath);
+                    if (linuxInstallLogger != null) {
+                        linuxInstallLogger.logFileOperation(InstallationLogger.FileOperation.CREATED,
+                                iconPath.getAbsolutePath(), "Application icon");
+                    }
+                }
+                installLinuxMimetypes();
+
+                installLinuxLinks(exePath, appInfo().getTitle() + titleSuffix, linuxInstallLogger);
+                installedApp = exePath;
+            } finally {
+                // Close the installation logger
+                if (linuxInstallLogger != null) {
+                    linuxInstallLogger.close();
+                }
+            }
         }
 
         File tmpPlatformBundles = new File(tmpBundles, target);
@@ -1671,6 +1740,10 @@ public class Main implements Runnable, Constants {
     }
 
     public void installLinuxLinks(File launcherFile, String title) throws Exception {
+        installLinuxLinks(launcherFile, title, null);
+    }
+
+    public void installLinuxLinks(File launcherFile, String title, InstallationLogger linuxInstallLogger) throws Exception {
         if (!launcherFile.exists()) {
             throw new IllegalStateException("Launcher "+launcherFile+" does not exist so we cannot install a shortcut to it.");
         }
@@ -1680,6 +1753,10 @@ public class Main implements Runnable, Constants {
         File pngIcon = new File(launcherFile.getParentFile(), "icon.png");
         if (!pngIcon.exists()) {
             IOUtil.copyResourceToFile(Main.class, "icon.png", pngIcon);
+            if (linuxInstallLogger != null) {
+                linuxInstallLogger.logFileOperation(InstallationLogger.FileOperation.CREATED,
+                        pngIcon.getAbsolutePath(), "Default application icon");
+            }
         }
 
         boolean hasDesktop = isDesktopEnvironmentAvailable();
@@ -1697,15 +1774,28 @@ public class Main implements Runnable, Constants {
                 File desktopFile = addLinuxDesktopFile(desktopDir, title, title, pngIcon, launcherFile);
                 if (desktopFile != null) {
                     desktopFiles.add(desktopFile);
+                    if (linuxInstallLogger != null) {
+                        linuxInstallLogger.logShortcut(InstallationLogger.FileOperation.CREATED,
+                                desktopFile.getAbsolutePath(), launcherFile.getAbsolutePath());
+                    }
                 }
             }
             if (installationSettings.isAddToPrograms()) {
                 File homeDir = new File(System.getProperty("user.home"));
                 File applicationsDir = new File(homeDir, ".local"+File.separator+"share"+File.separator+"applications");
+                boolean appDirCreated = !applicationsDir.exists();
                 applicationsDir.mkdirs();
+                if (appDirCreated && linuxInstallLogger != null) {
+                    linuxInstallLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED,
+                            applicationsDir.getAbsolutePath(), "Applications directory");
+                }
                 File desktopFile = addLinuxDesktopFile(applicationsDir, title, title, pngIcon, launcherFile);
                 if (desktopFile != null) {
                     applicationsDesktopFiles.add(desktopFile);
+                    if (linuxInstallLogger != null) {
+                        linuxInstallLogger.logShortcut(InstallationLogger.FileOperation.CREATED,
+                                desktopFile.getAbsolutePath(), launcherFile.getAbsolutePath());
+                    }
                 }
 
                 // We need to run update desktop database before file type associations and url schemes will be
@@ -1722,6 +1812,9 @@ public class Main implements Runnable, Constants {
             }
         } else {
             System.out.println("No desktop environment detected. Skipping desktop shortcuts and mimetype registration.");
+            if (linuxInstallLogger != null) {
+                linuxInstallLogger.logInfo("No desktop environment detected - skipping desktop shortcuts");
+            }
         }
 
         // Install command-line scripts and/or symlink in ~/.local/bin if user requested either feature
@@ -1730,9 +1823,13 @@ public class Main implements Runnable, Constants {
             LinuxCliCommandInstaller linuxCliInstaller = new LinuxCliCommandInstaller();
             // Wire collision handler for GUI-aware prompting
             linuxCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
+            linuxCliInstaller.setInstallationLogger(linuxInstallLogger);
             cliScriptFiles.addAll(linuxCliInstaller.installCommands(launcherFile, commands, installationSettings));
         } else {
             System.out.println("Skipping CLI command and launcher installation (user opted out)");
+            if (linuxInstallLogger != null) {
+                linuxInstallLogger.logInfo("CLI command and launcher installation skipped (user opted out)");
+            }
         }
 
         // Persist uninstall manifest with all collected artifacts

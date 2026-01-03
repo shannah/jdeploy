@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.win;
 
 import ca.weblite.jdeploy.app.AppInfo;
+import ca.weblite.jdeploy.installer.logging.InstallationLogger;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.tools.io.MD5;
 import org.apache.commons.io.FileUtils;
@@ -23,6 +24,7 @@ public class InstallWindowsRegistry {
     private File icon, exe;
     private RegistryOperations registryOps;
     private boolean skipWinRegistryOperations = false;
+    private InstallationLogger installationLogger;
     private static final Set<String> contactExtensions = new HashSet<>();
     private static final Set<String> mediaExtensions = new HashSet<>();
 
@@ -191,7 +193,17 @@ public class InstallWindowsRegistry {
             File icon,
             OutputStream backupLog
     ) {
-        this(appInfo, exe, icon, backupLog, new JnaRegistryOperations());
+        this(appInfo, exe, icon, backupLog, new JnaRegistryOperations(), null);
+    }
+
+    public InstallWindowsRegistry(
+            AppInfo appInfo,
+            File exe,
+            File icon,
+            OutputStream backupLog,
+            InstallationLogger logger
+    ) {
+        this(appInfo, exe, icon, backupLog, new JnaRegistryOperations(), logger);
     }
 
     public InstallWindowsRegistry(
@@ -201,10 +213,22 @@ public class InstallWindowsRegistry {
             OutputStream backupLog,
             RegistryOperations registryOps
     ) {
+        this(appInfo, exe, icon, backupLog, registryOps, null);
+    }
+
+    public InstallWindowsRegistry(
+            AppInfo appInfo,
+            File exe,
+            File icon,
+            OutputStream backupLog,
+            RegistryOperations registryOps,
+            InstallationLogger logger
+    ) {
         this.appInfo = appInfo;
         this.exe = exe;
         this.icon = icon;
         this.registryOps = registryOps;
+        this.installationLogger = logger;
         if (backupLog != null) {
             this.backupLog = backupLog;
             this.backupLogOut = new PrintStream(backupLog);
@@ -217,6 +241,27 @@ public class InstallWindowsRegistry {
      */
     public void setSkipWinRegistryOperations(boolean skip) {
         this.skipWinRegistryOperations = skip;
+    }
+
+    /**
+     * Helper method to log a registry key creation.
+     */
+    private void logRegistryKeyCreated(String keyPath) {
+        if (installationLogger != null) {
+            installationLogger.logRegistryOperation(InstallationLogger.RegistryOperation.KEY_CREATED,
+                "HKCU\\" + keyPath);
+        }
+    }
+
+    /**
+     * Helper method to log a registry value set.
+     */
+    private void logRegistryValueSet(String keyPath, String valueName, String value) {
+        if (installationLogger != null) {
+            String details = valueName + " = " + (value != null && value.length() > 50 ? value.substring(0, 50) + "..." : value);
+            installationLogger.logRegistryOperation(InstallationLogger.RegistryOperation.VALUE_SET,
+                "HKCU\\" + keyPath, details);
+        }
     }
 
     public File getUninstallerPath() {
@@ -441,6 +486,7 @@ public class InstallWindowsRegistry {
         }
         if (!registryOps.keyExists(key)) {
             registryOps.createKey(key);
+            logRegistryKeyCreated(key);
         }
     }
 
@@ -802,26 +848,64 @@ public class InstallWindowsRegistry {
     }
 
     public void unregister(File backupLogFile) throws IOException {
+        unregister(backupLogFile, null);
+    }
+
+    public void unregister(InstallationLogger logger) throws IOException {
+        unregister(null, logger);
+    }
+
+    public void unregister(File backupLogFile, InstallationLogger logger) throws IOException {
+        // Use passed logger or fall back to instance logger
+        InstallationLogger activeLogger = logger != null ? logger : this.installationLogger;
+
+        if (activeLogger != null) {
+            activeLogger.logInfo("Starting registry unregistration");
+        }
 
         if (appInfo.hasDocumentTypes()) {
             unregisterFileExtensions();
+            if (activeLogger != null) {
+                activeLogger.logInfo("Unregistered file extensions");
+            }
         }
 
         if (appInfo.hasUrlSchemes()) {
             unregisterUrlSchemes();
+            if (activeLogger != null) {
+                activeLogger.logInfo("Unregistered URL schemes");
+            }
         }
 
         if (appInfo.hasDirectoryAssociation()) {
             unregisterDirectoryAssociations();
+            if (activeLogger != null) {
+                activeLogger.logInfo("Unregistered directory associations");
+            }
         }
 
         deleteUninstallEntry();
+        if (activeLogger != null) {
+            activeLogger.logRegistryOperation(InstallationLogger.RegistryOperation.KEY_DELETED,
+                "HKCU\\" + getUninstallKey(), "Uninstaller entry");
+        }
+
         deleteRegistryKey();
+        if (activeLogger != null) {
+            activeLogger.logRegistryOperation(InstallationLogger.RegistryOperation.KEY_DELETED,
+                "HKCU\\" + getRegistryPath(), "Application registry key");
+        }
 
         if (!skipWinRegistryOperations && backupLogFile != null && backupLogFile.exists()) {
             new WinRegistry().regImport(backupLogFile);
+            if (activeLogger != null) {
+                activeLogger.logInfo("Restored registry from backup: " + backupLogFile.getAbsolutePath());
+            }
         }
 
+        if (activeLogger != null) {
+            activeLogger.logInfo("Registry unregistration complete");
+        }
     }
 
     public void deleteRegistryKey() {
@@ -884,11 +968,18 @@ public class InstallWindowsRegistry {
     }
 
     public void register() throws IOException {
+        if (installationLogger != null) {
+            installationLogger.logInfo("Starting Windows registry operations");
+        }
+
         WinRegistry registry = new WinRegistry();
         String registryPath = getRegistryPath();
         String capabilitiesPath = getCapabilitiesPath();
         if (!skipWinRegistryOperations && registryOps.keyExists(registryPath)) {
             registry.exportKey(registryPath, backupLog);
+            if (installationLogger != null) {
+                installationLogger.logInfo("Exported existing registry key for backup: " + registryPath);
+            }
         }
 
         // Ensure the base registry path exists for the application
@@ -896,9 +987,12 @@ public class InstallWindowsRegistry {
 
         createKeyRecursive(capabilitiesPath);
         registryOps.setStringValue(capabilitiesPath, "ApplicationName", appInfo.getTitle());
+        logRegistryValueSet(capabilitiesPath, "ApplicationName", appInfo.getTitle());
         registryOps.setStringValue(capabilitiesPath, "ApplicationDescription", appInfo.getDescription());
+        logRegistryValueSet(capabilitiesPath, "ApplicationDescription", appInfo.getDescription());
         if (icon != null && icon.exists()) {
             registryOps.setStringValue(capabilitiesPath, "ApplicationIcon", icon.getAbsolutePath()+",0");
+            logRegistryValueSet(capabilitiesPath, "ApplicationIcon", icon.getAbsolutePath()+",0");
         }
 
         if (appInfo.hasDocumentTypes() || appInfo.hasUrlSchemes() || appInfo.hasDirectoryAssociation()) {
@@ -929,25 +1023,38 @@ public class InstallWindowsRegistry {
                 getRegisteredAppName(),
                 getCapabilitiesPath()
         );
+        logRegistryValueSet(registeredAppsKey, getRegisteredAppName(), getCapabilitiesPath());
 
         // Now to register the uninstaller
+        if (installationLogger != null) {
+            installationLogger.logInfo("Registering uninstaller in Add/Remove Programs");
+        }
 
         createKeyRecursive(getUninstallKey());
         if (icon != null && icon.exists()) {
             registryOps.setStringValue(getUninstallKey(), "DisplayIcon", icon.getAbsolutePath() + ",0");
+            logRegistryValueSet(getUninstallKey(), "DisplayIcon", icon.getAbsolutePath() + ",0");
         }
         registryOps.setStringValue(getUninstallKey(), "DisplayName", appInfo.getTitle());
+        logRegistryValueSet(getUninstallKey(), "DisplayName", appInfo.getTitle());
         registryOps.setStringValue(getUninstallKey(), "DisplayVersion", appInfo.getVersion());
+        logRegistryValueSet(getUninstallKey(), "DisplayVersion", appInfo.getVersion());
         registryOps.setLongValue(getUninstallKey(), 1);
         registryOps.setStringValue(getUninstallKey(), "Publisher", appInfo.getVendor());
-        registryOps.setStringValue(
-                getUninstallKey(),
-                "UninstallString",
-                "\"" + getUninstallerPath().getAbsolutePath() + "\" uninstall"
-        );
+        logRegistryValueSet(getUninstallKey(), "Publisher", appInfo.getVendor());
+        String uninstallString = "\"" + getUninstallerPath().getAbsolutePath() + "\" uninstall";
+        registryOps.setStringValue(getUninstallKey(), "UninstallString", uninstallString);
+        logRegistryValueSet(getUninstallKey(), "UninstallString", uninstallString);
 
         if (!skipWinRegistryOperations) {
             registry.notifyFileAssociationsChanged();
+            if (installationLogger != null) {
+                installationLogger.logInfo("Notified Windows of file association changes");
+            }
+        }
+
+        if (installationLogger != null) {
+            installationLogger.logInfo("Windows registry operations complete");
         }
 
 

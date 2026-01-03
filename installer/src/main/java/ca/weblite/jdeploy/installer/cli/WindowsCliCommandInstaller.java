@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.cli;
 
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
+import ca.weblite.jdeploy.installer.logging.InstallationLogger;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
@@ -31,6 +32,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
     private CollisionHandler collisionHandler = new DefaultCollisionHandler();
     private RegistryOperations registryOperations;
+    private InstallationLogger installationLogger;
 
     /**
      * Sets the collision handler for detecting and resolving command name conflicts.
@@ -44,11 +46,20 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
     /**
      * Sets the registry operations implementation for testing or custom scenarios.
      * If not set, JnaRegistryOperations will be used by default.
-     * 
+     *
      * @param registryOperations the RegistryOperations implementation to use
      */
     public void setRegistryOperations(RegistryOperations registryOperations) {
         this.registryOperations = registryOperations;
+    }
+
+    /**
+     * Sets the installation logger for detailed operation logging.
+     *
+     * @param logger the InstallationLogger to use (may be null)
+     */
+    public void setInstallationLogger(InstallationLogger logger) {
+        this.installationLogger = logger;
     }
 
     @Override
@@ -135,8 +146,19 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             String cliExeName = metadata.optString(CliInstallerConstants.CLI_EXE_KEY, null);
             if (cliExeName != null && !cliExeName.isEmpty()) {
                 File cliExeFile = new File(appDir, cliExeName);
-                if (cliExeFile.exists() && !cliExeFile.delete()) {
-                    System.err.println("Warning: Failed to delete CLI exe: " + cliExeFile.getAbsolutePath());
+                if (cliExeFile.exists()) {
+                    if (cliExeFile.delete()) {
+                        if (installationLogger != null) {
+                            installationLogger.logFileOperation(InstallationLogger.FileOperation.DELETED,
+                                cliExeFile.getAbsolutePath(), "CLI executable");
+                        }
+                    } else {
+                        System.err.println("Warning: Failed to delete CLI exe: " + cliExeFile.getAbsolutePath());
+                        if (installationLogger != null) {
+                            installationLogger.logFileOperation(InstallationLogger.FileOperation.FAILED,
+                                cliExeFile.getAbsolutePath(), "Failed to delete CLI executable");
+                        }
+                    }
                 }
             }
 
@@ -167,8 +189,19 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 for (int i = 0; i < wrappersArray.length(); i++) {
                     String wrapperName = wrappersArray.getString(i);
                     File wrapperFile = new File(userBinDir, wrapperName);
-                    if (wrapperFile.exists() && !wrapperFile.delete()) {
-                        System.err.println("Warning: Failed to delete wrapper file: " + wrapperFile.getAbsolutePath());
+                    if (wrapperFile.exists()) {
+                        if (wrapperFile.delete()) {
+                            if (installationLogger != null) {
+                                installationLogger.logCliCommand(wrapperName, InstallationLogger.FileOperation.DELETED,
+                                    wrapperFile.getAbsolutePath(), null);
+                            }
+                        } else {
+                            System.err.println("Warning: Failed to delete wrapper file: " + wrapperFile.getAbsolutePath());
+                            if (installationLogger != null) {
+                                installationLogger.logFileOperation(InstallationLogger.FileOperation.FAILED,
+                                    wrapperFile.getAbsolutePath(), "Failed to delete wrapper");
+                            }
+                        }
                     }
 
                     // Also attempt to delete the extensionless version (for Git Bash)
@@ -177,8 +210,15 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                             : wrapperName;
 
                     File shWrapperFile = new File(userBinDir, shWrapperName);
-                    if (shWrapperFile.exists() && !shWrapperFile.delete()) {
-                        System.err.println("Warning: Failed to delete shell wrapper file: " + shWrapperFile.getAbsolutePath());
+                    if (shWrapperFile.exists()) {
+                        if (shWrapperFile.delete()) {
+                            if (installationLogger != null) {
+                                installationLogger.logFileOperation(InstallationLogger.FileOperation.DELETED,
+                                    shWrapperFile.getAbsolutePath(), "Git Bash wrapper");
+                            }
+                        } else {
+                            System.err.println("Warning: Failed to delete shell wrapper file: " + shWrapperFile.getAbsolutePath());
+                        }
                     }
                 }
             }
@@ -196,8 +236,15 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                         }
                         userBinDir.delete();
                         System.out.println("Removed per-app bin directory: " + binDirPath);
+                        if (installationLogger != null) {
+                            installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
+                                binDirPath, "Per-app bin directory");
+                        }
                     } catch (Exception e) {
                         System.err.println("Warning: Failed to remove per-app bin directory: " + e.getMessage());
+                        if (installationLogger != null) {
+                            installationLogger.logError("Failed to remove per-app bin directory: " + binDirPath, e);
+                        }
                     }
                 }
             }
@@ -208,11 +255,17 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             // Remove from PATH if it was added
             if (metadata.optBoolean(CliInstallerConstants.PATH_UPDATED_KEY, false)) {
                 removeFromPath(perAppPathDir);
+                if (installationLogger != null) {
+                    installationLogger.logPathChange(false, perAppPathDir.getAbsolutePath(), "Windows user PATH");
+                }
             }
 
             // Remove from Git Bash path if it was added
             if (metadata.optBoolean(CliInstallerConstants.GIT_BASH_PATH_UPDATED_KEY, false)) {
                 removeFromGitBashPath(perAppPathDir);
+                if (installationLogger != null) {
+                    installationLogger.logInfo("Removed from Git Bash PATH: " + perAppPathDir.getAbsolutePath());
+                }
             }
 
             // Delete manifest file via repository
@@ -220,13 +273,21 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 try {
                     manifestRepository.delete(packageName, source);
                     System.out.println("Deleted manifest for package: " + packageName);
+                    if (installationLogger != null) {
+                        installationLogger.logInfo("Deleted CLI manifest for package: " + packageName);
+                    }
                 } catch (Exception e) {
                     System.err.println("Warning: Failed to delete manifest: " + e.getMessage());
                 }
             }
 
             // Delete legacy metadata file
-            if (!metadataFile.delete()) {
+            if (metadataFile.delete()) {
+                if (installationLogger != null) {
+                    installationLogger.logFileOperation(InstallationLogger.FileOperation.DELETED,
+                        metadataFile.getAbsolutePath(), "CLI metadata file");
+                }
+            } else {
                 System.err.println("Warning: Failed to delete metadata file: " + metadataFile.getAbsolutePath());
             }
 
@@ -244,9 +305,20 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
         try {
             // Use InstallWindowsRegistry to manage PATH via registry
             InstallWindowsRegistry registry = createRegistryHelper();
-            return registry.addToUserPath(binDir);
+            boolean result = registry.addToUserPath(binDir);
+            if (installationLogger != null) {
+                if (result) {
+                    installationLogger.logPathChange(true, binDir.getAbsolutePath(), "Windows user PATH");
+                } else {
+                    installationLogger.logInfo("PATH already contains: " + binDir.getAbsolutePath());
+                }
+            }
+            return result;
         } catch (Exception e) {
             System.err.println("Warning: Failed to update user PATH in registry: " + e.getMessage());
+            if (installationLogger != null) {
+                installationLogger.logError("Failed to update user PATH in registry", e);
+            }
             return false;
         }
     }
@@ -286,7 +358,15 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
         if (!binDir.exists()) {
             if (!binDir.mkdirs()) {
+                if (installationLogger != null) {
+                    installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.FAILED,
+                        binDir.getAbsolutePath(), "Failed to create");
+                }
                 throw new IOException("Failed to create bin directory: " + binDir.getAbsolutePath());
+            }
+            if (installationLogger != null) {
+                installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED,
+                    binDir.getAbsolutePath(), "CLI commands bin directory");
             }
         }
 
@@ -295,58 +375,210 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             File cmdWrapper = new File(binDir, name + ".cmd");
             File shWrapper = new File(binDir, name);
 
+            if (installationLogger != null) {
+                installationLogger.logInfo("Processing CLI command: " + name);
+            }
+
             // Check for collision with existing wrapper (check .cmd as the primary indicator)
+            boolean wasOverwritten = false;
             if (cmdWrapper.exists()) {
                 String existingLauncherPath = extractLauncherPathFromCmdFile(cmdWrapper);
-                
+
                 if (existingLauncherPath != null && !existingLauncherPath.equals(launcherPath.getAbsolutePath())) {
                     // Different app owns this command - invoke collision handler
                     CollisionAction action = collisionHandler.handleCollision(
-                        name, 
-                        existingLauncherPath, 
+                        name,
+                        existingLauncherPath,
                         launcherPath.getAbsolutePath()
                     );
-                    
+
                     if (action == CollisionAction.SKIP) {
                         System.out.println("Skipping command '" + name + "' - already owned by another app");
+                        if (installationLogger != null) {
+                            installationLogger.logCliCommand(name, InstallationLogger.FileOperation.SKIPPED_COLLISION,
+                                cmdWrapper.getAbsolutePath(),
+                                "Owned by: " + existingLauncherPath);
+                        }
                         continue;
                     }
                     // OVERWRITE - fall through to delete and recreate
                     System.out.println("Overwriting command '" + name + "' from another app");
+                    if (installationLogger != null) {
+                        installationLogger.logInfo("Overwriting command from different app: " + existingLauncherPath);
+                    }
                 }
                 // Same app or couldn't parse - silently overwrite
+                wasOverwritten = true;
                 cmdWrapper.delete();
+                if (installationLogger != null) {
+                    installationLogger.logFileOperation(InstallationLogger.FileOperation.DELETED,
+                        cmdWrapper.getAbsolutePath(), "Existing wrapper (same app update)");
+                }
             }
             if (shWrapper.exists()) {
                 shWrapper.delete();
+                if (installationLogger != null) {
+                    installationLogger.logFileOperation(InstallationLogger.FileOperation.DELETED,
+                        shWrapper.getAbsolutePath(), "Existing shell wrapper");
+                }
             }
 
-            // 1. Windows batch wrapper (.cmd): invoke the launcher with --jdeploy:command=<name> and forward all args
-            // We use \r\n for Windows batch files
-            String cmdContent = "@echo off\r\n\"" + launcherPath.getAbsolutePath() + "\" " + 
-                           CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX + name + " -- %*\r\n";
+            // Generate wrapper content based on implementations
+            String cmdContent = generateCmdContent(launcherPath, cs);
+            String shContent = generateShellContent(launcherPath, cs);
 
             FileUtils.writeStringToFile(cmdWrapper, cmdContent, "UTF-8");
             cmdWrapper.setExecutable(true, false);
             created.add(cmdWrapper);
+            if (installationLogger != null) {
+                installationLogger.logCliCommand(name,
+                    wasOverwritten ? InstallationLogger.FileOperation.OVERWRITTEN : InstallationLogger.FileOperation.CREATED,
+                    cmdWrapper.getAbsolutePath(),
+                    "Launcher: " + launcherPath.getAbsolutePath());
+            }
 
-            // 2. Extensionless shell script for Git Bash / MSYS2
-            // We use \n for shell scripts
-            String msysLauncherPath = convertToMsysPath(launcherPath);
-            String shContent = "#!/bin/sh\n\"" + msysLauncherPath + "\" " + 
-                             CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX + name + " -- \"$@\"\n";
-            
             FileUtils.writeStringToFile(shWrapper, shContent, "UTF-8");
             shWrapper.setExecutable(true, false);
+            if (installationLogger != null) {
+                installationLogger.logFileOperation(
+                    wasOverwritten ? InstallationLogger.FileOperation.OVERWRITTEN : InstallationLogger.FileOperation.CREATED,
+                    shWrapper.getAbsolutePath(), "Git Bash wrapper for " + name);
+            }
         }
 
         return created;
     }
 
     /**
+     * Generates Windows batch (.cmd) wrapper content based on command implementations.
+     *
+     * @param launcherPath the path to the launcher executable
+     * @param command      the command specification including implementations
+     * @return the .cmd file content with \r\n line endings
+     */
+    private String generateCmdContent(File launcherPath, CommandSpec command) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("@echo off\r\n");
+
+        String launcherPathStr = launcherPath.getAbsolutePath();
+        String commandName = command.getName();
+        List<String> implementations = command.getImplementations();
+
+        // Check for launcher implementation (highest priority, mutually exclusive)
+        if (implementations.contains("launcher")) {
+            // For launcher: just execute the binary directly with all args
+            sb.append("\"").append(launcherPathStr).append("\" %*\r\n");
+            return sb.toString();
+        }
+
+        boolean hasUpdater = implementations.contains("updater");
+        boolean hasServiceController = implementations.contains("service_controller");
+
+        if (hasUpdater || hasServiceController) {
+            // Generate conditional batch script
+
+            // Check for updater: single "update" argument
+            if (hasUpdater) {
+                sb.append("REM Check if single argument is \"update\"\r\n");
+                sb.append("if \"%~1\"==\"update\" if \"%~2\"==\"\" (\r\n");
+                sb.append("  \"").append(launcherPathStr).append("\" --jdeploy:update\r\n");
+                sb.append("  goto :eof\r\n");
+                sb.append(")\r\n\r\n");
+            }
+
+            // Check for service_controller: first argument is "service"
+            if (hasServiceController) {
+                sb.append("REM Check if first argument is \"service\"\r\n");
+                sb.append("if \"%~1\"==\"service\" (\r\n");
+                sb.append("  shift\r\n");
+                sb.append("  \"").append(launcherPathStr).append("\" ");
+                sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+                sb.append(" --jdeploy:service %*\r\n");
+                sb.append("  goto :eof\r\n");
+                sb.append(")\r\n\r\n");
+            }
+
+            // Default: normal command
+            sb.append("REM Default: normal command\r\n");
+            sb.append("\"").append(launcherPathStr).append("\" ");
+            sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+            sb.append(" -- %*\r\n");
+        } else {
+            // Standard command (no special implementations)
+            sb.append("\"").append(launcherPathStr).append("\" ");
+            sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+            sb.append(" -- %*\r\n");
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * Generates shell script wrapper content for Git Bash / MSYS2 based on command implementations.
+     *
+     * @param launcherPath the path to the launcher executable
+     * @param command      the command specification including implementations
+     * @return the shell script content with \n line endings
+     */
+    private String generateShellContent(File launcherPath, CommandSpec command) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("#!/bin/sh\n");
+
+        String msysLauncherPath = convertToMsysPath(launcherPath);
+        String commandName = command.getName();
+        List<String> implementations = command.getImplementations();
+
+        // Check for launcher implementation (highest priority, mutually exclusive)
+        if (implementations.contains("launcher")) {
+            // For launcher: just execute the binary directly with all args
+            sb.append("exec \"").append(msysLauncherPath).append("\" \"$@\"\n");
+            return sb.toString();
+        }
+
+        boolean hasUpdater = implementations.contains("updater");
+        boolean hasServiceController = implementations.contains("service_controller");
+
+        if (hasUpdater || hasServiceController) {
+            // Generate conditional shell script
+
+            // Check for updater: single "update" argument
+            if (hasUpdater) {
+                sb.append("# Check if single argument is \"update\"\n");
+                sb.append("if [ \"$#\" -eq 1 ] && [ \"$1\" = \"update\" ]; then\n");
+                sb.append("  exec \"").append(msysLauncherPath).append("\" --jdeploy:update\n");
+                sb.append("fi\n\n");
+            }
+
+            // Check for service_controller: first argument is "service"
+            if (hasServiceController) {
+                sb.append("# Check if first argument is \"service\"\n");
+                sb.append("if [ \"$1\" = \"service\" ]; then\n");
+                sb.append("  shift\n");
+                sb.append("  exec \"").append(msysLauncherPath).append("\" ");
+                sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+                sb.append(" --jdeploy:service \"$@\"\n");
+                sb.append("fi\n\n");
+            }
+
+            // Default: normal command
+            sb.append("# Default: normal command\n");
+            sb.append("exec \"").append(msysLauncherPath).append("\" ");
+            sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+            sb.append(" -- \"$@\"\n");
+        } else {
+            // Standard command (no special implementations)
+            sb.append("exec \"").append(msysLauncherPath).append("\" ");
+            sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
+            sb.append(" -- \"$@\"\n");
+        }
+
+        return sb.toString();
+    }
+
+    /**
      * Extracts the launcher path from an existing .cmd wrapper file.
      * Parses the file looking for the pattern: "path\to\launcher.exe" --jdeploy:command=
-     * 
+     *
      * @param cmdFile the path to the existing .cmd file
      * @return the launcher path if found, or null if parsing fails
      */

@@ -24,7 +24,7 @@ public class AbstractUnixCliCommandInstallerBinDirTest {
         // Create a concrete implementation for testing
         installer = new AbstractUnixCliCommandInstaller() {
             @Override
-            protected void writeCommandScript(File scriptPath, String launcherPath, String commandName, java.util.List<String> args) throws java.io.IOException {
+            protected void writeCommandScript(File scriptPath, String launcherPath, ca.weblite.jdeploy.models.CommandSpec command) throws java.io.IOException {
                 // No-op for this test
             }
 

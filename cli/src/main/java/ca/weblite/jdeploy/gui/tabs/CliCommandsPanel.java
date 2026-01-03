@@ -30,6 +30,9 @@ public class CliCommandsPanel extends JPanel {
     private JButton removeButton;
     private JTextField nameField;
     private JTextField descriptionField;
+    private JCheckBox updaterCheckbox;
+    private JCheckBox launcherCheckbox;
+    private JCheckBox serviceControllerCheckbox;
     private JTextArea argsField;
     private JLabel validationLabel;
     private ActionListener changeListener;
@@ -179,6 +182,56 @@ public class CliCommandsPanel extends JPanel {
 
         formPanel.add(Box.createVerticalStrut(10));
 
+        // Implements field (checkboxes)
+        JPanel implLabelPanel = new JPanel();
+        implLabelPanel.setOpaque(false);
+        implLabelPanel.setLayout(new BoxLayout(implLabelPanel, BoxLayout.X_AXIS));
+        JLabel implLabel = new JLabel("Implements");
+        implLabel.setFont(implLabel.getFont().deriveFont(Font.BOLD));
+        implLabelPanel.add(implLabel);
+        implLabelPanel.add(Box.createHorizontalStrut(5));
+        implLabelPanel.add(createInfoIcon("<html>Special behaviors for this command.<br>See individual checkbox tooltips for details.</html>"));
+        implLabelPanel.add(Box.createHorizontalGlue());
+        implLabelPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        implLabelPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, implLabel.getPreferredSize().height));
+        formPanel.add(implLabelPanel);
+
+        // Checkboxes panel
+        JPanel checkboxPanel = new JPanel();
+        checkboxPanel.setOpaque(false);
+        checkboxPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        checkboxPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        updaterCheckbox = new JCheckBox("Updater");
+        updaterCheckbox.setOpaque(false);
+        updaterCheckbox.setToolTipText("<html>Intercepts 'update' argument to trigger app updates.<br>" +
+                "Example: <code>myapp-cli update</code> → calls launcher with --jdeploy:update</html>");
+        updaterCheckbox.addActionListener(e -> onFieldChanged());
+        checkboxPanel.add(updaterCheckbox);
+        checkboxPanel.add(Box.createHorizontalStrut(15));
+
+        launcherCheckbox = new JCheckBox("Launcher");
+        launcherCheckbox.setOpaque(false);
+        launcherCheckbox.setToolTipText("<html>Launches the desktop GUI application.<br>" +
+                "Arguments are passed as file paths or URLs to open.<br>" +
+                "macOS: Uses 'open -a MyApp.app', others call binary directly.</html>");
+        launcherCheckbox.addActionListener(e -> onFieldChanged());
+        checkboxPanel.add(launcherCheckbox);
+        checkboxPanel.add(Box.createHorizontalStrut(15));
+
+        serviceControllerCheckbox = new JCheckBox("Service Controller");
+        serviceControllerCheckbox.setOpaque(false);
+        serviceControllerCheckbox.setToolTipText("<html>Intercepts 'service' as first argument for daemon control.<br>" +
+                "Example: <code>myappctl service start</code> → calls launcher with --jdeploy:service start</html>");
+        serviceControllerCheckbox.addActionListener(e -> onFieldChanged());
+        checkboxPanel.add(serviceControllerCheckbox);
+
+        // Constrain the height of the checkbox panel to prevent vertical expansion
+        checkboxPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, updaterCheckbox.getPreferredSize().height));
+        formPanel.add(checkboxPanel);
+
+        formPanel.add(Box.createVerticalStrut(10));
+
         // Arguments field
         JPanel argsLabelPanel = new JPanel();
         argsLabelPanel.setOpaque(false);
@@ -312,6 +365,9 @@ public class CliCommandsPanel extends JPanel {
             commandsModel.clear();
             nameField.setText("");
             descriptionField.setText("");
+            updaterCheckbox.setSelected(false);
+            launcherCheckbox.setSelected(false);
+            serviceControllerCheckbox.setSelected(false);
             argsField.setForeground(Color.GRAY);
             argsField.setText(ARGS_PLACEHOLDER);
             validationLabel.setText(" ");
@@ -434,6 +490,9 @@ public class CliCommandsPanel extends JPanel {
         if (index < 0) {
             nameField.setText("");
             descriptionField.setText("");
+            updaterCheckbox.setSelected(false);
+            launcherCheckbox.setSelected(false);
+            serviceControllerCheckbox.setSelected(false);
             argsField.setForeground(Color.GRAY);
             argsField.setText(ARGS_PLACEHOLDER);
             validationLabel.setText(" ");
@@ -453,12 +512,31 @@ public class CliCommandsPanel extends JPanel {
         isUpdatingUI = true;
         try {
             nameField.setText(commandName);
-            
+
             // Load description and args from the backing data model
             JSONObject spec = commandsModel.get(commandName);
             if (spec != null) {
                 descriptionField.setText(spec.optString("description", ""));
-                
+
+                // Load implements array
+                updaterCheckbox.setSelected(false);
+                launcherCheckbox.setSelected(false);
+                serviceControllerCheckbox.setSelected(false);
+
+                if (spec.has("implements")) {
+                    JSONArray implArray = spec.getJSONArray("implements");
+                    for (int i = 0; i < implArray.length(); i++) {
+                        String impl = implArray.getString(i);
+                        if (CommandSpecParser.IMPL_UPDATER.equals(impl)) {
+                            updaterCheckbox.setSelected(true);
+                        } else if (CommandSpecParser.IMPL_LAUNCHER.equals(impl)) {
+                            launcherCheckbox.setSelected(true);
+                        } else if (CommandSpecParser.IMPL_SERVICE_CONTROLLER.equals(impl)) {
+                            serviceControllerCheckbox.setSelected(true);
+                        }
+                    }
+                }
+
                 // Load args - join array elements with newlines
                 if (spec.has("args")) {
                     JSONArray argsArray = spec.getJSONArray("args");
@@ -475,10 +553,13 @@ public class CliCommandsPanel extends JPanel {
                 }
             } else {
                 descriptionField.setText("");
+                updaterCheckbox.setSelected(false);
+                launcherCheckbox.setSelected(false);
+                serviceControllerCheckbox.setSelected(false);
                 argsField.setForeground(Color.GRAY);
                 argsField.setText(ARGS_PLACEHOLDER);
             }
-            
+
             validationLabel.setText(" ");
         } finally {
             isUpdatingUI = false;
@@ -537,7 +618,7 @@ public class CliCommandsPanel extends JPanel {
                         if (spec == null) {
                             spec = new JSONObject();
                         }
-                        
+
                         // Save current form values into the spec before moving it
                         String desc = descriptionField.getText().trim();
                         if (!desc.isEmpty()) {
@@ -545,7 +626,24 @@ public class CliCommandsPanel extends JPanel {
                         } else {
                             spec.remove("description");
                         }
-                        
+
+                        // Save implements array
+                        JSONArray implArray = new JSONArray();
+                        if (updaterCheckbox.isSelected()) {
+                            implArray.put(CommandSpecParser.IMPL_UPDATER);
+                        }
+                        if (launcherCheckbox.isSelected()) {
+                            implArray.put(CommandSpecParser.IMPL_LAUNCHER);
+                        }
+                        if (serviceControllerCheckbox.isSelected()) {
+                            implArray.put(CommandSpecParser.IMPL_SERVICE_CONTROLLER);
+                        }
+                        if (implArray.length() > 0) {
+                            spec.put("implements", implArray);
+                        } else {
+                            spec.remove("implements");
+                        }
+
                         String argsText = argsField.getText().trim();
                         boolean isPlaceholder = argsText.equals(ARGS_PLACEHOLDER.trim()) && argsField.getForeground().equals(Color.GRAY);
 
@@ -566,7 +664,7 @@ public class CliCommandsPanel extends JPanel {
                         } else {
                             spec.remove("args");
                         }
-                        
+
                         commandsModel.put(name, spec);
                         
                         // Update the list (this will not trigger selection change)
@@ -605,6 +703,9 @@ public class CliCommandsPanel extends JPanel {
             removeButton.setEnabled(false);
             nameField.setText("");
             descriptionField.setText("");
+            updaterCheckbox.setSelected(false);
+            launcherCheckbox.setSelected(false);
+            serviceControllerCheckbox.setSelected(false);
             argsField.setForeground(Color.GRAY);
             argsField.setText(ARGS_PLACEHOLDER);
             validationLabel.setText(" ");
@@ -629,6 +730,21 @@ public class CliCommandsPanel extends JPanel {
         String desc = descriptionField.getText().trim();
         if (!desc.isEmpty()) {
             spec.put("description", desc);
+        }
+
+        // Build implements array
+        JSONArray implArray = new JSONArray();
+        if (updaterCheckbox.isSelected()) {
+            implArray.put(CommandSpecParser.IMPL_UPDATER);
+        }
+        if (launcherCheckbox.isSelected()) {
+            implArray.put(CommandSpecParser.IMPL_LAUNCHER);
+        }
+        if (serviceControllerCheckbox.isSelected()) {
+            implArray.put(CommandSpecParser.IMPL_SERVICE_CONTROLLER);
+        }
+        if (implArray.length() > 0) {
+            spec.put("implements", implArray);
         }
 
         String argsText = argsField.getText().trim();
@@ -670,7 +786,7 @@ public class CliCommandsPanel extends JPanel {
                     spec = new JSONObject();
                     commandsModel.put(currentName, spec);
                 }
-                
+
                 // Update description
                 String desc = descriptionField.getText().trim();
                 if (!desc.isEmpty()) {
@@ -678,7 +794,24 @@ public class CliCommandsPanel extends JPanel {
                 } else {
                     spec.remove("description");
                 }
-                
+
+                // Update implements array
+                JSONArray implArray = new JSONArray();
+                if (updaterCheckbox.isSelected()) {
+                    implArray.put(CommandSpecParser.IMPL_UPDATER);
+                }
+                if (launcherCheckbox.isSelected()) {
+                    implArray.put(CommandSpecParser.IMPL_LAUNCHER);
+                }
+                if (serviceControllerCheckbox.isSelected()) {
+                    implArray.put(CommandSpecParser.IMPL_SERVICE_CONTROLLER);
+                }
+                if (implArray.length() > 0) {
+                    spec.put("implements", implArray);
+                } else {
+                    spec.remove("implements");
+                }
+
                 // Update args
                 String argsText = argsField.getText().trim();
                 boolean isPlaceholder = argsText.equals(ARGS_PLACEHOLDER.trim()) && argsField.getForeground().equals(Color.GRAY);

@@ -16,13 +16,27 @@ public class MainDebug {
         String code = args[0];
         String version = args.length > 1 ? args[1] : "latest";
 
-        File tempDir = File.createTempFile("jdeploy-debug-", "");
+        File tempDir = File.createTempFile("jdeploy-debug2-", "");
         tempDir.delete();
         tempDir.mkdirs();
-        
+
+        // If client4j.launcher.path is set and exists, copy it to temp directory
+        // so that findInstallFilesDir() will find the downloaded .jdeploy-files
+        // instead of any stale test fixtures near the original launcher path
+        String originalLauncherPath = System.getProperty("client4j.launcher.path");
+        if (originalLauncherPath != null) {
+            File originalLauncher = new File(originalLauncherPath);
+            if (originalLauncher.exists()) {
+                File newLauncher = new File(tempDir, originalLauncher.getName());
+                FileUtils.copyFile(originalLauncher, newLauncher);
+                System.setProperty("client4j.launcher.path", newLauncher.getAbsolutePath());
+                System.out.println("Copied launcher to: " + newLauncher.getAbsolutePath());
+            }
+        }
+
         File originalDir = new File(System.getProperty("user.dir"));
         System.setProperty("user.dir", tempDir.getAbsolutePath());
-        
+
         try {
             File jdeployFilesDir = DefaultInstallationContext.downloadJDeployBundleForCode(code, version, null);
             File targetJDeployFilesDir = new File(tempDir, ".jdeploy-files");
