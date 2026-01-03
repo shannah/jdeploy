@@ -100,11 +100,10 @@ public class PermissionTool {
                 return true;
             } catch (IOException ex2) {
                 ex2.printStackTrace();
-                JTextPane errorMessage = new JTextPane();
-                errorMessage.setEditable(false);
-                errorMessage.setEditorKit(new HTMLEditorKit());
-                errorMessage.setContentType("text/html");
-                errorMessage.setText("<html><body style='width: 300px'><p>Failed to install permission:</p><p>" + ex2.getMessage() + "</p></body></html>");
+                String errorMessage = "<html><body style='width: 400px;'>" +
+                        "<h3>Failed to install permission</h3>" +
+                        "<p>" + ex2.getMessage() + "</p>" +
+                        "</body></html>";
                 JOptionPane.showMessageDialog(parentComponent, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
 
                 return false;
@@ -145,11 +144,10 @@ public class PermissionTool {
                     installPermission(perm);
                     return true;
                 } catch (IOException ex2) {
-                    JTextPane errorMessage = new JTextPane();
-                    errorMessage.setEditable(false);
-                    errorMessage.setEditorKit(new HTMLEditorKit());
-                    errorMessage.setContentType("text/html");
-                    errorMessage.setText("<html><body style='width: 300px'><p>Failed to install permission:</p><p>" + ex2.getMessage() + "</p></body></html>");
+                    String errorMessage = "<html><body style='width: 400px;'>" +
+                            "<h3>Failed to install permission</h3>" +
+                            "<p>" + ex2.getMessage() + "</p>" +
+                            "</body></html>";
                     JOptionPane.showMessageDialog(parentComponent, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
                     return false;
                 }
