@@ -72,14 +72,16 @@ public class ServiceLifecycleManager {
      * @param packageName The package name
      * @param newCommands The commands from the new version
      * @param previousStates Service states from pre-installation
+     * @param version The version being installed
      */
     public void completeUpdate(
             String packageName,
             List<CommandSpec> newCommands,
-            Map<String, ServiceState> previousStates) {
+            Map<String, ServiceState> previousStates,
+            String version) {
 
         // Phase 4: Application Update
-        runApplicationUpdate();
+        runApplicationUpdate(version);
 
         // Phase 5: Service Installation
         installNewAndUpdatedServices(newCommands, previousStates);
@@ -251,10 +253,10 @@ public class ServiceLifecycleManager {
 
     // ========== Phase 4: Application Update ==========
 
-    private void runApplicationUpdate() {
+    private void runApplicationUpdate(String version) {
         progressCallback.updateProgress("Updating application...");
 
-        ServiceOperationResult result = operationExecutor.runApplicationUpdate();
+        ServiceOperationResult result = operationExecutor.runApplicationUpdate(version);
 
         if (result.isFailure()) {
             String warning = "Application update failed: " + result.getMessage();

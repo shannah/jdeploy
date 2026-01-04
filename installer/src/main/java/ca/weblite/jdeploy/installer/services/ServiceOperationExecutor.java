@@ -79,9 +79,10 @@ public class ServiceOperationExecutor {
     /**
      * Runs the application update command.
      *
+     * @param version The version to update to (required for apps with services)
      * @return Success if update completed, failure on errors
      */
-    public ServiceOperationResult runApplicationUpdate() {
+    public ServiceOperationResult runApplicationUpdate(String version) {
         if (cliLauncherPath == null || !cliLauncherPath.exists()) {
             return ServiceOperationResult.failure("CLI launcher not found: " + cliLauncherPath);
         }
@@ -89,7 +90,9 @@ public class ServiceOperationExecutor {
         try {
             ProcessBuilder pb = new ProcessBuilder(
                 cliLauncherPath.getAbsolutePath(),
-                "--jdeploy:update"
+                "--jdeploy:update",
+                "--jdeploy:version=" + version,
+                "--jdeploy:disable-launcher-update"
             );
             pb.redirectErrorStream(true);
 

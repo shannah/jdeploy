@@ -947,12 +947,14 @@ public class Main implements Runnable, Constants {
      * @param newCommands The commands from the new version
      * @param previousStates Service states from pre-installation
      * @param installedApp The installed application directory/file
+     * @param version The version being installed
      */
     private void completeServicesAfterUpdate(
             String packageName,
             List<CommandSpec> newCommands,
             Map<String, ca.weblite.jdeploy.installer.services.ServiceState> previousStates,
-            File installedApp) {
+            File installedApp,
+            String version) {
 
         try {
             ServiceDescriptorService descriptorService = createServiceDescriptorService();
@@ -977,7 +979,7 @@ public class Main implements Runnable, Constants {
                     serviceLifecycleProgressCallback
                 );
 
-            lifecycleManager.completeUpdate(packageName, newCommands, previousStates);
+            lifecycleManager.completeUpdate(packageName, newCommands, previousStates, version);
         } catch (Exception e) {
             System.err.println("Warning: Service completion failed: " + e.getMessage());
             e.printStackTrace();
@@ -1498,7 +1500,7 @@ public class Main implements Runnable, Constants {
         // Call even if newServiceCommands is empty to run application update
         if (serviceStateBeforeUpdate != null && newServiceCommands != null &&
             !installationSettings.isBranchInstallation()) {
-            completeServicesAfterUpdate(appInfo().getNpmPackage(), newServiceCommands, serviceStateBeforeUpdate, installedApp);
+            completeServicesAfterUpdate(appInfo().getNpmPackage(), newServiceCommands, serviceStateBeforeUpdate, installedApp, npmPackageVersion().getVersion());
         }
 
         File tmpPlatformBundles = new File(tmpBundles, target);
