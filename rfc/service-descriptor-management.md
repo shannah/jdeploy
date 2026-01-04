@@ -111,23 +111,81 @@ When a CLI command implementing `service_controller` is installed:
 - Descriptor MUST be written before service installation
 - File permissions MUST allow owner read/write access
 
-#### 3.2 Update Detection
+#### 3.2 Update Lifecycle
 
-Before updating an application, the installer MUST:
+The update lifecycle ensures services are properly managed when installing a new version over an existing installation. The installer MUST follow this sequence:
 
-1. **Load Current Descriptors**: Read all service descriptors for package
-2. **Compare with New Version**: Compare against new package.json commands
-3. **Identify Removed Services**: Find services in current but not in new version
-4. **Identify New Services**: Find services in new but not in current version
-5. **Identify Unchanged Services**: Find services in both versions
+**Phase 1: Pre-Installation - Service Status Assessment**
 
-**Update Actions:**
+1. **Load Current Service Descriptors**: Read all service descriptors for the package
+2. **Check Service Status**: For each service, execute `{commandName} service status`
+   - Exit code 0 = service is running
+   - Non-zero exit code = service is stopped
+   - Record which services were running
+3. **Compare Versions**: Compare current service descriptors with new package.json commands
+   - Identify removed services (in current but not in new)
+   - Identify new services (in new but not in current)
+   - Identify unchanged services (in both versions)
 
-| Scenario | Action |
-|----------|--------|
-| Service removed | Stop service, unregister descriptor, uninstall service |
-| Service added | Register descriptor after installation |
-| Service unchanged | Update descriptor with new version and timestamp |
+**Phase 2: Pre-Installation - Service Shutdown**
+
+4. **Stop Running Services**: For services that were detected as running:
+   - Execute: `{commandName} service stop`
+   - Wait up to 10 seconds for completion
+   - Log warnings on failure but continue
+5. **Uninstall Removed Services**: For services not in new version:
+   - Execute: `{commandName} service uninstall`
+   - Wait up to 10 seconds for completion
+   - Log warnings on failure but continue
+   - Delete service descriptor
+
+**Phase 3: Installation**
+
+6. **Install Application Files**: Proceed with normal installation
+   - Install binaries, create CLI wrappers, register new service descriptors
+
+**Phase 4: Post-Installation - Application Update**
+
+7. **Run Application Update**: Execute the launcher's update routine:
+   - Command: `{cliLauncher} --jdeploy:update`
+   - Run once globally (not per-service)
+   - Wait for completion
+   - Ensures application is fully configured before services start
+
+**Phase 5: Post-Installation - Service Installation**
+
+8. **Install New Services**: For services added in the new version:
+   - Execute: `{commandName} service install`
+   - Wait up to 10 seconds for completion
+   - Log warnings on failure but continue
+9. **Install Updated Services**: For services that existed before (if needed):
+   - May need to reinstall if service registration changed
+   - Execute: `{commandName} service install`
+   - Wait up to 10 seconds for completion
+
+**Phase 6: Post-Installation - Service Startup**
+
+10. **Start Services**: Start services that should be running:
+    - Start new services (newly added)
+    - Start previously-running services (that were stopped in Phase 2)
+    - Do NOT start services that were stopped before update
+    - Execute: `{commandName} service start`
+    - Wait up to 10 seconds for completion
+    - Log warnings on failure
+
+**Service State Tracking:**
+
+During update, track three service states:
+- **Previously Running**: Services that were running before update (restart these)
+- **Previously Stopped**: Services that were stopped before update (leave stopped)
+- **New Services**: Services added in new version (start these)
+
+**Timeout and Error Policy:**
+
+- All service operations have a 10-second timeout
+- Failures are logged as warnings
+- Installation MUST continue regardless of service operation failures
+- User is notified of any service operation failures in installation log
 
 #### 3.3 Service Stopping
 
@@ -415,5 +473,9 @@ This specification describes the contract that jDeploy provides. Implementations
 - Service descriptor JSON schema
 - File system layout specification
 - Lifecycle management specification
-- Multi-service and branch isolation
+- Multi-service support
+- Branch installation restrictions
 - External tool integration guidelines
+- Comprehensive update lifecycle with 6-phase service management
+- Service state tracking (running vs stopped)
+- Timeout and error handling policies

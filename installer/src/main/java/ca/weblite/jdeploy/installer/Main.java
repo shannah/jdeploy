@@ -45,10 +45,8 @@ import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.UIAwareCollisionHandler;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
-import ca.weblite.jdeploy.installer.uninstall.UninstallManifestBuilder;
-import ca.weblite.jdeploy.installer.uninstall.UninstallManifestWriter;
-import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest;
 import ca.weblite.tools.io.*;
+import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
@@ -73,6 +71,7 @@ public class Main implements Runnable, Constants {
     private UIFactory uiFactory = new DefaultUIFactory();
     private InstallationForm installationForm;
     private InstallationDetectionService installationDetectionService = new InstallationDetectionService();
+    private ca.weblite.jdeploy.installer.services.ServiceLifecycleProgressCallback serviceLifecycleProgressCallback;
 
     private Main() {
         this(new InstallationSettings());
@@ -772,6 +771,21 @@ public class Main implements Runnable, Constants {
     private void onProceedWithInstallation(InstallationFormEvent evt) {
         evt.setConsumed(true);
         evt.getInstallationForm().setInProgress(true, "Installing.  Please wait...");
+
+        // Create progress callback for service lifecycle management
+        final InstallationForm form = evt.getInstallationForm();
+        serviceLifecycleProgressCallback = new ca.weblite.jdeploy.installer.services.ServiceLifecycleProgressCallback() {
+            @Override
+            public void updateProgress(String message) {
+                invokeLater(() -> form.setInProgress(true, message));
+            }
+
+            @Override
+            public void reportWarning(String message) {
+                System.err.println("Service Warning: " + message);
+            }
+        };
+
         new Thread(()->{
             try {
                 install();
@@ -789,6 +803,8 @@ public class Main implements Runnable, Constants {
                 }
                 String finalMessage = message;
                 invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), finalMessage, "Installation Failed"));
+            } finally {
+                serviceLifecycleProgressCallback = null;
             }
         }).start();
     }
@@ -880,6 +896,232 @@ public class Main implements Runnable, Constants {
         return ServiceDescriptorServiceFactory.createDefault();
     }
 
+    /**
+     * Prepares services for update by assessing current state and stopping running services.
+     * Implements phases 1-2 of the service lifecycle during updates.
+     *
+     * @param packageName The package name
+     * @param newCommands The commands from the new version
+     * @return Map of service states for post-installation restart
+     */
+    private Map<String, ca.weblite.jdeploy.installer.services.ServiceState> prepareServicesForUpdate(
+            String packageName,
+            List<CommandSpec> newCommands) {
+
+        try {
+            ServiceDescriptorService descriptorService = createServiceDescriptorService();
+            File cliLauncherPath = findExistingCliLauncher(packageName);
+
+            if (cliLauncherPath == null) {
+                System.err.println("Warning: Could not find CLI launcher for service operations");
+                return new HashMap<>();
+            }
+
+            ca.weblite.jdeploy.installer.services.ServiceOperationExecutor operationExecutor =
+                new ca.weblite.jdeploy.installer.services.ServiceOperationExecutor(cliLauncherPath);
+
+            ca.weblite.jdeploy.installer.services.ServiceLifecycleManager lifecycleManager =
+                new ca.weblite.jdeploy.installer.services.ServiceLifecycleManager(
+                    descriptorService,
+                    operationExecutor,
+                    serviceLifecycleProgressCallback
+                );
+
+            return lifecycleManager.prepareForUpdate(packageName, newCommands);
+        } catch (Exception e) {
+            System.err.println("Warning: Service preparation failed: " + e.getMessage());
+            e.printStackTrace();
+            return new HashMap<>();
+        }
+    }
+
+    /**
+     * Completes services after update by running application update, installing services, and starting them.
+     * Implements phases 4-6 of the service lifecycle during updates.
+     *
+     * @param packageName The package name
+     * @param newCommands The commands from the new version
+     * @param previousStates Service states from pre-installation
+     * @param installedApp The installed application directory/file
+     */
+    private void completeServicesAfterUpdate(
+            String packageName,
+            List<CommandSpec> newCommands,
+            Map<String, ca.weblite.jdeploy.installer.services.ServiceState> previousStates,
+            File installedApp) {
+
+        try {
+            ServiceDescriptorService descriptorService = createServiceDescriptorService();
+            File cliLauncherPath = findCliLauncherFromInstalledApp(installedApp);
+
+            if (cliLauncherPath == null) {
+                System.err.println("Warning: Could not find CLI launcher for service operations");
+                return;
+            }
+
+            ca.weblite.jdeploy.installer.services.ServiceOperationExecutor operationExecutor =
+                new ca.weblite.jdeploy.installer.services.ServiceOperationExecutor(cliLauncherPath);
+
+            ca.weblite.jdeploy.installer.services.ServiceLifecycleManager lifecycleManager =
+                new ca.weblite.jdeploy.installer.services.ServiceLifecycleManager(
+                    descriptorService,
+                    operationExecutor,
+                    serviceLifecycleProgressCallback
+                );
+
+            lifecycleManager.completeUpdate(packageName, newCommands, previousStates);
+        } catch (Exception e) {
+            System.err.println("Warning: Service completion failed: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Extracts commands that implement service_controller from a list of commands.
+     *
+     * @param commands The list of all commands
+     * @return List of commands that implement service_controller
+     */
+    private List<CommandSpec> extractServiceCommands(List<CommandSpec> commands) {
+        if (commands == null) {
+            return Collections.emptyList();
+        }
+
+        List<CommandSpec> serviceCommands = new ArrayList<>();
+        for (CommandSpec command : commands) {
+            if (command.implements_("service_controller")) {
+                serviceCommands.add(command);
+            }
+        }
+        return serviceCommands;
+    }
+
+    /**
+     * Finds the CLI launcher from the currently installed application.
+     * Used before update to stop running services.
+     *
+     * Constructs the launcher path deterministically from package.json information
+     * following the exact same logic as the installers.
+     *
+     * @param packageName The package name
+     * @return The CLI launcher file, or null if not found
+     */
+    private File findExistingCliLauncher(String packageName) {
+        try {
+            // Compute fully qualified package name
+            String source = appInfo().getNpmSource();
+            String fullyQualifiedPackageName = packageName;
+            if (source != null && !source.trim().isEmpty()) {
+                String sourceHash = MD5.getMd5(source);
+                fullyQualifiedPackageName = sourceHash + "." + packageName;
+            }
+
+            // Compute name suffix for branch versions
+            String nameSuffix = "";
+            if (appInfo().getNpmVersion() != null && appInfo().getNpmVersion().startsWith("0.0.0-")) {
+                String v = appInfo().getNpmVersion();
+                nameSuffix = " " + v.substring(v.indexOf("-") + 1).trim();
+            }
+
+            if (Platform.getSystemPlatform().isMac()) {
+                // Mac: ~/Applications/{AppName}.app/Contents/MacOS/Client4JLauncher-cli
+                String appName = appInfo().getTitle() + nameSuffix;
+                File appsDir = new File(System.getProperty("user.home"), "Applications");
+                File appBundle = new File(appsDir, appName + ".app");
+                File launcher = new File(appBundle, "Contents/MacOS/" + ca.weblite.jdeploy.installer.CliInstallerConstants.CLI_LAUNCHER_NAME);
+
+                if (launcher.exists()) {
+                    return launcher;
+                }
+            } else if (Platform.getSystemPlatform().isLinux()) {
+                // Linux: ~/.jdeploy/apps/{fullyQualifiedPackageName}/{binaryName}
+                String linuxNameSuffix = "";
+                if (appInfo().getNpmVersion() != null && appInfo().getNpmVersion().startsWith("0.0.0-")) {
+                    String v = appInfo().getNpmVersion();
+                    linuxNameSuffix = "-" + v.substring(v.indexOf("-") + 1).trim();
+                }
+                String binaryName = deriveLinuxBinaryNameFromTitle(appInfo().getTitle()) + linuxNameSuffix;
+
+                File appsDir = new File(System.getProperty("user.home"), ".jdeploy/apps");
+                File appDir = new File(appsDir, fullyQualifiedPackageName);
+                File launcher = new File(appDir, binaryName);
+
+                if (launcher.exists()) {
+                    return launcher;
+                }
+            } else if (Platform.getSystemPlatform().isWindows()) {
+                // Windows: ~/.jdeploy/apps/{fullyQualifiedPackageName}/{DisplayName}-cli.exe
+                // Or: ~/.jdeploy/apps/{fullyQualifiedPackageName}/bin/{DisplayName}-cli.exe (if using private JVM)
+                String displayName = appInfo().getTitle() + nameSuffix;
+                String cliExeName = displayName + ca.weblite.jdeploy.installer.CliInstallerConstants.CLI_LAUNCHER_SUFFIX + ".exe";
+
+                File userHome = new File(System.getProperty("user.home"));
+                File jdeployHome = new File(userHome, ".jdeploy");
+                File appsDir = new File(jdeployHome, "apps");
+                File appDir = new File(appsDir, fullyQualifiedPackageName);
+
+                // Try without bin subdirectory first
+                File launcher = new File(appDir, cliExeName);
+                if (launcher.exists()) {
+                    return launcher;
+                }
+
+                // Try with bin subdirectory (for private JVM installations)
+                File binDir = new File(appDir, "bin");
+                File launcherInBin = new File(binDir, cliExeName);
+                if (launcherInBin.exists()) {
+                    return launcherInBin;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error finding existing CLI launcher: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Finds the CLI launcher from the newly installed application.
+     * Used after update to start services.
+     *
+     * @param installedApp The installed application directory/file
+     * @return The CLI launcher file, or null if not found
+     */
+    private File findCliLauncherFromInstalledApp(File installedApp) {
+        if (installedApp == null) {
+            return null;
+        }
+
+        try {
+            if (Platform.getSystemPlatform().isMac()) {
+                // Mac: installedApp is the .app bundle
+                // CLI launcher is at Contents/MacOS/Client4JLauncher-cli
+                File launcher = new File(installedApp, "Contents/MacOS/" + ca.weblite.jdeploy.installer.CliInstallerConstants.CLI_LAUNCHER_NAME);
+                if (launcher.exists()) {
+                    return launcher;
+                }
+            } else if (Platform.getSystemPlatform().isLinux()) {
+                // Linux: installedApp is the launcher executable itself
+                if (installedApp.exists() && installedApp.isFile()) {
+                    return installedApp;
+                }
+            } else if (Platform.getSystemPlatform().isWindows()) {
+                // Windows: installedApp is the main GUI .exe file
+                // CLI launcher is {Name}-cli.exe in the same directory
+                if (installedApp.exists() && installedApp.getName().endsWith(".exe")) {
+                    String cliExeName = installedApp.getName().replace(".exe",
+                        ca.weblite.jdeploy.installer.CliInstallerConstants.CLI_LAUNCHER_SUFFIX + ".exe");
+                    File cliExePath = new File(installedApp.getParentFile(), cliExeName);
+                    if (cliExePath.exists()) {
+                        return cliExePath;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error finding CLI launcher from installed app: " + e.getMessage());
+        }
+        return null;
+    }
+
     private void install() throws Exception {
 
         // Based on the user's settings, let's update the version in the appInfo
@@ -927,6 +1169,22 @@ public class Main implements Runnable, Constants {
         // Set packageName and source on InstallationSettings for CLI command bin directory resolution
         installationSettings.setPackageName(appInfo().getNpmPackage());
         installationSettings.setSource(appInfo().getNpmSource());
+
+        // Prepare for service lifecycle management during updates
+        Map<String, ca.weblite.jdeploy.installer.services.ServiceState> serviceStateBeforeUpdate = null;
+        List<CommandSpec> newServiceCommands = null;
+        if (!installationSettings.isBranchInstallation()) {
+            boolean isUpdate = installationDetectionService.isInstalled(appInfo().getNpmPackage(), appInfo().getNpmSource());
+            if (isUpdate && npmPackageVersion() != null) {
+                // Extract only commands that implement service_controller
+                List<CommandSpec> allCommands = npmPackageVersion().getCommands();
+                newServiceCommands = extractServiceCommands(allCommands);
+
+                // Always prepare for service lifecycle during updates
+                // This ensures old services are stopped/uninstalled even if new version has no services
+                serviceStateBeforeUpdate = prepareServicesForUpdate(appInfo().getNpmPackage(), newServiceCommands);
+            }
+        }
 
         // Enable CLI launcher creation if user requested CLI commands or launcher installation
         bundlerSettings.setCliCommandsEnabled(
@@ -1226,6 +1484,13 @@ public class Main implements Runnable, Constants {
                     linuxInstallLogger.close();
                 }
             }
+        }
+
+        // Complete service lifecycle management after installation
+        // Call even if newServiceCommands is empty to run application update
+        if (serviceStateBeforeUpdate != null && newServiceCommands != null &&
+            !installationSettings.isBranchInstallation()) {
+            completeServicesAfterUpdate(appInfo().getNpmPackage(), newServiceCommands, serviceStateBeforeUpdate, installedApp);
         }
 
         File tmpPlatformBundles = new File(tmpBundles, target);
