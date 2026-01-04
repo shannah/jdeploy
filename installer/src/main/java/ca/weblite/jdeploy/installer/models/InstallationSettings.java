@@ -208,12 +208,23 @@ public class InstallationSettings {
 
     /**
      * Determines if this is a branch installation.
-     * Branch installations are identified by having a non-null, non-empty source URL.
+     * Branch installations are identified by versions starting with "0.0.0-" (e.g., "0.0.0-main", "0.0.0-staging").
+     * The branch name is what comes after "0.0.0-".
      * Branch installations do not support CLI commands, CLI launchers, or services.
      *
      * @return true if this is a branch installation, false otherwise
      */
     public boolean isBranchInstallation() {
-        return source != null && !source.trim().isEmpty();
+        // Check version from npmPackageVersion first
+        if (npmPackageVersion != null && npmPackageVersion.getVersion() != null) {
+            return npmPackageVersion.getVersion().startsWith("0.0.0-");
+        }
+
+        // Fall back to appInfo version
+        if (appInfo != null && appInfo.getNpmVersion() != null) {
+            return appInfo.getNpmVersion().startsWith("0.0.0-");
+        }
+
+        return false;
     }
 }
