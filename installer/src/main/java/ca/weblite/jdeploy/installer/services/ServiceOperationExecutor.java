@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.services;
 
+import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.tools.platform.Platform;
 
 import java.io.File;
@@ -16,9 +17,13 @@ import java.util.concurrent.TimeUnit;
 public class ServiceOperationExecutor {
     private static final int OPERATION_TIMEOUT_SECONDS = 10;
     private final File cliLauncherPath;
+    private final String packageName;
+    private final String source;
 
-    public ServiceOperationExecutor(File cliLauncherPath) {
+    public ServiceOperationExecutor(File cliLauncherPath, String packageName, String source) {
         this.cliLauncherPath = cliLauncherPath;
+        this.packageName = packageName;
+        this.source = source;
     }
 
     /**
@@ -115,10 +120,17 @@ public class ServiceOperationExecutor {
      * @return Result of the operation
      */
     private ServiceOperationResult executeServiceCommand(String commandName, String operation) {
-        String command = getCommandForPlatform(commandName);
+        File commandPath = getAbsoluteCommandPath(commandName);
+
+        if (commandPath == null || !commandPath.exists()) {
+            return ServiceOperationResult.failure(
+                "Command not found: " + commandName +
+                " (expected at: " + (commandPath != null ? commandPath.getAbsolutePath() : "unknown") + ")"
+            );
+        }
 
         try {
-            ProcessBuilder pb = new ProcessBuilder(command, "service", operation);
+            ProcessBuilder pb = new ProcessBuilder(commandPath.getAbsolutePath(), "service", operation);
             pb.redirectErrorStream(true);
 
             Process process = pb.start();
@@ -148,16 +160,32 @@ public class ServiceOperationExecutor {
     }
 
     /**
-     * Gets the platform-specific command name.
-     * On Windows, appends .cmd extension.
+     * Gets the absolute path to a CLI command installed in the per-app bin directory.
+     * Uses CliCommandBinDirResolver to find the per-app bin directory and constructs
+     * the platform-specific command path.
+     *
+     * Commands are installed in: ~/.jdeploy/bin-{arch}/{fqpn}/
+     *
+     * Platform-specific behavior:
+     * - Windows: Commands are .cmd files (e.g., myapp-server.cmd)
+     * - Mac/Linux: Commands are shell scripts with no extension
      *
      * @param commandName The base command name
-     * @return Platform-specific command
+     * @return Absolute File path to the command, or null if cannot be determined
      */
-    private String getCommandForPlatform(String commandName) {
-        if (Platform.getSystemPlatform().isWindows()) {
-            return commandName + ".cmd";
+    private File getAbsoluteCommandPath(String commandName) {
+        try {
+            File binDir = CliCommandBinDirResolver.getPerAppBinDir(packageName, source);
+
+            if (Platform.getSystemPlatform().isWindows()) {
+                // Windows: use .cmd files (not shell scripts for Git Bash/Cygwin)
+                return new File(binDir, commandName + ".cmd");
+            } else {
+                // Mac/Linux: shell scripts with no extension
+                return new File(binDir, commandName);
+            }
+        } catch (Exception e) {
+            return null;
         }
-        return commandName;
     }
 }

@@ -918,7 +918,11 @@ public class Main implements Runnable, Constants {
             }
 
             ca.weblite.jdeploy.installer.services.ServiceOperationExecutor operationExecutor =
-                new ca.weblite.jdeploy.installer.services.ServiceOperationExecutor(cliLauncherPath);
+                new ca.weblite.jdeploy.installer.services.ServiceOperationExecutor(
+                    cliLauncherPath,
+                    packageName,
+                    appInfo().getNpmSource()
+                );
 
             ca.weblite.jdeploy.installer.services.ServiceLifecycleManager lifecycleManager =
                 new ca.weblite.jdeploy.installer.services.ServiceLifecycleManager(
@@ -960,7 +964,11 @@ public class Main implements Runnable, Constants {
             }
 
             ca.weblite.jdeploy.installer.services.ServiceOperationExecutor operationExecutor =
-                new ca.weblite.jdeploy.installer.services.ServiceOperationExecutor(cliLauncherPath);
+                new ca.weblite.jdeploy.installer.services.ServiceOperationExecutor(
+                    cliLauncherPath,
+                    packageName,
+                    appInfo().getNpmSource()
+                );
 
             ca.weblite.jdeploy.installer.services.ServiceLifecycleManager lifecycleManager =
                 new ca.weblite.jdeploy.installer.services.ServiceLifecycleManager(

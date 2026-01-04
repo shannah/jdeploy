@@ -271,15 +271,24 @@ public class ServiceLifecycleManager {
             List<CommandSpec> newCommands,
             Map<String, ServiceState> previousStates) {
 
-        List<CommandSpec> servicestoInstall = extractServiceCommands(newCommands);
+        List<CommandSpec> servicesToInstall = extractServiceCommands(newCommands);
 
-        if (servicestoInstall.isEmpty()) {
+        // Filter out services that were already installed in the previous version
+        List<CommandSpec> newServices = new ArrayList<>();
+        for (CommandSpec command : servicesToInstall) {
+            if (!previousStates.containsKey(command.getName())) {
+                newServices.add(command);
+            }
+        }
+
+        if (newServices.isEmpty()) {
+            LOGGER.log(Level.INFO, "No new services to install");
             return;
         }
 
-        progressCallback.updateProgress("Installing services...");
+        progressCallback.updateProgress("Installing new services...");
 
-        for (CommandSpec command : servicestoInstall) {
+        for (CommandSpec command : newServices) {
             String commandName = command.getName();
             ServiceOperationResult result = operationExecutor.install(commandName);
 
@@ -288,7 +297,7 @@ public class ServiceLifecycleManager {
                 LOGGER.log(Level.WARNING, warning);
                 progressCallback.reportWarning(warning);
             } else {
-                LOGGER.log(Level.INFO, "Installed service: {0}", commandName);
+                LOGGER.log(Level.INFO, "Installed new service: {0}", commandName);
             }
         }
     }

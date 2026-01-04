@@ -478,9 +478,9 @@ public class WindowsCliCommandInstallerTest {
         // Act
         List<File> created = installer.installCommands(launcherPath, commands, settings);
 
-        // Assert - verify wrappers are created in the shared bin directory
-        File expectedBinDir = CliCommandBinDirResolver.getCliCommandBinDir("my-test-app", null);
-        assertTrue("Wrapper should be created in shared bin directory or in created list", 
+        // Assert - verify wrappers are created in the per-app bin directory
+        File expectedBinDir = CliCommandBinDirResolver.getPerAppBinDir("my-test-app", null);
+        assertTrue("Wrapper should be created in per-app bin directory or in created list",
             new File(expectedBinDir, "testcmd.cmd").exists() || created.size() > 0);
     }
 
