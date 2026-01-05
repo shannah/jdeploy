@@ -13,6 +13,7 @@ public class InstallationSettings {
     private boolean addToDock=true;
     private boolean installCliLauncher=true;
     private boolean installCliCommands=true;
+    private boolean skipServices=false;
     private boolean alreadyAddedToDock=false;
     private boolean prerelease=false;
     private boolean overwriteApp=true;
@@ -188,6 +189,14 @@ public class InstallationSettings {
 
     public void setInstallCliCommands(boolean installCliCommands) {
         this.installCliCommands = installCliCommands;
+    }
+
+    public boolean isSkipServices() {
+        return skipServices;
+    }
+
+    public void setSkipServices(boolean skipServices) {
+        this.skipServices = skipServices;
     }
 
     public String getPackageName() {

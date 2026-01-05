@@ -34,9 +34,11 @@ import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.JnaRegistryOperations;
 import ca.weblite.jdeploy.installer.win.RegistryOperations;
 import ca.weblite.jdeploy.installer.win.UninstallWindows;
+import ca.weblite.jdeploy.installer.win.WindowsAdminHelper;
 
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 import ca.weblite.jdeploy.models.CommandSpec;
+import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import ca.weblite.jdeploy.installer.cli.CliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.MacCliCommandInstaller;
@@ -770,6 +772,65 @@ public class Main implements Runnable, Constants {
 
     private void onProceedWithInstallation(InstallationFormEvent evt) {
         evt.setConsumed(true);
+        // Admin check for services is now done early in run0() before UI is shown
+        proceedWithInstallationImpl(evt);
+    }
+
+    /**
+     * Shows a dialog informing the user that the application includes services
+     * which require administrator privileges to install.
+     *
+     * @param form The installation form (parent window), may be null if called before UI is created
+     * @param canRelaunch true if automatic relaunch is possible, false if user must manually run as admin
+     * @return 0 for "Relaunch as Administrator" or "Run as Administrator" (manual),
+     *         1 for "Proceed without services", 2 for "Cancel"
+     */
+    private int showServiceAdminDialog(InstallationForm form, boolean canRelaunch) {
+        String message;
+        String[] options;
+
+        if (canRelaunch) {
+            message =
+                "This application includes background services which require\n" +
+                "administrator privileges to install and manage.\n\n" +
+                "What would you like to do?";
+
+            options = new String[] {
+                "Relaunch as Administrator",
+                "Proceed without Services",
+                "Cancel"
+            };
+        } else {
+            message =
+                "This application includes background services which require\n" +
+                "administrator privileges to install and manage.\n\n" +
+                "To install with services, you will need to right-click the\n" +
+                "installer and select \"Run as administrator\".\n\n" +
+                "What would you like to do?";
+
+            options = new String[] {
+                "Show Instructions",
+                "Proceed without Services",
+                "Cancel"
+            };
+        }
+
+        return JOptionPane.showOptionDialog(
+            form != null ? (JFrame) form : null,
+            message,
+            "Administrator Privileges Required",
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            options,
+            options[0]
+        );
+    }
+
+    /**
+     * Implementation of proceed with installation.
+     */
+    private void proceedWithInstallationImpl(InstallationFormEvent evt) {
         evt.getInstallationForm().setInProgress(true, "Installing.  Please wait...");
 
         // Create progress callback for service lifecycle management
@@ -824,6 +885,15 @@ public class Main implements Runnable, Constants {
 
     private void run0() throws Exception {
         loadAppInfo();
+
+        // Check if this app has services and we need admin on Windows
+        // Do this early so user knows before seeing the full UI
+        if (!checkWindowsServiceAdminRequirements()) {
+            // User cancelled - exit without showing UI
+            System.exit(0);
+            return;
+        }
+
         if (uninstall && Platform.getSystemPlatform().isWindows()) {
             System.out.println("Running Windows uninstall...");
             InstallWindowsRegistry installer = new InstallWindowsRegistry(appInfo(), null, null, null);
@@ -852,6 +922,107 @@ public class Main implements Runnable, Constants {
             installationForm.showInstallationForm();
         });
 
+    }
+
+    /**
+     * System property key for skipping service operations.
+     * When set to "true", service-related operations will be skipped.
+     * This is used when the user chooses "Proceed without Services" on Windows
+     * when the installer is not running with admin privileges.
+     */
+    public static final String SKIP_SERVICES_PROPERTY = "jdeploy.skipServices";
+
+    /**
+     * Checks if services should be skipped based on the system property.
+     * This is a global check that can be used anywhere in the codebase.
+     *
+     * @return true if services should be skipped
+     */
+    public static boolean shouldSkipServices() {
+        return "true".equals(System.getProperty(SKIP_SERVICES_PROPERTY));
+    }
+
+    /**
+     * Checks if this app has services that require admin privileges on Windows.
+     * If so, shows a dialog giving the user options to:
+     * 1. Relaunch as Administrator
+     * 2. Proceed without Services
+     * 3. Cancel
+     *
+     * @return true to continue with installation, false if user cancelled
+     */
+    private boolean checkWindowsServiceAdminRequirements() {
+        // Only relevant on Windows
+        if (!Platform.getSystemPlatform().isWindows()) {
+            return true;
+        }
+
+        // Branch installations don't support services
+        if (installationSettings.isBranchInstallation()) {
+            return true;
+        }
+
+        // Check if app has services
+        List<CommandSpec> serviceCommands = extractServiceCommands(
+            npmPackageVersion() != null ? npmPackageVersion().getCommands() : Collections.emptyList()
+        );
+
+        if (serviceCommands.isEmpty()) {
+            return true;
+        }
+
+        // Check if already running as admin
+        if (WindowsAdminHelper.isRunningAsAdmin()) {
+            return true;
+        }
+
+        // Check if we can relaunch as admin
+        boolean canRelaunch = WindowsAdminHelper.canRelaunchAsAdmin();
+
+        // Show dialog with options (different options depending on whether relaunch is possible)
+        int result = showServiceAdminDialog(null, canRelaunch);
+
+        switch (result) {
+            case 0: // Relaunch as Administrator OR Show Instructions
+                if (canRelaunch) {
+                    if (WindowsAdminHelper.relaunchAsAdmin()) {
+                        System.exit(0);
+                        return false;
+                    } else {
+                        // Relaunch failed - fall back to manual instructions
+                        showManualAdminInstructions();
+                        return false;
+                    }
+                } else {
+                    // Show manual instructions and exit
+                    showManualAdminInstructions();
+                    return false;
+                }
+            case 1: // Proceed without services
+                System.setProperty(SKIP_SERVICES_PROPERTY, "true");
+                installationSettings.setSkipServices(true);
+                return true;
+            case 2: // Cancel
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Shows instructions for manually running the installer as administrator.
+     */
+    private void showManualAdminInstructions() {
+        JOptionPane.showMessageDialog(
+            null,
+            "To install with services, please:\n\n" +
+            "1. Close this installer\n" +
+            "2. Right-click on the installer executable\n" +
+            "3. Select \"Run as administrator\"\n\n" +
+            "The installer will now close.",
+            "Administrator Required",
+            JOptionPane.INFORMATION_MESSAGE
+        );
+        System.exit(0);
     }
     private void runHeadlessInstall() throws Exception {
         System.out.println(
@@ -1183,7 +1354,7 @@ public class Main implements Runnable, Constants {
         // Prepare for service lifecycle management during updates
         Map<String, ca.weblite.jdeploy.installer.services.ServiceState> serviceStateBeforeUpdate = null;
         List<CommandSpec> newServiceCommands = null;
-        if (!installationSettings.isBranchInstallation()) {
+        if (!installationSettings.isBranchInstallation() && !installationSettings.isSkipServices()) {
             boolean isUpdate = installationDetectionService.isInstalled(appInfo().getNpmPackage(), appInfo().getNpmSource());
             if (isUpdate && npmPackageVersion() != null) {
                 // Extract only commands that implement service_controller
@@ -1392,7 +1563,10 @@ public class Main implements Runnable, Constants {
                     // Wire collision handler for GUI-aware prompting
                     macCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
                     macCliInstaller.setInstallationLogger(macInstallLogger);
-                    macCliInstaller.setServiceDescriptorService(createServiceDescriptorService());
+                    // Only set service descriptor service if services are not being skipped
+                    if (!installationSettings.isSkipServices()) {
+                        macCliInstaller.setServiceDescriptorService(createServiceDescriptorService());
+                    }
                     cliScriptFiles.addAll(macCliInstaller.installCommands(cliLauncher, cliCommands, installationSettings));
 
                     // Track the CLI launcher symlink if it was created
@@ -1499,7 +1673,7 @@ public class Main implements Runnable, Constants {
         // Complete service lifecycle management after installation
         // Call even if newServiceCommands is empty to run application update
         if (serviceStateBeforeUpdate != null && newServiceCommands != null &&
-            !installationSettings.isBranchInstallation()) {
+            !installationSettings.isBranchInstallation() && !installationSettings.isSkipServices()) {
             completeServicesAfterUpdate(appInfo().getNpmPackage(), newServiceCommands, serviceStateBeforeUpdate, installedApp, npmPackageVersion().getVersion());
         }
 
@@ -2106,7 +2280,10 @@ public class Main implements Runnable, Constants {
             // Wire collision handler for GUI-aware prompting
             linuxCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
             linuxCliInstaller.setInstallationLogger(linuxInstallLogger);
-            linuxCliInstaller.setServiceDescriptorService(createServiceDescriptorService());
+            // Only set service descriptor service if services are not being skipped
+            if (!installationSettings.isSkipServices()) {
+                linuxCliInstaller.setServiceDescriptorService(createServiceDescriptorService());
+            }
             cliScriptFiles.addAll(linuxCliInstaller.installCommands(launcherFile, commands, installationSettings));
         } else {
             System.out.println("Skipping CLI command and launcher installation (user opted out)");

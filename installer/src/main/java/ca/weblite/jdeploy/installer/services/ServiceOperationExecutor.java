@@ -3,12 +3,7 @@ package ca.weblite.jdeploy.installer.services;
 import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.tools.platform.Platform;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -17,16 +12,14 @@ import java.util.concurrent.TimeUnit;
  * Single Responsibility: Execute service commands and return results.
  * Handles platform differences, timeouts, and error conditions.
  *
+ * Note: On Windows, service operations require administrator privileges.
+ * The installer handles this by prompting the user to relaunch as admin
+ * before any service operations are attempted.
+ *
  * @author Steve Hannah
  */
 public class ServiceOperationExecutor {
-    private static final int OPERATION_TIMEOUT_SECONDS = 10;
-    private static final int ELEVATED_OPERATION_TIMEOUT_SECONDS = 120; // Longer timeout for UAC prompt
-
-    // Operations that require elevation on Windows
-    private static final List<String> ELEVATED_OPERATIONS = Arrays.asList(
-        "install", "uninstall", "start", "stop"
-    );
+    private static final int OPERATION_TIMEOUT_SECONDS = 30;
 
     private final File cliLauncherPath;
     private final String packageName;
@@ -160,21 +153,13 @@ public class ServiceOperationExecutor {
             );
         }
 
-        // On Windows, certain operations require elevation
-        boolean needsElevation = Platform.getSystemPlatform().isWindows()
-            && ELEVATED_OPERATIONS.contains(operation);
-
-        if (needsElevation) {
-            return executeElevatedServiceCommand(commandPath, operation, commandName);
-        } else {
-            return executeNormalServiceCommand(commandPath, operation);
-        }
+        return executeServiceCommandImpl(commandPath, operation);
     }
 
     /**
-     * Executes a service command without elevation.
+     * Executes a service command.
      */
-    private ServiceOperationResult executeNormalServiceCommand(File commandPath, String operation) {
+    private ServiceOperationResult executeServiceCommandImpl(File commandPath, String operation) {
         try {
             ProcessBuilder pb = new ProcessBuilder(commandPath.getAbsolutePath(), "service", operation);
             pb.redirectErrorStream(true);
@@ -218,155 +203,6 @@ public class ServiceOperationExecutor {
             return ServiceOperationResult.failure(
                 "Service " + operation + " error: " + e.getMessage()
             );
-        }
-    }
-
-    /**
-     * Executes a service command with elevation (Windows only).
-     * Uses PowerShell Start-Process -Verb RunAs to trigger UAC elevation.
-     */
-    private ServiceOperationResult executeElevatedServiceCommand(File commandPath, String operation, String commandName) {
-        try {
-            // Build a PowerShell script that:
-            // 1. Runs the command elevated
-            // 2. Returns the exit code
-            String escapedPath = commandPath.getAbsolutePath().replace("'", "''");
-            String psScript = String.format(
-                "$p = Start-Process -FilePath '%s' -ArgumentList 'service','%s' -Verb RunAs -Wait -PassThru -WindowStyle Hidden; " +
-                "exit $p.ExitCode",
-                escapedPath, operation
-            );
-
-            ProcessBuilder pb = new ProcessBuilder(
-                "powershell", "-ExecutionPolicy", "Bypass", "-Command", psScript
-            );
-            pb.redirectErrorStream(true);
-
-            Process process = pb.start();
-
-            // Consume output stream in background thread
-            StringBuilder outputBuilder = new StringBuilder();
-            Thread outputConsumer = new Thread(() -> {
-                try {
-                    BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(process.getInputStream())
-                    );
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        outputBuilder.append(line).append("\n");
-                    }
-                } catch (Exception e) {
-                    // Ignore
-                }
-            });
-            outputConsumer.setDaemon(true);
-            outputConsumer.start();
-
-            boolean completed = process.waitFor(ELEVATED_OPERATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-
-            if (!completed) {
-                process.destroyForcibly();
-                return ServiceOperationResult.failure(
-                    "Elevated service " + operation + " timed out after " + ELEVATED_OPERATION_TIMEOUT_SECONDS + " seconds"
-                );
-            }
-
-            int exitCode = process.exitValue();
-
-            // If install succeeded, configure permissions for future non-elevated access
-            if (exitCode == 0 && "install".equals(operation)) {
-                configureServicePermissions(commandName);
-            }
-
-            if (exitCode == 0) {
-                return ServiceOperationResult.success();
-            } else {
-                String output = outputBuilder.toString().trim();
-                String message = "Elevated service " + operation + " returned non-zero exit code";
-                if (!output.isEmpty()) {
-                    message += ": " + output;
-                }
-                return ServiceOperationResult.failure(message, exitCode);
-            }
-        } catch (Exception e) {
-            return ServiceOperationResult.failure(
-                "Elevated service " + operation + " error: " + e.getMessage()
-            );
-        }
-    }
-
-    /**
-     * Configures Windows service permissions to allow the current user to start/stop
-     * the service without requiring elevation in the future.
-     *
-     * This runs after service install to grant the installing user control over the service.
-     */
-    private void configureServicePermissions(String commandName) {
-        if (!Platform.getSystemPlatform().isWindows()) {
-            return;
-        }
-
-        try {
-            // The service name is typically the command name
-            // We need to grant the current user start/stop permissions using sc sdset
-            // First, get the current security descriptor, then add our ACE
-
-            // Get current user's SID
-            ProcessBuilder getSidPb = new ProcessBuilder(
-                "powershell", "-Command",
-                "([System.Security.Principal.WindowsIdentity]::GetCurrent()).User.Value"
-            );
-            getSidPb.redirectErrorStream(true);
-            Process getSidProcess = getSidPb.start();
-
-            BufferedReader reader = new BufferedReader(
-                new InputStreamReader(getSidProcess.getInputStream())
-            );
-            String userSid = reader.readLine();
-            getSidProcess.waitFor(10, TimeUnit.SECONDS);
-
-            if (userSid == null || userSid.trim().isEmpty() || !userSid.startsWith("S-1-")) {
-                System.err.println("Warning: Could not determine user SID for service permissions");
-                return;
-            }
-            userSid = userSid.trim();
-
-            // Grant the user start/stop/status permissions using PowerShell elevation
-            // RPWPDTLO = Start, Stop, Pause/Continue, Interrogate
-            String psScript = String.format(
-                "$sd = (sc.exe sdshow '%s' | Where-Object { $_ -match '^D:' }); " +
-                "if ($sd) { " +
-                "  $newAce = '(A;;RPWPDTLO;;;%s)'; " +
-                "  $newSd = $sd -replace '(D:\\(.*\\))S:', \"D:`$1${newAce}S:\"; " +
-                "  if ($newSd -eq $sd) { $newSd = $sd + $newAce }; " +
-                "  sc.exe sdset '%s' $newSd " +
-                "}",
-                commandName, userSid, commandName
-            );
-
-            ProcessBuilder pb = new ProcessBuilder(
-                "powershell", "-ExecutionPolicy", "Bypass", "-Command",
-                "$p = Start-Process -FilePath 'powershell' -ArgumentList '-ExecutionPolicy','Bypass','-Command','" +
-                    psScript.replace("'", "''") + "' -Verb RunAs -Wait -PassThru -WindowStyle Hidden; exit $p.ExitCode"
-            );
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-
-            // Consume output
-            BufferedReader procReader = new BufferedReader(
-                new InputStreamReader(process.getInputStream())
-            );
-            while (procReader.readLine() != null) {
-                // Discard
-            }
-
-            process.waitFor(30, TimeUnit.SECONDS);
-
-            if (process.exitValue() != 0) {
-                System.err.println("Warning: Could not configure service permissions for " + commandName);
-            }
-        } catch (Exception e) {
-            System.err.println("Warning: Failed to configure service permissions: " + e.getMessage());
         }
     }
 

@@ -241,7 +241,10 @@ public class InstallWindows {
                     new ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller();
                 cliInstaller.setCollisionHandler(collisionHandler);
                 cliInstaller.setInstallationLogger(logger);
-                cliInstaller.setServiceDescriptorService(ServiceDescriptorServiceFactory.createDefault());
+                // Only set service descriptor service if services are not being skipped
+                if (!installationSettings.isSkipServices()) {
+                    cliInstaller.setServiceDescriptorService(ServiceDescriptorServiceFactory.createDefault());
+                }
                 File launcherForCommands = cliExePath != null ? cliExePath : exePath;
                 cliWrapperFiles = cliInstaller.installCommands(launcherForCommands, commands, installationSettings);
                 if (logger != null) {
