@@ -538,25 +538,28 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
         if (hasUpdater || hasServiceController) {
             // Generate conditional batch script
+            // Enable delayed expansion so !errorlevel! works correctly inside if blocks
+            sb.append("setlocal enabledelayedexpansion\r\n");
 
             // Check for updater: single "update" argument
             if (hasUpdater) {
                 sb.append("REM Check if single argument is \"update\"\r\n");
                 sb.append("if \"%~1\"==\"update\" if \"%~2\"==\"\" (\r\n");
                 sb.append("  \"").append(launcherPathStr).append("\" --jdeploy:update\r\n");
-                sb.append("  goto :eof\r\n");
+                sb.append("  exit /b !errorlevel!\r\n");
                 sb.append(")\r\n\r\n");
             }
 
             // Check for service_controller: first argument is "service"
+            // Note: We don't use shift+%* because in Windows batch, %* is not affected by shift
+            // Instead, we pass %2-%9 to skip the "service" argument
             if (hasServiceController) {
                 sb.append("REM Check if first argument is \"service\"\r\n");
                 sb.append("if \"%~1\"==\"service\" (\r\n");
-                sb.append("  shift\r\n");
                 sb.append("  \"").append(launcherPathStr).append("\" ");
                 sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
-                sb.append(" --jdeploy:service %*\r\n");
-                sb.append("  goto :eof\r\n");
+                sb.append(" --jdeploy:service %2 %3 %4 %5 %6 %7 %8 %9\r\n");
+                sb.append("  exit /b !errorlevel!\r\n");
                 sb.append(")\r\n\r\n");
             }
 
@@ -565,11 +568,13 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             sb.append("\"").append(launcherPathStr).append("\" ");
             sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
             sb.append(" -- %*\r\n");
+            sb.append("exit /b !errorlevel!\r\n");
         } else {
             // Standard command (no special implementations)
             sb.append("\"").append(launcherPathStr).append("\" ");
             sb.append(CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX).append(commandName);
             sb.append(" -- %*\r\n");
+            sb.append("exit /b %errorlevel%\r\n");
         }
 
         return sb.toString();
