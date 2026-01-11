@@ -37,6 +37,12 @@ public class ServiceManagementPanel extends JPanel {
     private static final Color UNKNOWN_COLOR = new Color(128, 128, 128);
     private static final Color ERROR_COLOR = new Color(200, 0, 0);
 
+    // Fixed column widths for consistent alignment
+    private static final int COL_SERVICE_WIDTH = 150;
+    private static final int COL_STATUS_WIDTH = 80;
+    private static final int COL_ACTION_WIDTH = 80;
+    private static final int COL_MESSAGE_WIDTH = 200;
+
     private final InstallationSettings installationSettings;
     private final ServiceDescriptorService descriptorService;
     private final List<ServiceRowModel> serviceModels;
@@ -160,83 +166,67 @@ public class ServiceManagementPanel extends JPanel {
     }
 
     private JPanel createHeaderRow() {
-        JPanel panel = new JPanel(new GridBagLayout());
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
         panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(2, 5, 2, 5);
-        gbc.anchor = GridBagConstraints.WEST;
 
         // Service name header
-        gbc.gridx = 0;
-        gbc.weightx = 0.3;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
         JLabel nameHeader = new JLabel("Service");
         nameHeader.setFont(nameHeader.getFont().deriveFont(Font.BOLD));
-        panel.add(nameHeader, gbc);
+        nameHeader.setPreferredSize(new Dimension(COL_SERVICE_WIDTH, 20));
+        panel.add(nameHeader);
 
         // Status header
-        gbc.gridx = 1;
-        gbc.weightx = 0.15;
         JLabel statusHeader = new JLabel("Status");
         statusHeader.setFont(statusHeader.getFont().deriveFont(Font.BOLD));
-        panel.add(statusHeader, gbc);
+        statusHeader.setPreferredSize(new Dimension(COL_STATUS_WIDTH, 20));
+        panel.add(statusHeader);
 
         // Toggle header
-        gbc.gridx = 2;
-        gbc.weightx = 0.15;
         JLabel toggleHeader = new JLabel("Action");
         toggleHeader.setFont(toggleHeader.getFont().deriveFont(Font.BOLD));
-        panel.add(toggleHeader, gbc);
+        toggleHeader.setPreferredSize(new Dimension(COL_ACTION_WIDTH, 20));
+        panel.add(toggleHeader);
 
         // Error header
-        gbc.gridx = 3;
-        gbc.weightx = 0.4;
         JLabel errorHeader = new JLabel("Message");
         errorHeader.setFont(errorHeader.getFont().deriveFont(Font.BOLD));
-        panel.add(errorHeader, gbc);
+        errorHeader.setPreferredSize(new Dimension(COL_MESSAGE_WIDTH, 20));
+        panel.add(errorHeader);
 
         return panel;
     }
 
     private JPanel createServiceRow(ServiceRowModel model) {
-        JPanel panel = new JPanel(new GridBagLayout());
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
         panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 35));
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(2, 5, 2, 5);
-        gbc.anchor = GridBagConstraints.WEST;
 
         // Service name
-        gbc.gridx = 0;
-        gbc.weightx = 0.3;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
         JLabel nameLabel = new JLabel(model.getServiceName());
+        nameLabel.setPreferredSize(new Dimension(COL_SERVICE_WIDTH, 20));
         String description = model.getDescription();
         if (description != null && !description.isEmpty()) {
             nameLabel.setToolTipText(description);
         }
-        panel.add(nameLabel, gbc);
+        panel.add(nameLabel);
 
         // Status label
-        gbc.gridx = 1;
-        gbc.weightx = 0.15;
         JLabel statusLabel = new JLabel(model.getStatus().getDisplayName());
+        statusLabel.setPreferredSize(new Dimension(COL_STATUS_WIDTH, 20));
         updateStatusLabelStyle(statusLabel, model.getStatus());
-        panel.add(statusLabel, gbc);
+        panel.add(statusLabel);
 
         // Toggle button
-        gbc.gridx = 2;
-        gbc.weightx = 0.15;
         JButton toggleButton = new JButton(getToggleButtonText(model.getStatus()));
+        toggleButton.setPreferredSize(new Dimension(COL_ACTION_WIDTH, 25));
         toggleButton.setEnabled(false); // Disabled until status is known
         toggleButton.addActionListener(e -> handleToggle(model));
-        panel.add(toggleButton, gbc);
+        panel.add(toggleButton);
 
         // Error label
-        gbc.gridx = 3;
-        gbc.weightx = 0.4;
         JLabel errorLabel = new JLabel("");
+        errorLabel.setPreferredSize(new Dimension(COL_MESSAGE_WIDTH, 20));
         errorLabel.setForeground(ERROR_COLOR);
-        panel.add(errorLabel, gbc);
+        panel.add(errorLabel);
 
         // Store components for later updates
         ServiceRowComponents components = new ServiceRowComponents(nameLabel, statusLabel, toggleButton, errorLabel);
