@@ -41,7 +41,6 @@ public class ServiceManagementPanel extends JPanel {
     private static final int COL_SERVICE_WIDTH = 150;
     private static final int COL_STATUS_WIDTH = 80;
     private static final int COL_ACTION_WIDTH = 80;
-    private static final int COL_MESSAGE_WIDTH = 200;
 
     private final InstallationSettings installationSettings;
     private final ServiceDescriptorService descriptorService;
@@ -150,15 +149,13 @@ public class ServiceManagementPanel extends JPanel {
         // Add header row
         JPanel headerPanel = createHeaderRow();
         servicesPanel.add(headerPanel);
-        servicesPanel.add(Box.createVerticalStrut(5));
-        servicesPanel.add(new JSeparator(SwingConstants.HORIZONTAL));
-        servicesPanel.add(Box.createVerticalStrut(5));
+        servicesPanel.add(Box.createVerticalStrut(10));
 
-        // Add service rows
+        // Add service rows with error labels
         for (ServiceRowModel model : serviceModels) {
-            JPanel rowPanel = createServiceRow(model);
-            servicesPanel.add(rowPanel);
-            servicesPanel.add(Box.createVerticalStrut(5));
+            ServiceRowComponents components = createServiceRow(model);
+            servicesPanel.add(components.rowPanel);
+            servicesPanel.add(components.errorLabel);
         }
 
         // Add glue to push rows to top
@@ -166,8 +163,9 @@ public class ServiceManagementPanel extends JPanel {
     }
 
     private JPanel createHeaderRow() {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
-        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 25));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         // Service name header
         JLabel nameHeader = new JLabel("Service");
@@ -187,18 +185,14 @@ public class ServiceManagementPanel extends JPanel {
         toggleHeader.setPreferredSize(new Dimension(COL_ACTION_WIDTH, 20));
         panel.add(toggleHeader);
 
-        // Error header
-        JLabel errorHeader = new JLabel("Message");
-        errorHeader.setFont(errorHeader.getFont().deriveFont(Font.BOLD));
-        errorHeader.setPreferredSize(new Dimension(COL_MESSAGE_WIDTH, 20));
-        panel.add(errorHeader);
-
         return panel;
     }
 
-    private JPanel createServiceRow(ServiceRowModel model) {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
-        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 35));
+    private ServiceRowComponents createServiceRow(ServiceRowModel model) {
+        // Main row with service info - same structure as header
+        JPanel rowPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        rowPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        rowPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         // Service name
         JLabel nameLabel = new JLabel(model.getServiceName());
@@ -207,32 +201,33 @@ public class ServiceManagementPanel extends JPanel {
         if (description != null && !description.isEmpty()) {
             nameLabel.setToolTipText(description);
         }
-        panel.add(nameLabel);
+        rowPanel.add(nameLabel);
 
         // Status label
         JLabel statusLabel = new JLabel(model.getStatus().getDisplayName());
         statusLabel.setPreferredSize(new Dimension(COL_STATUS_WIDTH, 20));
         updateStatusLabelStyle(statusLabel, model.getStatus());
-        panel.add(statusLabel);
+        rowPanel.add(statusLabel);
 
         // Toggle button
         JButton toggleButton = new JButton(getToggleButtonText(model.getStatus()));
         toggleButton.setPreferredSize(new Dimension(COL_ACTION_WIDTH, 25));
         toggleButton.setEnabled(false); // Disabled until status is known
         toggleButton.addActionListener(e -> handleToggle(model));
-        panel.add(toggleButton);
+        rowPanel.add(toggleButton);
 
-        // Error label
+        // Error label - added separately to servicesPanel, spans full width
         JLabel errorLabel = new JLabel("");
-        errorLabel.setPreferredSize(new Dimension(COL_MESSAGE_WIDTH, 20));
         errorLabel.setForeground(ERROR_COLOR);
-        panel.add(errorLabel);
+        errorLabel.setBorder(BorderFactory.createEmptyBorder(0, 10, 5, 10));
+        errorLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        errorLabel.setVisible(false); // Hidden by default
 
-        // Store components for later updates
-        ServiceRowComponents components = new ServiceRowComponents(nameLabel, statusLabel, toggleButton, errorLabel);
+        // Store and return components
+        ServiceRowComponents components = new ServiceRowComponents(rowPanel, nameLabel, statusLabel, toggleButton, errorLabel);
         rowComponents.put(model.getCommandName(), components);
 
-        return panel;
+        return components;
     }
 
     private void updateStatusLabelStyle(JLabel label, ServiceStatus status) {
@@ -341,22 +336,31 @@ public class ServiceManagementPanel extends JPanel {
                     model.getStatus() != ServiceStatus.UNKNOWN);
         }
 
-        // Update error label
+        // Update error label - show/hide based on whether there's an error
         String error = model.getErrorMessage();
-        components.errorLabel.setText(error != null ? error : "");
-        components.errorLabel.setToolTipText(error);
+        if (error != null && !error.isEmpty()) {
+            components.errorLabel.setText(error);
+            components.errorLabel.setToolTipText(error);
+            components.errorLabel.setVisible(true);
+        } else {
+            components.errorLabel.setText("");
+            components.errorLabel.setToolTipText(null);
+            components.errorLabel.setVisible(false);
+        }
     }
 
     /**
      * Helper class to hold references to row UI components.
      */
     private static class ServiceRowComponents {
+        final JPanel rowPanel;
         final JLabel nameLabel;
         final JLabel statusLabel;
         final JButton toggleButton;
         final JLabel errorLabel;
 
-        ServiceRowComponents(JLabel nameLabel, JLabel statusLabel, JButton toggleButton, JLabel errorLabel) {
+        ServiceRowComponents(JPanel rowPanel, JLabel nameLabel, JLabel statusLabel, JButton toggleButton, JLabel errorLabel) {
+            this.rowPanel = rowPanel;
             this.nameLabel = nameLabel;
             this.statusLabel = statusLabel;
             this.toggleButton = toggleButton;
