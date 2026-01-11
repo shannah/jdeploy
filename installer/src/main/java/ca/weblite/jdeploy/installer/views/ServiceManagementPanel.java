@@ -41,6 +41,10 @@ public class ServiceManagementPanel extends JPanel {
     private static final int COL_SERVICE_WIDTH = 150;
     private static final int COL_STATUS_WIDTH = 80;
     private static final int COL_ACTION_WIDTH = 80;
+    private static final int COL_INFO_WIDTH = 60;
+
+    // Highlight color for selected row
+    private static final Color SELECTED_ROW_COLOR = new Color(220, 235, 252);
 
     private final InstallationSettings installationSettings;
     private final ServiceDescriptorService descriptorService;
@@ -49,7 +53,11 @@ public class ServiceManagementPanel extends JPanel {
     private final JPanel servicesPanel;
     private final Timer refreshTimer;
 
+    private ServiceDetailsPanel detailsPanel;
+    private JSplitPane splitPane;
+    private JScrollPane servicesScrollPane;
     private ServiceStatusPoller poller;
+    private String selectedCommandName; // Track which service is selected for info display
 
     /**
      * Creates a new service management panel.
@@ -69,6 +77,14 @@ public class ServiceManagementPanel extends JPanel {
         servicesPanel = new JPanel();
         servicesPanel.setLayout(new BoxLayout(servicesPanel, BoxLayout.Y_AXIS));
 
+        // Create the details panel
+        detailsPanel = new ServiceDetailsPanel();
+
+        // Create split pane (will be configured after loading services)
+        splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        splitPane.setResizeWeight(0.5);
+        splitPane.setBorder(BorderFactory.createEmptyBorder());
+
         // Load services and build UI
         loadServices();
 
@@ -76,10 +92,32 @@ public class ServiceManagementPanel extends JPanel {
             showNoServicesMessage();
         } else {
             buildServiceRows();
-            JScrollPane scrollPane = new JScrollPane(servicesPanel);
-            scrollPane.setBorder(BorderFactory.createEmptyBorder());
-            scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-            add(scrollPane, BorderLayout.CENTER);
+
+            // Create scroll pane for services
+            servicesScrollPane = new JScrollPane(servicesPanel);
+            servicesScrollPane.setBorder(BorderFactory.createEmptyBorder());
+            servicesScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+
+            // Configure split pane
+            splitPane.setTopComponent(servicesScrollPane);
+            splitPane.setBottomComponent(detailsPanel);
+
+            // If only one service, show details panel by default and hide Info button
+            if (serviceModels.size() == 1) {
+                add(splitPane, BorderLayout.CENTER);
+                // Select the only service and show its details
+                ServiceRowModel onlyService = serviceModels.get(0);
+                selectService(onlyService);
+                // Hide the Info button since details are always visible
+                ServiceRowComponents components = rowComponents.get(onlyService.getCommandName());
+                if (components != null) {
+                    components.infoButton.setVisible(false);
+                }
+            } else {
+                // Multiple services: hide details panel initially
+                // Just show the scroll pane, details will appear when Info is clicked
+                add(servicesScrollPane, BorderLayout.CENTER);
+            }
 
             // Initial status poll
             pollStatusInBackground();
@@ -185,6 +223,11 @@ public class ServiceManagementPanel extends JPanel {
         toggleHeader.setPreferredSize(new Dimension(COL_ACTION_WIDTH, 20));
         panel.add(toggleHeader);
 
+        // Info header (empty - just for spacing)
+        JLabel infoHeader = new JLabel("");
+        infoHeader.setPreferredSize(new Dimension(COL_INFO_WIDTH, 20));
+        panel.add(infoHeader);
+
         return panel;
     }
 
@@ -193,6 +236,7 @@ public class ServiceManagementPanel extends JPanel {
         JPanel rowPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         rowPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         rowPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        rowPanel.setOpaque(true); // Required for background color to show
 
         // Service name
         JLabel nameLabel = new JLabel(model.getServiceName());
@@ -216,6 +260,12 @@ public class ServiceManagementPanel extends JPanel {
         toggleButton.addActionListener(e -> handleToggle(model));
         rowPanel.add(toggleButton);
 
+        // Info button
+        JButton infoButton = new JButton("Info");
+        infoButton.setPreferredSize(new Dimension(COL_INFO_WIDTH, 25));
+        infoButton.addActionListener(e -> selectService(model));
+        rowPanel.add(infoButton);
+
         // Error label - added separately to servicesPanel, spans full width
         JLabel errorLabel = new JLabel("");
         errorLabel.setForeground(ERROR_COLOR);
@@ -224,7 +274,7 @@ public class ServiceManagementPanel extends JPanel {
         errorLabel.setVisible(false); // Hidden by default
 
         // Store and return components
-        ServiceRowComponents components = new ServiceRowComponents(rowPanel, nameLabel, statusLabel, toggleButton, errorLabel);
+        ServiceRowComponents components = new ServiceRowComponents(rowPanel, nameLabel, statusLabel, toggleButton, infoButton, errorLabel);
         rowComponents.put(model.getCommandName(), components);
 
         return components;
@@ -350,6 +400,52 @@ public class ServiceManagementPanel extends JPanel {
     }
 
     /**
+     * Selects a service to display its details.
+     * Highlights the selected row and shows the details panel.
+     *
+     * @param model The service model to select
+     */
+    private void selectService(ServiceRowModel model) {
+        String commandName = model.getCommandName();
+
+        // Update highlighting for all rows
+        for (Map.Entry<String, ServiceRowComponents> entry : rowComponents.entrySet()) {
+            ServiceRowComponents comp = entry.getValue();
+            if (entry.getKey().equals(commandName)) {
+                // Highlight selected row
+                comp.rowPanel.setBackground(SELECTED_ROW_COLOR);
+            } else {
+                // Reset other rows to default
+                comp.rowPanel.setBackground(comp.defaultBackground);
+            }
+        }
+
+        // Update selected command name
+        selectedCommandName = commandName;
+
+        // Show details for this service
+        detailsPanel.showServiceDetails(model);
+
+        // If details panel is not visible (multiple services case), show it
+        if (serviceModels.size() > 1 && splitPane.getParent() == null) {
+            // Remove the scroll pane from this panel
+            remove(servicesScrollPane);
+
+            // Add the split pane instead
+            add(splitPane, BorderLayout.CENTER);
+
+            // Set divider location to 50%
+            SwingUtilities.invokeLater(() -> {
+                splitPane.setDividerLocation(0.5);
+            });
+
+            // Revalidate and repaint
+            revalidate();
+            repaint();
+        }
+    }
+
+    /**
      * Helper class to hold references to row UI components.
      */
     private static class ServiceRowComponents {
@@ -357,14 +453,18 @@ public class ServiceManagementPanel extends JPanel {
         final JLabel nameLabel;
         final JLabel statusLabel;
         final JButton toggleButton;
+        final JButton infoButton;
         final JLabel errorLabel;
+        final Color defaultBackground;
 
-        ServiceRowComponents(JPanel rowPanel, JLabel nameLabel, JLabel statusLabel, JButton toggleButton, JLabel errorLabel) {
+        ServiceRowComponents(JPanel rowPanel, JLabel nameLabel, JLabel statusLabel, JButton toggleButton, JButton infoButton, JLabel errorLabel) {
             this.rowPanel = rowPanel;
             this.nameLabel = nameLabel;
             this.statusLabel = statusLabel;
             this.toggleButton = toggleButton;
+            this.infoButton = infoButton;
             this.errorLabel = errorLabel;
+            this.defaultBackground = rowPanel.getBackground();
         }
     }
 
