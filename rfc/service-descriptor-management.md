@@ -120,7 +120,8 @@ The update lifecycle ensures services are properly managed when installing a new
 1. **Load Current Service Descriptors**: Read all service descriptors for the package
 2. **Check Service Status**: For each service, execute `{commandName} service status`
    - Exit code 0 = service is running
-   - Non-zero exit code = service is stopped
+   - Exit code 3 = service is stopped (installed but not running)
+   - Exit code 4 = service is not installed
    - Record which services were running
 3. **Compare Versions**: Compare current service descriptors with new package.json commands
    - Identify removed services (in current but not in new)
@@ -230,6 +231,28 @@ During uninstallation, the installer MUST:
 - Service descriptors MUST be deleted after services are stopped
 - Empty package directories SHOULD be removed
 - Architecture directories MUST NOT be removed (may contain other packages)
+
+#### 3.5 Service Status Exit Codes
+
+The `service status` command returns LSB-compliant exit codes for automation and UI integration:
+
+| Exit Code | Status | Meaning | Example Output |
+|-----------|--------|---------|----------------|
+| `0` | Running | Service is running | `Service 'myapp-worker' status: running` |
+| `3` | Stopped | Service is installed but stopped | `Service 'myapp-worker' status: stopped` |
+| `4` | Not Installed | Service is not registered with system | `Service 'myapp-worker' is not installed` |
+
+**Usage Notes:**
+- Exit code 0 indicates the service is actively running
+- Exit code 3 indicates the service is registered with the native service manager (systemd, launchd, Windows SCM) but not currently running
+- Exit code 4 indicates the service is not registered with the native service manager
+- These codes follow the Linux Standard Base (LSB) specification for init script actions
+
+**UI Integration:**
+Service management UIs can use these exit codes to display appropriate status indicators:
+- Running (exit 0): Service is active and operational
+- Stopped (exit 3): Service is installed but can be started
+- Uninstalled (exit 4): Service needs to be installed before it can be started
 
 ### 4. Branch Installations
 
