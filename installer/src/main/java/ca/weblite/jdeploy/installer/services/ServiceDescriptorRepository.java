@@ -26,73 +26,80 @@ public interface ServiceDescriptorRepository {
     /**
      * Loads a service descriptor.
      *
-     * @param packageName The fully qualified package name
+     * @param packageName The package name
+     * @param source The source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @param commandName The command name
      * @param branchName The branch name, or null for non-branch installations
      * @return An Optional containing the descriptor if found, empty otherwise
      * @throws IOException if an I/O error occurs
      */
-    Optional<ServiceDescriptor> load(String packageName, String commandName, String branchName)
+    Optional<ServiceDescriptor> load(String packageName, String source, String commandName, String branchName)
         throws IOException;
 
     /**
      * Deletes a service descriptor.
      *
-     * @param packageName The fully qualified package name
+     * @param packageName The package name
+     * @param source The source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @param commandName The command name
      * @param branchName The branch name, or null for non-branch installations
      * @return true if the descriptor was deleted, false if it didn't exist
      * @throws IOException if an I/O error occurs
      */
-    boolean delete(String packageName, String commandName, String branchName)
+    boolean delete(String packageName, String source, String commandName, String branchName)
         throws IOException;
 
     /**
-     * Lists all service descriptors for a package.
+     * Lists all service descriptors for a package with source.
      *
-     * @param packageName The fully qualified package name
+     * @param packageName The package name
+     * @param source The source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @return A list of all service descriptors for the package (empty if none found)
      * @throws IOException if an I/O error occurs
      */
-    List<ServiceDescriptor> listByPackage(String packageName) throws IOException;
+    List<ServiceDescriptor> listByPackage(String packageName, String source) throws IOException;
 
     /**
      * Lists all service descriptors for a package and branch.
      *
-     * @param packageName The fully qualified package name
+     * @param packageName The package name
+     * @param source The source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @param branchName The branch name, or null for non-branch installations
      * @return A list of service descriptors (empty if none found)
      * @throws IOException if an I/O error occurs
      */
-    List<ServiceDescriptor> listByPackageAndBranch(String packageName, String branchName)
+    List<ServiceDescriptor> listByPackageAndBranch(String packageName, String source, String branchName)
         throws IOException;
 
     /**
      * Checks if a service descriptor exists.
      *
-     * @param packageName The fully qualified package name
+     * @param packageName The package name
+     * @param source The source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @param commandName The command name
      * @param branchName The branch name, or null for non-branch installations
      * @return true if the descriptor exists
      */
-    boolean exists(String packageName, String commandName, String branchName);
+    boolean exists(String packageName, String source, String commandName, String branchName);
 
     /**
      * Deletes all service descriptors for a package.
      *
-     * @param packageName The fully qualified package name
+     * @param packageName The package name
+     * @param source The source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @return The number of descriptors deleted
      * @throws IOException if an I/O error occurs
      */
-    int deleteAllByPackage(String packageName) throws IOException;
+    int deleteAllByPackage(String packageName, String source) throws IOException;
 
     /**
      * Deletes all service descriptors for a package and branch.
      *
-     * @param packageName The fully qualified package name
+     * @param packageName The package name
+     * @param source The source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @param branchName The branch name, or null for non-branch installations
      * @return The number of descriptors deleted
      * @throws IOException if an I/O error occurs
      */
-    int deleteAllByPackageAndBranch(String packageName, String branchName) throws IOException;
+    int deleteAllByPackageAndBranch(String packageName, String source, String branchName) throws IOException;
 }

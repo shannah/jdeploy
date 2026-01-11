@@ -126,7 +126,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
                 String version = settings.getNpmPackageVersion() != null ?
                     settings.getNpmPackageVersion().getVersion() : "unknown";
                 String branchName = null; // TODO: Extract from settings if branch installation
-                registerServices(commands, settings.getPackageName(), version, branchName);
+                registerServices(commands, settings.getPackageName(), settings.getSource(), version, branchName);
             }
 
         } catch (IOException e) {
@@ -162,7 +162,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             // Stop and unregister services before removing command scripts
             if (packageName != null && !packageName.isEmpty()) {
                 String branchName = null; // TODO: Extract from source if branch installation
-                stopAndUnregisterServices(packageName, branchName, appDir);
+                stopAndUnregisterServices(packageName, source, branchName, appDir);
             }
 
             // Try to load manifest from repository
@@ -875,10 +875,11 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
      *
      * @param commands The list of installed commands
      * @param packageName The package name
+     * @param source The source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @param version The package version
      * @param branchName The branch name (always null since branches don't support CLI commands)
      */
-    private void registerServices(List<CommandSpec> commands, String packageName, String version, String branchName) {
+    private void registerServices(List<CommandSpec> commands, String packageName, String source, String version, String branchName) {
         if (serviceDescriptorService == null) {
             // Service management not configured, skip registration
             return;
@@ -901,7 +902,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
         for (CommandSpec command : commands) {
             if (command.implements_("service_controller")) {
                 try {
-                    serviceDescriptorService.registerService(command, packageName, version, branchName);
+                    serviceDescriptorService.registerService(command, packageName, version, source, branchName);
                     System.out.println("Registered service: " + command.getName());
                     if (installationLogger != null) {
                         installationLogger.logInfo("Registered service: " + command.getName());
@@ -921,17 +922,18 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
      * Called before uninstalling commands.
      *
      * @param packageName The package name
+     * @param source The source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @param branchName The branch name (null for non-branch installations)
      * @param appDir The application directory
      */
-    private void stopAndUnregisterServices(String packageName, String branchName, File appDir) {
+    private void stopAndUnregisterServices(String packageName, String source, String branchName, File appDir) {
         if (serviceDescriptorService == null) {
             // Service management not configured, skip
             return;
         }
 
         try {
-            List<ServiceDescriptor> services = serviceDescriptorService.listServices(packageName, branchName);
+            List<ServiceDescriptor> services = serviceDescriptorService.listServices(packageName, source, branchName);
 
             for (ServiceDescriptor service : services) {
                 // Stop the service
@@ -961,7 +963,7 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
 
                 // Unregister the service
                 try {
-                    serviceDescriptorService.unregisterService(packageName, service.getCommandName(), branchName);
+                    serviceDescriptorService.unregisterService(packageName, source, service.getCommandName(), branchName);
                     System.out.println("Unregistered service: " + service.getCommandName());
                     if (installationLogger != null) {
                         installationLogger.logInfo("Unregistered service: " + service.getCommandName());

@@ -8,6 +8,8 @@ import ca.weblite.jdeploy.installer.events.InstallationFormEventListener;
 import ca.weblite.jdeploy.installer.models.AutoUpdateSettings;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
 import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.tools.platform.Platform;
 
@@ -26,8 +28,10 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
     private JButton installButton;
     private JButton updateButton;
     private JButton uninstallButton;
+    private JButton configureServicesButton;
     private JProgressBar progressBar;
     private boolean appAlreadyInstalled = false;
+    private boolean hasServices = false;
 
 
     private void fireEvent(InstallationFormEvent event) {
@@ -161,12 +165,24 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         });
         uninstallButton.setVisible(false);
 
+        // Configure services button (gear icon)
+        configureServicesButton = new JButton("\u2699"); // Unicode gear symbol
+        configureServicesButton.setToolTipText("Configure Services");
+        configureServicesButton.setFont(configureServicesButton.getFont().deriveFont(16f));
+        configureServicesButton.setMargin(new Insets(2, 6, 2, 6));
+        configureServicesButton.addActionListener(evt -> showServiceConfigurationDialog());
+        configureServicesButton.setVisible(false); // Hidden by default, shown if services exist
+
+        // Check if app has services
+        checkForServices();
+
         getContentPane().setLayout(new BorderLayout());
 
         JPanel buttonsPanel = new JPanel();
         buttonsPanel.add(installButton);
         buttonsPanel.add(updateButton);
         buttonsPanel.add(uninstallButton);
+        buttonsPanel.add(configureServicesButton);
 
         File splash = installationSettings.getInstallSplashImage();
         if (splash.exists()) {
@@ -368,6 +384,7 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         installButton.setEnabled(false);
         updateButton.setEnabled(false);
         uninstallButton.setEnabled(false);
+        configureServicesButton.setEnabled(false);
     }
 
     private void enableAppropriateButtons() {
@@ -377,5 +394,72 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         } else {
             installButton.setEnabled(true);
         }
+        if (hasServices) {
+            configureServicesButton.setEnabled(true);
+        }
+    }
+
+    private void checkForServices() {
+        AppInfo appInfo = installationSettings.getAppInfo();
+        if (appInfo == null) {
+            return;
+        }
+
+        String packageName = appInfo.getNpmPackage();
+        if (packageName == null || packageName.isEmpty()) {
+            return;
+        }
+
+        String source = appInfo.getNpmSource();
+        // Treat empty string as null for source
+        if (source != null && source.isEmpty()) {
+            source = null;
+        }
+
+        try {
+            ServiceDescriptorService service = ServiceDescriptorServiceFactory.createDefault();
+            hasServices = !service.listServices(packageName, source).isEmpty();
+            configureServicesButton.setVisible(hasServices);
+        } catch (Exception e) {
+            // Log but don't fail - just hide the button
+            System.err.println("Warning: Could not check for services: " + e.getMessage());
+        }
+    }
+
+    private void showServiceConfigurationDialog() {
+        // Ensure installationSettings has packageName and source from AppInfo
+        AppInfo appInfo = installationSettings.getAppInfo();
+        if (appInfo != null) {
+            if (installationSettings.getPackageName() == null) {
+                installationSettings.setPackageName(appInfo.getNpmPackage());
+            }
+            if (installationSettings.getSource() == null) {
+                String source = appInfo.getNpmSource();
+                installationSettings.setSource(source != null && !source.isEmpty() ? source : null);
+            }
+        }
+
+        ServiceManagementPanel panel = new ServiceManagementPanel(installationSettings);
+
+        JDialog dialog = new JDialog(this, "Configure Services", true);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        dialog.getContentPane().add(panel);
+        dialog.setSize(600, 400);
+        dialog.setLocationRelativeTo(this);
+
+        // Stop the panel's refresh timer when the dialog is closed
+        dialog.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                panel.stopRefresh();
+            }
+
+            @Override
+            public void windowClosed(java.awt.event.WindowEvent e) {
+                panel.stopRefresh();
+            }
+        });
+
+        dialog.setVisible(true);
     }
 }

@@ -115,15 +115,16 @@ public class ServiceManagementPanel extends JPanel {
             return;
         }
 
+        String source = installationSettings.getSource();
+
         try {
-            List<ServiceDescriptor> descriptors = descriptorService.listServices(packageName);
+            List<ServiceDescriptor> descriptors = descriptorService.listServices(packageName, source);
             for (ServiceDescriptor descriptor : descriptors) {
                 serviceModels.add(new ServiceRowModel(descriptor));
             }
 
             // Create poller if we have services
             if (!serviceModels.isEmpty()) {
-                String source = installationSettings.getSource();
                 poller = new ServiceStatusPoller(null, packageName, source);
             }
         } catch (IOException e) {

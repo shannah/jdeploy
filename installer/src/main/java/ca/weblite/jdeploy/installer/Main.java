@@ -913,7 +913,7 @@ public class Main implements Runnable, Constants {
         ServiceOperationExecutor operationExecutor = new ServiceOperationExecutor(null, packageName, source);
 
         try {
-            List<ServiceDescriptor> services = descriptorService.listServices(packageName);
+            List<ServiceDescriptor> services = descriptorService.listServices(packageName, source);
 
             for (ServiceDescriptor service : services) {
                 String commandName = service.getCommandName();
@@ -936,7 +936,7 @@ public class Main implements Runnable, Constants {
 
                 // Unregister the service descriptor
                 try {
-                    descriptorService.unregisterService(packageName, commandName, null);
+                    descriptorService.unregisterService(packageName, source, commandName, null);
                     System.out.println("Unregistered service: " + commandName);
                 } catch (Exception e) {
                     System.err.println("Warning: Failed to unregister service " + commandName + ": " + e.getMessage());
@@ -992,7 +992,7 @@ public class Main implements Runnable, Constants {
                     serviceLifecycleProgressCallback
                 );
 
-            return lifecycleManager.prepareForUpdate(packageName, newCommands);
+            return lifecycleManager.prepareForUpdate(packageName, appInfo().getNpmSource(), newCommands);
         } catch (Exception e) {
             System.err.println("Warning: Service preparation failed: " + e.getMessage());
             e.printStackTrace();

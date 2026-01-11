@@ -47,19 +47,20 @@ public class ServiceLifecycleManager {
      * Assesses service state and stops running services.
      *
      * @param packageName The package name
+     * @param source The source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @param newCommands The commands from the new version
      * @return Map of service states for post-installation restart
      */
-    public Map<String, ServiceState> prepareForUpdate(String packageName, List<CommandSpec> newCommands) {
+    public Map<String, ServiceState> prepareForUpdate(String packageName, String source, List<CommandSpec> newCommands) {
         progressCallback.updateProgress("Checking service status...");
 
         // Phase 1: Service Status Assessment
-        List<ServiceState> currentServices = assessCurrentServiceStates(packageName);
+        List<ServiceState> currentServices = assessCurrentServiceStates(packageName, source);
         List<CommandSpec> removedServices = identifyRemovedServices(currentServices, newCommands);
 
         // Phase 2: Service Shutdown
         stopRunningServices(currentServices);
-        uninstallRemovedServices(removedServices);
+        uninstallRemovedServices(removedServices, packageName, source);
 
         // Return state map for post-installation
         return buildServiceStateMap(currentServices);
@@ -92,11 +93,11 @@ public class ServiceLifecycleManager {
 
     // ========== Phase 1: Service Status Assessment ==========
 
-    private List<ServiceState> assessCurrentServiceStates(String packageName) {
+    private List<ServiceState> assessCurrentServiceStates(String packageName, String source) {
         List<ServiceState> states = new ArrayList<>();
 
         try {
-            List<ServiceDescriptor> descriptors = descriptorService.listServices(packageName);
+            List<ServiceDescriptor> descriptors = descriptorService.listServices(packageName, source);
 
             for (ServiceDescriptor descriptor : descriptors) {
                 boolean isRunning = checkIfServiceIsRunning(descriptor.getCommandName());
@@ -223,7 +224,7 @@ public class ServiceLifecycleManager {
         }
     }
 
-    private void uninstallRemovedServices(List<CommandSpec> removedServices) {
+    private void uninstallRemovedServices(List<CommandSpec> removedServices, String packageName, String source) {
         if (removedServices.isEmpty()) {
             return;
         }
@@ -244,7 +245,7 @@ public class ServiceLifecycleManager {
 
             // Delete service descriptor
             try {
-                descriptorService.unregisterService(command.getName(), command.getName(), null);
+                descriptorService.unregisterService(packageName, source, commandName, null);
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to delete descriptor for " + commandName, e);
             }

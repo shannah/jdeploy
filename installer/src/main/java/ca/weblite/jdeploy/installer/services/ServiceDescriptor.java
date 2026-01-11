@@ -16,6 +16,7 @@ public class ServiceDescriptor {
     private final CommandSpec commandSpec;
     private final String packageName;
     private final String version;
+    private final String source; // nullable - GitHub URL for GitHub packages, null for NPM packages
     private final String branchName; // nullable for non-branch installations
     private final long installedTimestamp;
     private final long lastModified;
@@ -24,8 +25,9 @@ public class ServiceDescriptor {
      * Creates a new service descriptor.
      *
      * @param commandSpec The command specification (must implement service_controller)
-     * @param packageName The fully qualified package name
+     * @param packageName The package name
      * @param version The package version
+     * @param source The source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @param branchName The branch name, or null for non-branch installations
      * @param installedTimestamp The timestamp when the service was installed
      * @param lastModified The timestamp when the descriptor was last modified
@@ -35,6 +37,7 @@ public class ServiceDescriptor {
             CommandSpec commandSpec,
             String packageName,
             String version,
+            String source,
             String branchName,
             long installedTimestamp,
             long lastModified) {
@@ -56,6 +59,7 @@ public class ServiceDescriptor {
         this.commandSpec = commandSpec;
         this.packageName = packageName;
         this.version = version;
+        this.source = source;
         this.branchName = branchName;
         this.installedTimestamp = installedTimestamp;
         this.lastModified = lastModified;
@@ -65,16 +69,36 @@ public class ServiceDescriptor {
      * Creates a new service descriptor with current timestamps.
      *
      * @param commandSpec The command specification
-     * @param packageName The fully qualified package name
+     * @param packageName The package name
      * @param version The package version
+     * @param source The source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @param branchName The branch name, or null for non-branch installations
      */
     public ServiceDescriptor(
             CommandSpec commandSpec,
             String packageName,
             String version,
+            String source,
             String branchName) {
-        this(commandSpec, packageName, version, branchName,
+        this(commandSpec, packageName, version, source, branchName,
+             System.currentTimeMillis(), System.currentTimeMillis());
+    }
+
+    /**
+     * Creates a new service descriptor with current timestamps (NPM package, no source).
+     *
+     * @param commandSpec The command specification
+     * @param packageName The package name
+     * @param version The package version
+     * @param branchName The branch name, or null for non-branch installations
+     * @deprecated Use the constructor with source parameter instead
+     */
+    public ServiceDescriptor(
+            CommandSpec commandSpec,
+            String packageName,
+            String version,
+            String branchName) {
+        this(commandSpec, packageName, version, null, branchName,
              System.currentTimeMillis(), System.currentTimeMillis());
     }
 
@@ -88,6 +112,13 @@ public class ServiceDescriptor {
 
     public String getVersion() {
         return version;
+    }
+
+    /**
+     * @return The source URL (GitHub URL for GitHub packages, null for NPM packages)
+     */
+    public String getSource() {
+        return source;
     }
 
     /**
@@ -129,6 +160,7 @@ public class ServiceDescriptor {
             commandSpec,
             packageName,
             version,
+            source,
             branchName,
             installedTimestamp,
             System.currentTimeMillis()
@@ -145,12 +177,13 @@ public class ServiceDescriptor {
                Objects.equals(commandSpec, that.commandSpec) &&
                Objects.equals(packageName, that.packageName) &&
                Objects.equals(version, that.version) &&
+               Objects.equals(source, that.source) &&
                Objects.equals(branchName, that.branchName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(commandSpec, packageName, version, branchName,
+        return Objects.hash(commandSpec, packageName, version, source, branchName,
                           installedTimestamp, lastModified);
     }
 
@@ -160,6 +193,7 @@ public class ServiceDescriptor {
                "commandName='" + getCommandName() + '\'' +
                ", packageName='" + packageName + '\'' +
                ", version='" + version + '\'' +
+               ", source='" + source + '\'' +
                ", branchName='" + branchName + '\'' +
                ", installedTimestamp=" + installedTimestamp +
                ", lastModified=" + lastModified +

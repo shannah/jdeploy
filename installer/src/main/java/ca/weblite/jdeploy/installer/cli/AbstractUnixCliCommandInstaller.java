@@ -237,7 +237,7 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
             String branchName = extractBranchName(source);
             // Find launcher path from appDir
             File launcherPath = findLauncherPath(appDir);
-            stopAndUnregisterServices(packageName, branchName, launcherPath);
+            stopAndUnregisterServices(packageName, source, branchName, launcherPath);
         }
 
         // Remove installed command scripts
@@ -698,10 +698,11 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
      *
      * @param commands The list of installed commands
      * @param packageName The package name
+     * @param source The source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @param version The package version
      * @param branchName The branch name (always null since branches don't support CLI commands)
      */
-    protected void registerServices(List<CommandSpec> commands, String packageName, String version, String branchName) {
+    protected void registerServices(List<CommandSpec> commands, String packageName, String source, String version, String branchName) {
         if (serviceDescriptorService == null) {
             // Service management not configured, skip registration
             return;
@@ -724,7 +725,7 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
         for (CommandSpec command : commands) {
             if (command.implements_("service_controller")) {
                 try {
-                    serviceDescriptorService.registerService(command, packageName, version, branchName);
+                    serviceDescriptorService.registerService(command, packageName, version, source, branchName);
                     System.out.println("Registered service: " + command.getName());
                     if (installationLogger != null) {
                         installationLogger.logInfo("Registered service: " + command.getName());
@@ -744,17 +745,18 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
      * Called before uninstalling commands.
      *
      * @param packageName The package name
+     * @param source The source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @param branchName The branch name (null for non-branch installations)
      * @param launcherPath The launcher executable (for stopping services)
      */
-    protected void stopAndUnregisterServices(String packageName, String branchName, File launcherPath) {
+    protected void stopAndUnregisterServices(String packageName, String source, String branchName, File launcherPath) {
         if (serviceDescriptorService == null) {
             // Service management not configured, skip
             return;
         }
 
         try {
-            List<ServiceDescriptor> services = serviceDescriptorService.listServices(packageName, branchName);
+            List<ServiceDescriptor> services = serviceDescriptorService.listServices(packageName, source, branchName);
 
             for (ServiceDescriptor service : services) {
                 // Stop the service if launcher is available
@@ -786,7 +788,7 @@ public abstract class AbstractUnixCliCommandInstaller implements CliCommandInsta
 
                 // Unregister the service
                 try {
-                    serviceDescriptorService.unregisterService(packageName, service.getCommandName(), branchName);
+                    serviceDescriptorService.unregisterService(packageName, source, service.getCommandName(), branchName);
                     System.out.println("Unregistered service: " + service.getCommandName());
                     if (installationLogger != null) {
                         installationLogger.logInfo("Unregistered service: " + service.getCommandName());

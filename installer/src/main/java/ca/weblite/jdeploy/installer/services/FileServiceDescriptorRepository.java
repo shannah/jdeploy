@@ -37,6 +37,7 @@ public class FileServiceDescriptorRepository implements ServiceDescriptorReposit
     // JSON field names for ServiceDescriptor
     private static final String JSON_PACKAGE_NAME = "packageName";
     private static final String JSON_VERSION = "version";
+    private static final String JSON_SOURCE = "source";
     private static final String JSON_BRANCH_NAME = "branchName";
     private static final String JSON_INSTALLED_TIMESTAMP = "installedTimestamp";
     private static final String JSON_LAST_MODIFIED = "lastModified";
@@ -52,6 +53,7 @@ public class FileServiceDescriptorRepository implements ServiceDescriptorReposit
     public void save(ServiceDescriptor descriptor) throws IOException {
         File descriptorFile = getDescriptorFile(
             descriptor.getPackageName(),
+            descriptor.getSource(),
             descriptor.getCommandName(),
             descriptor.getBranchName()
         );
@@ -72,9 +74,9 @@ public class FileServiceDescriptorRepository implements ServiceDescriptorReposit
     }
 
     @Override
-    public Optional<ServiceDescriptor> load(String packageName, String commandName, String branchName)
+    public Optional<ServiceDescriptor> load(String packageName, String source, String commandName, String branchName)
             throws IOException {
-        File descriptorFile = getDescriptorFile(packageName, commandName, branchName);
+        File descriptorFile = getDescriptorFile(packageName, source, commandName, branchName);
 
         if (!descriptorFile.exists()) {
             return Optional.empty();
@@ -84,8 +86,8 @@ public class FileServiceDescriptorRepository implements ServiceDescriptorReposit
     }
 
     @Override
-    public boolean delete(String packageName, String commandName, String branchName) throws IOException {
-        File descriptorFile = getDescriptorFile(packageName, commandName, branchName);
+    public boolean delete(String packageName, String source, String commandName, String branchName) throws IOException {
+        File descriptorFile = getDescriptorFile(packageName, source, commandName, branchName);
 
         if (!descriptorFile.exists()) {
             return false;
@@ -95,10 +97,10 @@ public class FileServiceDescriptorRepository implements ServiceDescriptorReposit
     }
 
     @Override
-    public List<ServiceDescriptor> listByPackage(String packageName) throws IOException {
+    public List<ServiceDescriptor> listByPackage(String packageName, String source) throws IOException {
         List<ServiceDescriptor> result = new ArrayList<>();
         String arch = ArchitectureUtil.getArchitecture();
-        String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName(packageName, null);
+        String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName(packageName, source);
 
         File jdeployHome = new File(System.getProperty("user.home"), JDEPLOY_HOME);
         File servicesDir = new File(jdeployHome, SERVICES_DIR_NAME);
@@ -124,10 +126,10 @@ public class FileServiceDescriptorRepository implements ServiceDescriptorReposit
     }
 
     @Override
-    public List<ServiceDescriptor> listByPackageAndBranch(String packageName, String branchName)
+    public List<ServiceDescriptor> listByPackageAndBranch(String packageName, String source, String branchName)
             throws IOException {
         List<ServiceDescriptor> result = new ArrayList<>();
-        File directory = getPackageDirectory(packageName, branchName);
+        File directory = getPackageDirectory(packageName, source, branchName);
 
         if (!directory.exists()) {
             return Collections.emptyList();
@@ -138,15 +140,15 @@ public class FileServiceDescriptorRepository implements ServiceDescriptorReposit
     }
 
     @Override
-    public boolean exists(String packageName, String commandName, String branchName) {
-        File descriptorFile = getDescriptorFile(packageName, commandName, branchName);
+    public boolean exists(String packageName, String source, String commandName, String branchName) {
+        File descriptorFile = getDescriptorFile(packageName, source, commandName, branchName);
         return descriptorFile.exists();
     }
 
     @Override
-    public int deleteAllByPackage(String packageName) throws IOException {
+    public int deleteAllByPackage(String packageName, String source) throws IOException {
         String arch = ArchitectureUtil.getArchitecture();
-        String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName(packageName, null);
+        String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName(packageName, source);
 
         File jdeployHome = new File(System.getProperty("user.home"), JDEPLOY_HOME);
         File servicesDir = new File(jdeployHome, SERVICES_DIR_NAME);
@@ -158,7 +160,7 @@ public class FileServiceDescriptorRepository implements ServiceDescriptorReposit
         }
 
         // Count descriptors before deletion
-        int count = listByPackage(packageName).size();
+        int count = listByPackage(packageName, source).size();
 
         // Delete the entire package directory
         FileUtils.deleteDirectory(packageDir);
@@ -167,15 +169,15 @@ public class FileServiceDescriptorRepository implements ServiceDescriptorReposit
     }
 
     @Override
-    public int deleteAllByPackageAndBranch(String packageName, String branchName) throws IOException {
-        File directory = getPackageDirectory(packageName, branchName);
+    public int deleteAllByPackageAndBranch(String packageName, String source, String branchName) throws IOException {
+        File directory = getPackageDirectory(packageName, source, branchName);
 
         if (!directory.exists()) {
             return 0;
         }
 
         // Count descriptors before deletion
-        int count = listByPackageAndBranch(packageName, branchName).size();
+        int count = listByPackageAndBranch(packageName, source, branchName).size();
 
         // Delete the directory
         if (branchName == null || branchName.trim().isEmpty()) {
@@ -198,12 +200,13 @@ public class FileServiceDescriptorRepository implements ServiceDescriptorReposit
      * Gets the directory where service descriptors for a package are stored.
      *
      * @param packageName the package name
+     * @param source the source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @param branchName the branch name, or null for non-branch installations
      * @return the service descriptor directory
      */
-    private File getPackageDirectory(String packageName, String branchName) {
+    private File getPackageDirectory(String packageName, String source, String branchName) {
         String arch = ArchitectureUtil.getArchitecture();
-        String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName(packageName, null);
+        String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName(packageName, source);
 
         File jdeployHome = new File(System.getProperty("user.home"), JDEPLOY_HOME);
         File servicesDir = new File(jdeployHome, SERVICES_DIR_NAME);
@@ -221,12 +224,13 @@ public class FileServiceDescriptorRepository implements ServiceDescriptorReposit
      * Gets the file path for a specific service descriptor.
      *
      * @param packageName the package name
+     * @param source the source URL (null for NPM packages, GitHub URL for GitHub packages)
      * @param commandName the command name
      * @param branchName the branch name, or null for non-branch installations
      * @return the descriptor file
      */
-    private File getDescriptorFile(String packageName, String commandName, String branchName) {
-        File packageDir = getPackageDirectory(packageName, branchName);
+    private File getDescriptorFile(String packageName, String source, String commandName, String branchName) {
+        File packageDir = getPackageDirectory(packageName, source, branchName);
         String fileName = commandName + ".json";
         return new File(packageDir, fileName);
     }
@@ -261,6 +265,7 @@ public class FileServiceDescriptorRepository implements ServiceDescriptorReposit
         JSONObject json = new JSONObject();
         json.put(JSON_PACKAGE_NAME, descriptor.getPackageName());
         json.put(JSON_VERSION, descriptor.getVersion());
+        json.put(JSON_SOURCE, descriptor.getSource());
         json.put(JSON_BRANCH_NAME, descriptor.getBranchName());
         json.put(JSON_INSTALLED_TIMESTAMP, descriptor.getInstalledTimestamp());
         json.put(JSON_LAST_MODIFIED, descriptor.getLastModified());
@@ -302,6 +307,7 @@ public class FileServiceDescriptorRepository implements ServiceDescriptorReposit
     private ServiceDescriptor jsonToDescriptor(JSONObject json) {
         String packageName = json.getString(JSON_PACKAGE_NAME);
         String version = json.getString(JSON_VERSION);
+        String source = json.has(JSON_SOURCE) && !json.isNull(JSON_SOURCE) ? json.getString(JSON_SOURCE) : null;
         String branchName = json.isNull(JSON_BRANCH_NAME) ? null : json.getString(JSON_BRANCH_NAME);
         long installedTimestamp = json.getLong(JSON_INSTALLED_TIMESTAMP);
         long lastModified = json.getLong(JSON_LAST_MODIFIED);
@@ -311,6 +317,7 @@ public class FileServiceDescriptorRepository implements ServiceDescriptorReposit
             commandSpec,
             packageName,
             version,
+            source,
             branchName,
             installedTimestamp,
             lastModified

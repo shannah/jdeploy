@@ -167,7 +167,7 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
                 String version = settings.getNpmPackageVersion() != null ?
                     settings.getNpmPackageVersion().getVersion() : "unknown";
                 String branchName = null; // TODO: Extract from settings if branch installation
-                registerServices(commands, settings.getPackageName(), version, branchName);
+                registerServices(commands, settings.getPackageName(), settings.getSource(), version, branchName);
             }
         } else {
             DebugLogger.log("No files were created, skipping PATH update and metadata save");
