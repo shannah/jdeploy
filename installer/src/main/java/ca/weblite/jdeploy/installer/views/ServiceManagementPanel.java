@@ -10,6 +10,8 @@ import ca.weblite.jdeploy.installer.services.ServiceStatusPoller;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.Desktop;
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,6 +43,7 @@ public class ServiceManagementPanel extends JPanel {
     private static final int COL_SERVICE_WIDTH = 150;
     private static final int COL_STATUS_WIDTH = 80;
     private static final int COL_ACTION_WIDTH = 80;
+    private static final int COL_LOG_WIDTH = 70;
     private static final int COL_INFO_WIDTH = 60;
 
     // Highlight color for selected row
@@ -223,6 +226,11 @@ public class ServiceManagementPanel extends JPanel {
         toggleHeader.setPreferredSize(new Dimension(COL_ACTION_WIDTH, 20));
         panel.add(toggleHeader);
 
+        // Log header (empty - just for spacing)
+        JLabel logHeader = new JLabel("");
+        logHeader.setPreferredSize(new Dimension(COL_LOG_WIDTH, 20));
+        panel.add(logHeader);
+
         // Info header (empty - just for spacing)
         JLabel infoHeader = new JLabel("");
         infoHeader.setPreferredSize(new Dimension(COL_INFO_WIDTH, 20));
@@ -260,6 +268,13 @@ public class ServiceManagementPanel extends JPanel {
         toggleButton.addActionListener(e -> handleToggle(model));
         rowPanel.add(toggleButton);
 
+        // View Log button
+        JButton logButton = new JButton("Logs");
+        logButton.setPreferredSize(new Dimension(COL_LOG_WIDTH, 25));
+        logButton.setToolTipText("Open the service log file");
+        logButton.addActionListener(e -> handleViewLog(model));
+        rowPanel.add(logButton);
+
         // Info button
         JButton infoButton = new JButton("Info");
         infoButton.setPreferredSize(new Dimension(COL_INFO_WIDTH, 25));
@@ -274,7 +289,7 @@ public class ServiceManagementPanel extends JPanel {
         errorLabel.setVisible(false); // Hidden by default
 
         // Store and return components
-        ServiceRowComponents components = new ServiceRowComponents(rowPanel, nameLabel, statusLabel, toggleButton, infoButton, errorLabel);
+        ServiceRowComponents components = new ServiceRowComponents(rowPanel, nameLabel, statusLabel, toggleButton, logButton, infoButton, errorLabel);
         rowComponents.put(model.getCommandName(), components);
 
         return components;
@@ -339,6 +354,83 @@ public class ServiceManagementPanel extends JPanel {
             }
         };
         worker.execute();
+    }
+
+    private void handleViewLog(ServiceRowModel model) {
+        String packageName = model.getDescriptor().getPackageName();
+        String commandName = model.getCommandName();
+        String source = model.getDescriptor().getSource();
+
+        File logFile = getLogFile(packageName, commandName, source);
+
+        if (!logFile.exists()) {
+            JOptionPane.showMessageDialog(this,
+                    "Log file does not exist yet.\nThe log file will be created when the service runs.\n\nExpected location:\n" + logFile.getAbsolutePath(),
+                    "Log Not Found",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        if (!Desktop.isDesktopSupported()) {
+            JOptionPane.showMessageDialog(this,
+                    "Cannot open log file: Desktop API not supported.\n\nLog file location:\n" + logFile.getAbsolutePath(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        try {
+            Desktop.getDesktop().open(logFile);
+        } catch (IOException e) {
+            logger.log(Level.WARNING, "Failed to open log file", e);
+            JOptionPane.showMessageDialog(this,
+                    "Failed to open log file: " + e.getMessage() + "\n\nLog file location:\n" + logFile.getAbsolutePath(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /**
+     * Computes the log file path based on platform and source.
+     */
+    private File getLogFile(String packageName, String commandName, String source) {
+        String logFileName = packageName + "." + commandName + ".service.log";
+        String os = System.getProperty("os.name", "").toLowerCase();
+        String userHome = System.getProperty("user.home");
+
+        if (source != null && !source.isEmpty() && source.contains("github.com")) {
+            // GitHub-sourced package
+            String githubPath = extractGitHubPath(source);
+            if (os.contains("windows")) {
+                return new File(userHome, ".jdeploy\\log\\github.com\\" + githubPath + "\\" + logFileName);
+            } else {
+                return new File(userHome, ".jdeploy/log/github.com/" + githubPath + "/" + logFileName);
+            }
+        } else {
+            // NPM package
+            if (os.contains("windows")) {
+                return new File(userHome, ".jdeploy\\log\\" + logFileName);
+            } else {
+                return new File(userHome, ".jdeploy/log/" + logFileName);
+            }
+        }
+    }
+
+    /**
+     * Extracts owner/repo from a GitHub URL.
+     */
+    private String extractGitHubPath(String source) {
+        String path = source;
+        if (path.contains("github.com/")) {
+            path = path.substring(path.indexOf("github.com/") + "github.com/".length());
+        }
+        if (path.endsWith("/")) {
+            path = path.substring(0, path.length() - 1);
+        }
+        if (path.endsWith(".git")) {
+            path = path.substring(0, path.length() - 4);
+        }
+        return path;
     }
 
     private void pollStatusInBackground() {
@@ -453,15 +545,17 @@ public class ServiceManagementPanel extends JPanel {
         final JLabel nameLabel;
         final JLabel statusLabel;
         final JButton toggleButton;
+        final JButton logButton;
         final JButton infoButton;
         final JLabel errorLabel;
         final Color defaultBackground;
 
-        ServiceRowComponents(JPanel rowPanel, JLabel nameLabel, JLabel statusLabel, JButton toggleButton, JButton infoButton, JLabel errorLabel) {
+        ServiceRowComponents(JPanel rowPanel, JLabel nameLabel, JLabel statusLabel, JButton toggleButton, JButton logButton, JButton infoButton, JLabel errorLabel) {
             this.rowPanel = rowPanel;
             this.nameLabel = nameLabel;
             this.statusLabel = statusLabel;
             this.toggleButton = toggleButton;
+            this.logButton = logButton;
             this.infoButton = infoButton;
             this.errorLabel = errorLabel;
             this.defaultBackground = rowPanel.getBackground();
