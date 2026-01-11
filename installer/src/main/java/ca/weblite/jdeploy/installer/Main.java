@@ -1241,19 +1241,21 @@ public class Main implements Runnable, Constants {
         installationSettings.setPackageName(appInfo().getNpmPackage());
         installationSettings.setSource(appInfo().getNpmSource());
 
-        // Prepare for service lifecycle management during updates
+        // Prepare for service lifecycle management
         Map<String, ca.weblite.jdeploy.installer.services.ServiceState> serviceStateBeforeUpdate = null;
+        List<CommandSpec> allCommands = null;
         List<CommandSpec> newServiceCommands = null;
-        if (!installationSettings.isBranchInstallation()) {
-            boolean isUpdate = installationDetectionService.isInstalled(appInfo().getNpmPackage(), appInfo().getNpmSource());
-            if (isUpdate && npmPackageVersion() != null) {
-                // Extract only commands that implement service_controller
-                List<CommandSpec> allCommands = npmPackageVersion().getCommands();
-                newServiceCommands = extractServiceCommands(allCommands);
+        if (!installationSettings.isBranchInstallation() && npmPackageVersion() != null) {
+            allCommands = npmPackageVersion().getCommands();
+            newServiceCommands = extractServiceCommands(allCommands);
 
-                // Always prepare for service lifecycle during updates
-                // This ensures old services are stopped/uninstalled even if new version has no services
+            boolean isUpdate = installationDetectionService.isInstalled(appInfo().getNpmPackage(), appInfo().getNpmSource());
+            if (isUpdate) {
+                // For updates: stop/uninstall existing services before installation
                 serviceStateBeforeUpdate = prepareServicesForUpdate(appInfo().getNpmPackage(), newServiceCommands);
+            } else {
+                // For initial installation: use empty map (no previous services to stop)
+                serviceStateBeforeUpdate = new HashMap<>();
             }
         }
 
@@ -1558,8 +1560,9 @@ public class Main implements Runnable, Constants {
         }
 
         // Complete service lifecycle management after installation
-        // Call even if newServiceCommands is empty to run application update
-        if (serviceStateBeforeUpdate != null && newServiceCommands != null &&
+        // Run if there are any commands (to run --jdeploy:update)
+        // Service install/start only happens for service commands (handled inside)
+        if (serviceStateBeforeUpdate != null && allCommands != null && !allCommands.isEmpty() &&
             !installationSettings.isBranchInstallation()) {
             completeServicesAfterUpdate(appInfo().getNpmPackage(), newServiceCommands, serviceStateBeforeUpdate, installedApp, npmPackageVersion().getVersion());
         }
