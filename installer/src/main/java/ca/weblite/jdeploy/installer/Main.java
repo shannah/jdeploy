@@ -776,6 +776,9 @@ public class Main implements Runnable, Constants {
             appInfo().setInitialAppVersion(initialAppVersion);
         }
 
+        // Configure JCEF frameworks if using JBR with JCEF variant
+        JCEFConfigurer.configureJCEF(bundlerSettings, npmPackageVersion());
+
         Bundler.runit(bundlerSettings, appInfo(), findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
 
         if (Platform.getSystemPlatform().isWindows()) {

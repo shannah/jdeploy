@@ -8,6 +8,8 @@ public class BundlerSettings {
 
     private boolean doNotZipExeInstaller;
 
+    private String jcefFrameworksPath;
+
     public String getSource() {
         return source;
     }
@@ -46,5 +48,13 @@ public class BundlerSettings {
 
     public void setAutoUpdateEnabled(boolean isAutoUpdateEnabled) {
         this.isAutoUpdateEnabled = isAutoUpdateEnabled;
+    }
+
+    public String getJcefFrameworksPath() {
+        return jcefFrameworksPath;
+    }
+
+    public void setJcefFrameworksPath(String jcefFrameworksPath) {
+        this.jcefFrameworksPath = jcefFrameworksPath;
     }
 }
