@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.installer;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -43,6 +44,7 @@ public class InstallationIntegrationTest {
      * Test downloading bundle info and files for a stable release.
      * This test makes real HTTP requests to https://www.jdeploy.com/
      */
+    @Ignore("Skipping Brokk tests - project is now private")
     @Test
     public void testDownloadStableRelease() throws IOException {
         // Download bundle for stable version
@@ -89,6 +91,7 @@ public class InstallationIntegrationTest {
      * This test makes real HTTP requests to https://www.jdeploy.com/
      * Uses the new prerelease parameter to avoid modifying global state.
      */
+    @Ignore("Skipping Brokk tests - project is now private")
     @Test
     public void testDownloadPrereleaseVersion() {
         // Note: We expect this test to potentially fail with IOException because
@@ -124,6 +127,7 @@ public class InstallationIntegrationTest {
      * Test that cache is used on second download (registry not queried again).
      * This test makes real HTTP requests to https://www.jdeploy.com/
      */
+    @Ignore("Skipping Brokk tests - project is now private")
     @Test
     public void testCacheIsUsedOnSecondDownload() throws IOException {
         // First download - should query registry and cache result
@@ -211,6 +215,7 @@ public class InstallationIntegrationTest {
      * Test that the registry lookup returns valid bundle info structure.
      * This verifies the actual registry API response format and expected values.
      */
+    @Ignore("Skipping Brokk tests - project is now private")
     @Test
     public void testRegistryResponseFormat() throws IOException {
         // Download to populate cache
