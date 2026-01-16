@@ -165,11 +165,9 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         });
         uninstallButton.setVisible(false);
 
-        // Configure services button (gear icon)
-        configureServicesButton = new JButton("\u2699"); // Unicode gear symbol
-        configureServicesButton.setToolTipText("Configure Services");
-        configureServicesButton.setFont(configureServicesButton.getFont().deriveFont(16f));
-        configureServicesButton.setMargin(new Insets(2, 6, 2, 6));
+        // Configure services button
+        configureServicesButton = new JButton("Services...");
+        configureServicesButton.setToolTipText("Manage application services");
         configureServicesButton.addActionListener(evt -> showServiceConfigurationDialog());
         configureServicesButton.setVisible(false); // Hidden by default, shown if services exist
 
