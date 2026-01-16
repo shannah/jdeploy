@@ -127,6 +127,27 @@ public class MacBundler {
                 );
             }
 
+            // Copy JCEF frameworks if provided (for JBR with JCEF variant)
+            if (app.getJcefFrameworksPath() != null && !app.getJcefFrameworksPath().isEmpty()) {
+                File jcefSourceDir = new File(app.getJcefFrameworksPath());
+                if (jcefSourceDir.exists() && jcefSourceDir.isDirectory()) {
+                    File frameworksDir = new File(contentsDir, "Frameworks");
+
+                    // Clean existing JCEF files if they exist, or create directory if it doesn't exist
+                    if (frameworksDir.exists()) {
+                        cleanExistingJcefFrameworks(frameworksDir);
+                    } else {
+                        if (!frameworksDir.mkdirs()) {
+                            throw new IOException("Failed to create Frameworks directory at " + frameworksDir.getAbsolutePath());
+                        }
+                    }
+
+                    // Copy JCEF frameworks
+                    System.out.println("Copying JCEF frameworks from " + jcefSourceDir.getAbsolutePath());
+                    copyJcefFrameworks(jcefSourceDir, frameworksDir);
+                }
+            }
+
             if (app.isMacCodeSigningEnabled()) {
                 System.out.println("Signing "+appDir.getAbsolutePath());
 
@@ -683,5 +704,64 @@ public class MacBundler {
             throw new IOException("Problem getting Xcode version: "+ex.getMessage(), ex);
         }
         throw new IOException("Did not find any lines in Xcode version that matched the patterns we were looking for.  Returning version -1");
+    }
+
+    /**
+     * Cleans existing JCEF frameworks from the Frameworks directory.
+     * This removes the following JCEF-specific files/directories:
+     * - Chromium Embedded Framework.framework
+     * - jcef Helper.app
+     * - jcef Helper (GPU).app
+     * - jcef Helper (Plugin).app
+     * - jcef Helper (Renderer).app
+     * - cef_server.app
+     */
+    private static void cleanExistingJcefFrameworks(File frameworksDir) throws IOException {
+        String[] jcefFrameworks = {
+            "Chromium Embedded Framework.framework",
+            "jcef Helper.app",
+            "jcef Helper (GPU).app",
+            "jcef Helper (Plugin).app",
+            "jcef Helper (Renderer).app",
+            "cef_server.app"
+        };
+
+        for (String frameworkName : jcefFrameworks) {
+            File frameworkFile = new File(frameworksDir, frameworkName);
+            if (frameworkFile.exists()) {
+                if (verboseLevel > 0) {
+                    System.out.println("Removing existing JCEF framework: " + frameworkFile.getAbsolutePath());
+                }
+                FileUtil.delTree(frameworkFile);
+            }
+        }
+    }
+
+    /**
+     * Copies JCEF frameworks from source directory to destination directory.
+     * Uses ditto on macOS to preserve extended attributes and directory structure.
+     */
+    private static void copyJcefFrameworks(File sourceDir, File destDir) throws IOException {
+        if (!Platform.getSystemPlatform().isMac()) {
+            throw new UnsupportedOperationException("JCEF framework copying is only supported on macOS");
+        }
+
+        // Use ditto to copy the entire Frameworks directory contents
+        ProcessBuilder pb = new ProcessBuilder("ditto", sourceDir.getAbsolutePath(), destDir.getAbsolutePath());
+        pb.inheritIO();
+        try {
+            Process p = pb.start();
+            int exitCode = p.waitFor();
+            if (exitCode != 0) {
+                throw new IOException("Failed to copy JCEF frameworks from " + sourceDir + " to " + destDir);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("JCEF framework copy interrupted", e);
+        }
+
+        if (verboseLevel > 0) {
+            System.out.println("Successfully copied JCEF frameworks to " + destDir.getAbsolutePath());
+        }
     }
 }

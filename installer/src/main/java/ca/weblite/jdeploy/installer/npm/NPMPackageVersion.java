@@ -195,4 +195,28 @@ public class NPMPackageVersion {
     public List<CommandSpec> getCommands() {
         return CommandSpecParser.parseCommands(jdeploy());
     }
+
+    /**
+     * Gets the JDK provider from package.json (e.g., "jbr", "zulu", etc.).
+     *
+     * @return the JDK provider, or null if not specified
+     */
+    public String getJdkProvider() {
+        if (jdeploy().has("jdkProvider")) {
+            return jdeploy().getString("jdkProvider");
+        }
+        return null;
+    }
+
+    /**
+     * Gets the JBR variant from package.json (e.g., "jcef", "sdk_jcef", etc.).
+     *
+     * @return the JBR variant, or null if not specified
+     */
+    public String getJbrVariant() {
+        if (jdeploy().has("jbrVariant")) {
+            return jdeploy().getString("jbrVariant");
+        }
+        return null;
+    }
 }
