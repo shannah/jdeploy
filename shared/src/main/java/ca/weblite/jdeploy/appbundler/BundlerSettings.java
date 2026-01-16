@@ -9,6 +9,8 @@ public class BundlerSettings {
 
     private boolean doNotZipExeInstaller;
 
+    private String jcefFrameworksPath;
+
     public String getSource() {
         return source;
     }
@@ -55,5 +57,13 @@ public class BundlerSettings {
 
     public void setCliCommandsEnabled(boolean cliCommandsEnabled) {
         this.cliCommandsEnabled = cliCommandsEnabled;
+    }
+
+    public String getJcefFrameworksPath() {
+        return jcefFrameworksPath;
+    }
+
+    public void setJcefFrameworksPath(String jcefFrameworksPath) {
+        this.jcefFrameworksPath = jcefFrameworksPath;
     }
 }
