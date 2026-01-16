@@ -47,6 +47,8 @@ public class AppDescription {
 
     private File bundleJre;
 
+    private String jcefFrameworksPath;
+
     private String jDeployHome;
 
     private String jDeployHomeWindows;
@@ -440,6 +442,13 @@ public class AppDescription {
         return bundleJre;
     }
 
+    public void setJcefFrameworksPath(String jcefFrameworksPath) {
+        this.jcefFrameworksPath = jcefFrameworksPath;
+    }
+
+    public String getJcefFrameworksPath() {
+        return jcefFrameworksPath;
+    }
 
     public String getjDeployHome() {
         return jDeployHome;

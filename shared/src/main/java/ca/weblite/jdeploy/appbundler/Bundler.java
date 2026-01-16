@@ -324,6 +324,12 @@ public class Bundler {
     ) throws Exception {
         AppDescription app = createAppDescription(appInfo, url);
         verifyNativeLibs(app);
+
+        // Transfer JCEF frameworks path from bundler settings to app description
+        if (bundlerSettings.getJcefFrameworksPath() != null) {
+            app.setJcefFrameworksPath(bundlerSettings.getJcefFrameworksPath());
+        }
+
         Target target = Target.fromString(targetStr);
         setupBundledJVM(appInfo, app, target);
         if(target == Target.MacX64) {
