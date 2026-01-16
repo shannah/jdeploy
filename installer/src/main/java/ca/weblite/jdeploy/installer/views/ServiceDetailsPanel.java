@@ -81,7 +81,7 @@ public class ServiceDetailsPanel extends JPanel {
         // Log location section
         sb.append("\nLOG FILES\n");
         sb.append("=========\n\n");
-        sb.append("Location: ").append(getLogPath(packageName, commandName, source)).append("\n");
+        sb.append(getLogPaths(packageName, commandName, source));
         sb.append("Rotation: 10MB max, keeps 5 old files (.log.1 to .log.5), rotates on start\n");
 
         // Lifecycle section - platform specific
@@ -113,29 +113,42 @@ public class ServiceDetailsPanel extends JPanel {
     }
 
     /**
-     * Computes the log file path based on platform and source.
+     * Computes the log file paths (stdout and stderr) based on platform and source.
      */
-    private String getLogPath(String packageName, String commandName, String source) {
-        String logFileName = packageName + "." + commandName + ".service.log";
+    private String getLogPaths(String packageName, String commandName, String source) {
+        String outLogFileName = packageName + "." + commandName + ".out.log";
+        String errLogFileName = packageName + "." + commandName + ".err.log";
         String os = System.getProperty("os.name", "").toLowerCase();
+
+        StringBuilder sb = new StringBuilder();
 
         if (source != null && !source.isEmpty() && source.contains("github.com")) {
             // GitHub-sourced package
             // Extract owner/repo from source URL
             String githubPath = extractGitHubPath(source);
             if (os.contains("windows")) {
-                return "%USERPROFILE%\\.jdeploy\\log\\github.com\\" + githubPath + "\\" + logFileName;
+                sb.append("Standard Output: %USERPROFILE%\\.jdeploy\\log\\github.com\\")
+                  .append(githubPath).append("\\").append(outLogFileName).append("\n");
+                sb.append("Standard Error:  %USERPROFILE%\\.jdeploy\\log\\github.com\\")
+                  .append(githubPath).append("\\").append(errLogFileName).append("\n\n");
             } else {
-                return "~/.jdeploy/log/github.com/" + githubPath + "/" + logFileName;
+                sb.append("Standard Output: ~/.jdeploy/log/github.com/")
+                  .append(githubPath).append("/").append(outLogFileName).append("\n");
+                sb.append("Standard Error:  ~/.jdeploy/log/github.com/")
+                  .append(githubPath).append("/").append(errLogFileName).append("\n\n");
             }
         } else {
             // NPM package
             if (os.contains("windows")) {
-                return "%USERPROFILE%\\.jdeploy\\log\\" + logFileName;
+                sb.append("Standard Output: %USERPROFILE%\\.jdeploy\\log\\").append(outLogFileName).append("\n");
+                sb.append("Standard Error:  %USERPROFILE%\\.jdeploy\\log\\").append(errLogFileName).append("\n\n");
             } else {
-                return "~/.jdeploy/log/" + logFileName;
+                sb.append("Standard Output: ~/.jdeploy/log/").append(outLogFileName).append("\n");
+                sb.append("Standard Error:  ~/.jdeploy/log/").append(errLogFileName).append("\n\n");
             }
         }
+
+        return sb.toString();
     }
 
     /**

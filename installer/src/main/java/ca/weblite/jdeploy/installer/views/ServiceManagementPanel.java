@@ -43,7 +43,8 @@ public class ServiceManagementPanel extends JPanel {
     private static final int COL_SERVICE_WIDTH = 150;
     private static final int COL_STATUS_WIDTH = 80;
     private static final int COL_ACTION_WIDTH = 80;
-    private static final int COL_LOG_WIDTH = 70;
+    private static final int COL_OUT_LOG_WIDTH = 100;
+    private static final int COL_ERR_LOG_WIDTH = 85;
     private static final int COL_INFO_WIDTH = 60;
 
     // Highlight color for selected row
@@ -226,10 +227,15 @@ public class ServiceManagementPanel extends JPanel {
         toggleHeader.setPreferredSize(new Dimension(COL_ACTION_WIDTH, 20));
         panel.add(toggleHeader);
 
-        // Log header (empty - just for spacing)
-        JLabel logHeader = new JLabel("");
-        logHeader.setPreferredSize(new Dimension(COL_LOG_WIDTH, 20));
-        panel.add(logHeader);
+        // Out Log header (empty - just for spacing)
+        JLabel outLogHeader = new JLabel("");
+        outLogHeader.setPreferredSize(new Dimension(COL_OUT_LOG_WIDTH, 20));
+        panel.add(outLogHeader);
+
+        // Err Log header (empty - just for spacing)
+        JLabel errLogHeader = new JLabel("");
+        errLogHeader.setPreferredSize(new Dimension(COL_ERR_LOG_WIDTH, 20));
+        panel.add(errLogHeader);
 
         // Info header (empty - just for spacing)
         JLabel infoHeader = new JLabel("");
@@ -268,12 +274,19 @@ public class ServiceManagementPanel extends JPanel {
         toggleButton.addActionListener(e -> handleToggle(model));
         rowPanel.add(toggleButton);
 
-        // View Log button
-        JButton logButton = new JButton("Logs");
-        logButton.setPreferredSize(new Dimension(COL_LOG_WIDTH, 25));
-        logButton.setToolTipText("Open the service log file");
-        logButton.addActionListener(e -> handleViewLog(model));
-        rowPanel.add(logButton);
+        // Output Log button
+        JButton outLogButton = new JButton("Output Log");
+        outLogButton.setPreferredSize(new Dimension(COL_OUT_LOG_WIDTH, 25));
+        outLogButton.setToolTipText("Open the standard output log file");
+        outLogButton.addActionListener(e -> handleViewLog(model, "out"));
+        rowPanel.add(outLogButton);
+
+        // Error Log button
+        JButton errLogButton = new JButton("Error Log");
+        errLogButton.setPreferredSize(new Dimension(COL_ERR_LOG_WIDTH, 25));
+        errLogButton.setToolTipText("Open the standard error log file");
+        errLogButton.addActionListener(e -> handleViewLog(model, "err"));
+        rowPanel.add(errLogButton);
 
         // Info button
         JButton infoButton = new JButton("Info");
@@ -289,7 +302,7 @@ public class ServiceManagementPanel extends JPanel {
         errorLabel.setVisible(false); // Hidden by default
 
         // Store and return components
-        ServiceRowComponents components = new ServiceRowComponents(rowPanel, nameLabel, statusLabel, toggleButton, logButton, infoButton, errorLabel);
+        ServiceRowComponents components = new ServiceRowComponents(rowPanel, nameLabel, statusLabel, toggleButton, outLogButton, errLogButton, infoButton, errorLabel);
         rowComponents.put(model.getCommandName(), components);
 
         return components;
@@ -356,16 +369,17 @@ public class ServiceManagementPanel extends JPanel {
         worker.execute();
     }
 
-    private void handleViewLog(ServiceRowModel model) {
+    private void handleViewLog(ServiceRowModel model, String logType) {
         String packageName = model.getDescriptor().getPackageName();
         String commandName = model.getCommandName();
         String source = model.getDescriptor().getSource();
 
-        File logFile = getLogFile(packageName, commandName, source);
+        File logFile = getLogFile(packageName, commandName, source, logType);
+        String logTypeDisplay = logType.equals("out") ? "stdout" : "stderr";
 
         if (!logFile.exists()) {
             JOptionPane.showMessageDialog(this,
-                    "Log file does not exist yet.\nThe log file will be created when the service runs.\n\nExpected location:\n" + logFile.getAbsolutePath(),
+                    "Log file does not exist yet.\nThe " + logTypeDisplay + " log file will be created when the service runs.\n\nExpected location:\n" + logFile.getAbsolutePath(),
                     "Log Not Found",
                     JOptionPane.INFORMATION_MESSAGE);
             return;
@@ -391,10 +405,14 @@ public class ServiceManagementPanel extends JPanel {
     }
 
     /**
-     * Computes the log file path based on platform and source.
+     * Computes the log file path based on platform, source, and log type.
+     * @param packageName The package name
+     * @param commandName The command name
+     * @param source The source (null for NPM, GitHub URL for GitHub packages)
+     * @param logType The log type ("out" for stdout, "err" for stderr)
      */
-    private File getLogFile(String packageName, String commandName, String source) {
-        String logFileName = packageName + "." + commandName + ".service.log";
+    private File getLogFile(String packageName, String commandName, String source, String logType) {
+        String logFileName = packageName + "." + commandName + "." + logType + ".log";
         String os = System.getProperty("os.name", "").toLowerCase();
         String userHome = System.getProperty("user.home");
 
@@ -545,17 +563,19 @@ public class ServiceManagementPanel extends JPanel {
         final JLabel nameLabel;
         final JLabel statusLabel;
         final JButton toggleButton;
-        final JButton logButton;
+        final JButton outLogButton;
+        final JButton errLogButton;
         final JButton infoButton;
         final JLabel errorLabel;
         final Color defaultBackground;
 
-        ServiceRowComponents(JPanel rowPanel, JLabel nameLabel, JLabel statusLabel, JButton toggleButton, JButton logButton, JButton infoButton, JLabel errorLabel) {
+        ServiceRowComponents(JPanel rowPanel, JLabel nameLabel, JLabel statusLabel, JButton toggleButton, JButton outLogButton, JButton errLogButton, JButton infoButton, JLabel errorLabel) {
             this.rowPanel = rowPanel;
             this.nameLabel = nameLabel;
             this.statusLabel = statusLabel;
             this.toggleButton = toggleButton;
-            this.logButton = logButton;
+            this.outLogButton = outLogButton;
+            this.errLogButton = errLogButton;
             this.infoButton = infoButton;
             this.errorLabel = errorLabel;
             this.defaultBackground = rowPanel.getBackground();
