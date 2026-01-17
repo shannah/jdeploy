@@ -6,7 +6,9 @@ import ca.weblite.jdeploy.installer.models.ServiceStatus;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * System tray menu component for managing application services.
@@ -21,11 +23,14 @@ public class ServiceTrayMenu {
 
     private final String appName;
     private final Image appIcon;
-    private final List<ServiceRowModel> services;
+    private List<ServiceRowModel> services;
     private final ServiceTrayMenuListener listener;
 
     private TrayIcon trayIcon;
     private PopupMenu popupMenu;
+
+    // Tracks previous error messages by service command name to detect new errors
+    private final Map<String, String> previousErrors;
 
     /**
      * Creates a new service tray menu.
@@ -45,6 +50,12 @@ public class ServiceTrayMenu {
         this.appIcon = appIcon;
         this.services = services;
         this.listener = listener;
+        this.previousErrors = new HashMap<String, String>();
+
+        // Initialize error tracking state
+        for (ServiceRowModel service : services) {
+            previousErrors.put(service.getCommandName(), service.getErrorMessage());
+        }
 
         buildMenu();
         installTrayIcon();
@@ -221,11 +232,59 @@ public class ServiceTrayMenu {
     }
 
     /**
-     * Removes the tray icon from the system tray.
+     * Updates the service list and rebuilds the popup menu.
      *
-     * Call this method before the application exits to clean up the tray icon.
+     * This method is thread-safe and can be called from any thread.
+     * It will automatically execute on the Event Dispatch Thread if needed.
+     *
+     * When a service has a new error (previous state was null, current is non-null),
+     * a balloon notification is displayed to alert the user.
+     *
+     * @param services The updated list of service models
      */
-    public void remove() {
+    public void updateServices(final List<ServiceRowModel> services) {
+        // Ensure execution on EDT for thread safety
+        if (!EventQueue.isDispatchThread()) {
+            EventQueue.invokeLater(new Runnable() {
+                @Override
+                public void run() {
+                    updateServices(services);
+                }
+            });
+            return;
+        }
+
+        // Check for new errors and show notifications
+        for (ServiceRowModel service : services) {
+            String commandName = service.getCommandName();
+            String currentError = service.getErrorMessage();
+            String previousError = previousErrors.get(commandName);
+
+            // Detect new error: previous was null, current is non-null
+            if (previousError == null && currentError != null) {
+                trayIcon.displayMessage(
+                    service.getServiceName(),
+                    currentError,
+                    TrayIcon.MessageType.ERROR
+                );
+            }
+
+            // Update tracked error state
+            previousErrors.put(commandName, currentError);
+        }
+
+        // Update the service list and rebuild menu
+        this.services = services;
+        popupMenu.removeAll();
+        buildMenu();
+    }
+
+    /**
+     * Removes the tray icon from the system tray and cleans up resources.
+     *
+     * Call this method before the application exits to properly dispose of the tray icon.
+     */
+    public void dispose() {
         SystemTray systemTray = SystemTray.getSystemTray();
         systemTray.remove(trayIcon);
     }
