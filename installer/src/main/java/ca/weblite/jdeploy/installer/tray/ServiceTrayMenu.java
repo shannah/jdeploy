@@ -34,11 +34,16 @@ public class ServiceTrayMenu implements ServiceStatusListener {
     private TrayIcon trayIcon;
     private PopupMenu popupMenu;
 
-    // Tracks service menus by command name for quick updates
+    // Tracks service menus by command name for quick updates (hierarchical mode)
     private final Map<String, Menu> serviceMenus;
 
     // Tracks previous error messages by service command name to detect new errors
     private final Map<String, String> previousErrors;
+
+    // For flat mode: direct references to menu items
+    private MenuItem flatServiceHeader;
+    private MenuItem flatStartItem;
+    private MenuItem flatStopItem;
 
     /**
      * Creates a new service tray menu.
@@ -71,9 +76,22 @@ public class ServiceTrayMenu implements ServiceStatusListener {
     }
 
     /**
+     * Determines if the menu should use flat mode.
+     *
+     * Flat mode is used when there's only one service, eliminating the need
+     * for a submenu flyout. This provides a simpler, more direct UX.
+     *
+     * @return true if there's exactly one service
+     */
+    private boolean shouldUseFlatMode() {
+        return services != null && services.size() == 1;
+    }
+
+    /**
      * Builds the popup menu structure.
      *
-     * Creates a menu with header, service submenus, uninstall, and quit options.
+     * Creates either a flat menu (for single-service apps) or hierarchical
+     * menu (for zero or multiple services).
      */
     private void buildMenu() {
         // Create new popup menu only if it doesn't exist yet
@@ -81,6 +99,90 @@ public class ServiceTrayMenu implements ServiceStatusListener {
             popupMenu = new PopupMenu();
         }
 
+        if (shouldUseFlatMode()) {
+            buildFlatMenu();
+        } else {
+            buildHierarchicalMenu();
+        }
+    }
+
+    /**
+     * Builds a flat menu for single-service applications.
+     *
+     * Shows the service name as a disabled header item, followed by
+     * service actions (Start, Stop, logs) directly in the main menu.
+     * This provides a simpler UX when there's only one service.
+     */
+    private void buildFlatMenu() {
+        ServiceRowModel service = services.get(0);
+
+        // Header showing app name
+        MenuItem appHeader = new MenuItem(appName + " Services");
+        appHeader.setEnabled(false);
+        popupMenu.add(appHeader);
+
+        popupMenu.addSeparator();
+
+        // Service name header with status indicator
+        String statusIndicator = getStatusIndicator(service);
+        flatServiceHeader = new MenuItem(statusIndicator + service.getServiceName());
+        flatServiceHeader.setEnabled(false);
+        popupMenu.add(flatServiceHeader);
+
+        popupMenu.addSeparator();
+
+        // Service actions directly in menu
+        flatStartItem = new MenuItem("Start");
+        flatStartItem.setEnabled(service.canStart());
+        flatStartItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                listener.onStart(service);
+            }
+        });
+        popupMenu.add(flatStartItem);
+
+        flatStopItem = new MenuItem("Stop");
+        flatStopItem.setEnabled(service.canStop());
+        flatStopItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                listener.onStop(service);
+            }
+        });
+        popupMenu.add(flatStopItem);
+
+        MenuItem outputLogItem = new MenuItem("View Output Log");
+        outputLogItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                listener.onViewOutputLog(service);
+            }
+        });
+        popupMenu.add(outputLogItem);
+
+        MenuItem errorLogItem = new MenuItem("View Error Log");
+        errorLogItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                listener.onViewErrorLog(service);
+            }
+        });
+        popupMenu.add(errorLogItem);
+
+        popupMenu.addSeparator();
+
+        // Common items (Uninstall, Quit)
+        addCommonMenuItems();
+    }
+
+    /**
+     * Builds a hierarchical menu with service submenus.
+     *
+     * Used when there are zero or multiple services. Each service gets
+     * its own submenu with actions.
+     */
+    private void buildHierarchicalMenu() {
         // Header
         MenuItem header = new MenuItem(appName + " Services");
         header.setEnabled(false);
@@ -100,6 +202,14 @@ public class ServiceTrayMenu implements ServiceStatusListener {
             popupMenu.addSeparator();
         }
 
+        // Common items (Uninstall, Quit)
+        addCommonMenuItems();
+    }
+
+    /**
+     * Adds common menu items (Uninstall, Quit) to the popup menu.
+     */
+    private void addCommonMenuItems() {
         // Uninstall
         MenuItem uninstallItem = new MenuItem("Uninstall " + appName + "...");
         uninstallItem.addActionListener(new ActionListener() {
@@ -345,13 +455,46 @@ public class ServiceTrayMenu implements ServiceStatusListener {
         if (serviceMenus != null) {
             serviceMenus.clear();
         }
+
+        // Clear flat mode references
+        flatServiceHeader = null;
+        flatStartItem = null;
+        flatStopItem = null;
     }
 
     // ServiceStatusListener implementation
 
     @Override
     public void onServiceStatusChanged(ServiceRowModel service, ServiceStatus oldStatus, ServiceStatus newStatus) {
-        // Update the menu label for this service
+        if (shouldUseFlatMode()) {
+            updateFlatMenuForStatusChange(service);
+        } else {
+            updateHierarchicalMenuForStatusChange(service);
+        }
+    }
+
+    /**
+     * Updates flat menu when service status changes.
+     */
+    private void updateFlatMenuForStatusChange(ServiceRowModel service) {
+        if (flatServiceHeader != null) {
+            String statusIndicator = getStatusIndicator(service);
+            String serviceName = service.getServiceName();
+            flatServiceHeader.setLabel(statusIndicator + serviceName);
+        }
+
+        if (flatStartItem != null) {
+            flatStartItem.setEnabled(service.canStart());
+        }
+        if (flatStopItem != null) {
+            flatStopItem.setEnabled(service.canStop());
+        }
+    }
+
+    /**
+     * Updates hierarchical menu when service status changes.
+     */
+    private void updateHierarchicalMenuForStatusChange(ServiceRowModel service) {
         Menu serviceMenu = serviceMenus.get(service.getCommandName());
         if (serviceMenu != null) {
             String statusIndicator = getStatusIndicator(service);
@@ -375,15 +518,13 @@ public class ServiceTrayMenu implements ServiceStatusListener {
 
     @Override
     public void onServiceErrorChanged(ServiceRowModel service, String errorMessage) {
-        // Update the status indicator (will show warning icon if error present)
-        Menu serviceMenu = serviceMenus.get(service.getCommandName());
-        if (serviceMenu != null) {
-            String statusIndicator = getStatusIndicator(service);
-            String serviceName = service.getServiceName();
-            serviceMenu.setLabel(statusIndicator + serviceName);
+        if (shouldUseFlatMode()) {
+            updateFlatMenuForErrorChange(service);
+        } else {
+            updateHierarchicalMenuForErrorChange(service);
         }
 
-        // Show balloon notification for new errors
+        // Show balloon notification for new errors (common to both modes)
         String previousError = previousErrors.get(service.getCommandName());
         if (previousError == null && errorMessage != null) {
             // Only show notification if this service was previously tracked
@@ -398,6 +539,29 @@ public class ServiceTrayMenu implements ServiceStatusListener {
 
         // Update tracked error state
         previousErrors.put(service.getCommandName(), errorMessage);
+    }
+
+    /**
+     * Updates flat menu when service error state changes.
+     */
+    private void updateFlatMenuForErrorChange(ServiceRowModel service) {
+        if (flatServiceHeader != null) {
+            String statusIndicator = getStatusIndicator(service);
+            String serviceName = service.getServiceName();
+            flatServiceHeader.setLabel(statusIndicator + serviceName);
+        }
+    }
+
+    /**
+     * Updates hierarchical menu when service error state changes.
+     */
+    private void updateHierarchicalMenuForErrorChange(ServiceRowModel service) {
+        Menu serviceMenu = serviceMenus.get(service.getCommandName());
+        if (serviceMenu != null) {
+            String statusIndicator = getStatusIndicator(service);
+            String serviceName = service.getServiceName();
+            serviceMenu.setLabel(statusIndicator + serviceName);
+        }
     }
 
     /**
