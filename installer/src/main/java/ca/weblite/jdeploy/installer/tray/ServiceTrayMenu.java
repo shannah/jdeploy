@@ -68,7 +68,10 @@ public class ServiceTrayMenu {
      * Creates a menu with header, service submenus, uninstall, and quit options.
      */
     private void buildMenu() {
-        popupMenu = new PopupMenu();
+        // Create new popup menu only if it doesn't exist yet
+        if (popupMenu == null) {
+            popupMenu = new PopupMenu();
+        }
 
         // Header
         MenuItem header = new MenuItem(appName + " Services");
@@ -174,10 +177,13 @@ public class ServiceTrayMenu {
      *
      * Returns a visual indicator based on service state:
      * - "... " if operation in progress
-     * - "⚠ " if error message present
-     * - "● " if running
-     * - "○ " if stopped or uninstalled
+     * - "⚠ " (U+26A0) if error message present
+     * - "● " (U+25CF) if running
+     * - "○ " (U+25CB) if stopped or uninstalled
      * - "? " if unknown
+     *
+     * Note: Unicode characters are used for visual indicators. These display correctly
+     * on most modern systems, but may appear as boxes on older systems with limited font support.
      *
      * @param service The service model
      * @return The status indicator string
@@ -228,8 +234,15 @@ public class ServiceTrayMenu {
      * with updated status indicators and enabled/disabled states.
      */
     public void updateMenu() {
-        popupMenu.removeAll();
+        if (popupMenu != null) {
+            popupMenu.removeAll();
+        }
         buildMenu();
+
+        // Update the tray icon's popup menu reference to ensure changes are visible
+        if (trayIcon != null) {
+            trayIcon.setPopupMenu(popupMenu);
+        }
     }
 
     /**
@@ -261,13 +274,18 @@ public class ServiceTrayMenu {
             String currentError = service.getErrorMessage();
             String previousError = previousErrors.get(commandName);
 
-            // Detect new error: previous was null, current is non-null
+            // Detect new error: previous was null (or didn't exist), current is non-null
+            // Handle both existing services with new errors and newly added services with errors
             if (previousError == null && currentError != null) {
-                trayIcon.displayMessage(
-                    service.getServiceName(),
-                    currentError,
-                    TrayIcon.MessageType.ERROR
-                );
+                // Only show notification if this service was previously tracked
+                // (avoid notifications for services that are added for the first time with errors)
+                if (previousErrors.containsKey(commandName)) {
+                    trayIcon.displayMessage(
+                        service.getServiceName(),
+                        currentError,
+                        TrayIcon.MessageType.ERROR
+                    );
+                }
             }
 
             // Update tracked error state
@@ -276,8 +294,15 @@ public class ServiceTrayMenu {
 
         // Update the service list and rebuild menu
         this.services = services;
-        popupMenu.removeAll();
+        if (popupMenu != null) {
+            popupMenu.removeAll();
+        }
         buildMenu();
+
+        // Update the tray icon's popup menu reference to ensure changes are visible
+        if (trayIcon != null) {
+            trayIcon.setPopupMenu(popupMenu);
+        }
     }
 
     /**
@@ -286,8 +311,25 @@ public class ServiceTrayMenu {
      * Call this method before the application exits to properly dispose of the tray icon.
      */
     public void dispose() {
-        SystemTray systemTray = SystemTray.getSystemTray();
-        systemTray.remove(trayIcon);
+        if (trayIcon != null) {
+            SystemTray systemTray = SystemTray.getSystemTray();
+            systemTray.remove(trayIcon);
+            trayIcon = null;
+        }
+
+        // Clear the popup menu
+        if (popupMenu != null) {
+            popupMenu.removeAll();
+            popupMenu = null;
+        }
+
+        // Clear error tracking map
+        if (previousErrors != null) {
+            previousErrors.clear();
+        }
+
+        // Clear services reference
+        services = null;
     }
 
     /**
