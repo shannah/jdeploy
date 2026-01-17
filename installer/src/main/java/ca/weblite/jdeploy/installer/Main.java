@@ -47,6 +47,7 @@ import ca.weblite.jdeploy.installer.services.ServiceDescriptor;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
 import ca.weblite.jdeploy.installer.services.ServiceOperationExecutor;
+import ca.weblite.jdeploy.installer.tray.BackgroundHelper;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
@@ -54,7 +55,8 @@ import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import java.awt.Desktop;
+
+import java.awt.*;
 import java.io.*;
 import java.net.URL;
 import java.util.*;
@@ -442,6 +444,8 @@ public class Main implements Runnable, Constants {
 
     private static boolean headlessInstall;
 
+    private static boolean runAsBackgroundHelper;
+
 
     public static void main(String[] args) {
 
@@ -451,6 +455,10 @@ public class Main implements Runnable, Constants {
 
         if (args.length == 1 && args[0].equals("install")) {
             headlessInstall = true;
+        }
+
+        if (System.getProperty("jdeploy.background", "false").equals("true")) {
+            runAsBackgroundHelper = true;
         }
 
         if (!headlessInstall) {
@@ -857,11 +865,39 @@ public class Main implements Runnable, Constants {
             runHeadlessInstall();
             return;
         }
+
+        if (runAsBackgroundHelper) {
+            invokeLater(()->runAsBackgroundHelperOnEdt());
+            return;
+        }
         invokeLater(()->{
             buildUI();
             installationForm.showInstallationForm();
         });
 
+    }
+
+    /**
+     * Runs the application as a background helper with system tray menu.
+     *
+     * This mode shows only a system tray icon (no main window) for managing
+     * application services. Delegates to BackgroundHelper for all functionality.
+     */
+    private void runAsBackgroundHelperOnEdt() {
+        // Apply installation context to load application icon and other resources
+        installationContext.applyContext(installationSettings);
+
+        try {
+            BackgroundHelper helper = new BackgroundHelper(installationSettings);
+            helper.start();
+        } catch (IllegalStateException e) {
+            System.err.println("Cannot run as background helper: " + e.getMessage());
+            System.exit(1);
+        } catch (Exception e) {
+            System.err.println("Failed to start background helper: " + e.getMessage());
+            e.printStackTrace();
+            System.exit(1);
+        }
     }
 
     private void runHeadlessInstall() throws Exception {
