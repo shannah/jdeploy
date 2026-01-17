@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.installer.tray;
 
 import ca.weblite.jdeploy.installer.models.ServiceRowModel;
 import ca.weblite.jdeploy.installer.models.ServiceStatus;
+import ca.weblite.jdeploy.installer.services.ServiceStatusListener;
 
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -18,9 +19,12 @@ import java.util.Map;
  * view logs, uninstall the application, and quit. The menu dynamically reflects
  * service status with visual indicators.
  *
+ * Implements ServiceStatusListener to receive event-driven updates when service
+ * status changes, avoiding aggressive menu rebuilding.
+ *
  * @author Steve Hannah
  */
-public class ServiceTrayMenu {
+public class ServiceTrayMenu implements ServiceStatusListener {
 
     private final String appName;
     private final Image appIcon;
@@ -29,6 +33,9 @@ public class ServiceTrayMenu {
 
     private TrayIcon trayIcon;
     private PopupMenu popupMenu;
+
+    // Tracks service menus by command name for quick updates
+    private final Map<String, Menu> serviceMenus;
 
     // Tracks previous error messages by service command name to detect new errors
     private final Map<String, String> previousErrors;
@@ -51,6 +58,7 @@ public class ServiceTrayMenu {
         this.appIcon = appIcon;
         this.services = services;
         this.listener = listener;
+        this.serviceMenus = new HashMap<String, Menu>();
         this.previousErrors = new HashMap<String, String>();
 
         // Initialize error tracking state
@@ -85,6 +93,8 @@ public class ServiceTrayMenu {
             for (ServiceRowModel service : services) {
                 Menu serviceMenu = createServiceMenu(service);
                 popupMenu.add(serviceMenu);
+                // Track menu for event-driven updates
+                serviceMenus.put(service.getCommandName(), serviceMenu);
             }
 
             popupMenu.addSeparator();
@@ -330,6 +340,64 @@ public class ServiceTrayMenu {
 
         // Clear services reference
         services = null;
+
+        // Clear service menu tracking
+        if (serviceMenus != null) {
+            serviceMenus.clear();
+        }
+    }
+
+    // ServiceStatusListener implementation
+
+    @Override
+    public void onServiceStatusChanged(ServiceRowModel service, ServiceStatus oldStatus, ServiceStatus newStatus) {
+        // Update the menu label for this service
+        Menu serviceMenu = serviceMenus.get(service.getCommandName());
+        if (serviceMenu != null) {
+            String statusIndicator = getStatusIndicator(service);
+            String serviceName = service.getServiceName();
+            serviceMenu.setLabel(statusIndicator + serviceName);
+
+            // Update menu item enabled states
+            for (int i = 0; i < serviceMenu.getItemCount(); i++) {
+                MenuItem item = serviceMenu.getItem(i);
+                if (item != null) {
+                    String label = item.getLabel();
+                    if ("Start".equals(label)) {
+                        item.setEnabled(service.canStart());
+                    } else if ("Stop".equals(label)) {
+                        item.setEnabled(service.canStop());
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
+    public void onServiceErrorChanged(ServiceRowModel service, String errorMessage) {
+        // Update the status indicator (will show warning icon if error present)
+        Menu serviceMenu = serviceMenus.get(service.getCommandName());
+        if (serviceMenu != null) {
+            String statusIndicator = getStatusIndicator(service);
+            String serviceName = service.getServiceName();
+            serviceMenu.setLabel(statusIndicator + serviceName);
+        }
+
+        // Show balloon notification for new errors
+        String previousError = previousErrors.get(service.getCommandName());
+        if (previousError == null && errorMessage != null) {
+            // Only show notification if this service was previously tracked
+            if (previousErrors.containsKey(service.getCommandName())) {
+                trayIcon.displayMessage(
+                    service.getServiceName(),
+                    errorMessage,
+                    TrayIcon.MessageType.ERROR
+                );
+            }
+        }
+
+        // Update tracked error state
+        previousErrors.put(service.getCommandName(), errorMessage);
     }
 
     /**

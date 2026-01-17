@@ -20,6 +20,7 @@ public class InstallationSettings {
     private String commandLinePath=null;
     private boolean commandLineSymlinkCreated=false;
     private boolean addedToPath=false;
+    private boolean trayMenuEnabled=true;
     private AppInfo appInfo;
     private NPMPackageVersion npmPackageVersion;
     private File installFilesDir;
@@ -172,6 +173,14 @@ public class InstallationSettings {
 
     public void setAddedToPath(boolean addedToPath) {
         this.addedToPath = addedToPath;
+    }
+
+    public boolean isTrayMenuEnabled() {
+        return trayMenuEnabled;
+    }
+
+    public void setTrayMenuEnabled(boolean trayMenuEnabled) {
+        this.trayMenuEnabled = trayMenuEnabled;
     }
 
     public boolean isInstallCliLauncher() {

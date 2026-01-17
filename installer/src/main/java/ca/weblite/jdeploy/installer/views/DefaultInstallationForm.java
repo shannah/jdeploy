@@ -10,6 +10,11 @@ import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
+import ca.weblite.jdeploy.installer.services.ServiceLogHelper;
+import ca.weblite.jdeploy.installer.services.ServiceStatusPoller;
+import ca.weblite.jdeploy.installer.models.ServiceRowModel;
+import ca.weblite.jdeploy.installer.tray.ServiceTrayController;
+import ca.weblite.jdeploy.installer.tray.ServiceTrayMenuListener;
 import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.tools.platform.Platform;
 
@@ -32,6 +37,7 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
     private JProgressBar progressBar;
     private boolean appAlreadyInstalled = false;
     private boolean hasServices = false;
+    private ServiceTrayController trayController;
 
 
     private void fireEvent(InstallationFormEvent event) {
@@ -297,6 +303,9 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         pack();
         setLocationRelativeTo(null);
         setVisible(true);
+
+        // Start tray menu if services exist and tray is supported
+        startTrayMenu();
     }
 
     @Override
@@ -459,5 +468,208 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         });
 
         dialog.setVisible(true);
+    }
+
+    /**
+     * Checks if the tray menu should be shown.
+     *
+     * @return true if SystemTray is supported, services exist, and tray menu is enabled
+     */
+    private boolean shouldShowTrayMenu() {
+        return SystemTray.isSupported()
+            && hasServices
+            && installationSettings.isTrayMenuEnabled();
+    }
+
+    /**
+     * Starts the tray menu if conditions are met.
+     *
+     * Creates and starts the ServiceTrayController. Logs but doesn't fail if
+     * tray menu creation fails (tray is optional).
+     */
+    private void startTrayMenu() {
+        if (!shouldShowTrayMenu()) {
+            return;
+        }
+
+        try {
+            trayController = new ServiceTrayController(
+                installationSettings,
+                createTrayMenuListener()
+            );
+            trayController.start();
+        } catch (Exception e) {
+            System.err.println("Failed to create tray menu: " + e.getMessage());
+            e.printStackTrace(System.err);
+            // Log but don't fail - tray is optional
+        }
+    }
+
+    /**
+     * Creates the listener for tray menu actions.
+     *
+     * @return A ServiceTrayMenuListener that delegates to handler methods
+     */
+    private ServiceTrayMenuListener createTrayMenuListener() {
+        return new ServiceTrayMenuListener() {
+            @Override
+            public void onStart(ServiceRowModel service) {
+                handleServiceStart(service);
+            }
+
+            @Override
+            public void onStop(ServiceRowModel service) {
+                handleServiceStop(service);
+            }
+
+            @Override
+            public void onViewOutputLog(ServiceRowModel service) {
+                handleViewOutputLog(service);
+            }
+
+            @Override
+            public void onViewErrorLog(ServiceRowModel service) {
+                handleViewErrorLog(service);
+            }
+
+            @Override
+            public void onUninstall() {
+                handleUninstall();
+            }
+
+            @Override
+            public void onQuit() {
+                handleQuit();
+            }
+        };
+    }
+
+    /**
+     * Handles starting a service from the tray menu.
+     */
+    private void handleServiceStart(ServiceRowModel service) {
+        // Get package name and source, with fallback to AppInfo
+        String packageName = getPackageNameForServiceOperations();
+        String source = getSourceForServiceOperations();
+
+        // Run in background thread to avoid blocking
+        new Thread(() -> {
+            service.setOperationInProgress(true);
+
+            ServiceStatusPoller poller = new ServiceStatusPoller(null, packageName, source);
+            boolean success = poller.startService(service);
+
+            service.setOperationInProgress(false);
+
+            if (success) {
+                System.out.println("Service started successfully: " + service.getServiceName());
+            } else {
+                System.err.println("Failed to start service: " + service.getServiceName());
+            }
+
+            // Re-poll status after operation
+            poller.pollStatus(service);
+        }).start();
+    }
+
+    /**
+     * Handles stopping a service from the tray menu.
+     */
+    private void handleServiceStop(ServiceRowModel service) {
+        // Get package name and source, with fallback to AppInfo
+        String packageName = getPackageNameForServiceOperations();
+        String source = getSourceForServiceOperations();
+
+        // Run in background thread to avoid blocking
+        new Thread(() -> {
+            service.setOperationInProgress(true);
+
+            ServiceStatusPoller poller = new ServiceStatusPoller(null, packageName, source);
+            boolean success = poller.stopService(service);
+
+            service.setOperationInProgress(false);
+
+            if (success) {
+                System.out.println("Service stopped successfully: " + service.getServiceName());
+            } else {
+                System.err.println("Failed to stop service: " + service.getServiceName());
+            }
+
+            // Re-poll status after operation
+            poller.pollStatus(service);
+        }).start();
+    }
+
+    /**
+     * Gets the package name for service operations, with fallback to AppInfo.
+     */
+    private String getPackageNameForServiceOperations() {
+        String packageName = installationSettings.getPackageName();
+        if (packageName == null || packageName.isEmpty()) {
+            AppInfo appInfo = installationSettings.getAppInfo();
+            if (appInfo != null) {
+                packageName = appInfo.getNpmPackage();
+            }
+        }
+        return packageName;
+    }
+
+    /**
+     * Gets the source for service operations, with fallback to AppInfo.
+     */
+    private String getSourceForServiceOperations() {
+        String source = installationSettings.getSource();
+        if (source == null) {
+            AppInfo appInfo = installationSettings.getAppInfo();
+            if (appInfo != null) {
+                source = appInfo.getNpmSource();
+                // Treat empty string as null
+                if (source != null && source.isEmpty()) {
+                    source = null;
+                }
+            }
+        }
+        return source;
+    }
+
+    /**
+     * Handles viewing the output log for a service.
+     */
+    private void handleViewOutputLog(ServiceRowModel service) {
+        java.io.File logFile = ServiceLogHelper.getOutputLogFile(service);
+        ServiceLogHelper.openLogFile(logFile, this);
+    }
+
+    /**
+     * Handles viewing the error log for a service.
+     */
+    private void handleViewErrorLog(ServiceRowModel service) {
+        java.io.File logFile = ServiceLogHelper.getErrorLogFile(service);
+        ServiceLogHelper.openLogFile(logFile, this);
+    }
+
+    /**
+     * Handles uninstall request from tray menu.
+     */
+    private void handleUninstall() {
+        fireEvent(new InstallationFormEvent(InstallationFormEvent.Type.UninstallClicked));
+    }
+
+    /**
+     * Handles quit request from tray menu.
+     */
+    private void handleQuit() {
+        dispose();
+    }
+
+    @Override
+    public void dispose() {
+        // Stop tray controller if running
+        if (trayController != null) {
+            trayController.stop();
+            trayController = null;
+        }
+
+        super.dispose();
     }
 }
