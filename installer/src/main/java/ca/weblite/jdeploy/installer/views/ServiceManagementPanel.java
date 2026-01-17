@@ -6,11 +6,11 @@ import ca.weblite.jdeploy.installer.models.ServiceStatus;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptor;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
+import ca.weblite.jdeploy.installer.services.ServiceLogHelper;
 import ca.weblite.jdeploy.installer.services.ServiceStatusPoller;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.Desktop;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -370,85 +370,11 @@ public class ServiceManagementPanel extends JPanel {
     }
 
     private void handleViewLog(ServiceRowModel model, String logType) {
-        String packageName = model.getDescriptor().getPackageName();
-        String commandName = model.getCommandName();
-        String source = model.getDescriptor().getSource();
+        File logFile = logType.equals("out")
+            ? ServiceLogHelper.getOutputLogFile(model)
+            : ServiceLogHelper.getErrorLogFile(model);
 
-        File logFile = getLogFile(packageName, commandName, source, logType);
-        String logTypeDisplay = logType.equals("out") ? "stdout" : "stderr";
-
-        if (!logFile.exists()) {
-            JOptionPane.showMessageDialog(this,
-                    "Log file does not exist yet.\nThe " + logTypeDisplay + " log file will be created when the service runs.\n\nExpected location:\n" + logFile.getAbsolutePath(),
-                    "Log Not Found",
-                    JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-
-        if (!Desktop.isDesktopSupported()) {
-            JOptionPane.showMessageDialog(this,
-                    "Cannot open log file: Desktop API not supported.\n\nLog file location:\n" + logFile.getAbsolutePath(),
-                    "Error",
-                    JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        try {
-            Desktop.getDesktop().open(logFile);
-        } catch (IOException e) {
-            logger.log(Level.WARNING, "Failed to open log file", e);
-            JOptionPane.showMessageDialog(this,
-                    "Failed to open log file: " + e.getMessage() + "\n\nLog file location:\n" + logFile.getAbsolutePath(),
-                    "Error",
-                    JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    /**
-     * Computes the log file path based on platform, source, and log type.
-     * @param packageName The package name
-     * @param commandName The command name
-     * @param source The source (null for NPM, GitHub URL for GitHub packages)
-     * @param logType The log type ("out" for stdout, "err" for stderr)
-     */
-    private File getLogFile(String packageName, String commandName, String source, String logType) {
-        String logFileName = packageName + "." + commandName + "." + logType + ".log";
-        String os = System.getProperty("os.name", "").toLowerCase();
-        String userHome = System.getProperty("user.home");
-
-        if (source != null && !source.isEmpty() && source.contains("github.com")) {
-            // GitHub-sourced package
-            String githubPath = extractGitHubPath(source);
-            if (os.contains("windows")) {
-                return new File(userHome, ".jdeploy\\log\\github.com\\" + githubPath + "\\" + logFileName);
-            } else {
-                return new File(userHome, ".jdeploy/log/github.com/" + githubPath + "/" + logFileName);
-            }
-        } else {
-            // NPM package
-            if (os.contains("windows")) {
-                return new File(userHome, ".jdeploy\\log\\" + logFileName);
-            } else {
-                return new File(userHome, ".jdeploy/log/" + logFileName);
-            }
-        }
-    }
-
-    /**
-     * Extracts owner/repo from a GitHub URL.
-     */
-    private String extractGitHubPath(String source) {
-        String path = source;
-        if (path.contains("github.com/")) {
-            path = path.substring(path.indexOf("github.com/") + "github.com/".length());
-        }
-        if (path.endsWith("/")) {
-            path = path.substring(0, path.length() - 1);
-        }
-        if (path.endsWith(".git")) {
-            path = path.substring(0, path.length() - 4);
-        }
-        return path;
+        ServiceLogHelper.openLogFile(logFile, this);
     }
 
     private void pollStatusInBackground() {
