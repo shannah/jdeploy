@@ -46,6 +46,9 @@ public class BackgroundHelper {
      * Shows the system tray icon with service management menu.
      * This method should be called on the Event Dispatch Thread.
      *
+     * If another instance is already running (lock cannot be acquired by ServiceTrayController),
+     * this method will silently exit the application.
+     *
      * @throws IllegalStateException if SystemTray is not supported
      * @throws RuntimeException if the tray icon cannot be started
      */
@@ -60,10 +63,20 @@ public class BackgroundHelper {
         ServiceTrayMenuListener listener = createTrayMenuListener();
 
         // Create and start tray controller
+        // ServiceTrayController will handle lock acquisition
         trayController = new ServiceTrayController(settings, listener);
 
         try {
             trayController.start();
+
+            // Check if tray controller actually started (lock may have been held by another instance)
+            if (!trayController.isRunning()) {
+                // Another instance is already running - silently exit
+                logger.info("Another instance is already running. Exiting silently.");
+                System.exit(0);
+                return; // Won't reach here, but explicit for clarity
+            }
+
             logger.info("Background helper started successfully");
         } catch (Exception e) {
             logger.severe("Failed to start background helper: " + e.getMessage());
@@ -74,13 +87,15 @@ public class BackgroundHelper {
     /**
      * Stops the background helper.
      *
-     * Stops the tray controller and releases resources.
+     * Stops the tray controller and cleans up resources.
+     * Lock is automatically released by ServiceTrayController.
      */
     public void stop() {
         if (trayController != null) {
             trayController.stop();
             trayController = null;
         }
+
         logger.info("Background helper stopped");
     }
 

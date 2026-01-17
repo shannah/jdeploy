@@ -40,6 +40,7 @@ public class ServiceTrayController {
     private ServiceStatusMonitor statusMonitor;
     private ServiceStatusPoller poller;
     private List<ServiceRowModel> serviceModels;
+    private TrayIconLock trayIconLock;
     private boolean running = false;
 
     /**
@@ -67,6 +68,9 @@ public class ServiceTrayController {
      * This method is idempotent - calling it multiple times has no effect
      * if already running.
      *
+     * If another instance is already running (lock cannot be acquired),
+     * this method will log a warning and return without showing the tray icon.
+     *
      * @throws IllegalStateException if SystemTray is not supported
      * @throws RuntimeException if tray menu creation fails
      */
@@ -85,6 +89,18 @@ public class ServiceTrayController {
 
             if (serviceModels.isEmpty()) {
                 logger.info("No services found - tray menu not created");
+                return;
+            }
+
+            // Try to acquire exclusive lock
+            String packageName = getPackageNameForLock();
+            String source = getSourceForLock();
+
+            trayIconLock = new TrayIconLock(packageName, source);
+
+            if (!trayIconLock.tryAcquire()) {
+                // Another instance is already running - skip showing tray icon
+                logger.warning("Another tray icon instance is already running. Skipping tray icon creation.");
                 return;
             }
 
@@ -214,10 +230,21 @@ public class ServiceTrayController {
     private void cleanup() {
         stopMonitoring();
         disposeTrayMenu();
+        releaseLock();
 
         // Clear references
         poller = null;
         serviceModels = null;
+    }
+
+    /**
+     * Releases the tray icon lock.
+     */
+    private void releaseLock() {
+        if (trayIconLock != null) {
+            trayIconLock.release();
+            trayIconLock = null;
+        }
     }
 
     /**
@@ -290,5 +317,39 @@ public class ServiceTrayController {
 
         String packageName = settings.getPackageName();
         return packageName != null ? packageName : "Application";
+    }
+
+    /**
+     * Gets the package name for lock identification, with fallback to AppInfo.
+     *
+     * @return The package name
+     */
+    private String getPackageNameForLock() {
+        String packageName = settings.getPackageName();
+        if (packageName == null || packageName.isEmpty()) {
+            if (settings.getAppInfo() != null) {
+                packageName = settings.getAppInfo().getNpmPackage();
+            }
+        }
+        return packageName;
+    }
+
+    /**
+     * Gets the source for lock identification, with fallback to AppInfo.
+     *
+     * @return The source
+     */
+    private String getSourceForLock() {
+        String source = settings.getSource();
+        if (source == null) {
+            if (settings.getAppInfo() != null) {
+                source = settings.getAppInfo().getNpmSource();
+                // Treat empty string as null
+                if (source != null && source.isEmpty()) {
+                    source = null;
+                }
+            }
+        }
+        return source;
     }
 }
