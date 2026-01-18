@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.helpers;
 
+import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
 
 import java.io.File;
@@ -23,7 +24,8 @@ import java.util.logging.Logger;
  * </ul>
  *
  * Uses the same file locking mechanism as TrayIconLock to detect running instances.
- * Lock files are stored in ~/.jdeploy/locks/
+ * Lock files are stored in ~/.jdeploy/locks/ and use the fully qualified package name
+ * format: {sourceHash}.{packageName} (or just {packageName} if no source).
  *
  * @author jDeploy Team
  */
@@ -36,21 +38,22 @@ public class HelperProcessManager {
     private static final int PROCESS_KILL_TIMEOUT_SECONDS = 10;
 
     /**
-     * Checks if a Helper is currently running for the given application.
+     * Checks if a Helper is currently running for the given package.
      *
      * Uses file locking to detect if another process holds the Helper lock.
      * This is the same mechanism used by ServiceTrayController/TrayIconLock.
      *
-     * @param appName The application name (e.g., "My App")
+     * @param packageName The package name (e.g., "@foo/bar")
+     * @param source The package source (e.g., null for npm, GitHub URL for github)
      * @return true if the Helper appears to be running, false otherwise
-     * @throws IllegalArgumentException if appName is null or empty
+     * @throws IllegalArgumentException if packageName is null or empty
      */
-    public boolean isHelperRunning(String appName) {
-        if (appName == null || appName.trim().isEmpty()) {
-            throw new IllegalArgumentException("appName cannot be null or empty");
+    public boolean isHelperRunning(String packageName, String source) {
+        if (packageName == null || packageName.trim().isEmpty()) {
+            throw new IllegalArgumentException("packageName cannot be null or empty");
         }
 
-        File lockFile = getLockFile(appName);
+        File lockFile = getLockFile(packageName, source);
 
         // If lock file doesn't exist, Helper is definitely not running
         if (!lockFile.exists()) {
@@ -122,39 +125,44 @@ public class HelperProcessManager {
      * This method first attempts graceful termination by creating a shutdown signal file.
      * If the Helper doesn't exit within the timeout, it falls back to force kill.
      *
-     * @param appName The application name (e.g., "My App")
+     * @param packageName The package name (e.g., "@foo/bar")
+     * @param source The package source (e.g., null for npm, GitHub URL for github)
+     * @param appName The application name for process killing (e.g., "My App")
      * @param timeoutMs Maximum time to wait for graceful termination in milliseconds
      * @return true if the Helper was terminated or wasn't running, false if termination failed
-     * @throws IllegalArgumentException if appName is null or empty
+     * @throws IllegalArgumentException if packageName or appName is null or empty
      */
-    public boolean terminateHelper(String appName, long timeoutMs) {
+    public boolean terminateHelper(String packageName, String source, String appName, long timeoutMs) {
+        if (packageName == null || packageName.trim().isEmpty()) {
+            throw new IllegalArgumentException("packageName cannot be null or empty");
+        }
         if (appName == null || appName.trim().isEmpty()) {
             throw new IllegalArgumentException("appName cannot be null or empty");
         }
 
-        if (!isHelperRunning(appName)) {
-            logger.info("Helper is not running for: " + appName);
+        if (!isHelperRunning(packageName, source)) {
+            logger.info("Helper is not running for: " + packageName);
             return true;
         }
 
-        logger.info("Attempting to terminate Helper for: " + appName);
+        logger.info("Attempting to terminate Helper for: " + packageName);
 
         // Try graceful termination first via shutdown signal file
-        boolean gracefulSuccess = tryGracefulTermination(appName, timeoutMs);
+        boolean gracefulSuccess = tryGracefulTermination(packageName, source, timeoutMs);
 
         if (gracefulSuccess) {
-            logger.info("Helper terminated gracefully for: " + appName);
+            logger.info("Helper terminated gracefully for: " + packageName);
             return true;
         }
 
         // Graceful termination failed or timed out - try force kill
-        logger.info("Graceful termination failed, attempting force kill for: " + appName);
-        boolean forceKillSuccess = forceKillHelper(appName);
+        logger.info("Graceful termination failed, attempting force kill for: " + packageName);
+        boolean forceKillSuccess = forceKillHelper(packageName, source, appName);
 
         if (forceKillSuccess) {
-            logger.info("Helper force killed successfully for: " + appName);
+            logger.info("Helper force killed successfully for: " + packageName);
         } else {
-            logger.warning("Failed to terminate Helper for: " + appName);
+            logger.warning("Failed to terminate Helper for: " + packageName);
         }
 
         return forceKillSuccess;
@@ -170,17 +178,22 @@ public class HelperProcessManager {
      *   <li>Windows: taskkill /F /IM {appname}-helper.exe</li>
      * </ul>
      *
-     * @param appName The application name (e.g., "My App")
+     * @param packageName The package name for lock checking (e.g., "@foo/bar")
+     * @param source The package source (e.g., null for npm, GitHub URL for github)
+     * @param appName The application name for process killing (e.g., "My App")
      * @return true if the Helper was killed or wasn't running, false if kill failed
-     * @throws IllegalArgumentException if appName is null or empty
+     * @throws IllegalArgumentException if packageName or appName is null or empty
      */
-    public boolean forceKillHelper(String appName) {
+    public boolean forceKillHelper(String packageName, String source, String appName) {
+        if (packageName == null || packageName.trim().isEmpty()) {
+            throw new IllegalArgumentException("packageName cannot be null or empty");
+        }
         if (appName == null || appName.trim().isEmpty()) {
             throw new IllegalArgumentException("appName cannot be null or empty");
         }
 
         // Check if running before attempting kill
-        if (!isHelperRunning(appName)) {
+        if (!isHelperRunning(packageName, source)) {
             return true;
         }
 
@@ -199,27 +212,51 @@ public class HelperProcessManager {
     }
 
     /**
-     * Gets the lock file for a given application name.
+     * Gets the lock file for a given package.
      *
-     * @param appName The application name
+     * Uses the fully qualified package name format: {sourceHash}.{sanitizedPackageName}.lock
+     * or just {sanitizedPackageName}.lock if no source.
+     *
+     * @param packageName The package name
+     * @param source The package source (may be null)
      * @return The lock file
      */
-    File getLockFile(String appName) {
-        String lockFileName = createLockFileName(appName);
+    File getLockFile(String packageName, String source) {
+        String lockFileName = createLockFileName(packageName, source);
         return new File(LOCK_DIR_PATH, lockFileName);
     }
 
     /**
-     * Creates a filesystem-safe lock file name from the app name.
+     * Creates a filesystem-safe lock file name from the package name and source.
      *
-     * Format: helper-{sanitized-app-name}.lock
+     * Format: {fullyQualifiedPackageName}.lock
+     * Where fullyQualifiedPackageName is: {sourceHash}.{sanitizedPackageName} or just {sanitizedPackageName}
      *
-     * @param appName The application name
+     * @param packageName The package name
+     * @param source The package source (may be null)
      * @return The sanitized lock file name
      */
-    private String createLockFileName(String appName) {
-        String sanitized = sanitizeName(appName);
-        return "helper-" + sanitized + ".lock";
+    private String createLockFileName(String packageName, String source) {
+        String fullyQualifiedName = createFullyQualifiedName(packageName, source);
+        return fullyQualifiedName + ".lock";
+    }
+
+    /**
+     * Creates a fully qualified package name from package name and source.
+     *
+     * Format: {sourceHash}.{sanitizedPackageName} or just {sanitizedPackageName} if no source.
+     *
+     * @param packageName The package name
+     * @param source The package source (may be null)
+     * @return The fully qualified name
+     */
+    private String createFullyQualifiedName(String packageName, String source) {
+        String sanitized = sanitizeName(packageName);
+        if (source != null && !source.isEmpty()) {
+            String sourceHash = MD5.getMd5(source);
+            return sourceHash + "." + sanitized;
+        }
+        return sanitized;
     }
 
     /**
@@ -249,13 +286,14 @@ public class HelperProcessManager {
      * The Helper should periodically check for this file and exit gracefully.
      * Note: This requires the Helper to implement shutdown signal checking.
      *
-     * @param appName The application name
+     * @param packageName The package name
+     * @param source The package source (may be null)
      * @param timeoutMs Maximum time to wait in milliseconds
      * @return true if Helper exited within timeout, false otherwise
      */
-    private boolean tryGracefulTermination(String appName, long timeoutMs) {
+    private boolean tryGracefulTermination(String packageName, String source, long timeoutMs) {
         // Create shutdown signal file
-        File shutdownSignal = getShutdownSignalFile(appName);
+        File shutdownSignal = getShutdownSignalFile(packageName, source);
 
         try {
             // Ensure parent directory exists
@@ -272,7 +310,7 @@ public class HelperProcessManager {
             long elapsed = 0;
 
             while (elapsed < timeoutMs) {
-                if (!isHelperRunning(appName)) {
+                if (!isHelperRunning(packageName, source)) {
                     // Helper has exited
                     shutdownSignal.delete();
                     return true;
@@ -300,14 +338,15 @@ public class HelperProcessManager {
     }
 
     /**
-     * Gets the shutdown signal file path for an application.
+     * Gets the shutdown signal file path for a package.
      *
-     * @param appName The application name
+     * @param packageName The package name
+     * @param source The package source (may be null)
      * @return The shutdown signal file
      */
-    File getShutdownSignalFile(String appName) {
-        String signalFileName = "helper-" + sanitizeName(appName) + ".shutdown";
-        return new File(LOCK_DIR_PATH, signalFileName);
+    File getShutdownSignalFile(String packageName, String source) {
+        String fullyQualifiedName = createFullyQualifiedName(packageName, source);
+        return new File(LOCK_DIR_PATH, fullyQualifiedName + ".shutdown");
     }
 
     /**

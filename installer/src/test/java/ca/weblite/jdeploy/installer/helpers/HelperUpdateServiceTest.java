@@ -25,6 +25,8 @@ public class HelperUpdateServiceTest {
     private InstallationLogger mockLogger;
     private HelperUpdateService service;
 
+    private String testPackageName;
+    private String testSource;
     private String testAppName;
     private File jdeployFilesDir;
 
@@ -36,6 +38,8 @@ public class HelperUpdateServiceTest {
 
         service = new HelperUpdateService(mockInstallationService, mockProcessManager, mockLogger);
 
+        testPackageName = "@test/app";
+        testSource = null; // npm package (no source)
         testAppName = "TestApp";
         jdeployFilesDir = new File(tempDir, ".jdeploy-files");
         jdeployFilesDir.mkdir();
@@ -67,23 +71,37 @@ public class HelperUpdateServiceTest {
     // ========== updateHelper validation tests ==========
 
     @Test
+    public void testUpdateHelper_NullPackageName_ThrowsException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            service.updateHelper(null, testSource, testAppName, tempDir, jdeployFilesDir, true);
+        });
+    }
+
+    @Test
+    public void testUpdateHelper_EmptyPackageName_ThrowsException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            service.updateHelper("", testSource, testAppName, tempDir, jdeployFilesDir, true);
+        });
+    }
+
+    @Test
+    public void testUpdateHelper_BlankPackageName_ThrowsException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            service.updateHelper("   ", testSource, testAppName, tempDir, jdeployFilesDir, true);
+        });
+    }
+
+    @Test
     public void testUpdateHelper_NullAppName_ThrowsException() {
         assertThrows(IllegalArgumentException.class, () -> {
-            service.updateHelper(null, tempDir, jdeployFilesDir, true);
+            service.updateHelper(testPackageName, testSource, null, tempDir, jdeployFilesDir, true);
         });
     }
 
     @Test
     public void testUpdateHelper_EmptyAppName_ThrowsException() {
         assertThrows(IllegalArgumentException.class, () -> {
-            service.updateHelper("", tempDir, jdeployFilesDir, true);
-        });
-    }
-
-    @Test
-    public void testUpdateHelper_BlankAppName_ThrowsException() {
-        assertThrows(IllegalArgumentException.class, () -> {
-            service.updateHelper("   ", tempDir, jdeployFilesDir, true);
+            service.updateHelper(testPackageName, testSource, "", tempDir, jdeployFilesDir, true);
         });
     }
 
@@ -103,7 +121,7 @@ public class HelperUpdateServiceTest {
 
         // Execute
         HelperUpdateService.HelperUpdateResult result = service.updateHelper(
-                testAppName, tempDir, jdeployFilesDir, true);
+                testPackageName, testSource, testAppName, tempDir, jdeployFilesDir, true);
 
         // Verify
         assertTrue(result.isSuccess(), "Update should succeed");
@@ -112,7 +130,7 @@ public class HelperUpdateServiceTest {
         assertNotNull(result.getInstallationResult(), "Should have installation result");
 
         verify(mockInstallationService).installHelper(testAppName, tempDir, jdeployFilesDir);
-        verify(mockProcessManager, never()).terminateHelper(anyString(), anyLong());
+        verify(mockProcessManager, never()).terminateHelper(anyString(), any(), anyString(), anyLong());
     }
 
     @Test
@@ -128,7 +146,7 @@ public class HelperUpdateServiceTest {
 
         // Execute
         HelperUpdateService.HelperUpdateResult result = service.updateHelper(
-                testAppName, tempDir, jdeployFilesDir, true);
+                testPackageName, testSource, testAppName, tempDir, jdeployFilesDir, true);
 
         // Verify
         assertFalse(result.isSuccess(), "Update should fail");
@@ -148,7 +166,7 @@ public class HelperUpdateServiceTest {
         File helperContextDir = HelperPaths.getHelperContextDirectory(testAppName, tempDir);
 
         // Helper is not running
-        when(mockProcessManager.isHelperRunning(testAppName)).thenReturn(false);
+        when(mockProcessManager.isHelperRunning(testPackageName, testSource)).thenReturn(false);
 
         // Mock successful installation
         HelperInstallationResult successResult = HelperInstallationResult.success(
@@ -158,7 +176,7 @@ public class HelperUpdateServiceTest {
 
         // Execute
         HelperUpdateService.HelperUpdateResult result = service.updateHelper(
-                testAppName, tempDir, jdeployFilesDir, true);
+                testPackageName, testSource, testAppName, tempDir, jdeployFilesDir, true);
 
         // Verify
         assertTrue(result.isSuccess(), "Update should succeed");
@@ -178,8 +196,8 @@ public class HelperUpdateServiceTest {
         File helperContextDir = HelperPaths.getHelperContextDirectory(testAppName, tempDir);
 
         // Helper is running
-        when(mockProcessManager.isHelperRunning(testAppName)).thenReturn(true);
-        when(mockProcessManager.terminateHelper(eq(testAppName), anyLong())).thenReturn(true);
+        when(mockProcessManager.isHelperRunning(testPackageName, testSource)).thenReturn(true);
+        when(mockProcessManager.terminateHelper(eq(testPackageName), eq(testSource), eq(testAppName), anyLong())).thenReturn(true);
 
         // Mock successful installation
         HelperInstallationResult successResult = HelperInstallationResult.success(
@@ -189,10 +207,10 @@ public class HelperUpdateServiceTest {
 
         // Execute
         HelperUpdateService.HelperUpdateResult result = service.updateHelper(
-                testAppName, tempDir, jdeployFilesDir, true);
+                testPackageName, testSource, testAppName, tempDir, jdeployFilesDir, true);
 
         // Verify termination was called
-        verify(mockProcessManager).terminateHelper(eq(testAppName), anyLong());
+        verify(mockProcessManager).terminateHelper(eq(testPackageName), eq(testSource), eq(testAppName), anyLong());
         assertTrue(result.isSuccess(), "Update should succeed");
     }
 
@@ -206,8 +224,8 @@ public class HelperUpdateServiceTest {
         File helperContextDir = HelperPaths.getHelperContextDirectory(testAppName, tempDir);
 
         // Helper is running but termination fails
-        when(mockProcessManager.isHelperRunning(testAppName)).thenReturn(true);
-        when(mockProcessManager.terminateHelper(eq(testAppName), anyLong())).thenReturn(false);
+        when(mockProcessManager.isHelperRunning(testPackageName, testSource)).thenReturn(true);
+        when(mockProcessManager.terminateHelper(eq(testPackageName), eq(testSource), eq(testAppName), anyLong())).thenReturn(false);
 
         // Mock successful installation (file deleted manually for test)
         // The deleteHelper will run and delete the file
@@ -218,10 +236,10 @@ public class HelperUpdateServiceTest {
 
         // Execute - should continue despite termination failure
         HelperUpdateService.HelperUpdateResult result = service.updateHelper(
-                testAppName, tempDir, jdeployFilesDir, true);
+                testPackageName, testSource, testAppName, tempDir, jdeployFilesDir, true);
 
         // Verify termination was attempted
-        verify(mockProcessManager).terminateHelper(eq(testAppName), anyLong());
+        verify(mockProcessManager).terminateHelper(eq(testPackageName), eq(testSource), eq(testAppName), anyLong());
         // Update may still succeed or fail depending on delete
     }
 
@@ -235,7 +253,7 @@ public class HelperUpdateServiceTest {
 
         // Execute
         HelperUpdateService.HelperUpdateResult result = service.updateHelper(
-                testAppName, tempDir, jdeployFilesDir, false);
+                testPackageName, testSource, testAppName, tempDir, jdeployFilesDir, false);
 
         // Verify
         assertTrue(result.isSuccess(), "Should succeed (nothing to do)");
@@ -243,7 +261,7 @@ public class HelperUpdateServiceTest {
                 "Should report NO_ACTION");
 
         verify(mockInstallationService, never()).installHelper(anyString(), any(), any());
-        verify(mockProcessManager, never()).terminateHelper(anyString(), anyLong());
+        verify(mockProcessManager, never()).terminateHelper(anyString(), any(), anyString(), anyLong());
     }
 
     @Test
@@ -258,11 +276,11 @@ public class HelperUpdateServiceTest {
         new File(helperContextDir, "app.xml").createNewFile();
 
         // Helper is not running
-        when(mockProcessManager.isHelperRunning(testAppName)).thenReturn(false);
+        when(mockProcessManager.isHelperRunning(testPackageName, testSource)).thenReturn(false);
 
         // Execute
         HelperUpdateService.HelperUpdateResult result = service.updateHelper(
-                testAppName, tempDir, jdeployFilesDir, false);
+                testPackageName, testSource, testAppName, tempDir, jdeployFilesDir, false);
 
         // Verify
         assertTrue(result.isSuccess(), "Removal should succeed");
@@ -284,15 +302,15 @@ public class HelperUpdateServiceTest {
         helperExecutable.createNewFile();
 
         // Helper is running
-        when(mockProcessManager.isHelperRunning(testAppName)).thenReturn(true);
-        when(mockProcessManager.terminateHelper(eq(testAppName), anyLong())).thenReturn(true);
+        when(mockProcessManager.isHelperRunning(testPackageName, testSource)).thenReturn(true);
+        when(mockProcessManager.terminateHelper(eq(testPackageName), eq(testSource), eq(testAppName), anyLong())).thenReturn(true);
 
         // Execute
         HelperUpdateService.HelperUpdateResult result = service.updateHelper(
-                testAppName, tempDir, jdeployFilesDir, false);
+                testPackageName, testSource, testAppName, tempDir, jdeployFilesDir, false);
 
         // Verify termination was called
-        verify(mockProcessManager).terminateHelper(eq(testAppName), anyLong());
+        verify(mockProcessManager).terminateHelper(eq(testPackageName), eq(testSource), eq(testAppName), anyLong());
         assertTrue(result.isSuccess(), "Removal should succeed");
         assertEquals(HelperUpdateService.HelperUpdateResult.UpdateType.REMOVED, result.getType());
     }

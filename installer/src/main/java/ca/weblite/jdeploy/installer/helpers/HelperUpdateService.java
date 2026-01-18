@@ -61,25 +61,30 @@ public class HelperUpdateService {
      *   <li>Services removed: Remove Helper if it exists</li>
      * </ol>
      *
-     * @param appName The application name (e.g., "My App")
+     * @param packageName The package name for lock file identification (e.g., "@foo/bar")
+     * @param source The package source for lock file identification (e.g., null for npm, GitHub URL)
+     * @param appName The application name for paths and process killing (e.g., "My App")
      * @param appDirectory The application installation directory (ignored on macOS)
      * @param jdeployFilesDir The source .jdeploy-files directory
      * @param servicesExist True if the new version has services, false if services were removed
      * @return Result indicating success or failure
-     * @throws IllegalArgumentException if appName is null or empty
+     * @throws IllegalArgumentException if packageName or appName is null or empty
      */
-    public HelperUpdateResult updateHelper(String appName, File appDirectory,
-                                           File jdeployFilesDir, boolean servicesExist) {
+    public HelperUpdateResult updateHelper(String packageName, String source, String appName,
+                                           File appDirectory, File jdeployFilesDir, boolean servicesExist) {
+        if (packageName == null || packageName.trim().isEmpty()) {
+            throw new IllegalArgumentException("packageName cannot be null or empty");
+        }
         if (appName == null || appName.trim().isEmpty()) {
             throw new IllegalArgumentException("appName cannot be null or empty");
         }
 
-        logInfo("Updating Helper for: " + appName + " (servicesExist=" + servicesExist + ")");
+        logInfo("Updating Helper for: " + appName + " (package=" + packageName + ", servicesExist=" + servicesExist + ")");
 
         if (servicesExist) {
-            return handleServicesExist(appName, appDirectory, jdeployFilesDir);
+            return handleServicesExist(packageName, source, appName, appDirectory, jdeployFilesDir);
         } else {
-            return handleServicesRemoved(appName, appDirectory);
+            return handleServicesRemoved(packageName, source, appName, appDirectory);
         }
     }
 
@@ -165,7 +170,8 @@ public class HelperUpdateService {
      * Handles the case where the new version has services.
      * Either updates existing Helper or installs new one.
      */
-    private HelperUpdateResult handleServicesExist(String appName, File appDirectory, File jdeployFilesDir) {
+    private HelperUpdateResult handleServicesExist(String packageName, String source, String appName,
+                                                    File appDirectory, File jdeployFilesDir) {
         File helperExecutable = HelperPaths.getHelperExecutablePath(appName, appDirectory);
         boolean helperExists = helperExecutable.exists();
 
@@ -173,7 +179,7 @@ public class HelperUpdateService {
             logInfo("Existing Helper found, updating...");
 
             // Step 1: Terminate running Helper
-            boolean terminated = terminateExistingHelper(appName);
+            boolean terminated = terminateExistingHelper(packageName, source, appName);
             if (!terminated) {
                 logWarning("Could not terminate existing Helper, attempting to continue anyway");
             }
@@ -215,7 +221,8 @@ public class HelperUpdateService {
      * Handles the case where services have been removed from the application.
      * Removes the Helper if it exists.
      */
-    private HelperUpdateResult handleServicesRemoved(String appName, File appDirectory) {
+    private HelperUpdateResult handleServicesRemoved(String packageName, String source, String appName,
+                                                      File appDirectory) {
         File helperExecutable = HelperPaths.getHelperExecutablePath(appName, appDirectory);
         boolean helperExists = helperExecutable.exists();
 
@@ -227,7 +234,7 @@ public class HelperUpdateService {
         logInfo("Services removed, removing Helper...");
 
         // Step 1: Terminate running Helper
-        boolean terminated = terminateExistingHelper(appName);
+        boolean terminated = terminateExistingHelper(packageName, source, appName);
         if (!terminated) {
             logWarning("Could not terminate Helper, attempting to continue anyway");
         }
@@ -245,17 +252,19 @@ public class HelperUpdateService {
     /**
      * Attempts to terminate the existing Helper process.
      *
-     * @param appName The application name
+     * @param packageName The package name for lock file identification
+     * @param source The package source for lock file identification
+     * @param appName The application name for process killing
      * @return true if terminated or wasn't running
      */
-    private boolean terminateExistingHelper(String appName) {
-        if (!processManager.isHelperRunning(appName)) {
+    private boolean terminateExistingHelper(String packageName, String source, String appName) {
+        if (!processManager.isHelperRunning(packageName, source)) {
             logInfo("Helper is not running");
             return true;
         }
 
         logInfo("Terminating running Helper...");
-        boolean terminated = processManager.terminateHelper(appName, TERMINATION_TIMEOUT_MS);
+        boolean terminated = processManager.terminateHelper(packageName, source, appName, TERMINATION_TIMEOUT_MS);
 
         if (terminated) {
             logInfo("Helper terminated successfully");

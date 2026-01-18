@@ -1880,6 +1880,10 @@ public class Main implements Runnable, Constants {
         }
         String appName = appInfo().getTitle() + nameSuffix;
 
+        // Get package info for lock file identification
+        String packageName = appInfo().getNpmPackage();
+        String source = appInfo().getNpmSource();
+
         File appDirectory;
         if (Platform.getSystemPlatform().isMac()) {
             appDirectory = null; // macOS uses ~/Applications/{AppName} Helper/
@@ -1903,7 +1907,7 @@ public class Main implements Runnable, Constants {
 
         HelperUpdateService updateService = createHelperUpdateService();
         HelperUpdateService.HelperUpdateResult result = updateService.updateHelper(
-                appName, appDirectory, jdeployFilesDir, servicesExist);
+                packageName, source, appName, appDirectory, jdeployFilesDir, servicesExist);
 
         if (result.isSuccess()) {
             switch (result.getType()) {

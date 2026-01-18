@@ -1,5 +1,7 @@
 package ca.weblite.jdeploy.installer.tray;
 
+import ca.weblite.tools.io.MD5;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -16,7 +18,9 @@ import java.util.logging.Logger;
  * application (identified by package name + source). The lock is automatically
  * released when the JVM exits, even on crash.
  *
- * Lock files are stored in ~/.jdeploy/locks/
+ * Lock files are stored in ~/.jdeploy/locks/ and use the fully qualified package
+ * name format: {sourceHash}.{sanitizedPackageName}.lock (or just {sanitizedPackageName}.lock
+ * if no source).
  *
  * @author Steve Hannah
  */
@@ -175,34 +179,35 @@ public class TrayIconLock {
     /**
      * Creates a filesystem-safe lock file name from package name and source.
      *
-     * Format: [source-prefix]-[sanitized-package-name].lock
+     * Uses the fully qualified package name format:
+     * - {sourceHash}.{sanitizedPackageName}.lock if source is provided
+     * - {sanitizedPackageName}.lock if no source (npm package)
      *
      * Examples:
-     * - npm package "@foo/bar" -> "npm-foo-bar.lock"
-     * - github package "@foo/bar" -> "github-foo-bar.lock"
+     * - npm package "@foo/bar" -> "foo-bar.lock"
+     * - github package "@foo/bar" from "https://github.com/user/repo" -> "{md5hash}.foo-bar.lock"
      *
      * @return The sanitized lock file name
      */
     private String createLockFileName() {
-        String sourcePrefix = getSourcePrefix();
-        String sanitized = sanitizePackageName(packageName);
-        return sourcePrefix + "-" + sanitized + ".lock";
+        String fullyQualifiedName = createFullyQualifiedName();
+        return fullyQualifiedName + ".lock";
     }
 
     /**
-     * Gets the source prefix for the lock file name.
+     * Creates a fully qualified package name from package name and source.
      *
-     * @return "npm" for npm packages, "github" for GitHub packages
+     * Format: {sourceHash}.{sanitizedPackageName} or just {sanitizedPackageName} if no source.
+     *
+     * @return The fully qualified name
      */
-    private String getSourcePrefix() {
-        if (source == null || source.isEmpty()) {
-            return "npm";
-        } else if (source.startsWith("https://github.com/")) {
-            return "github";
-        } else {
-            // Fallback for other sources
-            return "other";
+    private String createFullyQualifiedName() {
+        String sanitized = sanitizePackageName(packageName);
+        if (source != null && !source.isEmpty()) {
+            String sourceHash = MD5.getMd5(source);
+            return sourceHash + "." + sanitized;
         }
+        return sanitized;
     }
 
     /**
@@ -219,12 +224,16 @@ public class TrayIconLock {
      * - < -> -
      * - > -> -
      * - | -> -
+     * - space -> -
+     *
+     * Also converts to lowercase for consistency.
      *
      * @param name The package name to sanitize
      * @return The sanitized name
      */
     private String sanitizePackageName(String name) {
-        return name
+        return name.toLowerCase()
+            .replace(" ", "-")
             .replace("@", "")
             .replace("/", "-")
             .replace("\\", "-")
