@@ -1,11 +1,19 @@
 package ca.weblite.jdeploy.installer.tray;
 
 import ca.weblite.jdeploy.app.AppInfo;
+import ca.weblite.jdeploy.installer.helpers.HelperCleanupScriptGenerator;
+import ca.weblite.jdeploy.installer.helpers.HelperSelfDeleteService;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.models.ServiceRowModel;
 import ca.weblite.jdeploy.installer.services.ServiceLogHelper;
 import ca.weblite.jdeploy.installer.services.ServiceStatusPoller;
+import ca.weblite.jdeploy.installer.uninstall.FileUninstallManifestRepository;
+import ca.weblite.jdeploy.installer.uninstall.UninstallService;
+import ca.weblite.jdeploy.installer.win.JnaRegistryOperations;
+import ca.weblite.jdeploy.installer.win.RegistryOperations;
+import ca.weblite.tools.platform.Platform;
 
+import javax.swing.*;
 import java.awt.*;
 import java.io.File;
 import java.util.logging.Logger;
@@ -210,14 +218,70 @@ public class BackgroundHelper {
     private void handleUninstall() {
         logger.info("Uninstall requested from background helper");
 
-        // Stop the tray controller first
+        // Step 1: Show confirmation dialog
+        String appName = getAppName();
+
+        int result = JOptionPane.showConfirmDialog(
+                null,
+                "Do you want to uninstall " + appName + "?",
+                "Uninstall " + appName,
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+
+        if (result != JOptionPane.YES_OPTION) {
+            logger.info("Uninstall cancelled by user");
+            return; // User cancelled
+        }
+
+        // Step 2: Stop the tray controller (remove tray icon)
         stop();
 
-        // Launch the installer in uninstall mode
-        // TODO: Implement launching the uninstaller
-        logger.warning("Uninstaller launch not yet implemented");
+        // Step 3: Perform uninstallation using UninstallService
+        String packageName = getPackageName();
+        String source = getSource();
+        boolean uninstallSucceeded = false;
 
-        // Exit this background helper process
+        try {
+            UninstallService uninstallService = createUninstallService();
+            UninstallService.UninstallResult uninstallResult = uninstallService.uninstall(packageName, source);
+
+            if (!uninstallResult.isSuccess()) {
+                // Log errors but continue with Helper cleanup
+                for (String error : uninstallResult.getErrors()) {
+                    logger.warning("Uninstall error: " + error);
+                }
+            } else {
+                uninstallSucceeded = true;
+            }
+            logger.info("Uninstall completed: " + uninstallResult);
+        } catch (Exception e) {
+            logger.severe("Failed to perform uninstallation: " + e.getMessage());
+            // Show error dialog to user but still attempt Helper cleanup
+            JOptionPane.showMessageDialog(
+                    null,
+                    "An error occurred during uninstallation:\n" + e.getMessage() +
+                            "\n\nThe Helper application will still be removed.",
+                    "Uninstall Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
+
+        // Step 4: Schedule Helper self-deletion
+        try {
+            HelperSelfDeleteService selfDeleteService = createSelfDeleteService();
+            boolean scheduled = selfDeleteService.scheduleCurrentHelperCleanup();
+            if (scheduled) {
+                logger.info("Helper cleanup scheduled successfully");
+            } else {
+                logger.warning("Failed to schedule Helper cleanup");
+            }
+        } catch (Exception e) {
+            logger.severe("Failed to schedule Helper cleanup: " + e.getMessage());
+        }
+
+        // Step 5: Exit
+        logger.info("Exiting background helper after uninstall");
         System.exit(0);
     }
 
@@ -264,5 +328,105 @@ public class BackgroundHelper {
             }
         }
         return source;
+    }
+
+    /**
+     * Gets the application name for display purposes.
+     */
+    private String getAppName() {
+        AppInfo appInfo = settings.getAppInfo();
+        if (appInfo != null && appInfo.getTitle() != null && !appInfo.getTitle().isEmpty()) {
+            return appInfo.getTitle();
+        }
+        // Fall back to package name if no title available
+        String packageName = getPackageName();
+        return packageName != null ? packageName : "Application";
+    }
+
+    /**
+     * Creates an UninstallService instance.
+     *
+     * Uses JNA-based registry operations on Windows, no-op implementation on other platforms.
+     */
+    private UninstallService createUninstallService() {
+        FileUninstallManifestRepository manifestRepository = new FileUninstallManifestRepository();
+        RegistryOperations registryOperations = createRegistryOperations();
+        return new UninstallService(manifestRepository, registryOperations);
+    }
+
+    /**
+     * Creates platform-appropriate RegistryOperations.
+     *
+     * Returns JNA-based implementation on Windows, no-op implementation on other platforms.
+     */
+    private RegistryOperations createRegistryOperations() {
+        if (Platform.getSystemPlatform().isWindows()) {
+            return new JnaRegistryOperations();
+        }
+        // Return a no-op implementation for non-Windows platforms
+        return new NoOpRegistryOperations();
+    }
+
+    /**
+     * Creates a HelperSelfDeleteService instance.
+     */
+    private HelperSelfDeleteService createSelfDeleteService() {
+        HelperCleanupScriptGenerator scriptGenerator = new HelperCleanupScriptGenerator();
+        return new HelperSelfDeleteService(scriptGenerator, logger);
+    }
+
+    /**
+     * No-op implementation of RegistryOperations for non-Windows platforms.
+     */
+    private static class NoOpRegistryOperations implements RegistryOperations {
+        @Override
+        public boolean keyExists(String key) {
+            return false;
+        }
+
+        @Override
+        public boolean valueExists(String key, String valueName) {
+            return false;
+        }
+
+        @Override
+        public String getStringValue(String key, String valueName) {
+            return null;
+        }
+
+        @Override
+        public void setStringValue(String key, String valueName, String value) {
+            // No-op
+        }
+
+        @Override
+        public void setLongValue(String key, long value) {
+            // No-op
+        }
+
+        @Override
+        public void createKey(String key) {
+            // No-op
+        }
+
+        @Override
+        public void deleteKey(String key) {
+            // No-op
+        }
+
+        @Override
+        public void deleteValue(String key, String valueName) {
+            // No-op
+        }
+
+        @Override
+        public java.util.Set<String> getKeys(String key) {
+            return java.util.Collections.emptySet();
+        }
+
+        @Override
+        public java.util.Map<String, Object> getValues(String key) {
+            return java.util.Collections.emptyMap();
+        }
     }
 }
