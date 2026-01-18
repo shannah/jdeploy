@@ -52,6 +52,8 @@ import ca.weblite.jdeploy.installer.helpers.HelperCopyService;
 import ca.weblite.jdeploy.installer.helpers.HelperInstallationResult;
 import ca.weblite.jdeploy.installer.helpers.HelperInstallationService;
 import ca.weblite.jdeploy.installer.helpers.HelperManifestHelper;
+import ca.weblite.jdeploy.installer.helpers.HelperProcessManager;
+import ca.weblite.jdeploy.installer.helpers.HelperUpdateService;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
@@ -1285,11 +1287,12 @@ public class Main implements Runnable, Constants {
         Map<String, ca.weblite.jdeploy.installer.services.ServiceState> serviceStateBeforeUpdate = null;
         List<CommandSpec> allCommands = null;
         List<CommandSpec> newServiceCommands = null;
+        boolean isUpdate = false;
         if (!installationSettings.isBranchInstallation() && npmPackageVersion() != null) {
             allCommands = npmPackageVersion().getCommands();
             newServiceCommands = extractServiceCommands(allCommands);
 
-            boolean isUpdate = installationDetectionService.isInstalled(appInfo().getNpmPackage(), appInfo().getNpmSource());
+            isUpdate = installationDetectionService.isInstalled(appInfo().getNpmPackage(), appInfo().getNpmSource());
             if (isUpdate) {
                 // For updates: stop/uninstall existing services before installation
                 serviceStateBeforeUpdate = prepareServicesForUpdate(appInfo().getNpmPackage(), newServiceCommands);
@@ -1610,11 +1613,18 @@ public class Main implements Runnable, Constants {
             completeServicesAfterUpdate(appInfo().getNpmPackage(), newServiceCommands, serviceStateBeforeUpdate, installedApp, npmPackageVersion().getVersion());
         }
 
-        // Install Helper application for service management (if services are defined)
+        // Install or update Helper application for service management
         // Skip for branch installations - Helper is only for production installs
-        if (newServiceCommands != null && !newServiceCommands.isEmpty() &&
-            !installationSettings.isBranchInstallation()) {
-            installHelperApplication(installedApp);
+        if (!installationSettings.isBranchInstallation()) {
+            boolean servicesExist = newServiceCommands != null && !newServiceCommands.isEmpty();
+            if (isUpdate) {
+                // For updates: use HelperUpdateService which handles install/update/remove
+                updateHelperApplication(installedApp, servicesExist);
+            } else if (servicesExist) {
+                // For fresh installs with services: install Helper
+                installHelperApplication(installedApp);
+            }
+            // For fresh installs without services: do nothing
         }
 
         File tmpPlatformBundles = new File(tmpBundles, target);
@@ -1825,6 +1835,101 @@ public class Main implements Runnable, Constants {
             System.err.println("Warning: Failed to create installation logger for Helper: " + e.getMessage());
         }
         return new HelperInstallationService(logger, new HelperCopyService(logger));
+    }
+
+    /**
+     * Creates a HelperUpdateService with proper dependencies.
+     *
+     * @return A new HelperUpdateService instance
+     */
+    private HelperUpdateService createHelperUpdateService() {
+        InstallationLogger logger = null;
+        try {
+            String fullyQualifiedPackageName = appInfo().getNpmPackage();
+            if (appInfo().getNpmSource() != null && !appInfo().getNpmSource().isEmpty()) {
+                String sourceHash = MD5.getMd5(appInfo().getNpmSource());
+                fullyQualifiedPackageName = sourceHash + "." + fullyQualifiedPackageName;
+            }
+            logger = new InstallationLogger(fullyQualifiedPackageName, InstallationLogger.OperationType.INSTALL);
+        } catch (IOException e) {
+            System.err.println("Warning: Failed to create installation logger for Helper update: " + e.getMessage());
+        }
+        HelperInstallationService installationService = new HelperInstallationService(logger, new HelperCopyService(logger));
+        HelperProcessManager processManager = new HelperProcessManager();
+        return new HelperUpdateService(installationService, processManager, logger);
+    }
+
+    /**
+     * Updates the Helper application during an application update.
+     *
+     * Handles three scenarios:
+     * <ul>
+     *   <li>Services exist and Helper exists: Update Helper (terminate, delete, reinstall)</li>
+     *   <li>Services exist but Helper doesn't: Install Helper (new services added)</li>
+     *   <li>Services removed: Remove Helper if it exists</li>
+     * </ul>
+     *
+     * @param installedApp The main installed application file/directory
+     * @param servicesExist True if the new version has services, false if services were removed
+     */
+    private void updateHelperApplication(File installedApp, boolean servicesExist) {
+        String nameSuffix = "";
+        if (appInfo().getNpmVersion() != null && appInfo().getNpmVersion().startsWith("0.0.0-")) {
+            String v = appInfo().getNpmVersion();
+            nameSuffix = " " + v.substring(v.indexOf("-") + 1).trim();
+        }
+        String appName = appInfo().getTitle() + nameSuffix;
+
+        File appDirectory;
+        if (Platform.getSystemPlatform().isMac()) {
+            appDirectory = null; // macOS uses ~/Applications/{AppName} Helper/
+        } else {
+            appDirectory = installedApp.isDirectory() ? installedApp : installedApp.getParentFile();
+        }
+
+        File jdeployFilesDir = findJdeployFilesDirFromInstalledApp(installedApp);
+        if (jdeployFilesDir == null) {
+            jdeployFilesDir = installationContext.findInstallFilesDir();
+        }
+
+        // For service removal case (servicesExist = false), jdeployFilesDir may be null
+        // HelperUpdateService handles this by just removing the existing Helper
+        if (!servicesExist && (jdeployFilesDir == null || !jdeployFilesDir.exists())) {
+            jdeployFilesDir = null; // Signal that we're removing, not installing
+        } else if (jdeployFilesDir == null || !jdeployFilesDir.exists()) {
+            System.err.println("Warning: Helper update skipped - .jdeploy-files directory not found");
+            return;
+        }
+
+        HelperUpdateService updateService = createHelperUpdateService();
+        HelperUpdateService.HelperUpdateResult result = updateService.updateHelper(
+                appName, appDirectory, jdeployFilesDir, servicesExist);
+
+        if (result.isSuccess()) {
+            switch (result.getType()) {
+                case INSTALLED:
+                    System.out.println("Helper application installed successfully");
+                    updateManifestWithHelper(result.getInstallationResult());
+                    break;
+                case UPDATED:
+                    System.out.println("Helper application updated successfully");
+                    updateManifestWithHelper(result.getInstallationResult());
+                    break;
+                case REMOVED:
+                    System.out.println("Helper application removed (services no longer defined)");
+                    // Helper was removed, no manifest update needed for adding entries
+                    // The Helper entries will be cleaned up when uninstall runs
+                    break;
+                case NO_ACTION:
+                    System.out.println("No Helper update action needed");
+                    break;
+                default:
+                    break;
+            }
+        } else {
+            System.err.println("Warning: Helper update failed: " + result.getErrorMessage());
+            // Continue with installation - Helper is optional
+        }
     }
 
     /**
