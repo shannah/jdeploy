@@ -90,22 +90,46 @@ public class HelperCleanupScriptGenerator {
 
     /**
      * Generates a bash cleanup script for macOS/Linux.
+     *
+     * The generated script:
+     * 1. Waits for the Helper process to exit (sleep)
+     * 2. Forcefully removes the Helper executable/bundle (rm -rf)
+     * 3. Forcefully removes the context directory (rm -rf)
+     * 4. Attempts to remove the parent directory if empty (rmdir, errors suppressed)
+     * 5. Deletes itself ($0)
+     *
+     * @param helperPath The Helper executable or .app bundle
+     * @param helperContextDir The .jdeploy-files directory
+     * @param helperDir The parent Helper directory (may be null)
+     * @return The generated script file
+     * @throws IOException if script creation fails
      */
     private File generateUnixScript(File helperPath, File helperContextDir, File helperDir) throws IOException {
         File scriptFile = File.createTempFile("helper-cleanup-", ".sh");
 
         try (PrintWriter writer = new PrintWriter(new FileWriter(scriptFile))) {
+            // Shebang - use bash for reliable behavior
             writer.println("#!/bin/bash");
+
+            // Wait for Helper to exit before attempting deletion
             writer.println("sleep " + CLEANUP_DELAY_SECONDS);
+
+            // Delete Helper executable/bundle (-rf handles both files and directories)
             writer.println("rm -rf \"" + escapeForBash(helperPath.getAbsolutePath()) + "\"");
+
+            // Delete context directory containing app.xml, etc.
             writer.println("rm -rf \"" + escapeForBash(helperContextDir.getAbsolutePath()) + "\"");
+
+            // Try to remove parent directory if empty (suppress errors if not empty)
             if (helperDir != null) {
                 writer.println("rmdir \"" + escapeForBash(helperDir.getAbsolutePath()) + "\" 2>/dev/null");
             }
+
+            // Delete this script itself (-- prevents issues if filename starts with -)
             writer.println("rm -- \"$0\"");
         }
 
-        // Make the script executable
+        // Make the script executable so it can be run
         boolean executableSet = scriptFile.setExecutable(true);
         if (!executableSet) {
             logger.warning("Failed to set executable permission on cleanup script");
@@ -117,28 +141,47 @@ public class HelperCleanupScriptGenerator {
 
     /**
      * Generates a batch cleanup script for Windows.
+     *
+     * The generated script:
+     * 1. Waits for the Helper process to exit (timeout)
+     * 2. Deletes the Helper executable (del) or directory (rmdir /s /q)
+     * 3. Removes the context directory recursively (rmdir /s /q)
+     * 4. Attempts to remove the parent directory if empty (rmdir, errors suppressed)
+     * 5. Deletes itself (%~f0 is the full path to this script)
+     *
+     * @param helperPath The Helper executable file
+     * @param helperContextDir The .jdeploy-files directory
+     * @param helperDir The parent helpers directory (may be null)
+     * @return The generated script file
+     * @throws IOException if script creation fails
      */
     private File generateWindowsScript(File helperPath, File helperContextDir, File helperDir) throws IOException {
         File scriptFile = File.createTempFile("helper-cleanup-", ".bat");
 
         try (PrintWriter writer = new PrintWriter(new FileWriter(scriptFile))) {
+            // Suppress command echoing for cleaner output
             writer.println("@echo off");
+
+            // Wait for Helper to exit (/nobreak prevents user interruption, > nul hides output)
             writer.println("timeout /t " + CLEANUP_DELAY_SECONDS + " /nobreak > nul");
 
-            // For Windows, we need to handle both files and directories
-            // Helper executable is a file, context dir is a directory
+            // Delete Helper executable - use rmdir for directories, del for files
+            // /s = recursive, /q = quiet (no confirmation), /f = force
             if (helperPath.isDirectory()) {
                 writer.println("rmdir /s /q \"" + escapeForBatch(helperPath.getAbsolutePath()) + "\"");
             } else {
                 writer.println("del /f /q \"" + escapeForBatch(helperPath.getAbsolutePath()) + "\"");
             }
 
+            // Delete context directory recursively
             writer.println("rmdir /s /q \"" + escapeForBatch(helperContextDir.getAbsolutePath()) + "\"");
 
+            // Try to remove parent directory if empty (2>nul suppresses "not empty" errors)
             if (helperDir != null) {
                 writer.println("rmdir \"" + escapeForBatch(helperDir.getAbsolutePath()) + "\" 2>nul");
             }
 
+            // Delete this script itself (%~f0 expands to full path of batch file)
             writer.println("del \"%~f0\"");
         }
 
@@ -148,11 +191,22 @@ public class HelperCleanupScriptGenerator {
 
     /**
      * Executes a cleanup script on macOS/Linux using nohup.
+     *
+     * Uses nohup to run the script in a way that survives the parent process exit.
+     * Output is redirected to /dev/null since the script runs after we exit.
+     *
+     * @param script The cleanup script to execute
+     * @throws IOException if the process cannot be started
      */
     private void executeUnixScript(File script) throws IOException {
+        // nohup allows the script to continue running after this process exits
         ProcessBuilder pb = new ProcessBuilder("nohup", script.getAbsolutePath());
+
+        // Discard output since we won't be around to read it
         pb.redirectOutput(new File("/dev/null"));
         pb.redirectError(new File("/dev/null"));
+
+        // Run from script's directory for relative path safety
         pb.directory(script.getParentFile());
         pb.start();
 
@@ -161,8 +215,16 @@ public class HelperCleanupScriptGenerator {
 
     /**
      * Executes a cleanup script on Windows using start /min.
+     *
+     * Uses "start /min" to launch the script in a minimized window that
+     * survives the parent process exit. The nested cmd /c ensures the
+     * window closes after the script completes.
+     *
+     * @param script The cleanup script to execute
+     * @throws IOException if the process cannot be started
      */
     private void executeWindowsScript(File script) throws IOException {
+        // start /min launches in minimized window; nested cmd /c runs script and closes
         ProcessBuilder pb = new ProcessBuilder("cmd", "/c", "start", "/min", "cmd", "/c", script.getAbsolutePath());
         pb.start();
 

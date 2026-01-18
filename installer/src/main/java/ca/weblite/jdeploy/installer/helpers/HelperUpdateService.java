@@ -347,6 +347,9 @@ public class HelperUpdateService {
 
         /**
          * Creates a result for a newly installed Helper.
+         *
+         * @param installResult The installation result containing paths and status
+         * @return A successful result with type INSTALLED
          */
         public static HelperUpdateResult installed(HelperInstallationResult installResult) {
             return new HelperUpdateResult(UpdateType.INSTALLED, true, null, installResult);
@@ -354,6 +357,9 @@ public class HelperUpdateService {
 
         /**
          * Creates a result for an updated Helper.
+         *
+         * @param installResult The installation result containing paths and status
+         * @return A successful result with type UPDATED
          */
         public static HelperUpdateResult updated(HelperInstallationResult installResult) {
             return new HelperUpdateResult(UpdateType.UPDATED, true, null, installResult);
@@ -361,6 +367,8 @@ public class HelperUpdateService {
 
         /**
          * Creates a result for a removed Helper.
+         *
+         * @return A successful result with type REMOVED
          */
         public static HelperUpdateResult removed() {
             return new HelperUpdateResult(UpdateType.REMOVED, true, null, null);
@@ -368,6 +376,8 @@ public class HelperUpdateService {
 
         /**
          * Creates a result indicating no action was needed.
+         *
+         * @return A successful result with type NO_ACTION
          */
         public static HelperUpdateResult noActionNeeded() {
             return new HelperUpdateResult(UpdateType.NO_ACTION, true, null, null);
@@ -375,6 +385,9 @@ public class HelperUpdateService {
 
         /**
          * Creates a result for a failed update.
+         *
+         * @param errorMessage Description of what went wrong
+         * @return A failure result with type FAILED
          */
         public static HelperUpdateResult failure(String errorMessage) {
             return new HelperUpdateResult(UpdateType.FAILED, false, errorMessage, null);
@@ -382,13 +395,17 @@ public class HelperUpdateService {
 
         /**
          * Returns the type of update that occurred.
+         *
+         * @return The update type (INSTALLED, UPDATED, REMOVED, NO_ACTION, or FAILED)
          */
         public UpdateType getType() {
             return type;
         }
 
         /**
-         * Returns true if the update was successful.
+         * Returns whether the update was successful.
+         *
+         * @return true if the update succeeded, false otherwise
          */
         public boolean isSuccess() {
             return success;
@@ -396,6 +413,8 @@ public class HelperUpdateService {
 
         /**
          * Returns the error message if the update failed.
+         *
+         * @return The error message, or null if the update succeeded
          */
         public String getErrorMessage() {
             return errorMessage;
@@ -403,6 +422,8 @@ public class HelperUpdateService {
 
         /**
          * Returns the installation result if Helper was installed or updated.
+         *
+         * @return The installation result, or null if Helper was removed or update failed
          */
         public HelperInstallationResult getInstallationResult() {
             return installationResult;
