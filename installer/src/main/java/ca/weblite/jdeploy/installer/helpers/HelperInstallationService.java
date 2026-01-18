@@ -71,11 +71,16 @@ public class HelperInstallationService {
             );
         }
 
+        // Declare paths outside try block so they're available in catch
+        File helperDir = null;
+        File helperExecutable = null;
+        File helperContextDir = null;
+
         try {
             // Step 1: Get Helper paths
-            File helperDir = HelperPaths.getHelperDirectory(appName, appDirectory);
-            File helperExecutable = HelperPaths.getHelperExecutablePath(appName, appDirectory);
-            File helperContextDir = HelperPaths.getHelperContextDirectory(appName, appDirectory);
+            helperDir = HelperPaths.getHelperDirectory(appName, appDirectory);
+            helperExecutable = HelperPaths.getHelperExecutablePath(appName, appDirectory);
+            helperContextDir = HelperPaths.getHelperContextDirectory(appName, appDirectory);
 
             logInfo("Helper directory: " + helperDir.getAbsolutePath());
             logInfo("Helper executable: " + helperExecutable.getAbsolutePath());
@@ -144,8 +149,13 @@ public class HelperInstallationService {
             return HelperInstallationResult.success(helperExecutable, helperContextDir);
 
         } catch (Exception e) {
-            logError("Helper installation failed: " + e.getMessage(), e);
-            return HelperInstallationResult.failure("Helper installation failed: " + e.getMessage());
+            String errorMessage = "Helper installation failed: " + e.getMessage();
+            logError(errorMessage, e);
+            // Include paths in failure result if they were calculated
+            if (helperExecutable != null || helperContextDir != null) {
+                return HelperInstallationResult.failure(errorMessage, helperExecutable, helperContextDir);
+            }
+            return HelperInstallationResult.failure(errorMessage);
         }
     }
 

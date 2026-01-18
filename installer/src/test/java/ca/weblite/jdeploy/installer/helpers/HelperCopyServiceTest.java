@@ -523,4 +523,112 @@ public class HelperCopyServiceTest {
 
         verify(mockLogger).logInfo(contains("completed"));
     }
+
+    // ========== Error logging tests ==========
+
+    @Test
+    public void testCopyInstaller_DeleteFailure_LogsErrorBeforeThrowing() throws IOException {
+        // Create a destination that can't be deleted
+        File source = new File(tempDir, "source.txt");
+        assertTrue(source.createNewFile());
+
+        // Create destination directory with restricted permissions
+        File destination = new File(tempDir, "dest");
+        assertTrue(destination.mkdir());
+
+        // Create a file inside the destination
+        File lockedFile = new File(destination, "locked.txt");
+        assertTrue(lockedFile.createNewFile());
+
+        // On macOS/Linux, setting a file read-only doesn't prevent deletion if you have
+        // write permission on the parent directory. We need to set the parent read-only.
+        if (destination.setReadOnly()) {
+            try {
+                // First verify that we actually can't delete the file
+                boolean canDelete = lockedFile.delete();
+                if (!canDelete) {
+                    // Reset for copy test
+                    destination.setWritable(true);
+                    lockedFile.createNewFile();
+                    destination.setReadOnly();
+
+                    // Try to copy - this should fail when trying to delete the directory
+                    IOException thrown = assertThrows(IOException.class, () -> {
+                        service.copyInstaller(source, destination);
+                    });
+
+                    // Verify error was logged
+                    verify(mockLogger, atLeastOnce()).logError(anyString(), any());
+
+                    assertTrue(thrown.getMessage().contains("delete") ||
+                               thrown.getMessage().contains("Failed"),
+                        "Error message should mention deletion failure");
+                }
+                // If we could delete the file, skip the test as we can't prevent deletion
+            } finally {
+                // Cleanup
+                destination.setWritable(true);
+                lockedFile.delete();
+                destination.delete();
+            }
+        }
+        // If setReadOnly failed, skip the test silently
+    }
+
+    @Test
+    public void testCopyInstaller_ParentDirectoryCreationFailure_LogsError() throws IOException {
+        // Skip on systems where we can't restrict permissions
+        File restrictedDir = new File(tempDir, "restricted");
+        assertTrue(restrictedDir.mkdir());
+
+        if (restrictedDir.setReadOnly()) {
+            try {
+                File source = new File(tempDir, "source.txt");
+                assertTrue(source.createNewFile());
+
+                // Try to copy to a location where parent can't be created
+                File destination = new File(restrictedDir, "sub/dest.txt");
+
+                IOException thrown = assertThrows(IOException.class, () -> {
+                    service.copyInstaller(source, destination);
+                });
+
+                // Verify error was logged (might be for directory creation or file access)
+                verify(mockLogger, atLeastOnce()).logError(anyString(), any());
+            } finally {
+                restrictedDir.setWritable(true);
+            }
+        }
+    }
+
+    @Test
+    public void testCopyContextDirectory_DirectoryCopyFails_LogsError() throws IOException {
+        // Create source directory
+        File source = new File(tempDir, "source");
+        assertTrue(source.mkdir());
+        File sourceFile = new File(source, "test.txt");
+        try (FileWriter w = new FileWriter(sourceFile)) {
+            w.write("test");
+        }
+
+        // Create destination where we can't write
+        File destParent = new File(tempDir, "restricted");
+        assertTrue(destParent.mkdir());
+
+        if (destParent.setReadOnly()) {
+            try {
+                File destination = new File(destParent, "dest");
+
+                // This may throw or may succeed depending on OS permissions
+                try {
+                    service.copyContextDirectory(source, destination);
+                } catch (IOException e) {
+                    // Verify error was logged
+                    verify(mockLogger, atLeastOnce()).logError(anyString(), any());
+                }
+            } finally {
+                destParent.setWritable(true);
+            }
+        }
+    }
 }

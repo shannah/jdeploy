@@ -84,9 +84,12 @@ public class HelperSelfDeleteService {
 
         logger.info("Scheduling Helper cleanup for: " + appName);
 
+        // Declare helperPath outside try block so it's available in catch for error messages
+        File helperPath = null;
+
         try {
             // Resolve Helper paths
-            File helperPath = getHelperPath(appName, appDirectory);
+            helperPath = getHelperPath(appName, appDirectory);
             File helperContextDir = HelperPaths.getHelperContextDirectory(appName, appDirectory);
             File helperDir = HelperPaths.getHelperDirectory(appName, appDirectory);
 
@@ -111,10 +114,13 @@ public class HelperSelfDeleteService {
             return true;
 
         } catch (IOException e) {
-            logger.log(Level.WARNING, "Failed to schedule Helper cleanup: " + e.getMessage(), e);
+            logger.log(Level.WARNING, "Failed to schedule Helper cleanup for " + appName +
+                       " at " + (helperPath != null ? helperPath.getAbsolutePath() : "unknown") +
+                       ": " + e.getMessage(), e);
             return false;
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Unexpected error scheduling Helper cleanup: " + e.getMessage(), e);
+            logger.log(Level.SEVERE, "Unexpected error scheduling Helper cleanup for " + appName +
+                       ": " + e.getMessage(), e);
             return false;
         }
     }
@@ -226,11 +232,17 @@ public class HelperSelfDeleteService {
 
         try {
             File cleanupScript = scriptGenerator.generateCleanupScript(helperPath, helperContextDir, helperDir);
+            logger.info("Generated cleanup script: " + cleanupScript.getAbsolutePath());
             scriptGenerator.executeCleanupScript(cleanupScript);
-            logger.info("Cleanup script launched for current Helper");
+            logger.info("Cleanup script launched for current Helper - files will be deleted after exit");
             return true;
         } catch (IOException e) {
-            logger.log(Level.WARNING, "Failed to schedule current Helper cleanup: " + e.getMessage(), e);
+            logger.log(Level.WARNING, "Failed to schedule current Helper cleanup at " +
+                       helperPath.getAbsolutePath() + ": " + e.getMessage(), e);
+            return false;
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Unexpected error scheduling current Helper cleanup at " +
+                       helperPath.getAbsolutePath() + ": " + e.getMessage(), e);
             return false;
         }
     }

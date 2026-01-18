@@ -170,7 +170,9 @@ public class HelperCopyService {
 
             if (!completed) {
                 process.destroyForcibly();
-                throw new IOException("ditto command timed out after " + DITTO_TIMEOUT_SECONDS + " seconds");
+                String errorMessage = "ditto command timed out after " + DITTO_TIMEOUT_SECONDS + " seconds";
+                logError(errorMessage, null);
+                throw new IOException(errorMessage);
             }
 
             int exitCode = process.exitValue();
@@ -179,14 +181,18 @@ public class HelperCopyService {
                 if (errorMsg.isEmpty()) {
                     errorMsg = "Unknown error";
                 }
-                throw new IOException("ditto command failed with exit code " + exitCode + ": " + errorMsg);
+                String errorMessage = "ditto command failed with exit code " + exitCode + ": " + errorMsg;
+                logError(errorMessage, null);
+                throw new IOException(errorMessage);
             }
 
             logFileCopied(source, destination);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("ditto command was interrupted", e);
+            String errorMessage = "ditto command was interrupted";
+            logError(errorMessage, e);
+            throw new IOException(errorMessage, e);
         }
     }
 
@@ -203,12 +209,19 @@ public class HelperCopyService {
         if (source.isDirectory()) {
             copyDirectoryRecursively(source, destination);
         } else {
-            Files.copy(
-                source.toPath(),
-                destination.toPath(),
-                StandardCopyOption.REPLACE_EXISTING
-            );
-            logFileCopied(source, destination);
+            try {
+                Files.copy(
+                    source.toPath(),
+                    destination.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING
+                );
+                logFileCopied(source, destination);
+            } catch (IOException e) {
+                String errorMessage = "Failed to copy file from " + source.getAbsolutePath() +
+                                      " to " + destination.getAbsolutePath();
+                logError(errorMessage, e);
+                throw new IOException(errorMessage + ": " + e.getMessage(), e);
+            }
         }
     }
 
@@ -226,21 +239,28 @@ public class HelperCopyService {
         if (source.isDirectory()) {
             copyDirectoryRecursively(source, destination);
         } else {
-            Files.copy(
-                source.toPath(),
-                destination.toPath(),
-                StandardCopyOption.REPLACE_EXISTING,
-                StandardCopyOption.COPY_ATTRIBUTES
-            );
+            try {
+                Files.copy(
+                    source.toPath(),
+                    destination.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.COPY_ATTRIBUTES
+                );
 
-            // Ensure executable permission is set if source was executable
-            if (source.canExecute()) {
-                if (!destination.setExecutable(true)) {
-                    logInfo("Warning: Could not set executable permission on " + destination.getAbsolutePath());
+                // Ensure executable permission is set if source was executable
+                if (source.canExecute()) {
+                    if (!destination.setExecutable(true)) {
+                        logInfo("Warning: Could not set executable permission on " + destination.getAbsolutePath());
+                    }
                 }
-            }
 
-            logFileCopied(source, destination);
+                logFileCopied(source, destination);
+            } catch (IOException e) {
+                String errorMessage = "Failed to copy file from " + source.getAbsolutePath() +
+                                      " to " + destination.getAbsolutePath();
+                logError(errorMessage, e);
+                throw new IOException(errorMessage + ": " + e.getMessage(), e);
+            }
         }
     }
 
@@ -259,9 +279,15 @@ public class HelperCopyService {
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
                 Path targetDir = destPath.resolve(sourcePath.relativize(dir));
-                if (!Files.exists(targetDir)) {
-                    Files.createDirectories(targetDir);
-                    logDirectoryCreated(targetDir.toFile());
+                try {
+                    if (!Files.exists(targetDir)) {
+                        Files.createDirectories(targetDir);
+                        logDirectoryCreated(targetDir.toFile());
+                    }
+                } catch (IOException e) {
+                    String errorMessage = "Failed to create directory: " + targetDir.toAbsolutePath();
+                    logError(errorMessage, e);
+                    throw new IOException(errorMessage + ": " + e.getMessage(), e);
                 }
                 return FileVisitResult.CONTINUE;
             }
@@ -280,15 +306,29 @@ public class HelperCopyService {
                     };
                 }
 
-                Files.copy(file, targetFile, options);
+                try {
+                    Files.copy(file, targetFile, options);
 
-                // Set executable permission on Linux if source was executable
-                if (Platform.getSystemPlatform().isLinux() && Files.isExecutable(file)) {
-                    targetFile.toFile().setExecutable(true);
+                    // Set executable permission on Linux if source was executable
+                    if (Platform.getSystemPlatform().isLinux() && Files.isExecutable(file)) {
+                        targetFile.toFile().setExecutable(true);
+                    }
+
+                    logFileCopied(file.toFile(), targetFile.toFile());
+                } catch (IOException e) {
+                    String errorMessage = "Failed to copy file from " + file.toAbsolutePath() +
+                                          " to " + targetFile.toAbsolutePath();
+                    logError(errorMessage, e);
+                    throw new IOException(errorMessage + ": " + e.getMessage(), e);
                 }
-
-                logFileCopied(file.toFile(), targetFile.toFile());
                 return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                String errorMessage = "Failed to access file during copy: " + file.toAbsolutePath();
+                logError(errorMessage, exc);
+                throw new IOException(errorMessage + ": " + exc.getMessage(), exc);
             }
         });
     }
@@ -315,7 +355,9 @@ public class HelperCopyService {
         File parentDir = destination.getParentFile();
         if (parentDir != null && !parentDir.exists()) {
             if (!parentDir.mkdirs()) {
-                throw new IOException("Failed to create destination directory: " + parentDir.getAbsolutePath());
+                String errorMessage = "Failed to create destination directory: " + parentDir.getAbsolutePath();
+                logError(errorMessage, null);
+                throw new IOException(errorMessage);
             }
             logDirectoryCreated(parentDir);
         }
@@ -337,7 +379,9 @@ public class HelperCopyService {
             }
         }
         if (!file.delete()) {
-            throw new IOException("Failed to delete: " + file.getAbsolutePath());
+            String errorMessage = "Failed to delete: " + file.getAbsolutePath();
+            logError(errorMessage, null);
+            throw new IOException(errorMessage);
         }
     }
 
@@ -371,6 +415,12 @@ public class HelperCopyService {
                 destination.getAbsolutePath(),
                 "from " + source.getAbsolutePath()
             );
+        }
+    }
+
+    private void logError(String message, Throwable e) {
+        if (logger != null) {
+            logger.logError(message, e);
         }
     }
 }

@@ -394,4 +394,118 @@ public class HelperInstallationServiceTest {
             serviceWithNullLogger.isHelperInstalled("MyApp", tempDir);
         });
     }
+
+    // ========== Failure result with paths tests ==========
+
+    @Test
+    public void testInstallHelper_CopyInstallerFails_IncludesPathsInFailureResult() throws IOException {
+        // Create source jdeploy-files directory
+        File jdeployFilesDir = new File(tempDir, ".jdeploy-files");
+        assertTrue(jdeployFilesDir.mkdir());
+
+        // Create a mock installer
+        File installerPath;
+        if (Platform.getSystemPlatform().isMac()) {
+            File installerBundle = new File(tempDir, "Installer.app");
+            File macOS = new File(installerBundle, "Contents/MacOS");
+            assertTrue(macOS.mkdirs());
+            File launcher = new File(macOS, "launcher");
+            assertTrue(launcher.createNewFile());
+            installerPath = launcher;
+        } else {
+            installerPath = new File(tempDir, "installer.exe");
+            assertTrue(installerPath.createNewFile());
+        }
+
+        System.setProperty(InstallerBundleLocator.LAUNCHER_PATH_PROPERTY, installerPath.getAbsolutePath());
+
+        // Set up mock to throw exception on copy
+        doThrow(new IOException("Copy failed")).when(mockCopyService)
+            .copyInstaller(any(File.class), any(File.class));
+
+        HelperInstallationResult result = service.installHelper("MyApp", tempDir, jdeployFilesDir);
+
+        assertFalse(result.isSuccess(), "Should fail when copy throws exception");
+        // Verify paths are included in the failure result
+        assertNotNull(result.getHelperExecutable(), "Helper executable path should be included in failure");
+        assertNotNull(result.getHelperContextDirectory(), "Context directory path should be included in failure");
+    }
+
+    @Test
+    public void testInstallHelper_CopyContextFails_IncludesPathsInFailureResult() throws IOException {
+        // Create source jdeploy-files directory
+        File jdeployFilesDir = new File(tempDir, ".jdeploy-files");
+        assertTrue(jdeployFilesDir.mkdir());
+
+        // Create a mock installer
+        File installerPath;
+        if (Platform.getSystemPlatform().isMac()) {
+            File installerBundle = new File(tempDir, "Installer.app");
+            File macOS = new File(installerBundle, "Contents/MacOS");
+            assertTrue(macOS.mkdirs());
+            File launcher = new File(macOS, "launcher");
+            assertTrue(launcher.createNewFile());
+            installerPath = launcher;
+        } else {
+            installerPath = new File(tempDir, "installer.exe");
+            assertTrue(installerPath.createNewFile());
+        }
+
+        System.setProperty(InstallerBundleLocator.LAUNCHER_PATH_PROPERTY, installerPath.getAbsolutePath());
+
+        // Set up mock - copyInstaller succeeds but creates the file
+        doAnswer(invocation -> {
+            File dest = invocation.getArgument(1);
+            dest.getParentFile().mkdirs();
+            if (dest.getName().endsWith(".app")) {
+                dest.mkdirs();
+            } else {
+                dest.createNewFile();
+            }
+            return null;
+        }).when(mockCopyService).copyInstaller(any(File.class), any(File.class));
+
+        // copyContextDirectory fails
+        doThrow(new IOException("Context copy failed")).when(mockCopyService)
+            .copyContextDirectory(any(File.class), any(File.class));
+
+        HelperInstallationResult result = service.installHelper("MyApp", tempDir, jdeployFilesDir);
+
+        assertFalse(result.isSuccess(), "Should fail when context copy throws exception");
+        // Verify paths are included in the failure result
+        assertNotNull(result.getHelperExecutable(), "Helper executable path should be included in failure");
+        assertNotNull(result.getHelperContextDirectory(), "Context directory path should be included in failure");
+    }
+
+    @Test
+    public void testInstallHelper_LogsError_OnException() throws IOException {
+        // Create source jdeploy-files directory
+        File jdeployFilesDir = new File(tempDir, ".jdeploy-files");
+        assertTrue(jdeployFilesDir.mkdir());
+
+        // Create a mock installer
+        File installerPath;
+        if (Platform.getSystemPlatform().isMac()) {
+            File installerBundle = new File(tempDir, "Installer.app");
+            File macOS = new File(installerBundle, "Contents/MacOS");
+            assertTrue(macOS.mkdirs());
+            File launcher = new File(macOS, "launcher");
+            assertTrue(launcher.createNewFile());
+            installerPath = launcher;
+        } else {
+            installerPath = new File(tempDir, "installer.exe");
+            assertTrue(installerPath.createNewFile());
+        }
+
+        System.setProperty(InstallerBundleLocator.LAUNCHER_PATH_PROPERTY, installerPath.getAbsolutePath());
+
+        // Set up mock to throw exception
+        doThrow(new IOException("Copy failed")).when(mockCopyService)
+            .copyInstaller(any(File.class), any(File.class));
+
+        service.installHelper("MyApp", tempDir, jdeployFilesDir);
+
+        // Verify error was logged
+        verify(mockLogger).logError(contains("failed"), any(Throwable.class));
+    }
 }

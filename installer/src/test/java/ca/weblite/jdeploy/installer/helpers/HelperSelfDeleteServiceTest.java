@@ -8,9 +8,11 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.io.IOException;
 import java.util.UUID;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 /**
@@ -393,5 +395,99 @@ public class HelperSelfDeleteServiceTest {
 
         // Verify logging
         verify(mockLogger, atLeastOnce()).info(anyString());
+    }
+
+    // ========== Additional error context tests ==========
+
+    @Test
+    public void testScheduleHelperCleanup_ScriptGenerationFails_LogsContextualError() throws IOException {
+        // Create existing Helper
+        File helperPath = HelperPaths.getHelperExecutablePath(testAppName, appDirectory);
+        helperPath.getParentFile().mkdirs();
+        helperPath.createNewFile();
+
+        // Mock script generation failure
+        when(mockScriptGenerator.generateCleanupScript(any(), any(), any()))
+                .thenThrow(new IOException("Disk full"));
+
+        // Execute
+        boolean result = service.scheduleHelperCleanup(testAppName, appDirectory);
+
+        // Verify
+        assertFalse(result, "Should return false on script generation failure");
+
+        // Verify error message includes context (app name and path)
+        verify(mockLogger).log(
+                eq(Level.WARNING),
+                contains(testAppName),
+                any(IOException.class));
+    }
+
+    @Test
+    public void testScheduleCurrentHelperCleanup_ScriptExecutionFails_LogsContextualError() throws IOException {
+        // Create a test launcher
+        File testLauncher = new File(tempDir, "test-helper");
+        testLauncher.createNewFile();
+
+        File mockScript = new File(tempDir, "cleanup.sh");
+        mockScript.createNewFile();
+        when(mockScriptGenerator.generateCleanupScript(any(), any(), any())).thenReturn(mockScript);
+        doThrow(new IOException("Permission denied")).when(mockScriptGenerator).executeCleanupScript(any());
+
+        System.setProperty("jdeploy.launcher.path", testLauncher.getAbsolutePath());
+
+        boolean result = service.scheduleCurrentHelperCleanup();
+
+        assertFalse(result, "Should return false on script execution failure");
+
+        // Verify error message includes path context
+        verify(mockLogger).log(
+                eq(Level.WARNING),
+                contains(testLauncher.getAbsolutePath()),
+                any(IOException.class));
+    }
+
+    @Test
+    public void testScheduleCurrentHelperCleanup_UnexpectedException_LogsSevereError() throws IOException {
+        // Create a test launcher
+        File testLauncher = new File(tempDir, "test-helper");
+        testLauncher.createNewFile();
+
+        // Mock unexpected exception (not IOException)
+        when(mockScriptGenerator.generateCleanupScript(any(), any(), any()))
+                .thenThrow(new RuntimeException("Unexpected null pointer"));
+
+        System.setProperty("jdeploy.launcher.path", testLauncher.getAbsolutePath());
+
+        boolean result = service.scheduleCurrentHelperCleanup();
+
+        assertFalse(result, "Should return false on unexpected exception");
+
+        // Verify severe error was logged with path context
+        verify(mockLogger).log(
+                eq(Level.SEVERE),
+                contains(testLauncher.getAbsolutePath()),
+                any(Exception.class));
+    }
+
+    @Test
+    public void testScheduleHelperCleanup_IncludesPathInWarningWhenKnown() throws IOException {
+        // Create existing Helper
+        File helperPath = HelperPaths.getHelperExecutablePath(testAppName, appDirectory);
+        helperPath.getParentFile().mkdirs();
+        helperPath.createNewFile();
+
+        // Mock script generation failure
+        when(mockScriptGenerator.generateCleanupScript(any(), any(), any()))
+                .thenThrow(new IOException("Cannot write script"));
+
+        // Execute
+        service.scheduleHelperCleanup(testAppName, appDirectory);
+
+        // Verify the warning includes the helper path
+        verify(mockLogger).log(
+                eq(Level.WARNING),
+                argThat((String msg) -> msg.contains(helperPath.getAbsolutePath())),
+                any(IOException.class));
     }
 }

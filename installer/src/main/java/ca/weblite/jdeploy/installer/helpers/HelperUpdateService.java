@@ -120,15 +120,22 @@ public class HelperUpdateService {
             if (helperExecutable.exists()) {
                 if (helperExecutable.isDirectory()) {
                     // macOS .app bundle
-                    FileUtils.deleteDirectory(helperExecutable);
-                    logInfo("Deleted Helper bundle: " + helperExecutable.getAbsolutePath());
+                    try {
+                        FileUtils.deleteDirectory(helperExecutable);
+                        logInfo("Deleted Helper bundle: " + helperExecutable.getAbsolutePath());
+                    } catch (IOException e) {
+                        logWarning("Failed to delete Helper bundle: " + helperExecutable.getAbsolutePath() +
+                                   " - " + e.getMessage());
+                        return false;
+                    }
                 } else {
                     // Windows/Linux executable
                     boolean deleted = helperExecutable.delete();
                     if (deleted) {
                         logInfo("Deleted Helper executable: " + helperExecutable.getAbsolutePath());
                     } else {
-                        logWarning("Failed to delete Helper executable: " + helperExecutable.getAbsolutePath());
+                        logWarning("Failed to delete Helper executable: " + helperExecutable.getAbsolutePath() +
+                                   " - file may be locked or in use");
                         return false;
                     }
                 }
@@ -136,16 +143,28 @@ public class HelperUpdateService {
 
             // Delete .jdeploy-files directory
             if (helperContextDir.exists()) {
-                FileUtils.deleteDirectory(helperContextDir);
-                logInfo("Deleted Helper context directory: " + helperContextDir.getAbsolutePath());
+                try {
+                    FileUtils.deleteDirectory(helperContextDir);
+                    logInfo("Deleted Helper context directory: " + helperContextDir.getAbsolutePath());
+                } catch (IOException e) {
+                    logWarning("Failed to delete Helper context directory: " + helperContextDir.getAbsolutePath() +
+                               " - " + e.getMessage());
+                    // Continue - context directory deletion failure is not critical
+                }
             }
 
             // Delete helper directory if empty (or always on macOS)
             if (helperDir.exists()) {
                 if (Platform.getSystemPlatform().isMac()) {
                     // On macOS, the helper directory is "{AppName} Helper" - delete it
-                    FileUtils.deleteDirectory(helperDir);
-                    logInfo("Deleted Helper directory: " + helperDir.getAbsolutePath());
+                    try {
+                        FileUtils.deleteDirectory(helperDir);
+                        logInfo("Deleted Helper directory: " + helperDir.getAbsolutePath());
+                    } catch (IOException e) {
+                        logWarning("Failed to delete Helper directory: " + helperDir.getAbsolutePath() +
+                                   " - " + e.getMessage());
+                        // Continue - directory deletion failure is not critical
+                    }
                 } else {
                     // On Windows/Linux, only delete if empty
                     String[] remaining = helperDir.list();
@@ -153,6 +172,9 @@ public class HelperUpdateService {
                         boolean deleted = helperDir.delete();
                         if (deleted) {
                             logInfo("Deleted empty helpers directory: " + helperDir.getAbsolutePath());
+                        } else {
+                            logWarning("Failed to delete empty helpers directory: " + helperDir.getAbsolutePath());
+                            // Continue - directory deletion failure is not critical
                         }
                     }
                 }
@@ -160,8 +182,8 @@ public class HelperUpdateService {
 
             return true;
 
-        } catch (IOException e) {
-            logWarning("Error deleting Helper: " + e.getMessage());
+        } catch (Exception e) {
+            logWarning("Unexpected error deleting Helper: " + e.getMessage());
             return false;
         }
     }
