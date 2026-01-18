@@ -650,6 +650,13 @@ public class DefaultInstallationContext implements InstallationContext {
 
     public void applyContext(InstallationSettings settings) {
         settings.setInstallFilesDir(findInstallFilesDir());
+
+        // NPMPackageVersion may be null if running in background helper mode without network access
+        // In that case, we can skip the website URL setup since it's only used by the installer UI
+        if (settings.getNpmPackageVersion() == null) {
+            return;
+        }
+
         NPMApplication app = settings.getNpmPackageVersion().toNPMApplication();
         if (app.getHomepage() != null) {
             WebsiteVerifier verifier = new WebsiteVerifier();

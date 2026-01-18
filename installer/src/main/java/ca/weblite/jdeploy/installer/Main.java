@@ -331,8 +331,20 @@ public class Main implements Runnable, Constants {
 
         // First we set the version in appInfo according to the app.xml file
         appInfo().setNpmVersion(ifEmpty(root.getAttribute("version"), "latest"));
-        // Next we use that version to load the package info from the NPM registry.
-        loadNPMPackageInfo();
+
+        // For background helper mode, NPM package info is optional since it may run offline.
+        // The helper only needs app.xml info (package name, source, title) for uninstallation.
+        if (runAsBackgroundHelper) {
+            try {
+                loadNPMPackageInfo();
+            } catch (IOException e) {
+                System.err.println("Warning: Failed to load NPM package info (running in background helper mode): " + e.getMessage());
+                System.err.println("Continuing without NPM package info - uninstall functionality will still work.");
+            }
+        } else {
+            // For normal installer mode, NPM package info is required
+            loadNPMPackageInfo();
+        }
 
         String bundleSuffix = "";
         if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
