@@ -82,6 +82,12 @@ jDeploy is a Java desktop app deployment tool with a multi-module architecture:
 - `action.yml` - GitHub Action definition
 - `build_and_test.sh` - Main build script
 
+## Git Commit Conventions
+
+- Do NOT add Co-Authored-By lines or any Claude/AI attribution to commit messages
+- Use conventional commit format: `type: description` (e.g., `feat:`, `fix:`, `refactor:`, `docs:`, `test:`)
+- Keep commit messages concise and descriptive
+
 ## Current Implementation Projects
 
 ### .jdpignore File Support Implementation
