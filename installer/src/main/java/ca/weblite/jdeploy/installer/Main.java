@@ -48,6 +48,10 @@ import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
 import ca.weblite.jdeploy.installer.services.ServiceOperationExecutor;
 import ca.weblite.jdeploy.installer.tray.BackgroundHelper;
+import ca.weblite.jdeploy.installer.helpers.HelperCopyService;
+import ca.weblite.jdeploy.installer.helpers.HelperInstallationResult;
+import ca.weblite.jdeploy.installer.helpers.HelperInstallationService;
+import ca.weblite.jdeploy.installer.helpers.HelperManifestHelper;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
@@ -1606,12 +1610,138 @@ public class Main implements Runnable, Constants {
             completeServicesAfterUpdate(appInfo().getNpmPackage(), newServiceCommands, serviceStateBeforeUpdate, installedApp, npmPackageVersion().getVersion());
         }
 
+        // Install Helper application for service management (if services are defined)
+        // Skip for branch installations - Helper is only for production installs
+        if (newServiceCommands != null && !newServiceCommands.isEmpty() &&
+            !installationSettings.isBranchInstallation()) {
+            installHelperApplication(installedApp);
+        }
+
         File tmpPlatformBundles = new File(tmpBundles, target);
 
     }
 
     private String deriveLinuxBinaryNameFromTitle(String title) {
         return title.toLowerCase().replace(" ", "-").replaceAll("[^a-z0-9\\-]", "");
+    }
+
+    /**
+     * Installs the Helper application for service management.
+     *
+     * The Helper is a lightweight copy of the installer that provides:
+     * - System tray icon for service status
+     * - User-friendly uninstallation
+     *
+     * @param installedApp The main installed application file/directory
+     */
+    private void installHelperApplication(File installedApp) {
+        String nameSuffix = "";
+        if (appInfo().getNpmVersion() != null && appInfo().getNpmVersion().startsWith("0.0.0-")) {
+            String v = appInfo().getNpmVersion();
+            nameSuffix = " " + v.substring(v.indexOf("-") + 1).trim();
+        }
+        String appName = appInfo().getTitle() + nameSuffix;
+
+        File appDirectory;
+        if (Platform.getSystemPlatform().isMac()) {
+            appDirectory = null; // macOS uses ~/Applications/{AppName} Helper/
+        } else {
+            appDirectory = installedApp.isDirectory() ? installedApp : installedApp.getParentFile();
+        }
+
+        File jdeployFilesDir = findJdeployFilesDirFromInstalledApp(installedApp);
+        if (jdeployFilesDir == null) {
+            jdeployFilesDir = installationContext.findInstallFilesDir();
+        }
+
+        if (jdeployFilesDir == null || !jdeployFilesDir.exists()) {
+            System.err.println("Warning: Helper installation skipped - .jdeploy-files directory not found");
+            return;
+        }
+
+        HelperInstallationService helperService = createHelperInstallationService();
+        HelperInstallationResult result = helperService.installHelper(appName, appDirectory, jdeployFilesDir);
+
+        if (result.isSuccess()) {
+            System.out.println("Helper application installed successfully at: " + result.getHelperExecutable().getAbsolutePath());
+        } else {
+            System.err.println("Warning: Helper installation failed: " + result.getErrorMessage());
+            // Continue with installation - Helper is optional
+        }
+    }
+
+    /**
+     * Finds the .jdeploy-files directory from the installed application.
+     *
+     * @param installedApp The installed application file/directory
+     * @return The .jdeploy-files directory, or null if not found
+     */
+    private File findJdeployFilesDirFromInstalledApp(File installedApp) {
+        if (installedApp == null) {
+            return null;
+        }
+
+        if (Platform.getSystemPlatform().isMac()) {
+            // macOS: search inside the .app bundle
+            return findJdeployFilesRecursive(installedApp, 5);
+        } else {
+            // Windows/Linux: .jdeploy-files is in the app directory
+            File appDir = installedApp.isDirectory() ? installedApp : installedApp.getParentFile();
+            File jdeployFiles = new File(appDir, ".jdeploy-files");
+            return jdeployFiles.exists() ? jdeployFiles : null;
+        }
+    }
+
+    /**
+     * Recursively searches for .jdeploy-files directory within a given directory.
+     *
+     * @param dir The directory to search in
+     * @param maxDepth Maximum depth to search
+     * @return The .jdeploy-files directory, or null if not found
+     */
+    private File findJdeployFilesRecursive(File dir, int maxDepth) {
+        if (dir == null || !dir.isDirectory() || maxDepth <= 0) {
+            return null;
+        }
+
+        File candidate = new File(dir, ".jdeploy-files");
+        if (candidate.exists() && candidate.isDirectory()) {
+            return candidate;
+        }
+
+        File[] children = dir.listFiles();
+        if (children != null) {
+            for (File child : children) {
+                if (child.isDirectory()) {
+                    File found = findJdeployFilesRecursive(child, maxDepth - 1);
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Creates a HelperInstallationService with proper dependencies.
+     *
+     * @return A new HelperInstallationService instance
+     */
+    private HelperInstallationService createHelperInstallationService() {
+        InstallationLogger logger = null;
+        try {
+            String fullyQualifiedPackageName = appInfo().getNpmPackage();
+            if (appInfo().getNpmSource() != null && !appInfo().getNpmSource().isEmpty()) {
+                String sourceHash = MD5.getMd5(appInfo().getNpmSource());
+                fullyQualifiedPackageName = sourceHash + "." + fullyQualifiedPackageName;
+            }
+            logger = new InstallationLogger(fullyQualifiedPackageName, InstallationLogger.OperationType.INSTALL);
+        } catch (IOException e) {
+            System.err.println("Warning: Failed to create installation logger for Helper: " + e.getMessage());
+        }
+        return new HelperInstallationService(logger, new HelperCopyService(logger));
     }
 
     /**
