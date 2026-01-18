@@ -1664,9 +1664,92 @@ public class Main implements Runnable, Constants {
 
         if (result.isSuccess()) {
             System.out.println("Helper application installed successfully at: " + result.getHelperExecutable().getAbsolutePath());
+            updateManifestWithHelper(result);
         } else {
             System.err.println("Warning: Helper installation failed: " + result.getErrorMessage());
             // Continue with installation - Helper is optional
+        }
+    }
+
+    /**
+     * Updates the uninstall manifest with Helper installation entries.
+     *
+     * This loads the existing manifest, adds the Helper entries, and saves it back.
+     * If the manifest doesn't exist or cannot be updated, a warning is logged but
+     * installation continues.
+     *
+     * @param helperResult The successful Helper installation result
+     */
+    private void updateManifestWithHelper(HelperInstallationResult helperResult) {
+        try {
+            FileUninstallManifestRepository repository = new FileUninstallManifestRepository();
+            String packageName = appInfo().getNpmPackage();
+            String packageSource = appInfo().getNpmSource();
+
+            Optional<UninstallManifest> existingManifest = repository.load(packageName, packageSource);
+            if (!existingManifest.isPresent()) {
+                System.err.println("Warning: Could not load existing manifest to add Helper entries");
+                return;
+            }
+
+            UninstallManifest manifest = existingManifest.get();
+            UninstallManifestBuilder builder = new UninstallManifestBuilder();
+
+            // Copy package info from existing manifest
+            UninstallManifest.PackageInfo pkgInfo = manifest.getPackageInfo();
+            builder.withPackageInfo(pkgInfo.getName(), pkgInfo.getSource(), pkgInfo.getVersion(), pkgInfo.getArchitecture());
+            if (pkgInfo.getInstallerVersion() != null) {
+                builder.withInstallerVersion(pkgInfo.getInstallerVersion());
+            }
+
+            // Copy existing files
+            for (UninstallManifest.InstalledFile file : manifest.getFiles()) {
+                builder.addFile(file.getPath(), file.getType(), file.getDescription());
+            }
+
+            // Copy existing directories
+            for (UninstallManifest.InstalledDirectory dir : manifest.getDirectories()) {
+                builder.addDirectory(dir.getPath(), dir.getCleanup(), dir.getDescription());
+            }
+
+            // Copy existing registry entries (Windows)
+            UninstallManifest.RegistryInfo registry = manifest.getRegistry();
+            if (registry != null) {
+                for (UninstallManifest.RegistryKey key : registry.getCreatedKeys()) {
+                    builder.addCreatedRegistryKey(key.getRoot(), key.getPath(), key.getDescription());
+                }
+                for (UninstallManifest.ModifiedRegistryValue value : registry.getModifiedValues()) {
+                    builder.addModifiedRegistryValue(
+                            value.getRoot(), value.getPath(), value.getName(),
+                            value.getPreviousValue(), value.getPreviousType(), value.getDescription());
+                }
+            }
+
+            // Copy existing PATH modifications
+            UninstallManifest.PathModifications pathMods = manifest.getPathModifications();
+            if (pathMods != null) {
+                for (UninstallManifest.WindowsPathEntry entry : pathMods.getWindowsPaths()) {
+                    builder.addWindowsPathEntry(entry.getAddedEntry(), entry.getDescription());
+                }
+                for (UninstallManifest.ShellProfileEntry entry : pathMods.getShellProfiles()) {
+                    builder.addShellProfileEntry(entry.getFile(), entry.getExportLine(), entry.getDescription());
+                }
+                for (UninstallManifest.GitBashProfileEntry entry : pathMods.getGitBashProfiles()) {
+                    builder.addGitBashProfileEntry(entry.getFile(), entry.getExportLine(), entry.getDescription());
+                }
+            }
+
+            // Add Helper entries
+            HelperManifestHelper.addHelperToManifest(builder, helperResult);
+
+            // Save updated manifest
+            UninstallManifest updatedManifest = builder.build();
+            repository.save(updatedManifest);
+
+            System.out.println("Updated uninstall manifest with Helper entries");
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to update manifest with Helper entries: " + e.getMessage());
+            // Continue - Helper installation was successful, manifest update is best-effort
         }
     }
 
