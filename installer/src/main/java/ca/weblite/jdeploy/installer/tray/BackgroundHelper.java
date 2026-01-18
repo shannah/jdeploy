@@ -11,11 +11,13 @@ import ca.weblite.jdeploy.installer.uninstall.FileUninstallManifestRepository;
 import ca.weblite.jdeploy.installer.uninstall.UninstallService;
 import ca.weblite.jdeploy.installer.win.JnaRegistryOperations;
 import ca.weblite.jdeploy.installer.win.RegistryOperations;
+import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
 
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
 /**
@@ -33,8 +35,29 @@ public class BackgroundHelper {
 
     private static final Logger logger = Logger.getLogger(BackgroundHelper.class.getName());
 
+    /**
+     * Directory where lock and shutdown signal files are stored.
+     */
+    private static final String LOCK_DIR_PATH = System.getProperty("user.home") +
+            File.separator + ".jdeploy" + File.separator + "locks";
+
+    /**
+     * Interval in milliseconds between shutdown signal checks.
+     */
+    private static final long SHUTDOWN_CHECK_INTERVAL_MS = 500;
+
     private final InstallationSettings settings;
     private ServiceTrayController trayController;
+
+    /**
+     * Thread for monitoring shutdown signal file.
+     */
+    private Thread shutdownMonitorThread;
+
+    /**
+     * Flag to control shutdown monitor loop.
+     */
+    private final AtomicBoolean shutdownMonitorRunning = new AtomicBoolean(false);
 
     /**
      * Creates a new background helper.
@@ -85,6 +108,9 @@ public class BackgroundHelper {
                 return; // Won't reach here, but explicit for clarity
             }
 
+            // Start shutdown signal monitoring
+            startShutdownMonitor();
+
             logger.info("Background helper started successfully");
         } catch (Exception e) {
             logger.severe("Failed to start background helper: " + e.getMessage());
@@ -95,10 +121,13 @@ public class BackgroundHelper {
     /**
      * Stops the background helper.
      *
-     * Stops the tray controller and cleans up resources.
+     * Stops the shutdown monitor and tray controller, cleans up resources.
      * Lock is automatically released by ServiceTrayController.
      */
     public void stop() {
+        // Stop shutdown monitor first
+        stopShutdownMonitor();
+
         if (trayController != null) {
             trayController.stop();
             trayController = null;
@@ -296,6 +325,187 @@ public class BackgroundHelper {
 
         // Exit gracefully
         System.exit(0);
+    }
+
+    // ========== Shutdown Signal Monitoring ==========
+
+    /**
+     * Starts the shutdown signal monitor thread.
+     *
+     * The monitor periodically checks for a shutdown signal file created by
+     * HelperProcessManager.tryGracefulTermination(). When detected, the Helper
+     * performs a graceful shutdown.
+     */
+    private void startShutdownMonitor() {
+        if (shutdownMonitorRunning.get()) {
+            logger.warning("Shutdown monitor is already running");
+            return;
+        }
+
+        shutdownMonitorRunning.set(true);
+
+        shutdownMonitorThread = new Thread(() -> {
+            logger.info("Shutdown monitor started");
+
+            while (shutdownMonitorRunning.get()) {
+                try {
+                    // Check for shutdown signal file
+                    File signalFile = getShutdownSignalFile();
+                    if (signalFile != null && signalFile.exists()) {
+                        logger.info("Shutdown signal file detected: " + signalFile.getAbsolutePath());
+                        handleShutdownSignal(signalFile);
+                        return; // Exit monitor thread
+                    }
+
+                    // Sleep before next check
+                    Thread.sleep(SHUTDOWN_CHECK_INTERVAL_MS);
+
+                } catch (InterruptedException e) {
+                    // Thread was interrupted - exit gracefully
+                    Thread.currentThread().interrupt();
+                    logger.info("Shutdown monitor interrupted");
+                    return;
+                } catch (Exception e) {
+                    // Log unexpected errors but continue monitoring
+                    logger.warning("Error in shutdown monitor: " + e.getMessage());
+                }
+            }
+
+            logger.info("Shutdown monitor stopped");
+        }, "BackgroundHelper-ShutdownMonitor");
+
+        shutdownMonitorThread.setDaemon(true);
+        shutdownMonitorThread.start();
+    }
+
+    /**
+     * Stops the shutdown signal monitor thread.
+     */
+    private void stopShutdownMonitor() {
+        if (!shutdownMonitorRunning.get()) {
+            return;
+        }
+
+        shutdownMonitorRunning.set(false);
+
+        if (shutdownMonitorThread != null) {
+            shutdownMonitorThread.interrupt();
+            try {
+                // Wait briefly for thread to finish
+                shutdownMonitorThread.join(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            shutdownMonitorThread = null;
+        }
+    }
+
+    /**
+     * Handles detection of the shutdown signal file.
+     *
+     * Performs graceful shutdown:
+     * 1. Logs the shutdown signal
+     * 2. Cleans up (removes tray icon, releases locks)
+     * 3. Deletes the shutdown signal file
+     * 4. Exits gracefully
+     *
+     * @param signalFile The shutdown signal file that was detected
+     */
+    private void handleShutdownSignal(File signalFile) {
+        logger.info("Shutdown signal received, exiting gracefully");
+
+        // Clean up - this will stop the shutdown monitor and tray controller
+        // Do this on the EDT to avoid threading issues with the tray icon
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                stop();
+            });
+        } catch (Exception e) {
+            logger.warning("Error during shutdown cleanup: " + e.getMessage());
+            // Continue with signal file deletion and exit
+        }
+
+        // Delete the signal file
+        boolean deleted = signalFile.delete();
+        if (deleted) {
+            logger.info("Shutdown signal file deleted");
+        } else {
+            logger.warning("Failed to delete shutdown signal file: " + signalFile.getAbsolutePath());
+        }
+
+        // Exit gracefully
+        logger.info("Exiting due to shutdown signal");
+        System.exit(0);
+    }
+
+    /**
+     * Gets the shutdown signal file for this Helper.
+     *
+     * The signal file path matches what HelperProcessManager creates:
+     * ~/.jdeploy/locks/{fullyQualifiedName}.shutdown
+     *
+     * @return The shutdown signal file, or null if package name is not available
+     */
+    File getShutdownSignalFile() {
+        String packageName = getPackageName();
+        if (packageName == null || packageName.isEmpty()) {
+            return null;
+        }
+
+        String source = getSource();
+        String fullyQualifiedName = createFullyQualifiedName(packageName, source);
+        return new File(LOCK_DIR_PATH, fullyQualifiedName + ".shutdown");
+    }
+
+    /**
+     * Creates a fully qualified package name from package name and source.
+     *
+     * Format: {sourceHash}.{sanitizedPackageName} or just {sanitizedPackageName} if no source.
+     * This must match the logic in HelperProcessManager.createFullyQualifiedName().
+     *
+     * @param packageName The package name
+     * @param source The package source (may be null)
+     * @return The fully qualified name
+     */
+    private String createFullyQualifiedName(String packageName, String source) {
+        String sanitized = sanitizeName(packageName);
+        if (source != null && !source.isEmpty()) {
+            String sourceHash = MD5.getMd5(source);
+            return sourceHash + "." + sanitized;
+        }
+        return sanitized;
+    }
+
+    /**
+     * Sanitizes a name to make it filesystem-safe.
+     *
+     * This must match the logic in HelperProcessManager.sanitizeName().
+     *
+     * @param name The name to sanitize
+     * @return The sanitized name
+     */
+    private String sanitizeName(String name) {
+        return name.toLowerCase()
+                .replace(" ", "-")
+                .replace("@", "")
+                .replace("/", "-")
+                .replace("\\", "-")
+                .replace(":", "-")
+                .replace("*", "-")
+                .replace("?", "-")
+                .replace("\"", "-")
+                .replace("<", "-")
+                .replace(">", "-")
+                .replace("|", "-");
+    }
+
+    /**
+     * Checks if the shutdown monitor is currently running.
+     *
+     * @return true if the monitor is running, false otherwise
+     */
+    boolean isShutdownMonitorRunning() {
+        return shutdownMonitorRunning.get();
     }
 
     /**
