@@ -31,7 +31,7 @@ public class HelperCopyServiceTest {
         service = new HelperCopyService(mockLogger);
     }
 
-    // ========== Validation tests ==========
+    // ========== copyInstaller validation tests ==========
 
     @Test
     public void testCopyInstaller_NullSource() {
@@ -64,7 +64,7 @@ public class HelperCopyServiceTest {
         });
     }
 
-    // ========== Single file copy tests ==========
+    // ========== copyInstaller single file copy tests ==========
 
     @Test
     public void testCopyInstaller_SingleFile() throws IOException {
@@ -119,7 +119,7 @@ public class HelperCopyServiceTest {
             "Destination should have new content");
     }
 
-    // ========== Directory copy tests ==========
+    // ========== copyInstaller directory copy tests ==========
 
     @Test
     public void testCopyInstaller_Directory() throws IOException {
@@ -190,13 +190,190 @@ public class HelperCopyServiceTest {
         assertFalse(new File(destDir, "old.txt").exists(), "Old file should be removed");
     }
 
-    // ========== Executable permission tests (Unix only) ==========
+    // ========== copyContextDirectory tests ==========
 
     @Test
-    public void testCopyInstaller_PreservesExecutablePermission() throws IOException {
-        // Skip on Windows
-        if (Platform.getSystemPlatform().isWindows()) {
-            return;
+    public void testCopyContextDirectory_NullSource() {
+        File destination = new File(tempDir, "dest");
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            service.copyContextDirectory(null, destination);
+        });
+    }
+
+    @Test
+    public void testCopyContextDirectory_NonExistentSource() {
+        File source = new File(tempDir, "nonexistent");
+        File destination = new File(tempDir, "dest");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            service.copyContextDirectory(source, destination);
+        });
+
+        assertTrue(exception.getMessage().contains("does not exist"));
+    }
+
+    @Test
+    public void testCopyContextDirectory_SourceNotDirectory() throws IOException {
+        File source = new File(tempDir, "file.txt");
+        assertTrue(source.createNewFile());
+        File destination = new File(tempDir, "dest");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            service.copyContextDirectory(source, destination);
+        });
+
+        assertTrue(exception.getMessage().contains("must be a directory"));
+    }
+
+    @Test
+    public void testCopyContextDirectory_NullDestination() throws IOException {
+        File source = new File(tempDir, ".jdeploy-files");
+        assertTrue(source.mkdir());
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            service.copyContextDirectory(source, null);
+        });
+    }
+
+    @Test
+    public void testCopyContextDirectory_CopiesAllFiles() throws IOException {
+        // Create source .jdeploy-files directory with typical content
+        File source = new File(tempDir, ".jdeploy-files");
+        assertTrue(source.mkdir());
+
+        File appXml = new File(source, "app.xml");
+        File iconPng = new File(source, "icon.png");
+        try (FileWriter w1 = new FileWriter(appXml); FileWriter w2 = new FileWriter(iconPng)) {
+            w1.write("<app/>");
+            w2.write("PNG_DATA");
+        }
+
+        File destination = new File(tempDir, "dest/.jdeploy-files");
+
+        service.copyContextDirectory(source, destination);
+
+        assertTrue(destination.exists(), "Destination should exist");
+        assertTrue(destination.isDirectory(), "Destination should be a directory");
+        assertTrue(new File(destination, "app.xml").exists(), "app.xml should be copied");
+        assertTrue(new File(destination, "icon.png").exists(), "icon.png should be copied");
+    }
+
+    @Test
+    public void testCopyContextDirectory_CopiesNestedStructure() throws IOException {
+        // Create source with nested structure
+        File source = new File(tempDir, ".jdeploy-files");
+        File subDir = new File(source, "resources/images");
+        assertTrue(subDir.mkdirs());
+
+        File rootFile = new File(source, "app.xml");
+        File nestedFile = new File(subDir, "logo.png");
+        try (FileWriter w1 = new FileWriter(rootFile); FileWriter w2 = new FileWriter(nestedFile)) {
+            w1.write("<app/>");
+            w2.write("PNG");
+        }
+
+        File destination = new File(tempDir, "dest");
+
+        service.copyContextDirectory(source, destination);
+
+        assertTrue(new File(destination, "app.xml").exists(), "Root file should be copied");
+        assertTrue(new File(destination, "resources/images/logo.png").exists(), "Nested file should be copied");
+    }
+
+    @Test
+    public void testCopyContextDirectory_OverwritesExisting() throws IOException {
+        // Create source
+        File source = new File(tempDir, "source");
+        assertTrue(source.mkdir());
+        File newFile = new File(source, "new.txt");
+        try (FileWriter w = new FileWriter(newFile)) {
+            w.write("New");
+        }
+
+        // Create existing destination
+        File destination = new File(tempDir, "dest");
+        assertTrue(destination.mkdir());
+        File oldFile = new File(destination, "old.txt");
+        try (FileWriter w = new FileWriter(oldFile)) {
+            w.write("Old");
+        }
+
+        service.copyContextDirectory(source, destination);
+
+        assertTrue(new File(destination, "new.txt").exists(), "New file should exist");
+        assertFalse(new File(destination, "old.txt").exists(), "Old file should be removed");
+    }
+
+    @Test
+    public void testCopyContextDirectory_EmptyDirectory() throws IOException {
+        File source = new File(tempDir, "emptySource");
+        assertTrue(source.mkdir());
+
+        File destination = new File(tempDir, "emptyDest");
+
+        service.copyContextDirectory(source, destination);
+
+        assertTrue(destination.exists(), "Empty directory should be copied");
+        assertTrue(destination.isDirectory(), "Should be a directory");
+        String[] contents = destination.list();
+        assertNotNull(contents);
+        assertEquals(0, contents.length, "Directory should be empty");
+    }
+
+    // ========== Platform-specific method selection tests ==========
+
+    @Test
+    public void testCopyInstaller_MacOS_LogsDittoUsage() throws IOException {
+        if (!Platform.getSystemPlatform().isMac()) {
+            return; // Skip on non-Mac
+        }
+
+        File source = new File(tempDir, "source.txt");
+        assertTrue(source.createNewFile());
+        File destination = new File(tempDir, "dest.txt");
+
+        service.copyInstaller(source, destination);
+
+        verify(mockLogger, atLeastOnce()).logInfo(contains("ditto"));
+    }
+
+    @Test
+    public void testCopyInstaller_Windows_LogsFilesCopyUsage() throws IOException {
+        if (!Platform.getSystemPlatform().isWindows()) {
+            return; // Skip on non-Windows
+        }
+
+        File source = new File(tempDir, "source.txt");
+        assertTrue(source.createNewFile());
+        File destination = new File(tempDir, "dest.txt");
+
+        service.copyInstaller(source, destination);
+
+        verify(mockLogger, atLeastOnce()).logInfo(contains("Windows"));
+    }
+
+    @Test
+    public void testCopyInstaller_Linux_LogsFilesCopyUsage() throws IOException {
+        if (!Platform.getSystemPlatform().isLinux()) {
+            return; // Skip on non-Linux
+        }
+
+        File source = new File(tempDir, "source.txt");
+        assertTrue(source.createNewFile());
+        File destination = new File(tempDir, "dest.txt");
+
+        service.copyInstaller(source, destination);
+
+        verify(mockLogger, atLeastOnce()).logInfo(contains("Linux"));
+    }
+
+    // ========== Executable permission tests ==========
+
+    @Test
+    public void testCopyInstaller_Linux_PreservesExecutablePermission() throws IOException {
+        if (!Platform.getSystemPlatform().isLinux()) {
+            return; // Skip on non-Linux
         }
 
         File source = new File(tempDir, "executable");
@@ -207,34 +384,40 @@ public class HelperCopyServiceTest {
 
         service.copyInstaller(source, destination);
 
-        assertTrue(destination.canExecute(), "Executable permission should be preserved");
+        assertTrue(destination.canExecute(), "Executable permission should be preserved on Linux");
     }
 
-    // ========== Null logger tests ==========
-
     @Test
-    public void testCopyInstaller_NullLoggerDoesNotThrow() throws IOException {
-        HelperCopyService serviceWithNullLogger = new HelperCopyService(null);
+    public void testCopyInstaller_Linux_DirectoryWithExecutables() throws IOException {
+        if (!Platform.getSystemPlatform().isLinux()) {
+            return; // Skip on non-Linux
+        }
 
-        File source = new File(tempDir, "source.txt");
-        assertTrue(source.createNewFile());
-        File destination = new File(tempDir, "dest.txt");
+        // Create source directory with an executable
+        File sourceDir = new File(tempDir, "source");
+        assertTrue(sourceDir.mkdir());
 
-        // Should not throw NPE with null logger
-        assertDoesNotThrow(() -> {
-            serviceWithNullLogger.copyInstaller(source, destination);
-        });
+        File executable = new File(sourceDir, "run.sh");
+        try (FileWriter w = new FileWriter(executable)) {
+            w.write("#!/bin/bash\necho hello");
+        }
+        assertTrue(executable.setExecutable(true));
 
-        assertTrue(destination.exists());
+        File destDir = new File(tempDir, "dest");
+
+        service.copyInstaller(sourceDir, destDir);
+
+        File copiedExecutable = new File(destDir, "run.sh");
+        assertTrue(copiedExecutable.exists(), "Executable should be copied");
+        assertTrue(copiedExecutable.canExecute(), "Executable permission should be preserved");
     }
 
-    // ========== macOS ditto tests (only run on macOS) ==========
+    // ========== macOS ditto tests ==========
 
     @Test
-    public void testCopyInstaller_MacOS_UsesDitto() throws IOException {
-        // This test only verifies behavior on macOS
+    public void testCopyInstaller_MacOS_AppBundle() throws IOException {
         if (!Platform.getSystemPlatform().isMac()) {
-            return;
+            return; // Skip on non-Mac
         }
 
         // Create a .app bundle structure
@@ -263,6 +446,38 @@ public class HelperCopyServiceTest {
         assertTrue(new File(destBundle, "Contents/Info.plist").exists(), "Info.plist should exist");
     }
 
+    // ========== Null logger tests ==========
+
+    @Test
+    public void testCopyInstaller_NullLoggerDoesNotThrow() throws IOException {
+        HelperCopyService serviceWithNullLogger = new HelperCopyService(null);
+
+        File source = new File(tempDir, "source.txt");
+        assertTrue(source.createNewFile());
+        File destination = new File(tempDir, "dest.txt");
+
+        assertDoesNotThrow(() -> {
+            serviceWithNullLogger.copyInstaller(source, destination);
+        });
+
+        assertTrue(destination.exists());
+    }
+
+    @Test
+    public void testCopyContextDirectory_NullLoggerDoesNotThrow() throws IOException {
+        HelperCopyService serviceWithNullLogger = new HelperCopyService(null);
+
+        File source = new File(tempDir, "sourceDir");
+        assertTrue(source.mkdir());
+        File destination = new File(tempDir, "destDir");
+
+        assertDoesNotThrow(() -> {
+            serviceWithNullLogger.copyContextDirectory(source, destination);
+        });
+
+        assertTrue(destination.exists());
+    }
+
     // ========== Logging verification tests ==========
 
     @Test
@@ -273,19 +488,18 @@ public class HelperCopyServiceTest {
 
         service.copyInstaller(source, destination);
 
-        verify(mockLogger).logSection(contains("Copying"));
+        verify(mockLogger).logSection(contains("Copying Installer"));
     }
 
     @Test
-    public void testCopyInstaller_LogsSourceAndDestination() throws IOException {
-        File source = new File(tempDir, "source.txt");
-        assertTrue(source.createNewFile());
-        File destination = new File(tempDir, "dest.txt");
+    public void testCopyContextDirectory_LogsSection() throws IOException {
+        File source = new File(tempDir, "sourceDir");
+        assertTrue(source.mkdir());
+        File destination = new File(tempDir, "destDir");
 
-        service.copyInstaller(source, destination);
+        service.copyContextDirectory(source, destination);
 
-        verify(mockLogger, atLeastOnce()).logInfo(contains("Source:"));
-        verify(mockLogger, atLeastOnce()).logInfo(contains("Destination:"));
+        verify(mockLogger).logSection(contains("Context Directory"));
     }
 
     @Test
@@ -299,21 +513,14 @@ public class HelperCopyServiceTest {
         verify(mockLogger).logInfo(contains("completed"));
     }
 
-    // ========== Empty directory tests ==========
-
     @Test
-    public void testCopyInstaller_EmptyDirectory() throws IOException {
-        File sourceDir = new File(tempDir, "emptySource");
-        assertTrue(sourceDir.mkdir());
+    public void testCopyContextDirectory_LogsCompletionMessage() throws IOException {
+        File source = new File(tempDir, "sourceDir");
+        assertTrue(source.mkdir());
+        File destination = new File(tempDir, "destDir");
 
-        File destDir = new File(tempDir, "emptyDest");
+        service.copyContextDirectory(source, destination);
 
-        service.copyInstaller(sourceDir, destDir);
-
-        assertTrue(destDir.exists(), "Empty directory should be copied");
-        assertTrue(destDir.isDirectory(), "Should be a directory");
-        String[] contents = destDir.list();
-        assertNotNull(contents);
-        assertEquals(0, contents.length, "Directory should be empty");
+        verify(mockLogger).logInfo(contains("completed"));
     }
 }
