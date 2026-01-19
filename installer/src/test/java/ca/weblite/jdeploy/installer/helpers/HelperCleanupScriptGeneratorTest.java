@@ -119,6 +119,11 @@ public class HelperCleanupScriptGeneratorTest {
 
     @Test
     public void testGenerateUnixScriptContent_ContainsHelperPath() {
+        // Skip on Windows - Unix scripts use different path escaping than Windows paths
+        if (Platform.getSystemPlatform().isWindows()) {
+            return;
+        }
+
         String content = generator.generateUnixScriptContent(helperPath, helperContextDir, helperDir);
 
         assertTrue(content.contains("rm -rf"), "Script should contain rm -rf command");
@@ -127,6 +132,11 @@ public class HelperCleanupScriptGeneratorTest {
 
     @Test
     public void testGenerateUnixScriptContent_ContainsContextDir() {
+        // Skip on Windows - Unix scripts use different path escaping than Windows paths
+        if (Platform.getSystemPlatform().isWindows()) {
+            return;
+        }
+
         String content = generator.generateUnixScriptContent(helperPath, helperContextDir, helperDir);
 
         assertTrue(content.contains(helperContextDir.getAbsolutePath()), "Script should contain context dir path");
@@ -134,6 +144,11 @@ public class HelperCleanupScriptGeneratorTest {
 
     @Test
     public void testGenerateUnixScriptContent_ContainsHelperDir() {
+        // Skip on Windows - Unix scripts use different path escaping than Windows paths
+        if (Platform.getSystemPlatform().isWindows()) {
+            return;
+        }
+
         String content = generator.generateUnixScriptContent(helperPath, helperContextDir, helperDir);
 
         assertTrue(content.contains("rmdir"), "Script should contain rmdir command");

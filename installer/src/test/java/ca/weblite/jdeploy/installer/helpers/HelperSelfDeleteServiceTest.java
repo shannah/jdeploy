@@ -250,6 +250,11 @@ public class HelperSelfDeleteServiceTest {
 
     @Test
     public void testGetHelperPath_MacOSAppBundle_ResolvesToBundleRoot() throws IOException {
+        // This test only runs on macOS since .app bundle resolution uses forward slashes
+        if (!Platform.getSystemPlatform().isMac()) {
+            return; // Skip on non-Mac platforms
+        }
+
         // Create a mock macOS app bundle structure
         File appBundle = new File(tempDir, "Test Helper.app");
         File contents = new File(appBundle, "Contents");
