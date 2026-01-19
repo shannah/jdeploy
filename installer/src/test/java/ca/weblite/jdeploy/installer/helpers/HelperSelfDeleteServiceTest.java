@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.helpers;
 
+import ca.weblite.tools.platform.Platform;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -186,6 +187,11 @@ public class HelperSelfDeleteServiceTest {
 
     @Test
     public void testScheduleHelperCleanup_NullAppDirectory_UsesHelperPaths() throws IOException {
+        // This test only runs on macOS since null appDirectory throws on other platforms
+        if (!Platform.getSystemPlatform().isMac()) {
+            return; // Skip on non-Mac platforms
+        }
+
         // Create existing Helper at macOS location (null appDirectory uses ~/Applications)
         // For this test, we'll create at the expected location
         File helperPath = HelperPaths.getHelperExecutablePath(testAppName, null);

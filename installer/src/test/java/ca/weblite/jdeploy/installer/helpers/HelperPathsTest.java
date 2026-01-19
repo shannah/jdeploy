@@ -22,18 +22,21 @@ public class HelperPathsTest {
 
     @Test
     public void testGetHelperDirectory_Mac() {
+        // This test only runs on macOS since null appDirectory throws on other platforms
+        if (!Platform.getSystemPlatform().isMac()) {
+            return; // Skip on non-Mac platforms
+        }
+
         File helperDir = HelperPaths.getHelperDirectory(TEST_APP_NAME, null);
 
         assertNotNull(helperDir, "Helper directory should not be null");
 
-        if (Platform.getSystemPlatform().isMac()) {
-            // On macOS, should be ~/Applications/{AppName} Helper/
-            String expectedPath = System.getProperty("user.home") + File.separator +
-                "Applications" + File.separator + TEST_APP_NAME + " Helper";
-            assertEquals(expectedPath, helperDir.getAbsolutePath(), "macOS helper directory path incorrect");
-            assertTrue(helperDir.getName().endsWith(" Helper"),
-                "macOS helper directory should end with ' Helper'");
-        }
+        // On macOS, should be ~/Applications/{AppName} Helper/
+        String expectedPath = System.getProperty("user.home") + File.separator +
+            "Applications" + File.separator + TEST_APP_NAME + " Helper";
+        assertEquals(expectedPath, helperDir.getAbsolutePath(), "macOS helper directory path incorrect");
+        assertTrue(helperDir.getName().endsWith(" Helper"),
+            "macOS helper directory should end with ' Helper'");
     }
 
     @Test
@@ -78,19 +81,22 @@ public class HelperPathsTest {
 
     @Test
     public void testGetHelperExecutablePath_Mac() {
+        // This test only runs on macOS since null appDirectory throws on other platforms
+        if (!Platform.getSystemPlatform().isMac()) {
+            return; // Skip on non-Mac platforms
+        }
+
         File helperExe = HelperPaths.getHelperExecutablePath(TEST_APP_NAME, null);
 
         assertNotNull(helperExe, "Helper executable path should not be null");
 
-        if (Platform.getSystemPlatform().isMac()) {
-            // On macOS, should be ~/Applications/{AppName} Helper/{AppName} Helper.app
-            String userHome = System.getProperty("user.home");
-            String expectedPath = userHome + File.separator + "Applications" + File.separator +
-                TEST_APP_NAME + " Helper" + File.separator + TEST_APP_NAME + " Helper.app";
-            assertEquals(expectedPath, helperExe.getAbsolutePath(), "macOS helper executable path incorrect");
-            assertTrue(helperExe.getName().endsWith(".app"), "macOS helper should end with .app");
-            assertEquals(TEST_APP_NAME + " Helper.app", helperExe.getName(), "macOS helper app name incorrect");
-        }
+        // On macOS, should be ~/Applications/{AppName} Helper/{AppName} Helper.app
+        String userHome = System.getProperty("user.home");
+        String expectedPath = userHome + File.separator + "Applications" + File.separator +
+            TEST_APP_NAME + " Helper" + File.separator + TEST_APP_NAME + " Helper.app";
+        assertEquals(expectedPath, helperExe.getAbsolutePath(), "macOS helper executable path incorrect");
+        assertTrue(helperExe.getName().endsWith(".app"), "macOS helper should end with .app");
+        assertEquals(TEST_APP_NAME + " Helper.app", helperExe.getName(), "macOS helper app name incorrect");
     }
 
     @Test
@@ -127,18 +133,21 @@ public class HelperPathsTest {
 
     @Test
     public void testGetHelperContextDirectory_Mac() {
+        // This test only runs on macOS since null appDirectory throws on other platforms
+        if (!Platform.getSystemPlatform().isMac()) {
+            return; // Skip on non-Mac platforms
+        }
+
         File contextDir = HelperPaths.getHelperContextDirectory(TEST_APP_NAME, null);
 
         assertNotNull(contextDir, "Context directory should not be null");
         assertEquals(".jdeploy-files", contextDir.getName(), "Context directory should be .jdeploy-files");
 
-        if (Platform.getSystemPlatform().isMac()) {
-            // On macOS, should be ~/Applications/{AppName} Helper/.jdeploy-files
-            String userHome = System.getProperty("user.home");
-            String expectedPath = userHome + File.separator + "Applications" + File.separator +
-                TEST_APP_NAME + " Helper" + File.separator + ".jdeploy-files";
-            assertEquals(expectedPath, contextDir.getAbsolutePath(), "macOS context directory path incorrect");
-        }
+        // On macOS, should be ~/Applications/{AppName} Helper/.jdeploy-files
+        String userHome = System.getProperty("user.home");
+        String expectedPath = userHome + File.separator + "Applications" + File.separator +
+            TEST_APP_NAME + " Helper" + File.separator + ".jdeploy-files";
+        assertEquals(expectedPath, contextDir.getAbsolutePath(), "macOS context directory path incorrect");
     }
 
     @Test
