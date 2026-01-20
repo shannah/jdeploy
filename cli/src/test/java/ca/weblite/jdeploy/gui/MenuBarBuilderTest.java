@@ -154,8 +154,8 @@ public class MenuBarBuilderTest {
         JMenuBar menuBar = builder.build();
         JMenu fileMenu = findMenuByName(menuBar, "File");
         assertNotNull(fileMenu, "File menu should exist");
-        assertNotNull(findMenuItemByText(fileMenu, "Setup Claude AI Assistant"), 
-                "Setup Claude AI Assistant item should exist in File menu");
+        assertNotNull(findMenuItemByText(fileMenu, "Install Claude Code jDeploy Skill"),
+                "Install Claude Code jDeploy Skill item should exist in File menu");
     }
 
     @Test

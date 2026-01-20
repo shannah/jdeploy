@@ -147,9 +147,9 @@ public class MenuBarBuilder {
         );
         verifyHomepage.addActionListener(evt -> callbacks.onVerifyHomepage());
 
-        JMenuItem setupClaude = new JMenuItem("Setup Claude AI Assistant");
+        JMenuItem setupClaude = new JMenuItem("Install Claude Code jDeploy Skill");
         setupClaude.setToolTipText(
-                "Setup Claude AI assistant for this project by adding jDeploy-specific instructions to CLAUDE.md"
+                "Install the jDeploy setup skill for Claude Code at .claude/skills/setup-jdeploy.md"
         );
         setupClaude.addActionListener(evt -> callbacks.onSetupClaude());
 
