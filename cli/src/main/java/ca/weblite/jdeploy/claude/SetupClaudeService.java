@@ -13,53 +13,55 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * A service that setups up the CLAUDE.md file for a proejct.
- * It will download the latest version of the CLAUDE.md file from
- * https://github.com/shannah/jdeploy-claude/blob/main/CLAUDE.md, and append it to the project's
- * CLAUDE.md file if it exists, or create a new CLAUDE.md file if it does not exist.
+ * A service that installs the jDeploy setup skill for Claude Code.
+ * It will download the latest version of the skill from
+ * https://github.com/shannah/jdeploy-claude/blob/main/CLAUDE.md and install it
+ * as a Claude Code skill at .claude/skills/setup-jdeploy.md in the project directory.
  */
 @Singleton
 public class SetupClaudeService {
-    
-    private static final String CLAUDE_MD_URL = "https://raw.githubusercontent.com/shannah/jdeploy-claude/main/CLAUDE.md";
-    
+
+    private static final String SKILL_CONTENT_URL = "https://raw.githubusercontent.com/shannah/jdeploy-claude/main/CLAUDE.md";
+    private static final String SKILL_DIRECTORY = ".claude/skills";
+    private static final String SKILL_FILENAME = "setup-jdeploy.md";
+
     public void setup(File projectDirectory) throws IOException {
         if (projectDirectory == null || !projectDirectory.exists() || !projectDirectory.isDirectory()) {
             throw new IllegalArgumentException("Project directory must be a valid existing directory");
         }
-        
-        File claudeFile = new File(projectDirectory, "CLAUDE.md");
-        String claudeContent = downloadClaudeTemplate();
-        
-        if (claudeFile.exists()) {
-            String existingContent = FileUtils.readFileToString(claudeFile, StandardCharsets.UTF_8);
-            if (!hasJDeploySection(existingContent)) {
-                String combinedContent = existingContent + "\n\n" + claudeContent;
-                FileUtils.writeStringToFile(claudeFile, combinedContent, StandardCharsets.UTF_8);
-            }
-        } else {
-            FileUtils.writeStringToFile(claudeFile, claudeContent, StandardCharsets.UTF_8);
+
+        File skillsDir = new File(projectDirectory, SKILL_DIRECTORY);
+        if (!skillsDir.exists()) {
+            skillsDir.mkdirs();
         }
+
+        File skillFile = new File(skillsDir, SKILL_FILENAME);
+        String skillContent = downloadSkillContent();
+
+        FileUtils.writeStringToFile(skillFile, skillContent, StandardCharsets.UTF_8);
     }
-    
-    private boolean hasJDeploySection(String content) {
-        String lowerContent = content.toLowerCase();
-        return lowerContent.contains("Claude Instructions for jDeploy Setup".toLowerCase());
+
+    public boolean isInstalled(File projectDirectory) {
+        if (projectDirectory == null || !projectDirectory.exists() || !projectDirectory.isDirectory()) {
+            return false;
+        }
+        File skillFile = new File(projectDirectory, SKILL_DIRECTORY + "/" + SKILL_FILENAME);
+        return skillFile.exists();
     }
-    
-    private String downloadClaudeTemplate() throws IOException {
+
+    private String downloadSkillContent() throws IOException {
         CloseableHttpClient httpClient = HttpClients.createDefault();
-        
+
         try {
-            HttpGet getRequest = new HttpGet(CLAUDE_MD_URL);
+            HttpGet getRequest = new HttpGet(SKILL_CONTENT_URL);
             getRequest.setHeader("Accept", "text/plain");
-            
+
             try (CloseableHttpResponse response = httpClient.execute(getRequest)) {
                 int statusCode = response.getStatusLine().getStatusCode();
                 if (statusCode == 200) {
                     return EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
                 } else {
-                    throw new IOException("Failed to download CLAUDE.md template. HTTP status: " + statusCode);
+                    throw new IOException("Failed to download jDeploy skill content. HTTP status: " + statusCode);
                 }
             }
         } finally {

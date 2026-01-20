@@ -760,8 +760,8 @@ public class JDeployProjectEditor {
                     get();
                     JOptionPane.showMessageDialog(
                         frame,
-                        "Claude AI assistant has been successfully set up for this project.\nCLAUDE.md file has been created/updated with jDeploy-specific instructions.",
-                        "Claude Setup Complete",
+                        "Claude Code jDeploy skill has been installed for this project.\nThe skill is located at .claude/skills/setup-jdeploy.md",
+                        "Claude Skill Installed",
                         JOptionPane.INFORMATION_MESSAGE
                     );
                 } catch (Exception ex) {
