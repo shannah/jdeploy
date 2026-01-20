@@ -2,9 +2,13 @@ package ca.weblite.jdeploy.installer.models;
 
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
+import ca.weblite.jdeploy.models.HelperAction;
 
 import java.io.File;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class InstallationSettings {
     private boolean addToDesktop=true;
@@ -28,6 +32,7 @@ public class InstallationSettings {
     private boolean websiteVerified;
     private String packageName;
     private String source;
+    private List<HelperAction> helperActions = new ArrayList<>();
 
     private AutoUpdateSettings autoUpdate = AutoUpdateSettings.Stable;
 
@@ -213,6 +218,24 @@ public class InstallationSettings {
 
     public void setSource(String source) {
         this.source = source;
+    }
+
+    /**
+     * Gets the helper actions for the tray menu and service management panel.
+     *
+     * @return unmodifiable list of helper actions
+     */
+    public List<HelperAction> getHelperActions() {
+        return Collections.unmodifiableList(helperActions);
+    }
+
+    /**
+     * Sets the helper actions for the tray menu and service management panel.
+     *
+     * @param helperActions the helper actions to set
+     */
+    public void setHelperActions(List<HelperAction> helperActions) {
+        this.helperActions = helperActions != null ? new ArrayList<>(helperActions) : new ArrayList<>();
     }
 
     /**

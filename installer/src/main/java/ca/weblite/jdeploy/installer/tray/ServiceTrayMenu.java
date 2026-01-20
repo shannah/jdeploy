@@ -3,11 +3,13 @@ package ca.weblite.jdeploy.installer.tray;
 import ca.weblite.jdeploy.installer.models.ServiceRowModel;
 import ca.weblite.jdeploy.installer.models.ServiceStatus;
 import ca.weblite.jdeploy.installer.services.ServiceStatusListener;
+import ca.weblite.jdeploy.models.HelperAction;
 
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +31,7 @@ public class ServiceTrayMenu implements ServiceStatusListener {
     private final String appName;
     private final Image appIcon;
     private List<ServiceRowModel> services;
+    private List<HelperAction> helperActions;
     private final ServiceTrayMenuListener listener;
 
     private TrayIcon trayIcon;
@@ -55,6 +58,20 @@ public class ServiceTrayMenu implements ServiceStatusListener {
      * @throws IllegalStateException if SystemTray is not supported on this platform
      */
     public ServiceTrayMenu(String appName, Image appIcon, List<ServiceRowModel> services, ServiceTrayMenuListener listener) {
+        this(appName, appIcon, services, Collections.<HelperAction>emptyList(), listener);
+    }
+
+    /**
+     * Creates a new service tray menu with helper actions.
+     *
+     * @param appName The application name, used in menu header and uninstall label
+     * @param appIcon The icon to display in the system tray
+     * @param services The list of service models to display in the menu
+     * @param helperActions The list of helper actions to display in the menu
+     * @param listener Callback listener for menu actions
+     * @throws IllegalStateException if SystemTray is not supported on this platform
+     */
+    public ServiceTrayMenu(String appName, Image appIcon, List<ServiceRowModel> services, List<HelperAction> helperActions, ServiceTrayMenuListener listener) {
         if (!SystemTray.isSupported()) {
             throw new IllegalStateException("SystemTray is not supported on this platform");
         }
@@ -62,6 +79,7 @@ public class ServiceTrayMenu implements ServiceStatusListener {
         this.appName = appName;
         this.appIcon = appIcon;
         this.services = services;
+        this.helperActions = helperActions != null ? helperActions : Collections.<HelperAction>emptyList();
         this.listener = listener;
         this.serviceMenus = new HashMap<String, Menu>();
         this.previousErrors = new HashMap<String, String>();
@@ -122,6 +140,9 @@ public class ServiceTrayMenu implements ServiceStatusListener {
         popupMenu.add(appHeader);
 
         popupMenu.addSeparator();
+
+        // Helper actions (if any)
+        addHelperActionsToMenu();
 
         // Service name header with status indicator
         String statusIndicator = getStatusIndicator(service);
@@ -190,6 +211,9 @@ public class ServiceTrayMenu implements ServiceStatusListener {
 
         popupMenu.addSeparator();
 
+        // Helper actions (if any)
+        addHelperActionsToMenu();
+
         // Service menus
         if (!services.isEmpty()) {
             for (ServiceRowModel service : services) {
@@ -231,6 +255,35 @@ public class ServiceTrayMenu implements ServiceStatusListener {
             }
         });
         popupMenu.add(quitItem);
+    }
+
+    /**
+     * Adds helper actions to the popup menu.
+     *
+     * Helper actions appear before service controls and allow users to
+     * quickly open URLs, custom protocol handlers, or files.
+     */
+    private void addHelperActionsToMenu() {
+        if (helperActions == null || helperActions.isEmpty()) {
+            return;
+        }
+
+        for (final HelperAction action : helperActions) {
+            MenuItem actionItem = new MenuItem(action.getLabel());
+            if (action.hasDescription()) {
+                // AWT MenuItems don't support tooltips directly, but we set the label
+                // which will be visible to the user
+            }
+            actionItem.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    listener.onHelperAction(action);
+                }
+            });
+            popupMenu.add(actionItem);
+        }
+
+        popupMenu.addSeparator();
     }
 
     /**
@@ -686,6 +739,13 @@ public class ServiceTrayMenu implements ServiceStatusListener {
                 // 2. Clean up resources
                 // 3. Exit gracefully
                 System.exit(0);
+            }
+
+            @Override
+            public void onHelperAction(HelperAction action) {
+                System.out.println("Helper action requested: " + action.getLabel() + " -> " + action.getUrl());
+                // In a real application, this would use HelperActionExecutor to open the URL
+                new ca.weblite.jdeploy.installer.services.HelperActionExecutor().execute(action);
             }
         };
 

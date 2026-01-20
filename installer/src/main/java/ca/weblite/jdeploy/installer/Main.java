@@ -254,6 +254,9 @@ public class Main implements Runnable, Constants {
                     appInfo().setAllowRunAsAdmin(true);
                     break;
             }
+
+            // Extract helper actions from package.json
+            installationSettings.setHelperActions(npmPackageVersion().getHelperActions());
         }
     }
 

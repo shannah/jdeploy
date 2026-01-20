@@ -196,7 +196,7 @@ public class ServiceTrayController {
         Image appIcon = loadApplicationIcon();
         String appName = getApplicationName();
 
-        trayMenu = new ServiceTrayMenu(appName, appIcon, serviceModels, listener);
+        trayMenu = new ServiceTrayMenu(appName, appIcon, serviceModels, settings.getHelperActions(), listener);
     }
 
     /**

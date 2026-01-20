@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.npm;
 
 import ca.weblite.jdeploy.models.CommandSpec;
+import ca.weblite.jdeploy.models.HelperAction;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
@@ -253,7 +254,7 @@ public class NPMPackageVersionTest {
     void testGetCommands_validCommandNamesWithAllowedCharacters() {
         JSONObject packageJson = createPackageJson();
         JSONObject jdeployConfig = packageJson.getJSONObject("jdeploy");
-        
+
         JSONObject commands = new JSONObject();
         // Test various valid command name patterns
         commands.put("my-command", new JSONObject());
@@ -263,13 +264,168 @@ public class NPMPackageVersionTest {
         commands.put("a", new JSONObject());
         commands.put("1test", new JSONObject());
         commands.put("test.cmd", new JSONObject());
-        
+
         jdeployConfig.put("commands", commands);
 
         NPMPackageVersion npmPackageVersion = createNPMPackageVersion(packageJson);
         List<CommandSpec> result = npmPackageVersion.getCommands();
 
         assertEquals(7, result.size());
+    }
+
+    // Helper Actions tests
+
+    @Test
+    void testGetHelperActions_singleAction() {
+        JSONObject packageJson = createPackageJson();
+        JSONObject jdeployConfig = packageJson.getJSONObject("jdeploy");
+
+        JSONObject helper = new JSONObject();
+        JSONArray actions = new JSONArray();
+        JSONObject action = new JSONObject();
+        action.put("label", "Open Dashboard");
+        action.put("description", "Opens the dashboard");
+        action.put("url", "https://example.com/dashboard");
+        actions.put(action);
+        helper.put("actions", actions);
+        jdeployConfig.put("helper", helper);
+
+        NPMPackageVersion npmPackageVersion = createNPMPackageVersion(packageJson);
+        List<HelperAction> result = npmPackageVersion.getHelperActions();
+
+        assertEquals(1, result.size());
+        HelperAction helperAction = result.get(0);
+        assertEquals("Open Dashboard", helperAction.getLabel());
+        assertEquals("Opens the dashboard", helperAction.getDescription());
+        assertEquals("https://example.com/dashboard", helperAction.getUrl());
+    }
+
+    @Test
+    void testGetHelperActions_multipleActions() {
+        JSONObject packageJson = createPackageJson();
+        JSONObject jdeployConfig = packageJson.getJSONObject("jdeploy");
+
+        JSONObject helper = new JSONObject();
+        JSONArray actions = new JSONArray();
+
+        JSONObject action1 = new JSONObject();
+        action1.put("label", "Action 1");
+        action1.put("url", "https://example.com/1");
+        actions.put(action1);
+
+        JSONObject action2 = new JSONObject();
+        action2.put("label", "Action 2");
+        action2.put("url", "myapp://settings");
+        actions.put(action2);
+
+        JSONObject action3 = new JSONObject();
+        action3.put("label", "Open Config");
+        action3.put("url", "/path/to/config.json");
+        actions.put(action3);
+
+        helper.put("actions", actions);
+        jdeployConfig.put("helper", helper);
+
+        NPMPackageVersion npmPackageVersion = createNPMPackageVersion(packageJson);
+        List<HelperAction> result = npmPackageVersion.getHelperActions();
+
+        assertEquals(3, result.size());
+        assertEquals("Action 1", result.get(0).getLabel());
+        assertEquals("Action 2", result.get(1).getLabel());
+        assertEquals("Open Config", result.get(2).getLabel());
+    }
+
+    @Test
+    void testGetHelperActions_noHelperSection() {
+        JSONObject packageJson = createPackageJson();
+        // No helper section
+
+        NPMPackageVersion npmPackageVersion = createNPMPackageVersion(packageJson);
+        List<HelperAction> result = npmPackageVersion.getHelperActions();
+
+        assertEquals(0, result.size());
+    }
+
+    @Test
+    void testGetHelperActions_emptyActionsArray() {
+        JSONObject packageJson = createPackageJson();
+        JSONObject jdeployConfig = packageJson.getJSONObject("jdeploy");
+
+        JSONObject helper = new JSONObject();
+        helper.put("actions", new JSONArray());
+        jdeployConfig.put("helper", helper);
+
+        NPMPackageVersion npmPackageVersion = createNPMPackageVersion(packageJson);
+        List<HelperAction> result = npmPackageVersion.getHelperActions();
+
+        assertEquals(0, result.size());
+    }
+
+    @Test
+    void testGetHelperActions_missingLabel() {
+        JSONObject packageJson = createPackageJson();
+        JSONObject jdeployConfig = packageJson.getJSONObject("jdeploy");
+
+        JSONObject helper = new JSONObject();
+        JSONArray actions = new JSONArray();
+        JSONObject action = new JSONObject();
+        // Missing label
+        action.put("url", "https://example.com");
+        actions.put(action);
+        helper.put("actions", actions);
+        jdeployConfig.put("helper", helper);
+
+        NPMPackageVersion npmPackageVersion = createNPMPackageVersion(packageJson);
+        List<HelperAction> result = npmPackageVersion.getHelperActions();
+
+        // Invalid action should be skipped
+        assertEquals(0, result.size());
+    }
+
+    @Test
+    void testGetHelperActions_missingUrl() {
+        JSONObject packageJson = createPackageJson();
+        JSONObject jdeployConfig = packageJson.getJSONObject("jdeploy");
+
+        JSONObject helper = new JSONObject();
+        JSONArray actions = new JSONArray();
+        JSONObject action = new JSONObject();
+        action.put("label", "Test");
+        // Missing url
+        actions.put(action);
+        helper.put("actions", actions);
+        jdeployConfig.put("helper", helper);
+
+        NPMPackageVersion npmPackageVersion = createNPMPackageVersion(packageJson);
+        List<HelperAction> result = npmPackageVersion.getHelperActions();
+
+        // Invalid action should be skipped
+        assertEquals(0, result.size());
+    }
+
+    @Test
+    void testGetHelperActions_optionalDescription() {
+        JSONObject packageJson = createPackageJson();
+        JSONObject jdeployConfig = packageJson.getJSONObject("jdeploy");
+
+        JSONObject helper = new JSONObject();
+        JSONArray actions = new JSONArray();
+        JSONObject action = new JSONObject();
+        action.put("label", "No Description");
+        action.put("url", "https://example.com");
+        // No description
+        actions.put(action);
+        helper.put("actions", actions);
+        jdeployConfig.put("helper", helper);
+
+        NPMPackageVersion npmPackageVersion = createNPMPackageVersion(packageJson);
+        List<HelperAction> result = npmPackageVersion.getHelperActions();
+
+        assertEquals(1, result.size());
+        HelperAction helperAction = result.get(0);
+        assertEquals("No Description", helperAction.getLabel());
+        assertNull(helperAction.getDescription());
+        assertEquals("https://example.com", helperAction.getUrl());
     }
 
     /**

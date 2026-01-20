@@ -4,6 +4,7 @@ import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.jdeploy.models.CommandSpecParser;
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
+import ca.weblite.jdeploy.models.HelperAction;
 import ca.weblite.jdeploy.models.NPMApplication;
 import ca.weblite.jdeploy.app.permissions.PermissionRequest;
 import ca.weblite.jdeploy.app.permissions.PermissionRequestService;
@@ -218,5 +219,43 @@ public class NPMPackageVersion {
             return jdeploy().getString("jbrVariant");
         }
         return null;
+    }
+
+    /**
+     * Gets the helper actions defined in package.json under jdeploy.helper.actions.
+     *
+     * Helper actions are quick links that appear in the tray menu and service management panel,
+     * allowing users to open URLs, custom protocol handlers, or files.
+     *
+     * @return list of HelperAction (empty list if none configured)
+     */
+    public List<HelperAction> getHelperActions() {
+        List<HelperAction> actions = new ArrayList<>();
+        JSONObject jdeployConfig = jdeploy();
+
+        if (jdeployConfig.has("helper")) {
+            JSONObject helper = jdeployConfig.getJSONObject("helper");
+            if (helper.has("actions")) {
+                JSONArray actionsArray = helper.getJSONArray("actions");
+                int len = actionsArray.length();
+                for (int i = 0; i < len; i++) {
+                    JSONObject actionObj = actionsArray.getJSONObject(i);
+                    String label = actionObj.optString("label", null);
+                    String description = actionObj.optString("description", null);
+                    String url = actionObj.optString("url", null);
+
+                    // Only add if required fields are present
+                    if (label != null && !label.isEmpty() && url != null && !url.isEmpty()) {
+                        try {
+                            actions.add(new HelperAction(label, description, url));
+                        } catch (IllegalArgumentException e) {
+                            // Skip invalid actions
+                        }
+                    }
+                }
+            }
+        }
+
+        return actions;
     }
 }

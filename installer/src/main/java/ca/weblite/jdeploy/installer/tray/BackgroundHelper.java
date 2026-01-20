@@ -5,8 +5,10 @@ import ca.weblite.jdeploy.installer.helpers.HelperCleanupScriptGenerator;
 import ca.weblite.jdeploy.installer.helpers.HelperSelfDeleteService;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.models.ServiceRowModel;
+import ca.weblite.jdeploy.installer.services.HelperActionExecutor;
 import ca.weblite.jdeploy.installer.services.ServiceLogHelper;
 import ca.weblite.jdeploy.installer.services.ServiceStatusPoller;
+import ca.weblite.jdeploy.models.HelperAction;
 import ca.weblite.jdeploy.installer.uninstall.FileUninstallManifestRepository;
 import ca.weblite.jdeploy.installer.uninstall.UninstallService;
 import ca.weblite.jdeploy.installer.win.JnaRegistryOperations;
@@ -170,7 +172,20 @@ public class BackgroundHelper {
             public void onQuit() {
                 handleQuit();
             }
+
+            @Override
+            public void onHelperAction(HelperAction action) {
+                handleHelperAction(action);
+            }
         };
+    }
+
+    /**
+     * Handles executing a helper action from the tray menu.
+     */
+    private void handleHelperAction(HelperAction action) {
+        logger.info("Executing helper action: " + action.getLabel());
+        new HelperActionExecutor().execute(action);
     }
 
     /**

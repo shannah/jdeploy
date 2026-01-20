@@ -3,11 +3,13 @@ package ca.weblite.jdeploy.installer.views;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.models.ServiceRowModel;
 import ca.weblite.jdeploy.installer.models.ServiceStatus;
+import ca.weblite.jdeploy.installer.services.HelperActionExecutor;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptor;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
 import ca.weblite.jdeploy.installer.services.ServiceLogHelper;
 import ca.weblite.jdeploy.installer.services.ServiceStatusPoller;
+import ca.weblite.jdeploy.models.HelperAction;
 
 import javax.swing.*;
 import java.awt.*;
@@ -188,6 +190,13 @@ public class ServiceManagementPanel extends JPanel {
     }
 
     private void buildServiceRows() {
+        // Add helper actions panel (if any)
+        JPanel helperActionsPanel = createHelperActionsPanel();
+        if (helperActionsPanel != null) {
+            servicesPanel.add(helperActionsPanel);
+            servicesPanel.add(Box.createVerticalStrut(15));
+        }
+
         // Add header row
         JPanel headerPanel = createHeaderRow();
         servicesPanel.add(headerPanel);
@@ -202,6 +211,56 @@ public class ServiceManagementPanel extends JPanel {
 
         // Add glue to push rows to top
         servicesPanel.add(Box.createVerticalGlue());
+    }
+
+    /**
+     * Creates the helper actions panel with buttons for each action.
+     *
+     * @return the helper actions panel, or null if no actions are configured
+     */
+    private JPanel createHelperActionsPanel() {
+        List<HelperAction> helperActions = installationSettings.getHelperActions();
+        if (helperActions == null || helperActions.isEmpty()) {
+            return null;
+        }
+
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        // Header label
+        JLabel headerLabel = new JLabel("Quick Actions");
+        headerLabel.setFont(headerLabel.getFont().deriveFont(Font.BOLD));
+        headerLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(headerLabel);
+        panel.add(Box.createVerticalStrut(8));
+
+        // Buttons panel with flow layout
+        JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        buttonsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        HelperActionExecutor executor = new HelperActionExecutor();
+
+        for (final HelperAction action : helperActions) {
+            JButton actionButton = new JButton(action.getLabel());
+            if (action.hasDescription()) {
+                actionButton.setToolTipText(action.getDescription());
+            }
+            actionButton.addActionListener(e -> {
+                executor.execute(action);
+            });
+            buttonsPanel.add(actionButton);
+        }
+
+        panel.add(buttonsPanel);
+
+        // Add separator line
+        panel.add(Box.createVerticalStrut(8));
+        JSeparator separator = new JSeparator(SwingConstants.HORIZONTAL);
+        separator.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+        panel.add(separator);
+
+        return panel;
     }
 
     private JPanel createHeaderRow() {

@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.tray;
 
 import ca.weblite.jdeploy.installer.models.ServiceRowModel;
+import ca.weblite.jdeploy.models.HelperAction;
 
 /**
  * Listener interface for system tray menu actions.
@@ -65,4 +66,14 @@ public interface ServiceTrayMenuListener {
      * and exit the application gracefully.
      */
     void onQuit();
+
+    /**
+     * Called when the user clicks a helper action in the tray menu.
+     *
+     * The implementation should execute the helper action, typically by opening the URL
+     * in the default browser, launching a custom protocol handler, or opening a file.
+     *
+     * @param action The helper action to execute
+     */
+    void onHelperAction(HelperAction action);
 }
