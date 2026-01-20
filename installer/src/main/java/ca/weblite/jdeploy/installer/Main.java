@@ -1628,18 +1628,19 @@ public class Main implements Runnable, Constants {
             completeServicesAfterUpdate(appInfo().getNpmPackage(), newServiceCommands, serviceStateBeforeUpdate, installedApp, npmPackageVersion().getVersion());
         }
 
-        // Install or update Helper application for service management
+        // Install or update Helper application for command management
         // Skip for branch installations - Helper is only for production installs
         if (!installationSettings.isBranchInstallation()) {
-            boolean servicesExist = newServiceCommands != null && !newServiceCommands.isEmpty();
+            boolean commandsExist = allCommands != null && !allCommands.isEmpty();
             if (isUpdate) {
-                // For updates: use HelperUpdateService which handles install/update/remove
-                updateHelperApplication(installedApp, servicesExist);
-            } else if (servicesExist) {
-                // For fresh installs with services: install Helper
+                // For updates: use HelperUpdateService which handles install/update
+                // Always pass true to keep Helper installed (removal only happens during uninstall)
+                updateHelperApplication(installedApp, true);
+            } else if (commandsExist) {
+                // For fresh installs with commands: install Helper
                 installHelperApplication(installedApp);
             }
-            // For fresh installs without services: do nothing
+            // For fresh installs without commands: do nothing
         }
 
         File tmpPlatformBundles = new File(tmpBundles, target);
@@ -1877,17 +1878,19 @@ public class Main implements Runnable, Constants {
     /**
      * Updates the Helper application during an application update.
      *
-     * Handles three scenarios:
+     * Handles two scenarios:
      * <ul>
-     *   <li>Services exist and Helper exists: Update Helper (terminate, delete, reinstall)</li>
-     *   <li>Services exist but Helper doesn't: Install Helper (new services added)</li>
-     *   <li>Services removed: Remove Helper if it exists</li>
+     *   <li>Helper exists: Update Helper (terminate, delete, reinstall)</li>
+     *   <li>Helper doesn't exist: Install Helper</li>
      * </ul>
      *
+     * Note: Helper removal only occurs during uninstall, not during updates.
+     * This method is always called with keepHelper=true.
+     *
      * @param installedApp The main installed application file/directory
-     * @param servicesExist True if the new version has services, false if services were removed
+     * @param keepHelper True to keep/install Helper (always true for updates)
      */
-    private void updateHelperApplication(File installedApp, boolean servicesExist) {
+    private void updateHelperApplication(File installedApp, boolean keepHelper) {
         String nameSuffix = "";
         if (appInfo().getNpmVersion() != null && appInfo().getNpmVersion().startsWith("0.0.0-")) {
             String v = appInfo().getNpmVersion();
@@ -1911,18 +1914,15 @@ public class Main implements Runnable, Constants {
             jdeployFilesDir = installationContext.findInstallFilesDir();
         }
 
-        // For service removal case (servicesExist = false), jdeployFilesDir may be null
-        // HelperUpdateService handles this by just removing the existing Helper
-        if (!servicesExist && (jdeployFilesDir == null || !jdeployFilesDir.exists())) {
-            jdeployFilesDir = null; // Signal that we're removing, not installing
-        } else if (jdeployFilesDir == null || !jdeployFilesDir.exists()) {
+        // Helper is always kept during updates (removal only happens during uninstall)
+        if (jdeployFilesDir == null || !jdeployFilesDir.exists()) {
             System.err.println("Warning: Helper update skipped - .jdeploy-files directory not found");
             return;
         }
 
         HelperUpdateService updateService = createHelperUpdateService();
         HelperUpdateService.HelperUpdateResult result = updateService.updateHelper(
-                packageName, source, appName, appDirectory, jdeployFilesDir, servicesExist);
+                packageName, source, appName, appDirectory, jdeployFilesDir, keepHelper);
 
         if (result.isSuccess()) {
             switch (result.getType()) {
