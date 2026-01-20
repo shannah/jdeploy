@@ -19,6 +19,7 @@ import ca.weblite.jdeploy.gui.tabs.BundleFiltersPanel;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.CliCommandsPanel;
 import ca.weblite.jdeploy.gui.tabs.FiletypesPanel;
+import ca.weblite.jdeploy.gui.tabs.HelperActionsPanel;
 import ca.weblite.jdeploy.gui.tabs.JavaRuntimePanel;
 import ca.weblite.jdeploy.gui.tabs.RepositorySettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.PermissionsPanel;
@@ -75,6 +76,7 @@ public class JDeployProjectEditor {
     private FiletypesPanel filetypesPanel;
     private UrlSchemesPanel urlSchemesPanel;
     private CliCommandsPanel cliCommandsPanel;
+    private HelperActionsPanel helperActionsPanel;
     private RuntimeArgsPanel runtimeArgsPanel;
     private CheerpJSettingsPanel cheerpJSettingsPanel;
     private SplashScreensPanel splashScreensPanel;
@@ -582,6 +584,18 @@ public class JDeployProjectEditor {
             json -> cliCommandsPanel.load(json),
             json -> cliCommandsPanel.save(json),
             listener -> cliCommandsPanel.addChangeListener(listener)
+        ));
+
+        // Helper Actions Panel
+        helperActionsPanel = new HelperActionsPanel();
+        registry.register(NavigablePanelAdapter.forJdeployPanel(
+            "Helper Actions",
+            null,
+            FontIcon.of(Material.TOUCH_APP),
+            helperActionsPanel.getRoot(),
+            json -> helperActionsPanel.load(json),
+            json -> helperActionsPanel.save(json),
+            listener -> helperActionsPanel.addChangeListener(listener)
         ));
 
         // Runtime Args Panel
