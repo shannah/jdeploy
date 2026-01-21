@@ -510,7 +510,8 @@ public class HelperCopyServiceTest {
 
         service.copyInstaller(source, destination);
 
-        verify(mockLogger).logInfo(contains("completed"));
+        // Use atLeastOnce() because on macOS, quarantine removal also logs "completed"
+        verify(mockLogger, atLeastOnce()).logInfo(contains("completed"));
     }
 
     @Test

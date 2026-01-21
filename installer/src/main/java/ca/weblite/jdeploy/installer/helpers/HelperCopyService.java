@@ -188,11 +188,48 @@ public class HelperCopyService {
 
             logFileCopied(source, destination);
 
+            // Remove quarantine attribute that might prevent execution
+            // This is necessary because ditto preserves extended attributes including quarantine
+            removeQuarantineAttribute(destination);
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             String errorMessage = "ditto command was interrupted";
             logError(errorMessage, e);
             throw new IOException(errorMessage, e);
+        }
+    }
+
+    /**
+     * Removes the macOS quarantine extended attribute from a file or directory.
+     * This allows the app to run without Gatekeeper blocking it.
+     *
+     * Uses {@code xattr -dr com.apple.quarantine} to recursively remove the attribute
+     * from the target and all its contents.
+     *
+     * @param target The file or directory to remove the quarantine attribute from
+     */
+    private void removeQuarantineAttribute(File target) {
+        try {
+            logInfo("Removing quarantine attribute from: " + target.getAbsolutePath());
+
+            // Use -dr to delete recursively (works on both files and directories)
+            ProcessBuilder pb = new ProcessBuilder(
+                "xattr",
+                "-dr",
+                "com.apple.quarantine",
+                target.getAbsolutePath()
+            );
+            pb.redirectErrorStream(true);
+
+            Process process = pb.start();
+            // Ignore exit code - attribute might not exist, which is fine
+            process.waitFor(30, TimeUnit.SECONDS);
+
+            logInfo("Quarantine attribute removal completed");
+        } catch (Exception e) {
+            // Log but don't fail - the app might still work without this
+            logInfo("Warning: Could not remove quarantine attribute: " + e.getMessage());
         }
     }
 
