@@ -1058,6 +1058,43 @@ public class Main implements Runnable, Constants {
     }
 
     /**
+     * Terminates the Helper process before update to avoid "Text file busy" errors on Linux.
+     *
+     * On Linux, you cannot overwrite an executable that's currently running. The Helper
+     * process holds the launcher file open, which would cause the update to fail.
+     * By terminating the Helper before the installation, we ensure the file can be replaced.
+     *
+     * The Helper will be restarted after the update completes via updateHelperApplication().
+     */
+    private void terminateHelperBeforeUpdate() {
+        try {
+            String nameSuffix = "";
+            if (appInfo().getNpmVersion() != null && appInfo().getNpmVersion().startsWith("0.0.0-")) {
+                String v = appInfo().getNpmVersion();
+                nameSuffix = " " + v.substring(v.indexOf("-") + 1).trim();
+            }
+            String appName = appInfo().getTitle() + nameSuffix;
+            String packageName = appInfo().getNpmPackage();
+            String source = appInfo().getNpmSource();
+
+            HelperProcessManager processManager = new HelperProcessManager();
+
+            if (processManager.isHelperRunning(packageName, source)) {
+                System.out.println("Terminating Helper process before update...");
+                boolean terminated = processManager.terminateHelper(packageName, source, appName, 5000);
+                if (terminated) {
+                    System.out.println("Helper process terminated successfully");
+                } else {
+                    System.err.println("Warning: Could not terminate Helper process, installation may fail");
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Error terminating Helper process: " + e.getMessage());
+            // Continue with installation - the delete-before-copy fallback may still work
+        }
+    }
+
+    /**
      * Completes services after update by running application update, installing services, and starting them.
      * Implements phases 4-6 of the service lifecycle during updates.
      *
@@ -1311,6 +1348,10 @@ public class Main implements Runnable, Constants {
             if (isUpdate) {
                 // For updates: stop/uninstall existing services before installation
                 serviceStateBeforeUpdate = prepareServicesForUpdate(appInfo().getNpmPackage(), newServiceCommands);
+
+                // Terminate the Helper process before installation to avoid "Text file busy" on Linux.
+                // The Helper holds the launcher file open, which prevents overwriting on Linux.
+                terminateHelperBeforeUpdate();
             } else {
                 // For initial installation: use empty map (no previous services to stop)
                 serviceStateBeforeUpdate = new HashMap<>();
@@ -1576,6 +1617,12 @@ public class Main implements Runnable, Constants {
                 String exeName = deriveLinuxBinaryNameFromTitle(appInfo().getTitle()) + nameSuffix;
                 File exePath = new File(appDir, exeName);
                 try {
+                    // Delete existing file first to handle "Text file busy" on Linux.
+                    // Linux allows deleting running executables - they keep running via inode,
+                    // but the filename is freed for the new file.
+                    if (exePath.exists()) {
+                        exePath.delete();
+                    }
                     FileUtil.copy(tmpExePath, exePath);
                     if (linuxInstallLogger != null) {
                         linuxInstallLogger.logFileOperation(InstallationLogger.FileOperation.CREATED,
