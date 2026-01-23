@@ -2,9 +2,13 @@ package ca.weblite.jdeploy.installer.models;
 
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
+import ca.weblite.jdeploy.models.HelperAction;
 
 import java.io.File;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class InstallationSettings {
     private boolean addToDesktop=true;
@@ -20,6 +24,7 @@ public class InstallationSettings {
     private String commandLinePath=null;
     private boolean commandLineSymlinkCreated=false;
     private boolean addedToPath=false;
+    private boolean trayMenuEnabled=true;
     private AppInfo appInfo;
     private NPMPackageVersion npmPackageVersion;
     private File installFilesDir;
@@ -27,6 +32,7 @@ public class InstallationSettings {
     private boolean websiteVerified;
     private String packageName;
     private String source;
+    private List<HelperAction> helperActions = new ArrayList<>();
 
     private AutoUpdateSettings autoUpdate = AutoUpdateSettings.Stable;
 
@@ -174,6 +180,14 @@ public class InstallationSettings {
         this.addedToPath = addedToPath;
     }
 
+    public boolean isTrayMenuEnabled() {
+        return trayMenuEnabled;
+    }
+
+    public void setTrayMenuEnabled(boolean trayMenuEnabled) {
+        this.trayMenuEnabled = trayMenuEnabled;
+    }
+
     public boolean isInstallCliLauncher() {
         return installCliLauncher;
     }
@@ -204,5 +218,45 @@ public class InstallationSettings {
 
     public void setSource(String source) {
         this.source = source;
+    }
+
+    /**
+     * Gets the helper actions for the tray menu and service management panel.
+     *
+     * @return unmodifiable list of helper actions
+     */
+    public List<HelperAction> getHelperActions() {
+        return Collections.unmodifiableList(helperActions);
+    }
+
+    /**
+     * Sets the helper actions for the tray menu and service management panel.
+     *
+     * @param helperActions the helper actions to set
+     */
+    public void setHelperActions(List<HelperAction> helperActions) {
+        this.helperActions = helperActions != null ? new ArrayList<>(helperActions) : new ArrayList<>();
+    }
+
+    /**
+     * Determines if this is a branch installation.
+     * Branch installations are identified by versions starting with "0.0.0-" (e.g., "0.0.0-main", "0.0.0-staging").
+     * The branch name is what comes after "0.0.0-".
+     * Branch installations do not support CLI commands, CLI launchers, or services.
+     *
+     * @return true if this is a branch installation, false otherwise
+     */
+    public boolean isBranchInstallation() {
+        // Check version from npmPackageVersion first
+        if (npmPackageVersion != null && npmPackageVersion.getVersion() != null) {
+            return npmPackageVersion.getVersion().startsWith("0.0.0-");
+        }
+
+        // Fall back to appInfo version
+        if (appInfo != null && appInfo.getNpmVersion() != null) {
+            return appInfo.getNpmVersion().startsWith("0.0.0-");
+        }
+
+        return false;
     }
 }

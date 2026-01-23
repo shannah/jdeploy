@@ -46,7 +46,17 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             DebugLogger.log("MacCliCommandInstaller.installCommands() entry - launcherPath: " + launcherPath +
                             ", commands count: " + commandCount +
                             ", isInstallCliCommands: " + settings.isInstallCliCommands() +
-                            ", isInstallCliLauncher: " + settings.isInstallCliLauncher());
+                            ", isInstallCliLauncher: " + settings.isInstallCliLauncher() +
+                            ", isBranchInstallation: " + settings.isBranchInstallation());
+        }
+
+        // Branch installations do not support CLI commands or launchers
+        if (settings.isBranchInstallation()) {
+            System.out.println("Skipping CLI command/launcher installation for branch installation");
+            if (installationLogger != null) {
+                installationLogger.logInfo("Branch installation detected - skipping CLI commands and launcher");
+            }
+            return createdFiles;
         }
 
         if (launcherPath == null || !launcherPath.exists()) {
@@ -151,6 +161,14 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             saveMetadata(metadataDir, createdFiles, pathUpdated, binDirForMetadata, settings.getPackageName(), settings.getSource());
             settings.setAddedToPath(pathUpdated);
             DebugLogger.log("Updated settings - addedToPath: " + pathUpdated);
+
+            // Register services after successful installation
+            if (commands != null && settings.getPackageName() != null) {
+                String version = settings.getNpmPackageVersion() != null ?
+                    settings.getNpmPackageVersion().getVersion() : "unknown";
+                String branchName = null; // TODO: Extract from settings if branch installation
+                registerServices(commands, settings.getPackageName(), settings.getSource(), version, branchName);
+            }
         } else {
             DebugLogger.log("No files were created, skipping PATH update and metadata save");
         }

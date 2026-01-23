@@ -19,6 +19,7 @@ import ca.weblite.jdeploy.gui.tabs.BundleFiltersPanel;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.CliCommandsPanel;
 import ca.weblite.jdeploy.gui.tabs.FiletypesPanel;
+import ca.weblite.jdeploy.gui.tabs.HelperActionsPanel;
 import ca.weblite.jdeploy.gui.tabs.JavaRuntimePanel;
 import ca.weblite.jdeploy.gui.tabs.RepositorySettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.PermissionsPanel;
@@ -75,6 +76,7 @@ public class JDeployProjectEditor {
     private FiletypesPanel filetypesPanel;
     private UrlSchemesPanel urlSchemesPanel;
     private CliCommandsPanel cliCommandsPanel;
+    private HelperActionsPanel helperActionsPanel;
     private RuntimeArgsPanel runtimeArgsPanel;
     private CheerpJSettingsPanel cheerpJSettingsPanel;
     private SplashScreensPanel splashScreensPanel;
@@ -584,6 +586,18 @@ public class JDeployProjectEditor {
             listener -> cliCommandsPanel.addChangeListener(listener)
         ));
 
+        // Helper Actions Panel
+        helperActionsPanel = new HelperActionsPanel();
+        registry.register(NavigablePanelAdapter.forJdeployPanel(
+            "Helper Actions",
+            null,
+            FontIcon.of(Material.TOUCH_APP),
+            helperActionsPanel.getRoot(),
+            json -> helperActionsPanel.load(json),
+            json -> helperActionsPanel.save(json),
+            listener -> helperActionsPanel.addChangeListener(listener)
+        ));
+
         // Runtime Args Panel
         runtimeArgsPanel = new RuntimeArgsPanel();
         registry.register(NavigablePanelAdapter.forJdeployPanel(
@@ -760,8 +774,8 @@ public class JDeployProjectEditor {
                     get();
                     JOptionPane.showMessageDialog(
                         frame,
-                        "Claude AI assistant has been successfully set up for this project.\nCLAUDE.md file has been created/updated with jDeploy-specific instructions.",
-                        "Claude Setup Complete",
+                        "Claude Code jDeploy skill has been installed for this project.\nThe skill is located at .claude/skills/setup-jdeploy.md",
+                        "Claude Skill Installed",
                         JOptionPane.INFORMATION_MESSAGE
                     );
                 } catch (Exception ex) {

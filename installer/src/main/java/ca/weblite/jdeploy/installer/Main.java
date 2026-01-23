@@ -43,16 +43,26 @@ import ca.weblite.jdeploy.installer.cli.MacCliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.LinuxCliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
 import ca.weblite.jdeploy.installer.cli.UIAwareCollisionHandler;
-import ca.weblite.jdeploy.installer.uninstall.UninstallManifestBuilder;
-import ca.weblite.jdeploy.installer.uninstall.UninstallManifestWriter;
-import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptor;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
+import ca.weblite.jdeploy.installer.services.ServiceOperationExecutor;
+import ca.weblite.jdeploy.installer.tray.BackgroundHelper;
+import ca.weblite.jdeploy.installer.helpers.HelperCopyService;
+import ca.weblite.jdeploy.installer.helpers.HelperInstallationResult;
+import ca.weblite.jdeploy.installer.helpers.HelperInstallationService;
+import ca.weblite.jdeploy.installer.helpers.HelperManifestHelper;
+import ca.weblite.jdeploy.installer.helpers.HelperProcessManager;
+import ca.weblite.jdeploy.installer.helpers.HelperUpdateService;
 import ca.weblite.tools.io.*;
+import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import java.awt.Desktop;
+
+import java.awt.*;
 import java.io.*;
 import java.net.URL;
 import java.util.*;
@@ -71,6 +81,7 @@ public class Main implements Runnable, Constants {
     private UIFactory uiFactory = new DefaultUIFactory();
     private InstallationForm installationForm;
     private InstallationDetectionService installationDetectionService = new InstallationDetectionService();
+    private ca.weblite.jdeploy.installer.services.ServiceLifecycleProgressCallback serviceLifecycleProgressCallback;
 
     private Main() {
         this(new InstallationSettings());
@@ -243,6 +254,9 @@ public class Main implements Runnable, Constants {
                     appInfo().setAllowRunAsAdmin(true);
                     break;
             }
+
+            // Extract helper actions from package.json
+            installationSettings.setHelperActions(npmPackageVersion().getHelperActions());
         }
     }
 
@@ -320,8 +334,20 @@ public class Main implements Runnable, Constants {
 
         // First we set the version in appInfo according to the app.xml file
         appInfo().setNpmVersion(ifEmpty(root.getAttribute("version"), "latest"));
-        // Next we use that version to load the package info from the NPM registry.
-        loadNPMPackageInfo();
+
+        // For background helper mode, NPM package info is optional since it may run offline.
+        // The helper only needs app.xml info (package name, source, title) for uninstallation.
+        if (runAsBackgroundHelper) {
+            try {
+                loadNPMPackageInfo();
+            } catch (IOException e) {
+                System.err.println("Warning: Failed to load NPM package info (running in background helper mode): " + e.getMessage());
+                System.err.println("Continuing without NPM package info - uninstall functionality will still work.");
+            }
+        } else {
+            // For normal installer mode, NPM package info is required
+            loadNPMPackageInfo();
+        }
 
         String bundleSuffix = "";
         if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
@@ -439,6 +465,8 @@ public class Main implements Runnable, Constants {
 
     private static boolean headlessInstall;
 
+    private static boolean runAsBackgroundHelper;
+
 
     public static void main(String[] args) {
 
@@ -448,6 +476,10 @@ public class Main implements Runnable, Constants {
 
         if (args.length == 1 && args[0].equals("install")) {
             headlessInstall = true;
+        }
+
+        if (System.getProperty("jdeploy.background", "false").equals("true")) {
+            runAsBackgroundHelper = true;
         }
 
         if (!headlessInstall) {
@@ -769,7 +801,29 @@ public class Main implements Runnable, Constants {
 
     private void onProceedWithInstallation(InstallationFormEvent evt) {
         evt.setConsumed(true);
+        proceedWithInstallationImpl(evt);
+    }
+
+    /**
+     * Implementation of proceed with installation.
+     */
+    private void proceedWithInstallationImpl(InstallationFormEvent evt) {
         evt.getInstallationForm().setInProgress(true, "Installing.  Please wait...");
+
+        // Create progress callback for service lifecycle management
+        final InstallationForm form = evt.getInstallationForm();
+        serviceLifecycleProgressCallback = new ca.weblite.jdeploy.installer.services.ServiceLifecycleProgressCallback() {
+            @Override
+            public void updateProgress(String message) {
+                invokeLater(() -> form.setInProgress(true, message));
+            }
+
+            @Override
+            public void reportWarning(String message) {
+                System.err.println("Service Warning: " + message);
+            }
+        };
+
         new Thread(()->{
             try {
                 install();
@@ -787,6 +841,8 @@ public class Main implements Runnable, Constants {
                 }
                 String finalMessage = message;
                 invokeLater(()-> uiFactory.showModalErrorDialog(evt.getInstallationForm(), finalMessage, "Installation Failed"));
+            } finally {
+                serviceLifecycleProgressCallback = null;
             }
         }).start();
     }
@@ -806,6 +862,7 @@ public class Main implements Runnable, Constants {
 
     private void run0() throws Exception {
         loadAppInfo();
+
         if (uninstall && Platform.getSystemPlatform().isWindows()) {
             System.out.println("Running Windows uninstall...");
             InstallWindowsRegistry installer = new InstallWindowsRegistry(appInfo(), null, null, null);
@@ -829,12 +886,41 @@ public class Main implements Runnable, Constants {
             runHeadlessInstall();
             return;
         }
+
+        if (runAsBackgroundHelper) {
+            invokeLater(()->runAsBackgroundHelperOnEdt());
+            return;
+        }
         invokeLater(()->{
             buildUI();
             installationForm.showInstallationForm();
         });
 
     }
+
+    /**
+     * Runs the application as a background helper with system tray menu.
+     *
+     * This mode shows only a system tray icon (no main window) for managing
+     * application services. Delegates to BackgroundHelper for all functionality.
+     */
+    private void runAsBackgroundHelperOnEdt() {
+        // Apply installation context to load application icon and other resources
+        installationContext.applyContext(installationSettings);
+
+        try {
+            BackgroundHelper helper = new BackgroundHelper(installationSettings);
+            helper.start();
+        } catch (IllegalStateException e) {
+            System.err.println("Cannot run as background helper: " + e.getMessage());
+            System.exit(1);
+        } catch (Exception e) {
+            System.err.println("Failed to start background helper: " + e.getMessage());
+            e.printStackTrace();
+            System.exit(1);
+        }
+    }
+
     private void runHeadlessInstall() throws Exception {
         System.out.println(
                 "jDeploy installer running in headless mode.  Installing " +
@@ -853,10 +939,13 @@ public class Main implements Runnable, Constants {
     private File installedApp;
 
     private void performUninstall() throws Exception {
-        UninstallService uninstallService = createUninstallService();
         String packageName = appInfo().getNpmPackage();
         String source = appInfo().getNpmSource();
 
+        // Stop and uninstall services before removing files
+        stopAndUninstallServices(packageName, source);
+
+        UninstallService uninstallService = createUninstallService();
         UninstallService.UninstallResult result = uninstallService.uninstall(packageName, source);
 
         if (!result.isSuccess()) {
@@ -868,10 +957,297 @@ public class Main implements Runnable, Constants {
         }
     }
 
+    /**
+     * Stops and uninstalls all services for a package before uninstallation.
+     * This ensures services are cleanly removed before their files are deleted.
+     *
+     * @param packageName The package name
+     * @param source The package source (e.g., "npm", "github", or null)
+     */
+    private void stopAndUninstallServices(String packageName, String source) {
+        ServiceDescriptorService descriptorService = createServiceDescriptorService();
+        // cliLauncherPath can be null since we don't need runApplicationUpdate for uninstall
+        ServiceOperationExecutor operationExecutor = new ServiceOperationExecutor(null, packageName, source);
+
+        try {
+            List<ServiceDescriptor> services = descriptorService.listServices(packageName, source);
+
+            for (ServiceDescriptor service : services) {
+                String commandName = service.getCommandName();
+
+                // Stop the service
+                try {
+                    System.out.println("Stopping service: " + commandName);
+                    operationExecutor.stop(commandName);
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to stop service " + commandName + ": " + e.getMessage());
+                }
+
+                // Uninstall the service
+                try {
+                    System.out.println("Uninstalling service: " + commandName);
+                    operationExecutor.uninstall(commandName);
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to uninstall service " + commandName + ": " + e.getMessage());
+                }
+
+                // Unregister the service descriptor
+                try {
+                    descriptorService.unregisterService(packageName, source, commandName, null);
+                    System.out.println("Unregistered service: " + commandName);
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to unregister service " + commandName + ": " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to stop/uninstall services: " + e.getMessage());
+        }
+    }
+
     private UninstallService createUninstallService() {
         FileUninstallManifestRepository manifestRepository = new FileUninstallManifestRepository();
         RegistryOperations registryOperations = new JnaRegistryOperations();
         return new UninstallService(manifestRepository, registryOperations);
+    }
+
+    private ServiceDescriptorService createServiceDescriptorService() {
+        return ServiceDescriptorServiceFactory.createDefault();
+    }
+
+    /**
+     * Prepares services for update by assessing current state and stopping running services.
+     * Implements phases 1-2 of the service lifecycle during updates.
+     *
+     * @param packageName The package name
+     * @param newCommands The commands from the new version
+     * @return Map of service states for post-installation restart
+     */
+    private Map<String, ca.weblite.jdeploy.installer.services.ServiceState> prepareServicesForUpdate(
+            String packageName,
+            List<CommandSpec> newCommands) {
+
+        try {
+            ServiceDescriptorService descriptorService = createServiceDescriptorService();
+            File cliLauncherPath = findExistingCliLauncher(packageName);
+
+            if (cliLauncherPath == null) {
+                System.err.println("Warning: Could not find CLI launcher for service operations");
+                return new HashMap<>();
+            }
+
+            ca.weblite.jdeploy.installer.services.ServiceOperationExecutor operationExecutor =
+                new ca.weblite.jdeploy.installer.services.ServiceOperationExecutor(
+                    cliLauncherPath,
+                    packageName,
+                    appInfo().getNpmSource()
+                );
+
+            ca.weblite.jdeploy.installer.services.ServiceLifecycleManager lifecycleManager =
+                new ca.weblite.jdeploy.installer.services.ServiceLifecycleManager(
+                    descriptorService,
+                    operationExecutor,
+                    serviceLifecycleProgressCallback
+                );
+
+            return lifecycleManager.prepareForUpdate(packageName, appInfo().getNpmSource(), newCommands);
+        } catch (Exception e) {
+            System.err.println("Warning: Service preparation failed: " + e.getMessage());
+            e.printStackTrace();
+            return new HashMap<>();
+        }
+    }
+
+    /**
+     * Completes services after update by running application update, installing services, and starting them.
+     * Implements phases 4-6 of the service lifecycle during updates.
+     *
+     * @param packageName The package name
+     * @param newCommands The commands from the new version
+     * @param previousStates Service states from pre-installation
+     * @param installedApp The installed application directory/file
+     * @param version The version being installed
+     */
+    private void completeServicesAfterUpdate(
+            String packageName,
+            List<CommandSpec> newCommands,
+            Map<String, ca.weblite.jdeploy.installer.services.ServiceState> previousStates,
+            File installedApp,
+            String version) {
+
+        try {
+            ServiceDescriptorService descriptorService = createServiceDescriptorService();
+            File cliLauncherPath = findCliLauncherFromInstalledApp(installedApp);
+
+            if (cliLauncherPath == null) {
+                System.err.println("Warning: Could not find CLI launcher for service operations");
+                return;
+            }
+
+            ca.weblite.jdeploy.installer.services.ServiceOperationExecutor operationExecutor =
+                new ca.weblite.jdeploy.installer.services.ServiceOperationExecutor(
+                    cliLauncherPath,
+                    packageName,
+                    appInfo().getNpmSource()
+                );
+
+            ca.weblite.jdeploy.installer.services.ServiceLifecycleManager lifecycleManager =
+                new ca.weblite.jdeploy.installer.services.ServiceLifecycleManager(
+                    descriptorService,
+                    operationExecutor,
+                    serviceLifecycleProgressCallback
+                );
+
+            lifecycleManager.completeUpdate(packageName, newCommands, previousStates, version);
+        } catch (Exception e) {
+            System.err.println("Warning: Service completion failed: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Extracts commands that implement service_controller from a list of commands.
+     *
+     * @param commands The list of all commands
+     * @return List of commands that implement service_controller
+     */
+    private List<CommandSpec> extractServiceCommands(List<CommandSpec> commands) {
+        if (commands == null) {
+            return Collections.emptyList();
+        }
+
+        List<CommandSpec> serviceCommands = new ArrayList<>();
+        for (CommandSpec command : commands) {
+            if (command.implements_("service_controller")) {
+                serviceCommands.add(command);
+            }
+        }
+        return serviceCommands;
+    }
+
+    /**
+     * Finds the CLI launcher from the currently installed application.
+     * Used before update to stop running services.
+     *
+     * Constructs the launcher path deterministically from package.json information
+     * following the exact same logic as the installers.
+     *
+     * @param packageName The package name
+     * @return The CLI launcher file, or null if not found
+     */
+    private File findExistingCliLauncher(String packageName) {
+        try {
+            // Compute fully qualified package name
+            String source = appInfo().getNpmSource();
+            String fullyQualifiedPackageName = packageName;
+            if (source != null && !source.trim().isEmpty()) {
+                String sourceHash = MD5.getMd5(source);
+                fullyQualifiedPackageName = sourceHash + "." + packageName;
+            }
+
+            // Compute name suffix for branch versions
+            String nameSuffix = "";
+            if (appInfo().getNpmVersion() != null && appInfo().getNpmVersion().startsWith("0.0.0-")) {
+                String v = appInfo().getNpmVersion();
+                nameSuffix = " " + v.substring(v.indexOf("-") + 1).trim();
+            }
+
+            if (Platform.getSystemPlatform().isMac()) {
+                // Mac: ~/Applications/{AppName}.app/Contents/MacOS/Client4JLauncher-cli
+                String appName = appInfo().getTitle() + nameSuffix;
+                File appsDir = new File(System.getProperty("user.home"), "Applications");
+                File appBundle = new File(appsDir, appName + ".app");
+                File launcher = new File(appBundle, "Contents/MacOS/" + ca.weblite.jdeploy.installer.CliInstallerConstants.CLI_LAUNCHER_NAME);
+
+                if (launcher.exists()) {
+                    return launcher;
+                }
+            } else if (Platform.getSystemPlatform().isLinux()) {
+                // Linux: ~/.jdeploy/apps/{fullyQualifiedPackageName}/{binaryName}
+                String linuxNameSuffix = "";
+                if (appInfo().getNpmVersion() != null && appInfo().getNpmVersion().startsWith("0.0.0-")) {
+                    String v = appInfo().getNpmVersion();
+                    linuxNameSuffix = "-" + v.substring(v.indexOf("-") + 1).trim();
+                }
+                String binaryName = deriveLinuxBinaryNameFromTitle(appInfo().getTitle()) + linuxNameSuffix;
+
+                File appsDir = new File(System.getProperty("user.home"), ".jdeploy/apps");
+                File appDir = new File(appsDir, fullyQualifiedPackageName);
+                File launcher = new File(appDir, binaryName);
+
+                if (launcher.exists()) {
+                    return launcher;
+                }
+            } else if (Platform.getSystemPlatform().isWindows()) {
+                // Windows: ~/.jdeploy/apps/{fullyQualifiedPackageName}/{DisplayName}-cli.exe
+                // Or: ~/.jdeploy/apps/{fullyQualifiedPackageName}/bin/{DisplayName}-cli.exe (if using private JVM)
+                String displayName = appInfo().getTitle() + nameSuffix;
+                String cliExeName = displayName + ca.weblite.jdeploy.installer.CliInstallerConstants.CLI_LAUNCHER_SUFFIX + ".exe";
+
+                File userHome = new File(System.getProperty("user.home"));
+                File jdeployHome = new File(userHome, ".jdeploy");
+                File appsDir = new File(jdeployHome, "apps");
+                File appDir = new File(appsDir, fullyQualifiedPackageName);
+
+                // Try without bin subdirectory first
+                File launcher = new File(appDir, cliExeName);
+                if (launcher.exists()) {
+                    return launcher;
+                }
+
+                // Try with bin subdirectory (for private JVM installations)
+                File binDir = new File(appDir, "bin");
+                File launcherInBin = new File(binDir, cliExeName);
+                if (launcherInBin.exists()) {
+                    return launcherInBin;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error finding existing CLI launcher: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Finds the CLI launcher from the newly installed application.
+     * Used after update to start services.
+     *
+     * @param installedApp The installed application directory/file
+     * @return The CLI launcher file, or null if not found
+     */
+    private File findCliLauncherFromInstalledApp(File installedApp) {
+        if (installedApp == null) {
+            return null;
+        }
+
+        try {
+            if (Platform.getSystemPlatform().isMac()) {
+                // Mac: installedApp is the .app bundle
+                // CLI launcher is at Contents/MacOS/Client4JLauncher-cli
+                File launcher = new File(installedApp, "Contents/MacOS/" + ca.weblite.jdeploy.installer.CliInstallerConstants.CLI_LAUNCHER_NAME);
+                if (launcher.exists()) {
+                    return launcher;
+                }
+            } else if (Platform.getSystemPlatform().isLinux()) {
+                // Linux: installedApp is the launcher executable itself
+                if (installedApp.exists() && installedApp.isFile()) {
+                    return installedApp;
+                }
+            } else if (Platform.getSystemPlatform().isWindows()) {
+                // Windows: installedApp is the main GUI .exe file
+                // CLI launcher is {Name}-cli.exe in the same directory
+                if (installedApp.exists() && installedApp.getName().endsWith(".exe")) {
+                    String cliExeName = installedApp.getName().replace(".exe",
+                        ca.weblite.jdeploy.installer.CliInstallerConstants.CLI_LAUNCHER_SUFFIX + ".exe");
+                    File cliExePath = new File(installedApp.getParentFile(), cliExeName);
+                    if (cliExePath.exists()) {
+                        return cliExePath;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error finding CLI launcher from installed app: " + e.getMessage());
+        }
+        return null;
     }
 
     private void install() throws Exception {
@@ -921,6 +1297,25 @@ public class Main implements Runnable, Constants {
         // Set packageName and source on InstallationSettings for CLI command bin directory resolution
         installationSettings.setPackageName(appInfo().getNpmPackage());
         installationSettings.setSource(appInfo().getNpmSource());
+
+        // Prepare for service lifecycle management
+        Map<String, ca.weblite.jdeploy.installer.services.ServiceState> serviceStateBeforeUpdate = null;
+        List<CommandSpec> allCommands = null;
+        List<CommandSpec> newServiceCommands = null;
+        boolean isUpdate = false;
+        if (!installationSettings.isBranchInstallation() && npmPackageVersion() != null) {
+            allCommands = npmPackageVersion().getCommands();
+            newServiceCommands = extractServiceCommands(allCommands);
+
+            isUpdate = installationDetectionService.isInstalled(appInfo().getNpmPackage(), appInfo().getNpmSource());
+            if (isUpdate) {
+                // For updates: stop/uninstall existing services before installation
+                serviceStateBeforeUpdate = prepareServicesForUpdate(appInfo().getNpmPackage(), newServiceCommands);
+            } else {
+                // For initial installation: use empty map (no previous services to stop)
+                serviceStateBeforeUpdate = new HashMap<>();
+            }
+        }
 
         // Enable CLI launcher creation if user requested CLI commands or launcher installation
         bundlerSettings.setCliCommandsEnabled(
@@ -1121,6 +1516,7 @@ public class Main implements Runnable, Constants {
                     // Wire collision handler for GUI-aware prompting
                     macCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
                     macCliInstaller.setInstallationLogger(macInstallLogger);
+                    macCliInstaller.setServiceDescriptorService(createServiceDescriptorService());
                     cliScriptFiles.addAll(macCliInstaller.installCommands(cliLauncher, cliCommands, installationSettings));
 
                     // Track the CLI launcher symlink if it was created
@@ -1224,12 +1620,335 @@ public class Main implements Runnable, Constants {
             }
         }
 
+        // Complete service lifecycle management after installation
+        // Run if there are any commands (to run --jdeploy:update)
+        // Service install/start only happens for service commands (handled inside)
+        if (serviceStateBeforeUpdate != null && allCommands != null && !allCommands.isEmpty() &&
+            !installationSettings.isBranchInstallation()) {
+            completeServicesAfterUpdate(appInfo().getNpmPackage(), newServiceCommands, serviceStateBeforeUpdate, installedApp, npmPackageVersion().getVersion());
+        }
+
+        // Install or update Helper application for command management
+        // Skip for branch installations - Helper is only for production installs
+        if (!installationSettings.isBranchInstallation()) {
+            boolean commandsExist = allCommands != null && !allCommands.isEmpty();
+            if (isUpdate) {
+                // For updates: use HelperUpdateService which handles install/update
+                // Always pass true to keep Helper installed (removal only happens during uninstall)
+                updateHelperApplication(installedApp, true);
+            } else if (commandsExist) {
+                // For fresh installs with commands: install Helper
+                installHelperApplication(installedApp);
+            }
+            // For fresh installs without commands: do nothing
+        }
+
         File tmpPlatformBundles = new File(tmpBundles, target);
 
     }
 
     private String deriveLinuxBinaryNameFromTitle(String title) {
         return title.toLowerCase().replace(" ", "-").replaceAll("[^a-z0-9\\-]", "");
+    }
+
+    /**
+     * Installs the Helper application for service management.
+     *
+     * The Helper is a lightweight copy of the installer that provides:
+     * - System tray icon for service status
+     * - User-friendly uninstallation
+     *
+     * @param installedApp The main installed application file/directory
+     */
+    private void installHelperApplication(File installedApp) {
+        String nameSuffix = "";
+        if (appInfo().getNpmVersion() != null && appInfo().getNpmVersion().startsWith("0.0.0-")) {
+            String v = appInfo().getNpmVersion();
+            nameSuffix = " " + v.substring(v.indexOf("-") + 1).trim();
+        }
+        String appName = appInfo().getTitle() + nameSuffix;
+
+        File appDirectory;
+        if (Platform.getSystemPlatform().isMac()) {
+            appDirectory = null; // macOS uses ~/Applications/{AppName} Helper/
+        } else {
+            appDirectory = installedApp.isDirectory() ? installedApp : installedApp.getParentFile();
+        }
+
+        File jdeployFilesDir = findJdeployFilesDirFromInstalledApp(installedApp);
+        if (jdeployFilesDir == null) {
+            jdeployFilesDir = installationContext.findInstallFilesDir();
+        }
+
+        if (jdeployFilesDir == null || !jdeployFilesDir.exists()) {
+            System.err.println("Warning: Helper installation skipped - .jdeploy-files directory not found");
+            return;
+        }
+
+        HelperInstallationService helperService = createHelperInstallationService();
+        HelperInstallationResult result = helperService.installHelper(appName, appDirectory, jdeployFilesDir);
+
+        if (result.isSuccess()) {
+            System.out.println("Helper application installed successfully at: " + result.getHelperExecutable().getAbsolutePath());
+            updateManifestWithHelper(result);
+        } else {
+            System.err.println("Warning: Helper installation failed: " + result.getErrorMessage());
+            // Continue with installation - Helper is optional
+        }
+    }
+
+    /**
+     * Updates the uninstall manifest with Helper installation entries.
+     *
+     * This loads the existing manifest, adds the Helper entries, and saves it back.
+     * If the manifest doesn't exist or cannot be updated, a warning is logged but
+     * installation continues.
+     *
+     * @param helperResult The successful Helper installation result
+     */
+    private void updateManifestWithHelper(HelperInstallationResult helperResult) {
+        try {
+            FileUninstallManifestRepository repository = new FileUninstallManifestRepository();
+            String packageName = appInfo().getNpmPackage();
+            String packageSource = appInfo().getNpmSource();
+
+            Optional<UninstallManifest> existingManifest = repository.load(packageName, packageSource);
+            if (!existingManifest.isPresent()) {
+                System.err.println("Warning: Could not load existing manifest to add Helper entries");
+                return;
+            }
+
+            UninstallManifest manifest = existingManifest.get();
+            UninstallManifestBuilder builder = new UninstallManifestBuilder();
+
+            // Copy package info from existing manifest
+            UninstallManifest.PackageInfo pkgInfo = manifest.getPackageInfo();
+            builder.withPackageInfo(pkgInfo.getName(), pkgInfo.getSource(), pkgInfo.getVersion(), pkgInfo.getArchitecture());
+            if (pkgInfo.getInstallerVersion() != null) {
+                builder.withInstallerVersion(pkgInfo.getInstallerVersion());
+            }
+
+            // Copy existing files
+            for (UninstallManifest.InstalledFile file : manifest.getFiles()) {
+                builder.addFile(file.getPath(), file.getType(), file.getDescription());
+            }
+
+            // Copy existing directories
+            for (UninstallManifest.InstalledDirectory dir : manifest.getDirectories()) {
+                builder.addDirectory(dir.getPath(), dir.getCleanup(), dir.getDescription());
+            }
+
+            // Copy existing registry entries (Windows)
+            UninstallManifest.RegistryInfo registry = manifest.getRegistry();
+            if (registry != null) {
+                for (UninstallManifest.RegistryKey key : registry.getCreatedKeys()) {
+                    builder.addCreatedRegistryKey(key.getRoot(), key.getPath(), key.getDescription());
+                }
+                for (UninstallManifest.ModifiedRegistryValue value : registry.getModifiedValues()) {
+                    builder.addModifiedRegistryValue(
+                            value.getRoot(), value.getPath(), value.getName(),
+                            value.getPreviousValue(), value.getPreviousType(), value.getDescription());
+                }
+            }
+
+            // Copy existing PATH modifications
+            UninstallManifest.PathModifications pathMods = manifest.getPathModifications();
+            if (pathMods != null) {
+                for (UninstallManifest.WindowsPathEntry entry : pathMods.getWindowsPaths()) {
+                    builder.addWindowsPathEntry(entry.getAddedEntry(), entry.getDescription());
+                }
+                for (UninstallManifest.ShellProfileEntry entry : pathMods.getShellProfiles()) {
+                    builder.addShellProfileEntry(entry.getFile(), entry.getExportLine(), entry.getDescription());
+                }
+                for (UninstallManifest.GitBashProfileEntry entry : pathMods.getGitBashProfiles()) {
+                    builder.addGitBashProfileEntry(entry.getFile(), entry.getExportLine(), entry.getDescription());
+                }
+            }
+
+            // Add Helper entries
+            HelperManifestHelper.addHelperToManifest(builder, helperResult);
+
+            // Save updated manifest
+            UninstallManifest updatedManifest = builder.build();
+            repository.save(updatedManifest);
+
+            System.out.println("Updated uninstall manifest with Helper entries");
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to update manifest with Helper entries: " + e.getMessage());
+            // Continue - Helper installation was successful, manifest update is best-effort
+        }
+    }
+
+    /**
+     * Finds the .jdeploy-files directory from the installed application.
+     *
+     * @param installedApp The installed application file/directory
+     * @return The .jdeploy-files directory, or null if not found
+     */
+    private File findJdeployFilesDirFromInstalledApp(File installedApp) {
+        if (installedApp == null) {
+            return null;
+        }
+
+        if (Platform.getSystemPlatform().isMac()) {
+            // macOS: search inside the .app bundle
+            return findJdeployFilesRecursive(installedApp, 5);
+        } else {
+            // Windows/Linux: .jdeploy-files is in the app directory
+            File appDir = installedApp.isDirectory() ? installedApp : installedApp.getParentFile();
+            File jdeployFiles = new File(appDir, ".jdeploy-files");
+            return jdeployFiles.exists() ? jdeployFiles : null;
+        }
+    }
+
+    /**
+     * Recursively searches for .jdeploy-files directory within a given directory.
+     *
+     * @param dir The directory to search in
+     * @param maxDepth Maximum depth to search
+     * @return The .jdeploy-files directory, or null if not found
+     */
+    private File findJdeployFilesRecursive(File dir, int maxDepth) {
+        if (dir == null || !dir.isDirectory() || maxDepth <= 0) {
+            return null;
+        }
+
+        File candidate = new File(dir, ".jdeploy-files");
+        if (candidate.exists() && candidate.isDirectory()) {
+            return candidate;
+        }
+
+        File[] children = dir.listFiles();
+        if (children != null) {
+            for (File child : children) {
+                if (child.isDirectory()) {
+                    File found = findJdeployFilesRecursive(child, maxDepth - 1);
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Creates a HelperInstallationService with proper dependencies.
+     *
+     * @return A new HelperInstallationService instance
+     */
+    private HelperInstallationService createHelperInstallationService() {
+        InstallationLogger logger = null;
+        try {
+            String fullyQualifiedPackageName = appInfo().getNpmPackage();
+            if (appInfo().getNpmSource() != null && !appInfo().getNpmSource().isEmpty()) {
+                String sourceHash = MD5.getMd5(appInfo().getNpmSource());
+                fullyQualifiedPackageName = sourceHash + "." + fullyQualifiedPackageName;
+            }
+            logger = new InstallationLogger(fullyQualifiedPackageName, InstallationLogger.OperationType.INSTALL);
+        } catch (IOException e) {
+            System.err.println("Warning: Failed to create installation logger for Helper: " + e.getMessage());
+        }
+        return new HelperInstallationService(logger, new HelperCopyService(logger));
+    }
+
+    /**
+     * Creates a HelperUpdateService with proper dependencies.
+     *
+     * @return A new HelperUpdateService instance
+     */
+    private HelperUpdateService createHelperUpdateService() {
+        InstallationLogger logger = null;
+        try {
+            String fullyQualifiedPackageName = appInfo().getNpmPackage();
+            if (appInfo().getNpmSource() != null && !appInfo().getNpmSource().isEmpty()) {
+                String sourceHash = MD5.getMd5(appInfo().getNpmSource());
+                fullyQualifiedPackageName = sourceHash + "." + fullyQualifiedPackageName;
+            }
+            logger = new InstallationLogger(fullyQualifiedPackageName, InstallationLogger.OperationType.INSTALL);
+        } catch (IOException e) {
+            System.err.println("Warning: Failed to create installation logger for Helper update: " + e.getMessage());
+        }
+        HelperInstallationService installationService = new HelperInstallationService(logger, new HelperCopyService(logger));
+        HelperProcessManager processManager = new HelperProcessManager();
+        return new HelperUpdateService(installationService, processManager, logger);
+    }
+
+    /**
+     * Updates the Helper application during an application update.
+     *
+     * Handles two scenarios:
+     * <ul>
+     *   <li>Helper exists: Update Helper (terminate, delete, reinstall)</li>
+     *   <li>Helper doesn't exist: Install Helper</li>
+     * </ul>
+     *
+     * Note: Helper removal only occurs during uninstall, not during updates.
+     * This method is always called with keepHelper=true.
+     *
+     * @param installedApp The main installed application file/directory
+     * @param keepHelper True to keep/install Helper (always true for updates)
+     */
+    private void updateHelperApplication(File installedApp, boolean keepHelper) {
+        String nameSuffix = "";
+        if (appInfo().getNpmVersion() != null && appInfo().getNpmVersion().startsWith("0.0.0-")) {
+            String v = appInfo().getNpmVersion();
+            nameSuffix = " " + v.substring(v.indexOf("-") + 1).trim();
+        }
+        String appName = appInfo().getTitle() + nameSuffix;
+
+        // Get package info for lock file identification
+        String packageName = appInfo().getNpmPackage();
+        String source = appInfo().getNpmSource();
+
+        File appDirectory;
+        if (Platform.getSystemPlatform().isMac()) {
+            appDirectory = null; // macOS uses ~/Applications/{AppName} Helper/
+        } else {
+            appDirectory = installedApp.isDirectory() ? installedApp : installedApp.getParentFile();
+        }
+
+        File jdeployFilesDir = findJdeployFilesDirFromInstalledApp(installedApp);
+        if (jdeployFilesDir == null) {
+            jdeployFilesDir = installationContext.findInstallFilesDir();
+        }
+
+        // Helper is always kept during updates (removal only happens during uninstall)
+        if (jdeployFilesDir == null || !jdeployFilesDir.exists()) {
+            System.err.println("Warning: Helper update skipped - .jdeploy-files directory not found");
+            return;
+        }
+
+        HelperUpdateService updateService = createHelperUpdateService();
+        HelperUpdateService.HelperUpdateResult result = updateService.updateHelper(
+                packageName, source, appName, appDirectory, jdeployFilesDir, keepHelper);
+
+        if (result.isSuccess()) {
+            switch (result.getType()) {
+                case INSTALLED:
+                    System.out.println("Helper application installed successfully");
+                    updateManifestWithHelper(result.getInstallationResult());
+                    break;
+                case UPDATED:
+                    System.out.println("Helper application updated successfully");
+                    updateManifestWithHelper(result.getInstallationResult());
+                    break;
+                case REMOVED:
+                    System.out.println("Helper application removed (services no longer defined)");
+                    // Helper was removed, no manifest update needed for adding entries
+                    // The Helper entries will be cleaned up when uninstall runs
+                    break;
+                case NO_ACTION:
+                    System.out.println("No Helper update action needed");
+                    break;
+                default:
+                    break;
+            }
+        } else {
+            System.err.println("Warning: Helper update failed: " + result.getErrorMessage());
+            // Continue with installation - Helper is optional
+        }
     }
 
     /**
@@ -1827,6 +2546,7 @@ public class Main implements Runnable, Constants {
             // Wire collision handler for GUI-aware prompting
             linuxCliInstaller.setCollisionHandler(new UIAwareCollisionHandler(uiFactory, installationForm));
             linuxCliInstaller.setInstallationLogger(linuxInstallLogger);
+            linuxCliInstaller.setServiceDescriptorService(createServiceDescriptorService());
             cliScriptFiles.addAll(linuxCliInstaller.installCommands(launcherFile, commands, installationSettings));
         } else {
             System.out.println("Skipping CLI command and launcher installation (user opted out)");

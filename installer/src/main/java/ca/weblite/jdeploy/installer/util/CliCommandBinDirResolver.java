@@ -13,7 +13,6 @@ import java.io.File;
  */
 public class CliCommandBinDirResolver {
 
-    private static final String BIN_DIR_NAME = ".jdeploy/bin";
     private static final String BIN_DIR_PREFIX = ".jdeploy/bin";
 
     /**
@@ -41,42 +40,6 @@ public class CliCommandBinDirResolver {
         // GitHub package: use MD5(source).packageName format
         String hash = MD5.getMd5(source);
         return hash + "." + packageName;
-    }
-
-    /**
-     * Convenience method to get the CLI command bin directory for a package.
-     *
-     * Uses the default user home directory as the base path.
-     *
-     * @param packageName the package name
-     * @param source      the GitHub source URL (null for NPM packages)
-     * @return the File object representing the bin directory
-     * @throws IllegalArgumentException if packageName is null or empty
-     */
-    public static File getCliCommandBinDir(String packageName, String source) {
-        String userHome = System.getProperty("user.home");
-        return getCliCommandBinDir(packageName, source, new File(userHome));
-    }
-
-    /**
-     * Testable method to get the CLI command bin directory with injected base directory.
-     *
-     * Allows tests to inject a custom base directory instead of relying on system properties.
-     * Returns the shared bin directory (~/.jdeploy/bin) - all packages share the same bin directory.
-     *
-     * @param packageName the package name (used for validation, not for path computation)
-     * @param source      the GitHub source URL (null for NPM packages)
-     * @param userHome    the base directory (typically user home or test directory)
-     * @return the File object representing the shared bin directory
-     * @throws IllegalArgumentException if packageName is null or empty
-     */
-    public static File getCliCommandBinDir(String packageName, String source, File userHome) {
-        if (packageName == null || packageName.trim().isEmpty()) {
-            throw new IllegalArgumentException("packageName cannot be null or empty");
-        }
-
-        // Return the shared bin directory - all packages use the same directory
-        return new File(userHome, BIN_DIR_NAME);
     }
 
     /**

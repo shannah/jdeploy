@@ -13,6 +13,27 @@ Non-goals:
 - System-wide installations (this RFC targets per-user installs).
 - Changing runtime behavior beyond a simple invocation contract (`--jdeploy:command=...`).
 
+## Branch Installation Restriction
+
+**Branch installations do not support CLI commands or CLI launchers.**
+
+Branch releases are designed for parallel GUI application testing and intentionally exclude CLI functionality to avoid:
+- **PATH conflicts**: Multiple versions of the same command name would conflict on the user's PATH
+- **Service name collisions**: Services from different branches would have identical names
+- **Command ambiguity**: Users would not know which version of a command is being executed
+- **Update complexity**: Managing parallel CLI installations would introduce significant complexity
+
+Applications installed from branch sources (e.g., `npm install @myorg/myapp@branch-name` or GitHub branch URLs) will:
+- Install GUI components normally
+- Skip CLI command installation (do not create wrapper scripts)
+- Skip CLI launcher creation (no symlink/wrapper for the main launcher)
+- Not create service descriptors (see Service Descriptor Management RFC)
+- Not modify the user's PATH
+
+**Rationale**: Branch installations are temporary test installations meant to coexist with the main release. CLI commands, by their nature as global PATH entries, are incompatible with this parallel installation model. Users who need CLI functionality should install from the main release channel.
+
+**User impact**: Developers testing branch versions can still access the application binary directly using its full path, but convenient CLI shortcuts are intentionally unavailable for branch installations.
+
 ## CLI Launcher vs CLI Commands
 
 This RFC addresses two distinct but related features:

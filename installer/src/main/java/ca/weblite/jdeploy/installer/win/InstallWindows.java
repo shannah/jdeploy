@@ -7,6 +7,8 @@ import ca.weblite.jdeploy.installer.Main;
 import ca.weblite.jdeploy.installer.cli.CollisionHandler;
 import ca.weblite.jdeploy.installer.cli.UIAwareCollisionHandler;
 import ca.weblite.jdeploy.installer.logging.InstallationLogger;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
+import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.uninstall.UninstallManifestBuilder;
 import ca.weblite.jdeploy.installer.uninstall.UninstallManifestWriter;
@@ -239,6 +241,7 @@ public class InstallWindows {
                     new ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller();
                 cliInstaller.setCollisionHandler(collisionHandler);
                 cliInstaller.setInstallationLogger(logger);
+                cliInstaller.setServiceDescriptorService(ServiceDescriptorServiceFactory.createDefault());
                 File launcherForCommands = cliExePath != null ? cliExePath : exePath;
                 cliWrapperFiles = cliInstaller.installCommands(launcherForCommands, commands, installationSettings);
                 if (logger != null) {

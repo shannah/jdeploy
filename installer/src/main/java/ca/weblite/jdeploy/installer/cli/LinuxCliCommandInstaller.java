@@ -41,6 +41,15 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
     public List<File> installCommands(File launcherPath, List<CommandSpec> commands, InstallationSettings settings) {
         List<File> createdFiles = new ArrayList<>();
 
+        // Branch installations do not support CLI commands or launchers
+        if (settings.isBranchInstallation()) {
+            System.out.println("Skipping CLI command/launcher installation for branch installation");
+            if (installationLogger != null) {
+                installationLogger.logInfo("Branch installation detected - skipping CLI commands and launcher");
+            }
+            return createdFiles;
+        }
+
         if (launcherPath == null || !launcherPath.exists()) {
             System.err.println("Warning: Launcher path does not exist: " + launcherPath);
             return createdFiles;
@@ -119,6 +128,14 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             boolean pathUpdated = commandsBinDir != null || launcherBinDir != null;
             saveMetadata(metadataDir, createdFiles, pathUpdated, binDirForMetadata, settings.getPackageName(), settings.getSource());
             settings.setAddedToPath(pathUpdated);
+
+            // Register services after successful installation
+            if (commands != null && settings.getPackageName() != null) {
+                String version = settings.getNpmPackageVersion() != null ?
+                    settings.getNpmPackageVersion().getVersion() : "unknown";
+                String branchName = null; // TODO: Extract from settings if branch installation
+                registerServices(commands, settings.getPackageName(), settings.getSource(), version, branchName);
+            }
         }
 
         return createdFiles;
