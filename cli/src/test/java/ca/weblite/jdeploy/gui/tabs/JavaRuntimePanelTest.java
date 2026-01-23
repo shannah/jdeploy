@@ -429,4 +429,69 @@ class JavaRuntimePanelTest {
         assertFalse(result.isValid());
         assertEquals("Test error", result.getErrorMessage());
     }
+
+    // ========== SINGLETON TESTS ==========
+
+    @Test
+    @DisplayName("Should load singleton flag from jdeploy object")
+    void testLoadSingleton() {
+        JSONObject jdeploy = new JSONObject();
+        jdeploy.put("singleton", true);
+
+        panel.load(jdeploy);
+
+        assertTrue(panel.getSingleton().isSelected());
+    }
+
+    @Test
+    @DisplayName("Should default singleton to false when not present")
+    void testLoadSingletonDefault() {
+        JSONObject jdeploy = new JSONObject();
+
+        panel.load(jdeploy);
+
+        assertFalse(panel.getSingleton().isSelected());
+    }
+
+    @Test
+    @DisplayName("Should save singleton flag to jdeploy object when selected")
+    void testSaveSingletonSelected() {
+        panel.getSingleton().setSelected(true);
+        JSONObject jdeploy = new JSONObject();
+
+        panel.save(jdeploy);
+
+        assertTrue(jdeploy.optBoolean("singleton", false));
+    }
+
+    @Test
+    @DisplayName("Should remove singleton flag from jdeploy object when not selected")
+    void testSaveSingletonNotSelected() {
+        JSONObject jdeploy = new JSONObject();
+        jdeploy.put("singleton", true);
+        panel.load(jdeploy);
+        panel.getSingleton().setSelected(false);
+
+        panel.save(jdeploy);
+
+        assertFalse(jdeploy.has("singleton"));
+    }
+
+    @Test
+    @DisplayName("Should fire change event when singleton checkbox changes")
+    void testSingletonChangeEvent() {
+        ActionListener listener = evt -> changeListenerCallCount.incrementAndGet();
+        panel.addChangeListener(listener);
+
+        panel.getSingleton().setSelected(true);
+
+        assertTrue(changeListenerCallCount.get() > 0, "Change listener should have been called on singleton change");
+    }
+
+    @Test
+    @DisplayName("Should have tooltip on singleton checkbox")
+    void testSingletonTooltip() {
+        assertNotNull(panel.getSingleton().getToolTipText());
+        assertTrue(panel.getSingleton().getToolTipText().contains("instance"));
+    }
 }

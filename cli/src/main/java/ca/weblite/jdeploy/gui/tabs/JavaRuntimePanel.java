@@ -62,6 +62,7 @@ public class JavaRuntimePanel extends JPanel {
     private JComboBox<String> javaVersion;
     private JCheckBox requiresJavaFX;
     private JCheckBox requiresFullJDK;
+    private JCheckBox singleton;
     private JComboBox<String> jdkProvider;
     private JComboBox<String> jbrVariant;
     private JLabel jbrVariantLabel;
@@ -85,7 +86,8 @@ public class JavaRuntimePanel extends JPanel {
                 "fill:max(d;4px):noGrow,left:4dlu:noGrow,fill:d:grow,left:4dlu:noGrow,fill:max(d;4px):noGrow",
                 "center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow," +
                 "center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow," +
-                "center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow"
+                "center:max(d;4px):noGrow,top:4dlu:noGrow,center:max(d;4px):noGrow,top:4dlu:noGrow," +
+                "center:max(d;4px):noGrow"
         ));
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
@@ -131,6 +133,12 @@ public class JavaRuntimePanel extends JPanel {
         jbrVariant = new JComboBox<>(new String[]{"Default", "JCEF"});
         jbrVariant.setToolTipText("JBR variant to use. Default uses standard or standard+SDK based on whether JDK is required. JCEF includes Chromium Embedded Framework for embedded browsers.");
         root.add(jbrVariant, cc.xy(3, 11));
+
+        // Row 13: Singleton Application
+        singleton = new JCheckBox("Singleton Application");
+        singleton.setToolTipText("Only allow one instance of this application to run at a time. " +
+            "Additional launches will forward files to the existing instance.");
+        root.add(singleton, cc.xy(3, 13));
     }
 
     private void initJdkProviderListener() {
@@ -273,6 +281,8 @@ public class JavaRuntimePanel extends JPanel {
             jbrVariant.setSelectedItem("Default");
         }
 
+        singleton.setSelected(jdeploy.optBoolean("singleton", false));
+
         updateJbrVariantVisibility();
     }
 
@@ -326,6 +336,13 @@ public class JavaRuntimePanel extends JPanel {
             jdeploy.remove("jdkProvider");
             jdeploy.remove("jbrVariant");
         }
+
+        // Save singleton (only if true)
+        if (singleton.isSelected()) {
+            jdeploy.put("singleton", true);
+        } else {
+            jdeploy.remove("singleton");
+        }
     }
 
     public void addChangeListener(ActionListener listener) {
@@ -336,6 +353,7 @@ public class JavaRuntimePanel extends JPanel {
 
         requiresJavaFX.addItemListener(evt -> fireChangeEvent());
         requiresFullJDK.addItemListener(evt -> fireChangeEvent());
+        singleton.addItemListener(evt -> fireChangeEvent());
         javaVersion.addItemListener(evt -> fireChangeEvent());
         jdkProvider.addItemListener(evt -> {
             if (evt.getStateChange() == ItemEvent.SELECTED) {
@@ -366,6 +384,10 @@ public class JavaRuntimePanel extends JPanel {
 
     public JCheckBox getRequiresFullJDK() {
         return requiresFullJDK;
+    }
+
+    public JCheckBox getSingleton() {
+        return singleton;
     }
 
     public JComboBox<String> getJdkProvider() {
