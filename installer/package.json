@@ -5,7 +5,6 @@
     "main": "index.js",
     "preferGlobal": true,
     "repository": {
-        "type": "git",
         "directory": "installer",
         "url": "https://github.com/shannah/jdeploy.git"
     },
@@ -15,6 +14,7 @@
         "notarize": false,
         "packageLinuxX64": "jdeploy-installer-linux-x64",
         "packageMacArm64": "jdeploy-installer-mac-arm64",
+        "javaVersion": "8",
         "packageLinuxArm64": "jdeploy-installer-linux-arm64",
         "downloadPage": {"platforms": ["all"]},
         "fork": false,
@@ -38,7 +38,19 @@
         "jar": "target/jdeploy-installer-1.0-SNAPSHOT.jar",
         "codesign": true,
         "platformBundlesEnabled": true,
-        "packageWinArm64": "jdeploy-installer-win-arm64"
+        "packageWinArm64": "jdeploy-installer-win-arm64",
+        "commands": {
+            "uninstall": {
+                "implements": ["updater"],
+                "args": ["uninstall"],
+                "description": "CLI uninstaller"
+            },
+            "install": {
+                "implements": ["updater"],
+                "args": ["install"],
+                "description": "CLI Install"
+            }
+        }
     },
     "dependencies": {"shelljs": "^0.8.4"},
     "license": "ISC",
