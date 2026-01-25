@@ -89,6 +89,11 @@ public class Main implements Runnable, Constants {
 
     private Main(InstallationSettings settings) {
         this.installationSettings = settings;
+        // Initialize the service lifecycle progress callback
+        // Use SILENT by default - headless mode redirects output anyway,
+        // and GUI mode will set up its own callback via the UI
+        this.serviceLifecycleProgressCallback =
+            ca.weblite.jdeploy.installer.services.ServiceLifecycleProgressCallback.SILENT;
     }
 
     private Document getAppXMLDocument() throws IOException {
@@ -476,13 +481,20 @@ public class Main implements Runnable, Constants {
 
         if (args.length == 1 && args[0].equals("install")) {
             headlessInstall = true;
+            // Set AWT headless mode to prevent GUI toolkit initialization
+            // This must be set before any AWT classes are loaded
+            System.setProperty("java.awt.headless", "true");
         }
 
         if (System.getProperty("jdeploy.background", "false").equals("true")) {
             runAsBackgroundHelper = true;
         }
 
-        if (!headlessInstall) {
+        if (headlessInstall) {
+            // For headless mode, set up output suppression immediately
+            // This must happen before Main object creation which triggers verbose output
+            setupStaticHeadlessOutputSuppression();
+        } else {
             File logFile = new File(System.getProperty("user.home") + File.separator + ".jdeploy" + File.separator + "log" + File.separator + "jdeploy-installer.log");
             logFile.getParentFile().mkdirs();
             try {
@@ -500,6 +512,62 @@ public class Main implements Runnable, Constants {
         main.run();
     }
 
+    // Static fields for headless output suppression (set in main() before Main object creation)
+    private static PrintStream staticOriginalOut;
+    private static PrintStream staticOriginalErr;
+    private static File staticLogFile;
+    private static PrintStream staticLogStream;
+
+    /**
+     * Allows external callers (like MainDebug) to set the original streams
+     * before Main.main() is called. This is needed when the caller has already
+     * set up output redirection and wants Main to use the true original streams.
+     */
+    public static void setOriginalStreams(PrintStream out, PrintStream err, File logFile) {
+        staticOriginalOut = out;
+        staticOriginalErr = err;
+        staticLogFile = logFile;
+    }
+
+    /**
+     * Sets up output suppression for headless mode at the static level.
+     * Must be called before Main object creation to suppress verbose output from InstallationContext.
+     */
+    private static void setupStaticHeadlessOutputSuppression() {
+        // Only store streams if not already set by external caller (e.g., MainDebug)
+        if (staticOriginalOut == null) {
+            staticOriginalOut = System.out;
+        }
+        if (staticOriginalErr == null) {
+            staticOriginalErr = System.err;
+        }
+
+        // Suppress java.util.logging output
+        java.util.logging.Logger rootLogger = java.util.logging.Logger.getLogger("");
+        java.util.logging.Handler[] handlers = rootLogger.getHandlers();
+        for (java.util.logging.Handler handler : handlers) {
+            handler.setLevel(java.util.logging.Level.OFF);
+        }
+        rootLogger.setLevel(java.util.logging.Level.OFF);
+
+        // Only set up log file redirection if not already done
+        if (staticLogFile == null) {
+            staticLogFile = new File(
+                System.getProperty("user.home") + File.separator + ".jdeploy" +
+                File.separator + "log" + File.separator + "jdeploy-headless-install.log"
+            );
+        }
+        staticLogFile.getParentFile().mkdirs();
+
+        try {
+            staticLogStream = new PrintStream(new FileOutputStream(staticLogFile));
+            System.setOut(staticLogStream);
+            System.setErr(staticLogStream);
+        } catch (FileNotFoundException e) {
+            staticOriginalErr.println("Warning: Could not create log file: " + e.getMessage());
+        }
+    }
+
     private File findAppXmlFile() {
         return installationContext.findAppXml();
 
@@ -510,19 +578,32 @@ public class Main implements Runnable, Constants {
         try {
             run0();
         } catch (Exception ex) {
-            ex.printStackTrace(System.err);
-            System.err.flush();
-            invokeLater(()->{
-                String message = ex.getMessage();
-                if (ex instanceof UserLangRuntimeException) {
-                    UserLangRuntimeException userEx = (UserLangRuntimeException) ex;
-                    if (userEx.hasUserFriendlyMessage()) {
-                        message = userEx.getUserFriendlyMessage();
-                    }
+            // In headless mode, write to original stderr (not the redirected one)
+            PrintStream errStream = staticOriginalErr != null ? staticOriginalErr : System.err;
+            if (headlessInstall) {
+                errStream.println("Installation failed: " + ex.getMessage());
+                if (staticLogFile != null) {
+                    errStream.println("See log file for details: " + staticLogFile.getAbsolutePath());
                 }
-                uiFactory.showModalErrorDialog(null, message, "Installation failed.");
+                // Also log full stack trace to log file
+                ex.printStackTrace(System.err);
+                System.err.flush();
                 System.exit(1);
-            });
+            } else {
+                ex.printStackTrace(System.err);
+                System.err.flush();
+                invokeLater(()->{
+                    String message = ex.getMessage();
+                    if (ex instanceof UserLangRuntimeException) {
+                        UserLangRuntimeException userEx = (UserLangRuntimeException) ex;
+                        if (userEx.hasUserFriendlyMessage()) {
+                            message = userEx.getUserFriendlyMessage();
+                        }
+                    }
+                    uiFactory.showModalErrorDialog(null, message, "Installation failed.");
+                    System.exit(1);
+                });
+            }
         }
     }
 
@@ -861,6 +942,7 @@ public class Main implements Runnable, Constants {
     }
 
     private void run0() throws Exception {
+        // Output suppression for headless mode is handled in main() via setupStaticHeadlessOutputSuppression()
         loadAppInfo();
 
         if (uninstall && Platform.getSystemPlatform().isWindows()) {
@@ -922,18 +1004,24 @@ public class Main implements Runnable, Constants {
     }
 
     private void runHeadlessInstall() throws Exception {
-        System.out.println(
-                "jDeploy installer running in headless mode.  Installing " +
-                        appInfo().getTitle() + " " + npmPackageVersion().getVersion()
+        // Output suppression is handled by setupStaticHeadlessOutputSuppression() in main()
+        // Use staticOriginalOut for user-facing messages
+
+        staticOriginalOut.println(
+            "Installing " + appInfo().getTitle() + " " + npmPackageVersion().getVersion() + "..."
         );
+
         try {
             install();
         } catch (Exception ex) {
-            System.err.println("Installation failed");
-            ex.printStackTrace(System.err);
-            return;
+            staticOriginalErr.println("Installation failed: " + ex.getMessage());
+            if (staticLogFile != null) {
+                staticOriginalErr.println("See log file for details: " + staticLogFile.getAbsolutePath());
+            }
+            throw ex;
         }
-        System.out.println("Installation complete");
+
+        staticOriginalOut.println("Installation complete");
     }
 
     private File installedApp;
