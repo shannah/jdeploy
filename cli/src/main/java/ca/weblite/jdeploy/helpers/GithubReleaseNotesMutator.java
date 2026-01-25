@@ -48,6 +48,16 @@ public class GithubReleaseNotesMutator implements BundleConstants {
             final String branchTag,
             final String refType
     ) {
+        return createGithubReleaseNotes(repo, branchTag, refType, false, null);
+    }
+
+    public String createGithubReleaseNotes(
+            final String repo,
+            final String branchTag,
+            final String refType,
+            final boolean hasCommands,
+            final String version
+    ) {
         final String releasesPrefix = "/releases/download/";
         final File releaseFilesDir = getGithubReleaseFilesDir();
         final Optional<File> macIntelBundle = Arrays.stream(
@@ -114,19 +124,61 @@ public class GithubReleaseNotesMutator implements BundleConstants {
                 .append("<!-- id:").append(BUNDLE_LINUX_ARM64).append("-link -->")
                 .append("\n"));
 
-        if ("branch".equals(refType)) {
-            notes.append("\nOr launch app installer via command-line on Linux, Mac, or Windows:\n\n");
-            notes.append("```bash\n");
-            notes.append("/bin/bash -c \"$(curl -fsSL ").append(JDEPLOY_WEBSITE_URL).append("gh/")
-                    .append(repo).append("/").append(branchTag).append("/install.sh)\"\n");
-            notes.append("```\n");
-            notes.append("\nSee [download page](").append(JDEPLOY_WEBSITE_URL).append("gh/").append(repo).append("/").append(branchTag).append(") for more download options.\n\n");
-        } else {
-            notes.append("\nOr launch app installer via command-line on Linux, Mac, or Windows:\n\n");
-            notes.append("```bash\n");
-            notes.append("/bin/bash -c \"$(curl -fsSL ").append(JDEPLOY_WEBSITE_URL).append("gh/").append(repo).append("/install.sh)\"\n");
-            notes.append("```\n");
-            notes.append("\nSee [download page](").append(JDEPLOY_WEBSITE_URL).append("gh/").append(repo).append(") for more download options.\n\n");
+        // Only show CLI installation section if the app has commands defined
+        if (hasCommands) {
+            notes.append("\n## CLI Installation\n\n");
+
+            if ("branch".equals(refType)) {
+                // Branch release - include branch in URL
+                String baseUrl = JDEPLOY_WEBSITE_URL + "gh/" + repo + "/" + branchTag;
+
+                notes.append("### Interactive\n");
+                notes.append("```bash\n");
+                notes.append("/bin/bash -c \"$(curl -fsSL '").append(baseUrl).append("/install.sh')\"\n");
+                notes.append("```\n");
+                notes.append("Launches graphical installer\n\n");
+
+                notes.append("### Headless\n");
+                notes.append("```bash\n");
+                notes.append("/bin/bash -c \"$(curl -fsSL '").append(baseUrl).append("/install.sh?headless=true')\"\n");
+                notes.append("```\n");
+                notes.append("For CI/CD and automated deployments\n\n");
+
+                if (version != null && !version.isEmpty()) {
+                    notes.append("### Version-Pinned Headless\n");
+                    notes.append("```bash\n");
+                    notes.append("/bin/bash -c \"$(curl -fsSL '").append(baseUrl).append("/").append(version).append("/install.sh?headless=true')\"\n");
+                    notes.append("```\n");
+                    notes.append("Install specific version ").append(version).append("\n\n");
+                }
+
+                notes.append("See [download page](").append(baseUrl).append(") for more download options.\n\n");
+            } else {
+                // Tag release - no branch in URL
+                String baseUrl = JDEPLOY_WEBSITE_URL + "gh/" + repo;
+
+                notes.append("### Interactive\n");
+                notes.append("```bash\n");
+                notes.append("/bin/bash -c \"$(curl -fsSL '").append(baseUrl).append("/install.sh')\"\n");
+                notes.append("```\n");
+                notes.append("Launches graphical installer\n\n");
+
+                notes.append("### Headless\n");
+                notes.append("```bash\n");
+                notes.append("/bin/bash -c \"$(curl -fsSL '").append(baseUrl).append("/install.sh?headless=true')\"\n");
+                notes.append("```\n");
+                notes.append("For CI/CD and automated deployments\n\n");
+
+                if (version != null && !version.isEmpty()) {
+                    notes.append("### Version-Pinned Headless\n");
+                    notes.append("```bash\n");
+                    notes.append("/bin/bash -c \"$(curl -fsSL '").append(baseUrl).append("/").append(version).append("/install.sh?headless=true')\"\n");
+                    notes.append("```\n");
+                    notes.append("Install specific version ").append(version).append("\n\n");
+                }
+
+                notes.append("See [download page](").append(baseUrl).append(") for more download options.\n\n");
+            }
         }
 
         return notes.toString();
