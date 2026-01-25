@@ -117,4 +117,30 @@ public class JDeployProject {
         }
         return Optional.empty();
     }
+
+    /**
+     * Returns whether this application should run in singleton mode.
+     * In singleton mode, only one instance of the application can run at a time.
+     * Subsequent launches will forward files/URIs to the existing instance.
+     *
+     * @return true if singleton mode is enabled, false otherwise
+     */
+    public boolean isSingleton() {
+        JSONObject jdeployConfig = getJDeployConfig();
+        return jdeployConfig.optBoolean("singleton", false);
+    }
+
+    /**
+     * Sets whether this application should run in singleton mode.
+     *
+     * @param singleton true to enable singleton mode, false to disable
+     */
+    public void setSingleton(boolean singleton) {
+        JSONObject jdeployConfig = getJDeployConfig();
+        if (singleton) {
+            jdeployConfig.put("singleton", true);
+        } else {
+            jdeployConfig.remove("singleton");
+        }
+    }
 }
