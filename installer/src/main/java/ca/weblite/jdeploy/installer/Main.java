@@ -481,6 +481,9 @@ public class Main implements Runnable, Constants {
 
         if (args.length == 1 && args[0].equals("install")) {
             headlessInstall = true;
+            // Set AWT headless mode to prevent GUI toolkit initialization
+            // This must be set before any AWT classes are loaded
+            System.setProperty("java.awt.headless", "true");
         }
 
         if (System.getProperty("jdeploy.background", "false").equals("true")) {

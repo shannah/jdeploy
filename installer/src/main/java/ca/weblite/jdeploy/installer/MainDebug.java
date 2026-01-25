@@ -31,6 +31,9 @@ public class MainDebug {
         for (int i = 2; i < args.length; i++) {
             if ("install".equals(args[i])) {
                 headlessMode = true;
+                // Set AWT headless mode to prevent GUI toolkit initialization
+                // This must be set before any AWT classes are loaded
+                System.setProperty("java.awt.headless", "true");
                 break;
             }
         }
