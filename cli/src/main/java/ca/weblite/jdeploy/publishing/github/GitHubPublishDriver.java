@@ -368,10 +368,24 @@ public class GitHubPublishDriver implements PublishDriverInterface {
 
 
     private String createGithubReleaseNotes(PublishingContext context, PublishTargetInterface target) {
+        // Check if the app has CLI commands defined
+        boolean hasCommands = false;
+        try {
+            JDeployProject project = projectFactory.createProject(context.packagingContext.packageJsonFile.toPath());
+            hasCommands = !project.getCommandSpecs().isEmpty();
+        } catch (Exception e) {
+            // If we can't load the project, assume no commands
+            context.err().println("Warning: Could not check for CLI commands: " + e.getMessage());
+        }
+
+        String version = context.packagingContext.getVersion();
+
         return new GithubReleaseNotesMutator(context.directory(), context.err()).createGithubReleaseNotes(
                 getRepository(context, target),
                 getRefName(context, target),
-                getRefType(context, target)
+                getRefType(context, target),
+                hasCommands,
+                version
         );
     }
 
