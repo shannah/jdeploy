@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer;
 
+import ca.weblite.jdeploy.ai.models.AiIntegrationConfig;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.util.DebugLogger;
 import ca.weblite.jdeploy.models.NPMApplication;
@@ -652,9 +653,20 @@ public class DefaultInstallationContext implements InstallationContext {
         settings.setInstallFilesDir(findInstallFilesDir());
 
         // NPMPackageVersion may be null if running in background helper mode without network access
-        // In that case, we can skip the website URL setup since it's only used by the installer UI
+        // In that case, we can skip the website URL setup and AI config since they're only used by the installer UI
         if (settings.getNpmPackageVersion() == null) {
             return;
+        }
+
+        // Load AI integration config from the already-parsed package.json
+        File installFilesDir = settings.getInstallFilesDir();
+        if (installFilesDir != null) {
+            try {
+                AiIntegrationConfig aiConfig = settings.getNpmPackageVersion().getAiIntegrationConfig(installFilesDir);
+                settings.setAiIntegrationConfig(aiConfig);
+            } catch (Exception e) {
+                System.err.println("Warning: Could not load AI integration config: " + e.getMessage());
+            }
         }
 
         NPMApplication app = settings.getNpmPackageVersion().toNPMApplication();

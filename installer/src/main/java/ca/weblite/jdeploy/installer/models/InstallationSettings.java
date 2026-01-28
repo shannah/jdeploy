@@ -1,5 +1,7 @@
 package ca.weblite.jdeploy.installer.models;
 
+import ca.weblite.jdeploy.ai.models.AIToolType;
+import ca.weblite.jdeploy.ai.models.AiIntegrationConfig;
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.models.HelperAction;
@@ -8,7 +10,9 @@ import java.io.File;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class InstallationSettings {
     private boolean addToDesktop=true;
@@ -35,6 +39,11 @@ public class InstallationSettings {
     private List<HelperAction> helperActions = new ArrayList<>();
 
     private AutoUpdateSettings autoUpdate = AutoUpdateSettings.Stable;
+
+    // AI Integration fields
+    private boolean installAiIntegrations = false;
+    private Set<AIToolType> selectedAiTools = new HashSet<>();
+    private AiIntegrationConfig aiIntegrationConfig;
 
     public boolean isAddToDesktop() {
         return addToDesktop;
@@ -258,5 +267,54 @@ public class InstallationSettings {
         }
 
         return false;
+    }
+
+    /**
+     * Returns whether AI integrations should be installed.
+     */
+    public boolean isInstallAiIntegrations() {
+        return installAiIntegrations;
+    }
+
+    /**
+     * Sets whether AI integrations should be installed.
+     */
+    public void setInstallAiIntegrations(boolean installAiIntegrations) {
+        this.installAiIntegrations = installAiIntegrations;
+    }
+
+    /**
+     * Gets the set of selected AI tools for integration.
+     */
+    public Set<AIToolType> getSelectedAiTools() {
+        return new HashSet<>(selectedAiTools);
+    }
+
+    /**
+     * Sets the selected AI tools for integration.
+     */
+    public void setSelectedAiTools(Set<AIToolType> selectedAiTools) {
+        this.selectedAiTools = selectedAiTools != null ? new HashSet<>(selectedAiTools) : new HashSet<>();
+    }
+
+    /**
+     * Gets the AI integration configuration from the bundle.
+     */
+    public AiIntegrationConfig getAiIntegrationConfig() {
+        return aiIntegrationConfig;
+    }
+
+    /**
+     * Sets the AI integration configuration from the bundle.
+     */
+    public void setAiIntegrationConfig(AiIntegrationConfig aiIntegrationConfig) {
+        this.aiIntegrationConfig = aiIntegrationConfig;
+    }
+
+    /**
+     * Returns true if the bundle has AI integrations configured.
+     */
+    public boolean hasAiIntegrations() {
+        return aiIntegrationConfig != null && aiIntegrationConfig.hasAnyIntegrations();
     }
 }

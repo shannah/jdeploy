@@ -54,6 +54,8 @@ import ca.weblite.jdeploy.installer.helpers.HelperInstallationService;
 import ca.weblite.jdeploy.installer.helpers.HelperManifestHelper;
 import ca.weblite.jdeploy.installer.helpers.HelperProcessManager;
 import ca.weblite.jdeploy.installer.helpers.HelperUpdateService;
+import ca.weblite.jdeploy.installer.ai.models.AiIntegrationManifestEntry;
+import ca.weblite.jdeploy.installer.ai.services.AiIntegrationInstaller;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
@@ -1778,6 +1780,19 @@ public class Main implements Runnable, Constants {
             // For fresh installs without commands: do nothing
         }
 
+        // Install AI integrations if enabled
+        if (installationSettings.isInstallAiIntegrations() &&
+            installationSettings.hasAiIntegrations() &&
+            !installationSettings.getSelectedAiTools().isEmpty()) {
+            try {
+                installAiIntegrations(fullyQualifiedPackageName, installedApp);
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to install AI integrations: " + e.getMessage());
+                e.printStackTrace(System.err);
+                // Continue - AI integrations are optional
+            }
+        }
+
         File tmpPlatformBundles = new File(tmpBundles, target);
 
     }
@@ -1912,6 +1927,91 @@ public class Main implements Runnable, Constants {
             System.err.println("Warning: Failed to update manifest with Helper entries: " + e.getMessage());
             // Continue - Helper installation was successful, manifest update is best-effort
         }
+    }
+
+    /**
+     * Installs AI integrations (MCP servers, skills, agents) to selected AI tools.
+     *
+     * @param fullyQualifiedPackageName The FQPN used as the MCP server name
+     * @param installedApp The installed application file/directory
+     */
+    private void installAiIntegrations(String fullyQualifiedPackageName, File installedApp) {
+        AiIntegrationInstaller aiInstaller = new AiIntegrationInstaller();
+
+        // Determine the binary command based on platform
+        String binaryCommand = getBinaryCommandForAiIntegration(installedApp);
+        if (binaryCommand == null) {
+            System.err.println("Warning: Could not determine binary command for AI integrations");
+            return;
+        }
+
+        // Get the MCP command name from config
+        String mcpCommandName = null;
+        if (installationSettings.getAiIntegrationConfig() != null &&
+            installationSettings.getAiIntegrationConfig().getMcpConfig() != null) {
+            mcpCommandName = installationSettings.getAiIntegrationConfig().getMcpConfig().getCommand();
+        }
+
+        if (mcpCommandName == null) {
+            System.err.println("Warning: No MCP command configured for AI integrations");
+            return;
+        }
+
+        // Get bundle's ai directory
+        File bundleAiDir = new File(installationSettings.getInstallFilesDir(), "ai");
+
+        try {
+            java.util.List<AiIntegrationManifestEntry> manifestEntries = aiInstaller.install(
+                    installationSettings.getAiIntegrationConfig(),
+                    installationSettings.getSelectedAiTools(),
+                    binaryCommand,
+                    mcpCommandName,
+                    fullyQualifiedPackageName,
+                    appInfo().getTitle(),
+                    bundleAiDir
+            );
+
+            // TODO: Add manifest entries to uninstall manifest in Phase 6
+            System.out.println("AI integrations installed: " + manifestEntries.size() + " entries");
+        } catch (IOException e) {
+            System.err.println("Warning: Failed to install AI integrations: " + e.getMessage());
+            e.printStackTrace(System.err);
+        }
+    }
+
+    /**
+     * Gets the binary command to use for AI integration invocations.
+     * Uses the CLI launcher binary which avoids GUI initialization.
+     *
+     * Platform-specific binaries (per cli-commands-in-installer.md RFC):
+     * - macOS: {AppName}.app/Contents/MacOS/Client4JLauncher-cli
+     * - Windows: {AppDir}/{AppName}-cli.exe
+     * - Linux: {AppDir}/{binary} (same as GUI binary)
+     *
+     * @param installedApp The installed application
+     * @return The binary command path, or null if not determined
+     */
+    private String getBinaryCommandForAiIntegration(File installedApp) {
+        if (installedApp == null || !installedApp.exists()) {
+            return null;
+        }
+
+        if (Platform.getSystemPlatform().isMac()) {
+            // macOS: Use Client4JLauncher-cli inside the app bundle
+            // This avoids GUI initialization triggered by AppKit/NSApplication
+            return installedApp.getAbsolutePath() + "/Contents/MacOS/" + CliInstallerConstants.CLI_LAUNCHER_NAME;
+        } else if (Platform.getSystemPlatform().isWindows()) {
+            // Windows: Use {AppName}-cli.exe which has Console subsystem instead of GUI
+            String appName = installedApp.getName();
+            if (appName.endsWith(".exe")) {
+                appName = appName.substring(0, appName.length() - 4);
+            }
+            return installedApp.getParent() + File.separator + appName + "-cli.exe";
+        } else if (Platform.getSystemPlatform().isLinux()) {
+            // Linux: Use the installed binary directly
+            return installedApp.getAbsolutePath();
+        }
+        return null;
     }
 
     /**
