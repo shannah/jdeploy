@@ -28,6 +28,7 @@ import ca.weblite.jdeploy.installer.util.ResourceUtil;
 import ca.weblite.jdeploy.installer.views.DefaultUIFactory;
 import ca.weblite.jdeploy.installer.views.InstallationForm;
 import ca.weblite.jdeploy.installer.views.UIFactory;
+import ca.weblite.jdeploy.installer.views.UpdateProgressDialog;
 import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
 import ca.weblite.jdeploy.installer.win.InstallWindows;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
@@ -47,6 +48,7 @@ import ca.weblite.jdeploy.installer.services.ServiceDescriptor;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
 import ca.weblite.jdeploy.installer.services.ServiceOperationExecutor;
+import ca.weblite.jdeploy.installer.services.ServiceOperationResult;
 import ca.weblite.jdeploy.installer.tray.BackgroundHelper;
 import ca.weblite.jdeploy.installer.helpers.HelperCopyService;
 import ca.weblite.jdeploy.installer.helpers.HelperInstallationResult;
@@ -1252,6 +1254,56 @@ public class Main implements Runnable, Constants {
     }
 
     /**
+     * Checks if the app has CLI commands but no service commands.
+     * Used to determine if explicit --jdeploy:update is needed after installation.
+     *
+     * @param allCommands All commands from package.json
+     * @param serviceCommands Commands that implement service_controller
+     * @return true if there are non-service commands but no service commands
+     */
+    private boolean hasCommandsButNoServices(List<CommandSpec> allCommands, List<CommandSpec> serviceCommands) {
+        return allCommands != null && !allCommands.isEmpty()
+               && (serviceCommands == null || serviceCommands.isEmpty());
+    }
+
+    /**
+     * Runs --jdeploy:update for apps with commands but no services.
+     * This ensures JARs are downloaded during installation rather than on first launch.
+     *
+     * Shows a progress dialog if the update takes longer than 1 second.
+     * Once shown, dialog displays for minimum 2 seconds to avoid UI flashing.
+     *
+     * @param installedApp The installed application directory/file
+     * @param version The version being installed
+     * @throws Exception if the update fails
+     */
+    private void runUpdateForCommandsOnly(File installedApp, String version) throws Exception {
+        File cliLauncherPath = findCliLauncherFromInstalledApp(installedApp);
+        if (cliLauncherPath == null || !cliLauncherPath.exists()) {
+            throw new RuntimeException("Could not find CLI launcher for update: " + cliLauncherPath);
+        }
+
+        ServiceOperationExecutor executor = new ServiceOperationExecutor(
+            cliLauncherPath,
+            appInfo().getNpmPackage(),
+            appInfo().getNpmSource()
+        );
+
+        // Get parent window for dialog
+        // DefaultInstallationForm extends JFrame, so it is itself a Window
+        Window parentWindow = (installationForm instanceof Window) ? (Window) installationForm : null;
+
+        UpdateProgressDialog progressDialog = new UpdateProgressDialog(parentWindow);
+
+        progressDialog.runWithProgress(() -> {
+            ServiceOperationResult result = executor.runApplicationUpdate(version);
+            if (result.isFailure()) {
+                throw new RuntimeException(result.getMessage());
+            }
+        });
+    }
+
+    /**
      * Finds the CLI launcher from the currently installed application.
      * Used before update to stop running services.
      *
@@ -1757,12 +1809,22 @@ public class Main implements Runnable, Constants {
             }
         }
 
-        // Complete service lifecycle management after installation
-        // Run if there are any commands (to run --jdeploy:update)
-        // Service install/start only happens for service commands (handled inside)
-        if (serviceStateBeforeUpdate != null && allCommands != null && !allCommands.isEmpty() &&
-            !installationSettings.isBranchInstallation()) {
-            completeServicesAfterUpdate(appInfo().getNpmPackage(), newServiceCommands, serviceStateBeforeUpdate, installedApp, npmPackageVersion().getVersion());
+        // Complete service lifecycle management OR run update for commands-only apps
+        // This ensures JARs are downloaded during installation rather than on first launch
+        if (!installationSettings.isBranchInstallation()) {
+            if (newServiceCommands != null && !newServiceCommands.isEmpty()) {
+                // Has services - use full service lifecycle (includes update)
+                completeServicesAfterUpdate(
+                    appInfo().getNpmPackage(),
+                    newServiceCommands,
+                    serviceStateBeforeUpdate,
+                    installedApp,
+                    npmPackageVersion().getVersion()
+                );
+            } else if (hasCommandsButNoServices(allCommands, newServiceCommands)) {
+                // Has commands but no services - run explicit update to download JARs
+                runUpdateForCommandsOnly(installedApp, npmPackageVersion().getVersion());
+            }
         }
 
         // Install or update Helper application for command management
