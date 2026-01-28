@@ -59,7 +59,16 @@ public class ClipboardConfigWriter implements AiToolConfigWriter {
     }
 
     @Override
+    @Deprecated
     public void addMcpServer(String serverName, String command, List<String> args, String comment) throws IOException {
+        throw new UnsupportedOperationException(
+            toolType.getDisplayName() + " requires manual configuration. " +
+            "Use getClipboardConfig() to get the configuration string."
+        );
+    }
+
+    @Override
+    public void addMcpServer(String serverName, String command, List<String> args, String packageFqn, String appDisplayName) throws IOException {
         throw new UnsupportedOperationException(
             toolType.getDisplayName() + " requires manual configuration. " +
             "Use getClipboardConfig() to get the configuration string."

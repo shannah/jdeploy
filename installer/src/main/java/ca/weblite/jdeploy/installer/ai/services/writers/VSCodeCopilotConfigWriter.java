@@ -33,7 +33,7 @@ public class VSCodeCopilotConfigWriter extends AbstractJsonConfigWriter {
 
     @Override
     public String getClipboardConfig(String serverName, String command, List<String> args) {
-        JSONObject serverEntry = createServerEntry(command, args, null);
+        JSONObject serverEntry = createServerEntry(command, args, null, null);
         JSONObject wrapper = new JSONObject();
         JSONObject servers = new JSONObject();
         servers.put(serverName, serverEntry);

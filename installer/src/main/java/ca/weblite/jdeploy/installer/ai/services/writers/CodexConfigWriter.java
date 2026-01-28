@@ -55,7 +55,13 @@ public class CodexConfigWriter implements AiToolConfigWriter {
     }
 
     @Override
+    @Deprecated
     public void addMcpServer(String serverName, String command, List<String> args, String comment) throws IOException {
+        addMcpServer(serverName, command, args, null, null);
+    }
+
+    @Override
+    public void addMcpServer(String serverName, String command, List<String> args, String packageFqn, String appDisplayName) throws IOException {
         File configFile = getConfigPath();
         if (configFile == null) {
             throw new IOException("Config path not available for Codex CLI");
@@ -78,10 +84,15 @@ public class CodexConfigWriter implements AiToolConfigWriter {
             sb.append("\n");
         }
 
-        // Add comment
-        if (comment != null && !comment.isEmpty()) {
-            sb.append("# ").append(comment).append("\n");
+        // Add comment with jDeploy metadata
+        sb.append("# jDeploy MCP server");
+        if (appDisplayName != null) {
+            sb.append(" for ").append(appDisplayName);
         }
+        if (packageFqn != null) {
+            sb.append(" (fqn: ").append(packageFqn).append(")");
+        }
+        sb.append("\n");
 
         // Add section header
         sb.append("[mcp_servers.\"").append(escapeTomlKey(serverName)).append("\"]\n");

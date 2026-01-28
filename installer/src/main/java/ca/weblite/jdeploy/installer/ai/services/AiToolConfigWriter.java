@@ -19,13 +19,27 @@ public interface AiToolConfigWriter {
     /**
      * Adds an MCP server entry to the tool's configuration.
      *
-     * @param serverName unique name for the MCP server (e.g., "a1b2c3d4.myapp")
-     * @param command the command to execute (e.g., "myapp")
+     * @param serverName unique name for the MCP server (e.g., "weather")
+     * @param command the command to execute
      * @param args arguments to pass to the command
      * @param comment optional comment to include in the config
      * @throws IOException if an I/O error occurs
+     * @deprecated Use {@link #addMcpServer(String, String, List, String, String)} instead
      */
+    @Deprecated
     void addMcpServer(String serverName, String command, List<String> args, String comment) throws IOException;
+
+    /**
+     * Adds an MCP server entry to the tool's configuration with jDeploy metadata.
+     *
+     * @param serverName user-friendly name for the MCP server (e.g., "weather")
+     * @param command the command to execute
+     * @param args arguments to pass to the command
+     * @param packageFqn the fully-qualified package name for identification (e.g., "a1b2c3d4.myapp")
+     * @param appDisplayName the application display name
+     * @throws IOException if an I/O error occurs
+     */
+    void addMcpServer(String serverName, String command, List<String> args, String packageFqn, String appDisplayName) throws IOException;
 
     /**
      * Removes an MCP server entry from the tool's configuration.

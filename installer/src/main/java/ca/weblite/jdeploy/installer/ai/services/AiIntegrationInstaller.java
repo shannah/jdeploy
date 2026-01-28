@@ -72,9 +72,8 @@ public class AiIntegrationInstaller {
             mcpArgs.addAll(config.getMcpConfig().getArgs());
         }
 
-        String comment = "MCP server for " + appDisplayName + " - installed by jDeploy";
-
         // Install MCP server to each selected tool
+        // Use mcpCommandName as the key (user-friendly) instead of packagePrefix (hash-based)
         for (AIToolType toolType : selectedTools) {
             if (!toolType.supportsMcp()) {
                 continue;
@@ -91,16 +90,16 @@ public class AiIntegrationInstaller {
                     // Backup existing config
                     writer.backupConfig();
 
-                    // Add MCP server
-                    writer.addMcpServer(packagePrefix, binaryCommand, mcpArgs, comment);
+                    // Add MCP server with friendly name as key, FQN in metadata
+                    writer.addMcpServer(mcpCommandName, binaryCommand, mcpArgs, packagePrefix, appDisplayName);
 
-                    // Record in manifest
+                    // Record in manifest using the friendly name as key
                     File configPath = writer.getConfigPath();
                     if (configPath != null) {
                         manifestEntries.add(AiIntegrationManifestEntry.forMcpServer(
                                 toolType,
                                 configPath.getAbsolutePath(),
-                                packagePrefix
+                                mcpCommandName
                         ));
                     }
 

@@ -50,7 +50,7 @@ public class OpenCodeConfigWriter extends AbstractJsonConfigWriter {
     }
 
     @Override
-    protected JSONObject createServerEntry(String command, List<String> args, String comment) {
+    protected JSONObject createServerEntry(String command, List<String> args, String packageFqn, String appDisplayName) {
         JSONObject entry = new JSONObject();
 
         entry.put("type", "local");
@@ -65,12 +65,24 @@ public class OpenCodeConfigWriter extends AbstractJsonConfigWriter {
 
         entry.put("enabled", true);
 
+        // Add jDeploy metadata for identification during uninstall/update
+        if (packageFqn != null || appDisplayName != null) {
+            JSONObject jdeployMeta = new JSONObject();
+            if (packageFqn != null) {
+                jdeployMeta.put("fqn", packageFqn);
+            }
+            if (appDisplayName != null) {
+                jdeployMeta.put("appName", appDisplayName);
+            }
+            entry.put("_jdeploy", jdeployMeta);
+        }
+
         return entry;
     }
 
     @Override
     public String getClipboardConfig(String serverName, String command, List<String> args) {
-        JSONObject serverEntry = createServerEntry(command, args, null);
+        JSONObject serverEntry = createServerEntry(command, args, null, null);
         JSONObject wrapper = new JSONObject();
         JSONObject mcp = new JSONObject();
         mcp.put(serverName, serverEntry);

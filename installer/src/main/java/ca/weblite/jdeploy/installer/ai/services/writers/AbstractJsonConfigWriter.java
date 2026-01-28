@@ -53,7 +53,13 @@ public abstract class AbstractJsonConfigWriter implements AiToolConfigWriter {
     }
 
     @Override
+    @Deprecated
     public void addMcpServer(String serverName, String command, List<String> args, String comment) throws IOException {
+        addMcpServer(serverName, command, args, null, null);
+    }
+
+    @Override
+    public void addMcpServer(String serverName, String command, List<String> args, String packageFqn, String appDisplayName) throws IOException {
         File configFile = getConfigPath();
         if (configFile == null) {
             throw new IOException("Config path not available for " + toolType);
@@ -66,7 +72,7 @@ public abstract class AbstractJsonConfigWriter implements AiToolConfigWriter {
             config.put(getMcpServersKey(), mcpServers);
         }
 
-        JSONObject serverEntry = createServerEntry(command, args, comment);
+        JSONObject serverEntry = createServerEntry(command, args, packageFqn, appDisplayName);
         mcpServers.put(serverName, serverEntry);
 
         saveConfig(configFile, config);
@@ -121,7 +127,7 @@ public abstract class AbstractJsonConfigWriter implements AiToolConfigWriter {
 
     @Override
     public String getClipboardConfig(String serverName, String command, List<String> args) {
-        JSONObject serverEntry = createServerEntry(command, args, null);
+        JSONObject serverEntry = createServerEntry(command, args, null, null);
         JSONObject wrapper = new JSONObject();
         JSONObject mcpServers = new JSONObject();
         mcpServers.put(serverName, serverEntry);
@@ -132,18 +138,31 @@ public abstract class AbstractJsonConfigWriter implements AiToolConfigWriter {
     /**
      * Creates the server entry JSON object.
      * Subclasses can override for custom formats.
+     *
+     * @param command the command to execute
+     * @param args arguments to pass to the command
+     * @param packageFqn the fully-qualified package name for jDeploy identification (optional)
+     * @param appDisplayName the application display name (optional)
      */
-    protected JSONObject createServerEntry(String command, List<String> args, String comment) {
+    protected JSONObject createServerEntry(String command, List<String> args, String packageFqn, String appDisplayName) {
         JSONObject entry = new JSONObject();
-
-        if (comment != null && !comment.isEmpty()) {
-            entry.put("_comment", comment);
-        }
 
         entry.put("command", command);
 
         if (args != null && !args.isEmpty()) {
             entry.put("args", new JSONArray(args));
+        }
+
+        // Add jDeploy metadata for identification during uninstall/update
+        if (packageFqn != null || appDisplayName != null) {
+            JSONObject jdeployMeta = new JSONObject();
+            if (packageFqn != null) {
+                jdeployMeta.put("fqn", packageFqn);
+            }
+            if (appDisplayName != null) {
+                jdeployMeta.put("appName", appDisplayName);
+            }
+            entry.put("_jdeploy", jdeployMeta);
         }
 
         return entry;
