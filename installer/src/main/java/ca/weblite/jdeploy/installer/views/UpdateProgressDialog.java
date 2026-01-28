@@ -98,7 +98,8 @@ public class UpdateProgressDialog extends JDialog {
 
         // Check for failure
         if (updateFailed) {
-            throw new RuntimeException("Application update failed: " + failureMessage);
+            String logPath = System.getProperty("user.home") + "/.jdeploy/log/jdeploy-installer.log";
+            throw new RuntimeException("Failed to download application files. See log for details: " + logPath);
         }
     }
 }
