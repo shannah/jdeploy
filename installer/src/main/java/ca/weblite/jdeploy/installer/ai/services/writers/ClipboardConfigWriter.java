@@ -89,6 +89,12 @@ public class ClipboardConfigWriter implements AiToolConfigWriter {
     }
 
     @Override
+    public boolean isOurServer(String serverName, String packageFqn) throws IOException {
+        // Cannot check - manual setup only
+        return false;
+    }
+
+    @Override
     public void backupConfig() throws IOException {
         // No-op - no file to backup
     }

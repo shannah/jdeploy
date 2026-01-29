@@ -57,6 +57,8 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
 
         // Build message with command-line info for Linux
         Object message = "Installation was completed successfully";
+        boolean hasAiConflicts = installationSettings.hasAiIntegrationConflicts();
+
         if (Platform.getSystemPlatform().isLinux() && installationSettings.isCommandLineSymlinkCreated()) {
             String commandPath = installationSettings.getCommandLinePath();
             if (commandPath != null) {
@@ -116,8 +118,29 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
                     panel.add(noteLabel);
                 }
 
+                // Add AI integration conflict warning if applicable
+                if (hasAiConflicts) {
+                    panel.add(Box.createVerticalStrut(15));
+                    addAiConflictWarning(panel);
+                }
+
                 message = panel;
             }
+        } else if (hasAiConflicts) {
+            // For non-Linux or when there's no CLI info, but we have AI conflicts
+            JPanel panel = new JPanel();
+            panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+            panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+            JLabel successLabel = new JLabel("Installation was completed successfully");
+            successLabel.setFont(successLabel.getFont().deriveFont(Font.BOLD, 14f));
+            successLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            panel.add(successLabel);
+
+            panel.add(Box.createVerticalStrut(15));
+            addAiConflictWarning(panel);
+
+            message = panel;
         }
 
         int choice = JOptionPane.showOptionDialog(this,
@@ -136,6 +159,24 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
                 fireEvent(new InstallationFormEvent(InstallationFormEvent.Type.InstallCompleteCloseInstaller));
                 break;
         }
+    }
+
+    /**
+     * Adds a warning panel about AI integration conflicts.
+     */
+    private void addAiConflictWarning(JPanel panel) {
+        JLabel warningLabel = new JLabel("<html><b>Note:</b> Some MCP servers could not be installed due to naming conflicts with existing configurations.</html>");
+        warningLabel.setFont(warningLabel.getFont().deriveFont(Font.PLAIN, 11f));
+        warningLabel.setForeground(new Color(180, 100, 0)); // Orange/amber warning color
+        warningLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(warningLabel);
+
+        JLabel detailsLabel = new JLabel("<html><i>See installer log for details.</i></html>");
+        detailsLabel.setFont(detailsLabel.getFont().deriveFont(Font.PLAIN, 10f));
+        detailsLabel.setForeground(Color.GRAY);
+        detailsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(Box.createVerticalStrut(3));
+        panel.add(detailsLabel);
     }
 
     public DefaultInstallationForm(InstallationSettings installationSettings) {

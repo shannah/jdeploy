@@ -4,6 +4,7 @@ import ca.weblite.jdeploy.ai.models.AIToolType;
 import ca.weblite.jdeploy.ai.models.AiIntegrationConfig;
 import ca.weblite.jdeploy.ai.models.McpServerConfig;
 import ca.weblite.jdeploy.ai.services.AiToolDetector;
+import ca.weblite.jdeploy.installer.ai.models.AiIntegrationInstallResult;
 import ca.weblite.jdeploy.installer.ai.models.AiIntegrationManifestEntry;
 import ca.weblite.jdeploy.installer.ai.services.writers.ClaudeCodeConfigWriter;
 import ca.weblite.jdeploy.installer.ai.services.writers.CodexConfigWriter;
@@ -50,10 +51,10 @@ public class AiIntegrationInstaller {
      * @param packagePrefix the package prefix (e.g., "a1b2c3d4.myapp")
      * @param appDisplayName the application display name for comments
      * @param bundleAiDir the bundle's ai/ directory containing skills and agents
-     * @return list of manifest entries for uninstall tracking
+     * @return result containing manifest entries and any conflicts
      * @throws IOException if an I/O error occurs
      */
-    public List<AiIntegrationManifestEntry> install(
+    public AiIntegrationInstallResult install(
             AiIntegrationConfig config,
             Set<AIToolType> selectedTools,
             String binaryCommand,
@@ -63,7 +64,7 @@ public class AiIntegrationInstaller {
             File bundleAiDir
     ) throws IOException {
 
-        List<AiIntegrationManifestEntry> manifestEntries = new ArrayList<>();
+        AiIntegrationInstallResult result = new AiIntegrationInstallResult();
 
         // Build args for MCP invocation
         List<String> mcpArgs = new ArrayList<>();
@@ -72,8 +73,10 @@ public class AiIntegrationInstaller {
             mcpArgs.addAll(config.getMcpConfig().getArgs());
         }
 
+        // Use app display name as the server key (user-friendly)
+        String serverName = appDisplayName != null ? appDisplayName : mcpCommandName;
+
         // Install MCP server to each selected tool
-        // Use mcpCommandName as the key (user-friendly) instead of packagePrefix (hash-based)
         for (AIToolType toolType : selectedTools) {
             if (!toolType.supportsMcp()) {
                 continue;
@@ -87,23 +90,39 @@ public class AiIntegrationInstaller {
 
             try {
                 if (toolType.supportsAutoInstall()) {
+                    // Check for naming conflicts
+                    if (writer.serverExists(serverName)) {
+                        // Server with this name exists - check if it's ours
+                        if (!writer.isOurServer(serverName, packagePrefix)) {
+                            // Conflict - another application has this server name
+                            String conflictMsg = "MCP server '" + serverName + "' already exists and belongs to another application";
+                            log("Skipping " + toolType.getDisplayName() + ": " + conflictMsg);
+                            result.addConflict(new AiIntegrationInstallResult.McpServerConflict(
+                                    toolType, serverName, conflictMsg
+                            ));
+                            continue;
+                        }
+                        // It's ours - will be updated
+                        log("Updating existing MCP server '" + serverName + "' in " + toolType.getDisplayName());
+                    }
+
                     // Backup existing config
                     writer.backupConfig();
 
                     // Add MCP server with friendly name as key, FQN in metadata
-                    writer.addMcpServer(mcpCommandName, binaryCommand, mcpArgs, packagePrefix, appDisplayName);
+                    writer.addMcpServer(serverName, binaryCommand, mcpArgs, packagePrefix, appDisplayName);
 
                     // Record in manifest using the friendly name as key
                     File configPath = writer.getConfigPath();
                     if (configPath != null) {
-                        manifestEntries.add(AiIntegrationManifestEntry.forMcpServer(
+                        result.addManifestEntry(AiIntegrationManifestEntry.forMcpServer(
                                 toolType,
                                 configPath.getAbsolutePath(),
-                                mcpCommandName
+                                serverName
                         ));
                     }
 
-                    log("Installed MCP server to " + toolType.getDisplayName());
+                    log("Installed MCP server '" + serverName + "' to " + toolType.getDisplayName());
                 } else {
                     // Manual setup - clipboard config is available but not auto-installed
                     log("Note: " + toolType.getDisplayName() + " requires manual configuration.");
@@ -123,7 +142,7 @@ public class AiIntegrationInstaller {
                             List<AiIntegrationManifestEntry> skillEntries = installSkillsToTool(
                                     toolType, skillsDir, packagePrefix
                             );
-                            manifestEntries.addAll(skillEntries);
+                            result.addManifestEntries(skillEntries);
                         } catch (Exception e) {
                             log("Warning: Failed to install skills to " + toolType.getDisplayName() + ": " + e.getMessage());
                         }
@@ -142,7 +161,7 @@ public class AiIntegrationInstaller {
                             List<AiIntegrationManifestEntry> agentEntries = installAgentsToTool(
                                     toolType, agentsDir, packagePrefix
                             );
-                            manifestEntries.addAll(agentEntries);
+                            result.addManifestEntries(agentEntries);
                         } catch (Exception e) {
                             log("Warning: Failed to install agents to " + toolType.getDisplayName() + ": " + e.getMessage());
                         }
@@ -151,7 +170,7 @@ public class AiIntegrationInstaller {
             }
         }
 
-        return manifestEntries;
+        return result;
     }
 
     /**

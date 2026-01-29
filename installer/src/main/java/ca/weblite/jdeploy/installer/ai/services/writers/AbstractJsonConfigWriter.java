@@ -114,6 +114,37 @@ public abstract class AbstractJsonConfigWriter implements AiToolConfigWriter {
     }
 
     @Override
+    public boolean isOurServer(String serverName, String packageFqn) throws IOException {
+        File configFile = getConfigPath();
+        if (configFile == null || !configFile.exists()) {
+            return false;
+        }
+
+        JSONObject config = loadConfig(configFile);
+        if (config == null) {
+            return false;
+        }
+
+        JSONObject mcpServers = config.optJSONObject(getMcpServersKey());
+        if (mcpServers == null || !mcpServers.has(serverName)) {
+            return false;
+        }
+
+        JSONObject serverEntry = mcpServers.optJSONObject(serverName);
+        if (serverEntry == null) {
+            return false;
+        }
+
+        JSONObject jdeployMeta = serverEntry.optJSONObject("_jdeploy");
+        if (jdeployMeta == null) {
+            return false;
+        }
+
+        String existingFqn = jdeployMeta.optString("fqn", null);
+        return packageFqn != null && packageFqn.equals(existingFqn);
+    }
+
+    @Override
     public void backupConfig() throws IOException {
         File configFile = getConfigPath();
         if (configFile == null || !configFile.exists()) {

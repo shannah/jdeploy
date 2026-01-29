@@ -56,6 +56,7 @@ import ca.weblite.jdeploy.installer.helpers.HelperInstallationService;
 import ca.weblite.jdeploy.installer.helpers.HelperManifestHelper;
 import ca.weblite.jdeploy.installer.helpers.HelperProcessManager;
 import ca.weblite.jdeploy.installer.helpers.HelperUpdateService;
+import ca.weblite.jdeploy.installer.ai.models.AiIntegrationInstallResult;
 import ca.weblite.jdeploy.installer.ai.models.AiIntegrationManifestEntry;
 import ca.weblite.jdeploy.installer.ai.services.AiIntegrationInstaller;
 import ca.weblite.tools.io.*;
@@ -1847,7 +1848,10 @@ public class Main implements Runnable, Constants {
             installationSettings.hasAiIntegrations() &&
             !installationSettings.getSelectedAiTools().isEmpty()) {
             try {
-                installAiIntegrations(fullyQualifiedPackageName, installedApp);
+                AiIntegrationInstallResult aiResult = installAiIntegrations(fullyQualifiedPackageName, installedApp);
+                if (aiResult != null) {
+                    installationSettings.setAiIntegrationResult(aiResult);
+                }
             } catch (Exception e) {
                 System.err.println("Warning: Failed to install AI integrations: " + e.getMessage());
                 e.printStackTrace(System.err);
@@ -1996,15 +2000,16 @@ public class Main implements Runnable, Constants {
      *
      * @param fullyQualifiedPackageName The FQPN used as the MCP server name
      * @param installedApp The installed application file/directory
+     * @return The installation result, or null if installation was skipped
      */
-    private void installAiIntegrations(String fullyQualifiedPackageName, File installedApp) {
+    private AiIntegrationInstallResult installAiIntegrations(String fullyQualifiedPackageName, File installedApp) {
         AiIntegrationInstaller aiInstaller = new AiIntegrationInstaller();
 
         // Determine the binary command based on platform
         String binaryCommand = getBinaryCommandForAiIntegration(installedApp);
         if (binaryCommand == null) {
             System.err.println("Warning: Could not determine binary command for AI integrations");
-            return;
+            return null;
         }
 
         // Get the MCP command name from config
@@ -2016,14 +2021,14 @@ public class Main implements Runnable, Constants {
 
         if (mcpCommandName == null) {
             System.err.println("Warning: No MCP command configured for AI integrations");
-            return;
+            return null;
         }
 
         // Get bundle's ai directory
         File bundleAiDir = new File(installationSettings.getInstallFilesDir(), "ai");
 
         try {
-            java.util.List<AiIntegrationManifestEntry> manifestEntries = aiInstaller.install(
+            AiIntegrationInstallResult result = aiInstaller.install(
                     installationSettings.getAiIntegrationConfig(),
                     installationSettings.getSelectedAiTools(),
                     binaryCommand,
@@ -2034,10 +2039,21 @@ public class Main implements Runnable, Constants {
             );
 
             // TODO: Add manifest entries to uninstall manifest in Phase 6
-            System.out.println("AI integrations installed: " + manifestEntries.size() + " entries");
+            System.out.println("AI integrations installed: " + result.getManifestEntries().size() + " entries");
+
+            // Log any conflicts
+            if (result.hasConflicts()) {
+                System.err.println("AI integration conflicts:");
+                for (AiIntegrationInstallResult.McpServerConflict conflict : result.getConflicts()) {
+                    System.err.println("  - " + conflict);
+                }
+            }
+
+            return result;
         } catch (IOException e) {
             System.err.println("Warning: Failed to install AI integrations: " + e.getMessage());
             e.printStackTrace(System.err);
+            return null;
         }
     }
 

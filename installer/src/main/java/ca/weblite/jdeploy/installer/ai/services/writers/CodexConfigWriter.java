@@ -144,6 +144,19 @@ public class CodexConfigWriter implements AiToolConfigWriter {
     }
 
     @Override
+    public boolean isOurServer(String serverName, String packageFqn) throws IOException {
+        File configFile = getConfigPath();
+        if (configFile == null || !configFile.exists()) {
+            return false;
+        }
+
+        String content = new String(Files.readAllBytes(configFile.toPath()), StandardCharsets.UTF_8);
+        // Check if the section exists and has our fqn in the comment
+        String sectionPattern = "#[^\\n]*\\(fqn: " + Pattern.quote(packageFqn) + "\\)[^\\n]*\\n\\[mcp_servers\\.\"" + Pattern.quote(serverName) + "\"\\]";
+        return Pattern.compile(sectionPattern).matcher(content).find();
+    }
+
+    @Override
     public void backupConfig() throws IOException {
         File configFile = getConfigPath();
         if (configFile == null || !configFile.exists()) {

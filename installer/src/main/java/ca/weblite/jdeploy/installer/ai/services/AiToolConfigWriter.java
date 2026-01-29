@@ -59,6 +59,16 @@ public interface AiToolConfigWriter {
     boolean serverExists(String serverName) throws IOException;
 
     /**
+     * Checks if an existing MCP server entry belongs to jDeploy with the specified FQN.
+     *
+     * @param serverName the name of the MCP server to check
+     * @param packageFqn the expected fully-qualified package name
+     * @return true if the server exists and has matching _jdeploy.fqn, false otherwise
+     * @throws IOException if an I/O error occurs
+     */
+    boolean isOurServer(String serverName, String packageFqn) throws IOException;
+
+    /**
      * Gets the configuration file path for this tool.
      *
      * @return the config file path, or null if not applicable

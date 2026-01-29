@@ -3,6 +3,7 @@ package ca.weblite.jdeploy.installer.models;
 import ca.weblite.jdeploy.ai.models.AIToolType;
 import ca.weblite.jdeploy.ai.models.AiIntegrationConfig;
 import ca.weblite.jdeploy.app.AppInfo;
+import ca.weblite.jdeploy.installer.ai.models.AiIntegrationInstallResult;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.models.HelperAction;
 
@@ -44,6 +45,7 @@ public class InstallationSettings {
     private boolean installAiIntegrations = false;
     private Set<AIToolType> selectedAiTools = new HashSet<>();
     private AiIntegrationConfig aiIntegrationConfig;
+    private AiIntegrationInstallResult aiIntegrationResult;
 
     public boolean isAddToDesktop() {
         return addToDesktop;
@@ -316,5 +318,26 @@ public class InstallationSettings {
      */
     public boolean hasAiIntegrations() {
         return aiIntegrationConfig != null && aiIntegrationConfig.hasAnyIntegrations();
+    }
+
+    /**
+     * Gets the result of AI integration installation.
+     */
+    public AiIntegrationInstallResult getAiIntegrationResult() {
+        return aiIntegrationResult;
+    }
+
+    /**
+     * Sets the result of AI integration installation.
+     */
+    public void setAiIntegrationResult(AiIntegrationInstallResult aiIntegrationResult) {
+        this.aiIntegrationResult = aiIntegrationResult;
+    }
+
+    /**
+     * Returns true if there were conflicts during AI integration installation.
+     */
+    public boolean hasAiIntegrationConflicts() {
+        return aiIntegrationResult != null && aiIntegrationResult.hasConflicts();
     }
 }
