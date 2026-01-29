@@ -15,6 +15,7 @@ import ca.weblite.jdeploy.gui.navigation.TabbedPaneNavigationHost;
 import ca.weblite.jdeploy.gui.services.ProjectFileWatcher;
 import ca.weblite.jdeploy.gui.services.PublishingCoordinator;
 import ca.weblite.jdeploy.packaging.PackagingContext;
+import ca.weblite.jdeploy.gui.tabs.AiIntegrationsPanel;
 import ca.weblite.jdeploy.gui.tabs.BundleFiltersPanel;
 import ca.weblite.jdeploy.gui.tabs.CheerpJSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.CliCommandsPanel;
@@ -76,6 +77,7 @@ public class JDeployProjectEditor {
     private FiletypesPanel filetypesPanel;
     private UrlSchemesPanel urlSchemesPanel;
     private CliCommandsPanel cliCommandsPanel;
+    private AiIntegrationsPanel aiIntegrationsPanel;
     private HelperActionsPanel helperActionsPanel;
     private RuntimeArgsPanel runtimeArgsPanel;
     private CheerpJSettingsPanel cheerpJSettingsPanel;
@@ -584,6 +586,18 @@ public class JDeployProjectEditor {
             json -> cliCommandsPanel.load(json),
             json -> cliCommandsPanel.save(json),
             listener -> cliCommandsPanel.addChangeListener(listener)
+        ));
+
+        // AI Integrations Panel
+        aiIntegrationsPanel = new AiIntegrationsPanel(projectDir);
+        registry.register(NavigablePanelAdapter.forJdeployPanel(
+            "AI Integrations",
+            MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#ai-integrations",
+            FontIcon.of(Material.MEMORY),
+            aiIntegrationsPanel.getRoot(),
+            json -> aiIntegrationsPanel.load(json),
+            json -> aiIntegrationsPanel.save(json),
+            listener -> aiIntegrationsPanel.addChangeListener(listener)
         ));
 
         // Helper Actions Panel

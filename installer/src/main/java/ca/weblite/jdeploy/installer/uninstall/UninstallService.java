@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.uninstall;
 
+import ca.weblite.jdeploy.installer.ai.services.AiIntegrationUninstaller;
 import ca.weblite.jdeploy.installer.cli.UnixPathManager;
 import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest;
 import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest.CleanupStrategy;
@@ -102,6 +103,9 @@ public class UninstallService {
 
                 // Phase 4: Clean up PATH modifications
                 cleanupPathModifications(manifest.getPathModifications(), result);
+
+                // Phase 4.5: Clean up AI integrations
+                cleanupAiIntegrations(manifest.getAiIntegrations(), packageName, source, result);
             }
 
             // Phase 5: Clean up package directories (always execute, even without manifest)
@@ -431,6 +435,51 @@ public class UninstallService {
                 result.addError(errorMsg);
                 result.incrementFailureCount();
             }
+        }
+    }
+
+    /**
+     * Phase 4.5: Clean up AI integrations (MCP servers, skills, agents).
+     */
+    private void cleanupAiIntegrations(
+            UninstallManifest.AiIntegrations aiIntegrations,
+            String packageName,
+            String source,
+            UninstallResult result) {
+
+        if (aiIntegrations == null) {
+            LOGGER.fine("No AI integrations to clean up");
+            return;
+        }
+
+        try {
+            AiIntegrationUninstaller uninstaller = new AiIntegrationUninstaller();
+            AiIntegrationUninstaller.UninstallResult aiResult = uninstaller.uninstall(
+                aiIntegrations, packageName, source
+            );
+
+            // Transfer results to main result
+            for (int i = 0; i < aiResult.getSuccessCount(); i++) {
+                result.incrementSuccessCount();
+            }
+            for (int i = 0; i < aiResult.getFailureCount(); i++) {
+                result.incrementFailureCount();
+            }
+            for (String error : aiResult.getErrors()) {
+                result.addError(error);
+            }
+
+            if (aiResult.isSuccess()) {
+                LOGGER.info("AI integrations cleanup completed successfully");
+            } else {
+                LOGGER.warning("AI integrations cleanup completed with " +
+                             aiResult.getFailureCount() + " error(s)");
+            }
+        } catch (Exception e) {
+            String errorMsg = "Failed to clean up AI integrations: " + e.getMessage();
+            LOGGER.warning(errorMsg);
+            result.addError(errorMsg);
+            result.incrementFailureCount();
         }
     }
 

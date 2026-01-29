@@ -51,6 +51,10 @@ public class UninstallManifestXmlGenerator {
             root.appendChild(createPathModificationsElement(manifest.getPathModifications()));
         }
 
+        if (manifest.getAiIntegrations() != null) {
+            root.appendChild(createAiIntegrationsElement(manifest.getAiIntegrations()));
+        }
+
         return document;
     }
 
@@ -199,6 +203,52 @@ public class UninstallManifestXmlGenerator {
                 gitBashElement.appendChild(entryElement);
             }
             element.appendChild(gitBashElement);
+        }
+
+        return element;
+    }
+
+    /**
+     * Creates the aiIntegrations XML element containing AI tool integration entries.
+     */
+    private Element createAiIntegrationsElement(UninstallManifest.AiIntegrations aiIntegrations) {
+        Element element = document.createElementNS(NAMESPACE, "aiIntegrations");
+
+        // MCP servers
+        if (!aiIntegrations.getMcpServers().isEmpty()) {
+            Element mcpServersElement = document.createElementNS(NAMESPACE, "mcpServers");
+            for (UninstallManifest.McpServerEntry entry : aiIntegrations.getMcpServers()) {
+                Element entryElement = document.createElementNS(NAMESPACE, "mcpServer");
+                appendTextElement(entryElement, "configFile", entry.getConfigFile());
+                appendTextElement(entryElement, "entryKey", entry.getEntryKey());
+                appendTextElement(entryElement, "toolName", entry.getToolName());
+                mcpServersElement.appendChild(entryElement);
+            }
+            element.appendChild(mcpServersElement);
+        }
+
+        // Skills
+        if (!aiIntegrations.getSkills().isEmpty()) {
+            Element skillsElement = document.createElementNS(NAMESPACE, "skills");
+            for (UninstallManifest.SkillEntry entry : aiIntegrations.getSkills()) {
+                Element entryElement = document.createElementNS(NAMESPACE, "skill");
+                appendTextElement(entryElement, "path", entry.getPath());
+                appendTextElement(entryElement, "name", entry.getName());
+                skillsElement.appendChild(entryElement);
+            }
+            element.appendChild(skillsElement);
+        }
+
+        // Agents
+        if (!aiIntegrations.getAgents().isEmpty()) {
+            Element agentsElement = document.createElementNS(NAMESPACE, "agents");
+            for (UninstallManifest.AgentEntry entry : aiIntegrations.getAgents()) {
+                Element entryElement = document.createElementNS(NAMESPACE, "agent");
+                appendTextElement(entryElement, "path", entry.getPath());
+                appendTextElement(entryElement, "name", entry.getName());
+                agentsElement.appendChild(entryElement);
+            }
+            element.appendChild(agentsElement);
         }
 
         return element;

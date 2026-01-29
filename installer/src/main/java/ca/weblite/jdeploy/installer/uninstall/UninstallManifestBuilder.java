@@ -38,7 +38,10 @@ public class UninstallManifestBuilder {
     private List<UninstallManifest.WindowsPathEntry> windowsPathEntries;
     private List<UninstallManifest.ShellProfileEntry> shellProfileEntries;
     private List<UninstallManifest.GitBashProfileEntry> gitBashProfileEntries;
-    
+    private List<UninstallManifest.McpServerEntry> mcpServerEntries;
+    private List<UninstallManifest.SkillEntry> skillEntries;
+    private List<UninstallManifest.AgentEntry> agentEntries;
+
     private Map<String, String> variableSubstitutions;
     
     /**
@@ -52,6 +55,9 @@ public class UninstallManifestBuilder {
         this.windowsPathEntries = new ArrayList<>();
         this.shellProfileEntries = new ArrayList<>();
         this.gitBashProfileEntries = new ArrayList<>();
+        this.mcpServerEntries = new ArrayList<>();
+        this.skillEntries = new ArrayList<>();
+        this.agentEntries = new ArrayList<>();
         this.variableSubstitutions = new HashMap<>();
         this.installedAt = Instant.now();
         initializeDefaultVariables();
@@ -381,7 +387,70 @@ public class UninstallManifestBuilder {
         gitBashProfileEntries.add(entry);
         return this;
     }
-    
+
+    /**
+     * Add an MCP server entry installed to an AI tool.
+     *
+     * @param configFile Path to the AI tool's config file that was modified
+     * @param entryKey   The key/name of the MCP server entry
+     * @param toolName   Name of the AI tool (e.g., "CLAUDE_DESKTOP")
+     * @return this builder instance
+     */
+    public UninstallManifestBuilder addMcpServerEntry(String configFile, String entryKey, String toolName) {
+        Objects.requireNonNull(configFile, "configFile cannot be null");
+        Objects.requireNonNull(entryKey, "entryKey cannot be null");
+        Objects.requireNonNull(toolName, "toolName cannot be null");
+
+        String substitutedPath = substituteVariables(configFile);
+        UninstallManifest.McpServerEntry entry = UninstallManifest.McpServerEntry.builder()
+            .configFile(substitutedPath)
+            .entryKey(entryKey)
+            .toolName(toolName)
+            .build();
+        mcpServerEntries.add(entry);
+        return this;
+    }
+
+    /**
+     * Add a skill entry installed to an AI tool.
+     *
+     * @param path Path to the installed skill directory
+     * @param name The skill name
+     * @return this builder instance
+     */
+    public UninstallManifestBuilder addSkillEntry(String path, String name) {
+        Objects.requireNonNull(path, "path cannot be null");
+        Objects.requireNonNull(name, "name cannot be null");
+
+        String substitutedPath = substituteVariables(path);
+        UninstallManifest.SkillEntry entry = UninstallManifest.SkillEntry.builder()
+            .path(substitutedPath)
+            .name(name)
+            .build();
+        skillEntries.add(entry);
+        return this;
+    }
+
+    /**
+     * Add an agent entry installed to an AI tool.
+     *
+     * @param path Path to the installed agent directory
+     * @param name The agent name
+     * @return this builder instance
+     */
+    public UninstallManifestBuilder addAgentEntry(String path, String name) {
+        Objects.requireNonNull(path, "path cannot be null");
+        Objects.requireNonNull(name, "name cannot be null");
+
+        String substitutedPath = substituteVariables(path);
+        UninstallManifest.AgentEntry entry = UninstallManifest.AgentEntry.builder()
+            .path(substitutedPath)
+            .name(name)
+            .build();
+        agentEntries.add(entry);
+        return this;
+    }
+
     /**
      * Build the UninstallManifest instance.
      * Validates that required fields have been set.
@@ -418,7 +487,16 @@ public class UninstallManifestBuilder {
                 .gitBashProfiles(gitBashProfileEntries)
                 .build();
         }
-        
+
+        UninstallManifest.AiIntegrations aiIntegrations = null;
+        if (!mcpServerEntries.isEmpty() || !skillEntries.isEmpty() || !agentEntries.isEmpty()) {
+            aiIntegrations = UninstallManifest.AiIntegrations.builder()
+                .mcpServers(mcpServerEntries)
+                .skills(skillEntries)
+                .agents(agentEntries)
+                .build();
+        }
+
         return UninstallManifest.builder()
             .version(MANIFEST_VERSION)
             .packageInfo(packageInfo)
@@ -426,6 +504,7 @@ public class UninstallManifestBuilder {
             .directories(directories)
             .registry(registryInfo)
             .pathModifications(pathModifications)
+            .aiIntegrations(aiIntegrations)
             .build();
     }
     

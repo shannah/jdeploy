@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.tray;
 
+import ca.weblite.jdeploy.installer.ai.tray.AiIntegrationsTraySubmenu;
 import ca.weblite.jdeploy.installer.models.ServiceRowModel;
 import ca.weblite.jdeploy.installer.models.ServiceStatus;
 import ca.weblite.jdeploy.installer.services.ServiceStatusListener;
@@ -48,6 +49,9 @@ public class ServiceTrayMenu implements ServiceStatusListener {
     private MenuItem flatStartItem;
     private MenuItem flatStopItem;
 
+    // Optional AI integrations submenu
+    private AiIntegrationsTraySubmenu aiIntegrationsSubmenu;
+
     /**
      * Creates a new service tray menu.
      *
@@ -91,6 +95,15 @@ public class ServiceTrayMenu implements ServiceStatusListener {
 
         buildMenu();
         installTrayIcon();
+    }
+
+    /**
+     * Sets the AI integrations submenu.
+     *
+     * @param submenu The AI integrations submenu to include in the menu
+     */
+    public void setAiIntegrationsSubmenu(AiIntegrationsTraySubmenu submenu) {
+        this.aiIntegrationsSubmenu = submenu;
     }
 
     /**
@@ -143,6 +156,9 @@ public class ServiceTrayMenu implements ServiceStatusListener {
 
         // Helper actions (if any)
         addHelperActionsToMenu();
+
+        // AI integrations submenu (if available)
+        addAiIntegrationsSubmenuToMenu();
 
         // Service name header with status indicator
         String statusIndicator = getStatusIndicator(service);
@@ -214,6 +230,9 @@ public class ServiceTrayMenu implements ServiceStatusListener {
         // Helper actions (if any)
         addHelperActionsToMenu();
 
+        // AI integrations submenu (if available)
+        addAiIntegrationsSubmenuToMenu();
+
         // Service menus
         if (!services.isEmpty()) {
             for (ServiceRowModel service : services) {
@@ -284,6 +303,24 @@ public class ServiceTrayMenu implements ServiceStatusListener {
         }
 
         popupMenu.addSeparator();
+    }
+
+    /**
+     * Adds AI integrations submenu to the popup menu if available.
+     *
+     * AI integrations allow users to toggle MCP server, skills, and agents
+     * registration with AI tools like Claude Desktop, Claude Code, etc.
+     */
+    private void addAiIntegrationsSubmenuToMenu() {
+        if (aiIntegrationsSubmenu == null) {
+            return;
+        }
+
+        Menu submenu = aiIntegrationsSubmenu.createSubmenu();
+        if (submenu != null) {
+            popupMenu.add(submenu);
+            popupMenu.addSeparator();
+        }
     }
 
     /**
