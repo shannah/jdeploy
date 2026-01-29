@@ -14,6 +14,7 @@ import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest.GitBashPro
 import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest.WindowsPathEntry;
 import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.jdeploy.installer.util.PackagePathResolver;
+import ca.weblite.jdeploy.installer.util.WindowsAppDirResolver;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.RegistryOperations;
 import org.apache.commons.io.FileUtils;
@@ -532,19 +533,26 @@ public class UninstallService {
             result.incrementFailureCount();
         }
 
-        // Clean up apps directory (~/.jdeploy/apps/{fullyQualifiedPackageName})
+        // Clean up apps directory - check both configured and legacy paths
         try {
             String fullyQualifiedName = CliCommandBinDirResolver.computeFullyQualifiedPackageName(packageName, source);
-            File jdeployHome = new File(System.getProperty("user.home"), ".jdeploy");
-            File appsDir = new File(jdeployHome, "apps");
-            File appDir = new File(appsDir, fullyQualifiedName);
 
-            if (appDir.exists()) {
-                FileUtils.deleteDirectory(appDir);
+            // Check legacy path (~/.jdeploy/apps/{fullyQualifiedPackageName})
+            File legacyAppDir = WindowsAppDirResolver.getLegacyAppDir(fullyQualifiedName);
+            if (legacyAppDir.exists()) {
+                FileUtils.deleteDirectory(legacyAppDir);
                 result.incrementSuccessCount();
-                LOGGER.info("Deleted apps directory: " + appDir.getAbsolutePath());
+                LOGGER.info("Deleted apps directory: " + legacyAppDir.getAbsolutePath());
             } else {
-                LOGGER.fine("Apps directory does not exist: " + appDir.getAbsolutePath());
+                LOGGER.fine("Apps directory does not exist: " + legacyAppDir.getAbsolutePath());
+            }
+
+            // Also check the configured winAppDir path (if different from legacy)
+            File configuredAppDir = WindowsAppDirResolver.resolveAppDir(null, fullyQualifiedName);
+            if (!configuredAppDir.equals(legacyAppDir) && configuredAppDir.exists()) {
+                FileUtils.deleteDirectory(configuredAppDir);
+                result.incrementSuccessCount();
+                LOGGER.info("Deleted apps directory: " + configuredAppDir.getAbsolutePath());
             }
         } catch (Exception e) {
             String errorMsg = "Failed to delete apps directory for package: " + packageName +

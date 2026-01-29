@@ -11,6 +11,7 @@ import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
 import ca.weblite.jdeploy.installer.services.ServiceStatusMonitor;
 import ca.weblite.jdeploy.installer.services.ServiceStatusPoller;
 import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
+import ca.weblite.jdeploy.installer.util.WindowsAppDirResolver;
 import ca.weblite.tools.io.MD5;
 
 import javax.swing.ImageIcon;
@@ -332,9 +333,22 @@ public class ServiceTrayController {
         if (packageName != null) {
             String source = getSourceForLock();
             String fqpn = computeFullyQualifiedPackageName(packageName, source);
-            String architecture = ArchitectureUtil.getArchitecture();
-            String userHome = System.getProperty("user.home");
-            return new File(userHome, ".jdeploy/apps/" + architecture + "/" + fqpn);
+
+            // Check configured winAppDir path first
+            String winAppDir = settings != null ? settings.getWinAppDir() : null;
+            File configuredDir = WindowsAppDirResolver.resolveAppDir(winAppDir, fqpn);
+            if (configuredDir.exists()) {
+                return configuredDir;
+            }
+
+            // Fall back to legacy path
+            File legacyDir = WindowsAppDirResolver.getLegacyAppDir(fqpn);
+            if (legacyDir.exists()) {
+                return legacyDir;
+            }
+
+            // Default to configured path
+            return configuredDir;
         }
         return null;
     }

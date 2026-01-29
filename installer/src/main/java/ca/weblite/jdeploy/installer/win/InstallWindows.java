@@ -15,6 +15,7 @@ import ca.weblite.jdeploy.installer.uninstall.UninstallManifestWriter;
 import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest;
 import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
 import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
+import ca.weblite.jdeploy.installer.util.WindowsAppDirResolver;
 import ca.weblite.tools.io.FileUtil;
 import com.izforge.izpack.util.os.ShellLink;
 import com.joshondesign.appbundler.win.WindowsPESubsystemModifier;
@@ -85,10 +86,8 @@ public class InstallWindows {
         AppInfo appInfo = installationSettings.getAppInfo();
         File tmpExePath = findTmpExeFile(tmpBundles);
         File appXmlFile = context.findAppXml();
-        File userHome = new File(System.getProperty("user.home"));
-        File jdeployHome = new File(userHome, ".jdeploy");
-        File appsDir = new File(jdeployHome, "apps");
-        File appDir = new File(appsDir, fullyQualifiedPackageName);
+        File appDir = WindowsAppDirResolver.resolveAppDir(
+                installationSettings.getWinAppDir(), fullyQualifiedPackageName);
 
         if (logger != null) {
             logger.logInfo("Starting installation of " + appInfo.getTitle() + " version " + appInfo.getNpmVersion());
@@ -311,6 +310,7 @@ public class InstallWindows {
                     appInfo.getNpmVersion(),
                     arch
                 );
+                manifestBuilder.withWinAppDir(installationSettings.getWinAppDir());
                 manifestBuilder.withInstallerVersion(appInfo.getLauncherVersion() != null ? appInfo.getLauncherVersion() : "1.0");
                 
                 // Add executable

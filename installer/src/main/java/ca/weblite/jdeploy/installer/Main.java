@@ -267,6 +267,11 @@ public class Main implements Runnable, Constants {
 
             // Extract helper actions from package.json
             installationSettings.setHelperActions(npmPackageVersion().getHelperActions());
+
+            // Extract Windows app directory from package.json
+            if (npmPackageVersion().getWinAppDir() != null) {
+                installationSettings.setWinAppDir(npmPackageVersion().getWinAppDir());
+            }
         }
     }
 
@@ -1369,27 +1374,31 @@ public class Main implements Runnable, Constants {
                     return launcher;
                 }
             } else if (Platform.getSystemPlatform().isWindows()) {
-                // Windows: ~/.jdeploy/apps/{fullyQualifiedPackageName}/{DisplayName}-cli.exe
-                // Or: ~/.jdeploy/apps/{fullyQualifiedPackageName}/bin/{DisplayName}-cli.exe (if using private JVM)
+                // Windows: {winAppDir}/{fullyQualifiedPackageName}/{DisplayName}-cli.exe
+                // Or: {winAppDir}/{fullyQualifiedPackageName}/bin/{DisplayName}-cli.exe (if using private JVM)
                 String displayName = appInfo().getTitle() + nameSuffix;
                 String cliExeName = displayName + ca.weblite.jdeploy.installer.CliInstallerConstants.CLI_LAUNCHER_SUFFIX + ".exe";
 
-                File userHome = new File(System.getProperty("user.home"));
-                File jdeployHome = new File(userHome, ".jdeploy");
-                File appsDir = new File(jdeployHome, "apps");
-                File appDir = new File(appsDir, fullyQualifiedPackageName);
+                // Check configured winAppDir path first, then legacy path
+                File[] appDirsToCheck = new File[] {
+                    ca.weblite.jdeploy.installer.util.WindowsAppDirResolver.resolveAppDir(
+                            installationSettings.getWinAppDir(), fullyQualifiedPackageName),
+                    ca.weblite.jdeploy.installer.util.WindowsAppDirResolver.getLegacyAppDir(fullyQualifiedPackageName)
+                };
 
-                // Try without bin subdirectory first
-                File launcher = new File(appDir, cliExeName);
-                if (launcher.exists()) {
-                    return launcher;
-                }
+                for (File appDir : appDirsToCheck) {
+                    // Try without bin subdirectory first
+                    File launcher = new File(appDir, cliExeName);
+                    if (launcher.exists()) {
+                        return launcher;
+                    }
 
-                // Try with bin subdirectory (for private JVM installations)
-                File binDir = new File(appDir, "bin");
-                File launcherInBin = new File(binDir, cliExeName);
-                if (launcherInBin.exists()) {
-                    return launcherInBin;
+                    // Try with bin subdirectory (for private JVM installations)
+                    File binDir = new File(appDir, "bin");
+                    File launcherInBin = new File(binDir, cliExeName);
+                    if (launcherInBin.exists()) {
+                        return launcherInBin;
+                    }
                 }
             }
         } catch (Exception e) {

@@ -3,6 +3,7 @@ package ca.weblite.jdeploy.installer.win;
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.logging.InstallationLogger;
 import ca.weblite.jdeploy.installer.util.PackagePathResolver;
+import ca.weblite.jdeploy.installer.util.WindowsAppDirResolver;
 import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
@@ -26,6 +27,7 @@ public class UninstallWindows {
     private String source;
 
     private String appFileName;
+    private String winAppDir;
     private InstallationLogger installationLogger;
 
     public UninstallWindows(
@@ -98,7 +100,22 @@ public class UninstallWindows {
     }
 
     private File getAppDirPath() {
-        return new File(getJDeployHome(), "apps" + File.separator + new File(fullyQualifiedPackageName).getName());
+        // Check configured path first
+        File configuredDir = WindowsAppDirResolver.resolveAppDir(winAppDir, new File(fullyQualifiedPackageName).getName());
+        if (configuredDir.exists()) {
+            return configuredDir;
+        }
+        // Fall back to legacy path
+        File legacyDir = WindowsAppDirResolver.getLegacyAppDir(new File(fullyQualifiedPackageName).getName());
+        if (legacyDir.exists()) {
+            return legacyDir;
+        }
+        // If neither exists, return configured path (for consistency)
+        return configuredDir;
+    }
+
+    public void setWinAppDir(String winAppDir) {
+        this.winAppDir = winAppDir;
     }
 
     private File getUninstallerPath() {
