@@ -131,7 +131,17 @@ public class CommandSpecParser {
                 }
             }
 
-            result.add(new CommandSpec(name, description, args, implementations));
+            Boolean embedPlist = null;
+            if (specObj.has("embedPlist")) {
+                Object embedObj = specObj.get("embedPlist");
+                if (embedObj instanceof Boolean) {
+                    embedPlist = (Boolean) embedObj;
+                } else if (embedObj != JSONObject.NULL) {
+                    throw new IllegalArgumentException("Command '" + name + "': 'embedPlist' must be a boolean");
+                }
+            }
+
+            result.add(new CommandSpec(name, description, args, implementations, embedPlist));
         }
 
         // sort by name for deterministic order
