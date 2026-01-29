@@ -231,12 +231,27 @@ public class UninstallWindows {
         if (installationLogger != null) {
             installationLogger.logSection("Deleting Application Directory");
         }
-        if (getAppDirPath().exists()) {
-            System.out.println("Deleting app dir: "+getAppDirPath().getAbsolutePath());
-            FileUtils.deleteDirectory(getAppDirPath());
+        String fqpnName = new File(fullyQualifiedPackageName).getName();
+
+        // Delete configured app directory
+        File configuredDir = WindowsAppDirResolver.resolveAppDir(winAppDir, fqpnName);
+        if (configuredDir.exists()) {
+            System.out.println("Deleting app dir: " + configuredDir.getAbsolutePath());
+            FileUtils.deleteDirectory(configuredDir);
             if (installationLogger != null) {
                 installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
-                    getAppDirPath().getAbsolutePath(), "Application directory");
+                    configuredDir.getAbsolutePath(), "Application directory");
+            }
+        }
+
+        // Also delete legacy app directory if it's at a different location
+        File legacyDir = WindowsAppDirResolver.getLegacyAppDir(fqpnName);
+        if (!legacyDir.equals(configuredDir) && legacyDir.exists()) {
+            System.out.println("Deleting legacy app dir: " + legacyDir.getAbsolutePath());
+            FileUtils.deleteDirectory(legacyDir);
+            if (installationLogger != null) {
+                installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
+                    legacyDir.getAbsolutePath(), "Legacy application directory");
             }
         }
     }

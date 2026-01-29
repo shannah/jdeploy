@@ -962,6 +962,25 @@ public class Main implements Runnable, Constants {
             if (appInfo().getNpmVersion() != null && appInfo().getNpmVersion().startsWith("0.0.0-")) {
                 version = appInfo().getNpmVersion();
             }
+
+            // Try to read persisted winAppDir from uninstaller directory
+            String winAppDir = null;
+            try {
+                String launcherPathStr = System.getProperty("client4j.launcher.path");
+                if (launcherPathStr != null) {
+                    File launcherPath = new File(launcherPathStr);
+                    File winAppDirConfig = new File(launcherPath.getParentFile(), "winAppDir.txt");
+                    if (winAppDirConfig.exists()) {
+                        String value = org.apache.commons.io.FileUtils.readFileToString(winAppDirConfig, "UTF-8").trim();
+                        if (!value.isEmpty()) {
+                            winAppDir = value;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to read winAppDir config: " + e.getMessage());
+            }
+
             UninstallWindows uninstallWindows = new UninstallWindows(
                     appInfo().getNpmPackage(),
                     appInfo().getNpmSource(),
@@ -969,6 +988,7 @@ public class Main implements Runnable, Constants {
                     appInfo().getTitle(),
                     installer
             );
+            uninstallWindows.setWinAppDir(winAppDir);
             uninstallWindows.uninstall();
             System.out.println("Uninstall complete");
             return;

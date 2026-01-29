@@ -89,6 +89,22 @@ public class InstallWindows {
         File appDir = WindowsAppDirResolver.resolveAppDir(
                 installationSettings.getWinAppDir(), fullyQualifiedPackageName);
 
+        // Clean up old app directory if the install location has changed
+        File legacyAppDir = WindowsAppDirResolver.getLegacyAppDir(fullyQualifiedPackageName);
+        if (!legacyAppDir.equals(appDir) && legacyAppDir.exists()) {
+            try {
+                FileUtils.deleteDirectory(legacyAppDir);
+                if (logger != null) {
+                    logger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
+                            legacyAppDir.getAbsolutePath(), "Old app directory at legacy location");
+                }
+            } catch (IOException e) {
+                if (logger != null) {
+                    logger.logError("Failed to delete old app directory at " + legacyAppDir.getAbsolutePath(), e);
+                }
+            }
+        }
+
         if (logger != null) {
             logger.logInfo("Starting installation of " + appInfo.getTitle() + " version " + appInfo.getNpmVersion());
             logger.logInfo("Package: " + appInfo.getNpmPackage());
@@ -296,6 +312,21 @@ public class InstallWindows {
             FileUtils.copyDirectory(context.findInstallFilesDir(), jdeployFilesDestDir);
             if (logger != null) {
                 logger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED, jdeployFilesDestDir.getAbsolutePath(), "jDeploy files for uninstaller");
+            }
+
+            // Persist winAppDir config so the uninstaller knows the app directory
+            try {
+                File winAppDirConfig = new File(uninstallerPath.getParentFile(), "winAppDir.txt");
+                String configuredDir = installationSettings.getWinAppDir();
+                FileUtils.writeStringToFile(winAppDirConfig, configuredDir != null ? configuredDir : "", "UTF-8");
+                if (logger != null) {
+                    logger.logFileOperation(InstallationLogger.FileOperation.CREATED,
+                            winAppDirConfig.getAbsolutePath(), "Windows app directory config for uninstaller");
+                }
+            } catch (IOException e) {
+                if (logger != null) {
+                    logger.logError("Failed to persist winAppDir config", e);
+                }
             }
 
             // Build and write uninstall manifest
