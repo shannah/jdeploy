@@ -19,6 +19,7 @@ public final class UninstallManifest {
     private final List<InstalledDirectory> directories;
     private final RegistryInfo registry;
     private final PathModifications pathModifications;
+    private final AiIntegrations aiIntegrations;
 
     private UninstallManifest(Builder builder) {
         this.version = Objects.requireNonNull(builder.version, "version cannot be null");
@@ -31,6 +32,7 @@ public final class UninstallManifest {
         );
         this.registry = builder.registry;
         this.pathModifications = builder.pathModifications;
+        this.aiIntegrations = builder.aiIntegrations;
     }
 
     public String getVersion() {
@@ -57,6 +59,10 @@ public final class UninstallManifest {
         return pathModifications;
     }
 
+    public AiIntegrations getAiIntegrations() {
+        return aiIntegrations;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -67,12 +73,13 @@ public final class UninstallManifest {
                Objects.equals(files, that.files) &&
                Objects.equals(directories, that.directories) &&
                Objects.equals(registry, that.registry) &&
-               Objects.equals(pathModifications, that.pathModifications);
+               Objects.equals(pathModifications, that.pathModifications) &&
+               Objects.equals(aiIntegrations, that.aiIntegrations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(version, packageInfo, files, directories, registry, pathModifications);
+        return Objects.hash(version, packageInfo, files, directories, registry, pathModifications, aiIntegrations);
     }
 
     @Override
@@ -84,6 +91,7 @@ public final class UninstallManifest {
                ", directories=" + directories +
                ", registry=" + registry +
                ", pathModifications=" + pathModifications +
+               ", aiIntegrations=" + aiIntegrations +
                '}';
     }
 
@@ -98,6 +106,7 @@ public final class UninstallManifest {
         private List<InstalledDirectory> directories = Collections.emptyList();
         private RegistryInfo registry;
         private PathModifications pathModifications;
+        private AiIntegrations aiIntegrations;
 
         public Builder version(String version) {
             this.version = version;
@@ -126,6 +135,11 @@ public final class UninstallManifest {
 
         public Builder pathModifications(PathModifications pathModifications) {
             this.pathModifications = pathModifications;
+            return this;
+        }
+
+        public Builder aiIntegrations(AiIntegrations aiIntegrations) {
+            this.aiIntegrations = aiIntegrations;
             return this;
         }
 
@@ -1152,6 +1166,304 @@ public final class UninstallManifest {
 
             public GitBashProfileEntry build() {
                 return new GitBashProfileEntry(this);
+            }
+        }
+    }
+
+    /**
+     * AI integrations (MCP servers, skills, agents) installed to AI tools.
+     */
+    public static final class AiIntegrations {
+        private final List<McpServerEntry> mcpServers;
+        private final List<SkillEntry> skills;
+        private final List<AgentEntry> agents;
+
+        private AiIntegrations(Builder builder) {
+            this.mcpServers = Collections.unmodifiableList(
+                Objects.requireNonNull(builder.mcpServers, "mcpServers cannot be null")
+            );
+            this.skills = Collections.unmodifiableList(
+                Objects.requireNonNull(builder.skills, "skills cannot be null")
+            );
+            this.agents = Collections.unmodifiableList(
+                Objects.requireNonNull(builder.agents, "agents cannot be null")
+            );
+        }
+
+        public List<McpServerEntry> getMcpServers() {
+            return mcpServers;
+        }
+
+        public List<SkillEntry> getSkills() {
+            return skills;
+        }
+
+        public List<AgentEntry> getAgents() {
+            return agents;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AiIntegrations that = (AiIntegrations) o;
+            return Objects.equals(mcpServers, that.mcpServers) &&
+                   Objects.equals(skills, that.skills) &&
+                   Objects.equals(agents, that.agents);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(mcpServers, skills, agents);
+        }
+
+        @Override
+        public String toString() {
+            return "AiIntegrations{" +
+                   "mcpServers=" + mcpServers +
+                   ", skills=" + skills +
+                   ", agents=" + agents +
+                   '}';
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static final class Builder {
+            private List<McpServerEntry> mcpServers = Collections.emptyList();
+            private List<SkillEntry> skills = Collections.emptyList();
+            private List<AgentEntry> agents = Collections.emptyList();
+
+            public Builder mcpServers(List<McpServerEntry> mcpServers) {
+                this.mcpServers = mcpServers != null ? mcpServers : Collections.emptyList();
+                return this;
+            }
+
+            public Builder skills(List<SkillEntry> skills) {
+                this.skills = skills != null ? skills : Collections.emptyList();
+                return this;
+            }
+
+            public Builder agents(List<AgentEntry> agents) {
+                this.agents = agents != null ? agents : Collections.emptyList();
+                return this;
+            }
+
+            public AiIntegrations build() {
+                return new AiIntegrations(this);
+            }
+        }
+    }
+
+    /**
+     * An MCP server entry added to an AI tool's configuration file.
+     */
+    public static final class McpServerEntry {
+        private final String configFile;
+        private final String entryKey;
+        private final String toolName;
+
+        private McpServerEntry(Builder builder) {
+            this.configFile = Objects.requireNonNull(builder.configFile, "configFile cannot be null");
+            this.entryKey = Objects.requireNonNull(builder.entryKey, "entryKey cannot be null");
+            this.toolName = Objects.requireNonNull(builder.toolName, "toolName cannot be null");
+        }
+
+        public String getConfigFile() {
+            return configFile;
+        }
+
+        public String getEntryKey() {
+            return entryKey;
+        }
+
+        public String getToolName() {
+            return toolName;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            McpServerEntry that = (McpServerEntry) o;
+            return Objects.equals(configFile, that.configFile) &&
+                   Objects.equals(entryKey, that.entryKey) &&
+                   Objects.equals(toolName, that.toolName);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(configFile, entryKey, toolName);
+        }
+
+        @Override
+        public String toString() {
+            return "McpServerEntry{" +
+                   "configFile='" + configFile + '\'' +
+                   ", entryKey='" + entryKey + '\'' +
+                   ", toolName='" + toolName + '\'' +
+                   '}';
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static final class Builder {
+            private String configFile;
+            private String entryKey;
+            private String toolName;
+
+            public Builder configFile(String configFile) {
+                this.configFile = configFile;
+                return this;
+            }
+
+            public Builder entryKey(String entryKey) {
+                this.entryKey = entryKey;
+                return this;
+            }
+
+            public Builder toolName(String toolName) {
+                this.toolName = toolName;
+                return this;
+            }
+
+            public McpServerEntry build() {
+                return new McpServerEntry(this);
+            }
+        }
+    }
+
+    /**
+     * A skill installed to an AI tool's skills directory.
+     */
+    public static final class SkillEntry {
+        private final String path;
+        private final String name;
+
+        private SkillEntry(Builder builder) {
+            this.path = Objects.requireNonNull(builder.path, "path cannot be null");
+            this.name = Objects.requireNonNull(builder.name, "name cannot be null");
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SkillEntry that = (SkillEntry) o;
+            return Objects.equals(path, that.path) &&
+                   Objects.equals(name, that.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(path, name);
+        }
+
+        @Override
+        public String toString() {
+            return "SkillEntry{" +
+                   "path='" + path + '\'' +
+                   ", name='" + name + '\'' +
+                   '}';
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static final class Builder {
+            private String path;
+            private String name;
+
+            public Builder path(String path) {
+                this.path = path;
+                return this;
+            }
+
+            public Builder name(String name) {
+                this.name = name;
+                return this;
+            }
+
+            public SkillEntry build() {
+                return new SkillEntry(this);
+            }
+        }
+    }
+
+    /**
+     * An agent installed to an AI tool's agents directory.
+     */
+    public static final class AgentEntry {
+        private final String path;
+        private final String name;
+
+        private AgentEntry(Builder builder) {
+            this.path = Objects.requireNonNull(builder.path, "path cannot be null");
+            this.name = Objects.requireNonNull(builder.name, "name cannot be null");
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AgentEntry that = (AgentEntry) o;
+            return Objects.equals(path, that.path) &&
+                   Objects.equals(name, that.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(path, name);
+        }
+
+        @Override
+        public String toString() {
+            return "AgentEntry{" +
+                   "path='" + path + '\'' +
+                   ", name='" + name + '\'' +
+                   '}';
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static final class Builder {
+            private String path;
+            private String name;
+
+            public Builder path(String path) {
+                this.path = path;
+                return this;
+            }
+
+            public Builder name(String name) {
+                this.name = name;
+                return this;
+            }
+
+            public AgentEntry build() {
+                return new AgentEntry(this);
             }
         }
     }

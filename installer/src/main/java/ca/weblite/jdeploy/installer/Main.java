@@ -28,6 +28,7 @@ import ca.weblite.jdeploy.installer.util.ResourceUtil;
 import ca.weblite.jdeploy.installer.views.DefaultUIFactory;
 import ca.weblite.jdeploy.installer.views.InstallationForm;
 import ca.weblite.jdeploy.installer.views.UIFactory;
+import ca.weblite.jdeploy.installer.views.UpdateProgressDialog;
 import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
 import ca.weblite.jdeploy.installer.win.InstallWindows;
 import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
@@ -47,6 +48,7 @@ import ca.weblite.jdeploy.installer.services.ServiceDescriptor;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
 import ca.weblite.jdeploy.installer.services.ServiceOperationExecutor;
+import ca.weblite.jdeploy.installer.services.ServiceOperationResult;
 import ca.weblite.jdeploy.installer.tray.BackgroundHelper;
 import ca.weblite.jdeploy.installer.helpers.HelperCopyService;
 import ca.weblite.jdeploy.installer.helpers.HelperInstallationResult;
@@ -54,6 +56,9 @@ import ca.weblite.jdeploy.installer.helpers.HelperInstallationService;
 import ca.weblite.jdeploy.installer.helpers.HelperManifestHelper;
 import ca.weblite.jdeploy.installer.helpers.HelperProcessManager;
 import ca.weblite.jdeploy.installer.helpers.HelperUpdateService;
+import ca.weblite.jdeploy.installer.ai.models.AiIntegrationInstallResult;
+import ca.weblite.jdeploy.installer.ai.models.AiIntegrationManifestEntry;
+import ca.weblite.jdeploy.installer.ai.services.AiIntegrationInstaller;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
@@ -1250,6 +1255,67 @@ public class Main implements Runnable, Constants {
     }
 
     /**
+     * Checks if the app has CLI commands but no service commands.
+     * Used to determine if explicit --jdeploy:update is needed after installation.
+     *
+     * @param allCommands All commands from package.json
+     * @param serviceCommands Commands that implement service_controller
+     * @return true if there are non-service commands but no service commands
+     */
+    private boolean hasCommandsButNoServices(List<CommandSpec> allCommands, List<CommandSpec> serviceCommands) {
+        return allCommands != null && !allCommands.isEmpty()
+               && (serviceCommands == null || serviceCommands.isEmpty());
+    }
+
+    /**
+     * Runs --jdeploy:update for apps with commands but no services.
+     * This ensures JARs are downloaded during installation rather than on first launch.
+     *
+     * Shows a progress dialog if the update takes longer than 1 second.
+     * Once shown, dialog displays for minimum 2 seconds to avoid UI flashing.
+     *
+     * @param installedApp The installed application directory/file
+     * @param version The version being installed
+     * @throws Exception if the update fails
+     */
+    private void runUpdateForCommandsOnly(File installedApp, String version) throws Exception {
+        File cliLauncherPath = findCliLauncherFromInstalledApp(installedApp);
+        if (cliLauncherPath == null || !cliLauncherPath.exists()) {
+            throw new RuntimeException("Could not find CLI launcher for update: " + cliLauncherPath);
+        }
+
+        ServiceOperationExecutor executor = new ServiceOperationExecutor(
+            cliLauncherPath,
+            appInfo().getNpmPackage(),
+            appInfo().getNpmSource()
+        );
+
+        // In headless mode, run the update directly without GUI progress dialog
+        if (headlessInstall) {
+            ServiceOperationResult result = executor.runApplicationUpdate(version);
+            if (result.isFailure()) {
+                throw new RuntimeException(result.getMessage() != null
+                    ? result.getMessage()
+                    : "Application update failed");
+            }
+            return;
+        }
+
+        // Get parent window for dialog
+        // DefaultInstallationForm extends JFrame, so it is itself a Window
+        Window parentWindow = (installationForm instanceof Window) ? (Window) installationForm : null;
+
+        UpdateProgressDialog progressDialog = new UpdateProgressDialog(parentWindow);
+
+        progressDialog.runWithProgress(() -> {
+            ServiceOperationResult result = executor.runApplicationUpdate(version);
+            if (result.isFailure()) {
+                throw new RuntimeException(result.getMessage());
+            }
+        });
+    }
+
+    /**
      * Finds the CLI launcher from the currently installed application.
      * Used before update to stop running services.
      *
@@ -1755,12 +1821,22 @@ public class Main implements Runnable, Constants {
             }
         }
 
-        // Complete service lifecycle management after installation
-        // Run if there are any commands (to run --jdeploy:update)
-        // Service install/start only happens for service commands (handled inside)
-        if (serviceStateBeforeUpdate != null && allCommands != null && !allCommands.isEmpty() &&
-            !installationSettings.isBranchInstallation()) {
-            completeServicesAfterUpdate(appInfo().getNpmPackage(), newServiceCommands, serviceStateBeforeUpdate, installedApp, npmPackageVersion().getVersion());
+        // Complete service lifecycle management OR run update for commands-only apps
+        // This ensures JARs are downloaded during installation rather than on first launch
+        if (!installationSettings.isBranchInstallation()) {
+            if (newServiceCommands != null && !newServiceCommands.isEmpty()) {
+                // Has services - use full service lifecycle (includes update)
+                completeServicesAfterUpdate(
+                    appInfo().getNpmPackage(),
+                    newServiceCommands,
+                    serviceStateBeforeUpdate,
+                    installedApp,
+                    npmPackageVersion().getVersion()
+                );
+            } else if (hasCommandsButNoServices(allCommands, newServiceCommands)) {
+                // Has commands but no services - run explicit update to download JARs
+                runUpdateForCommandsOnly(installedApp, npmPackageVersion().getVersion());
+            }
         }
 
         // Install or update Helper application for command management
@@ -1776,6 +1852,24 @@ public class Main implements Runnable, Constants {
                 installHelperApplication(installedApp);
             }
             // For fresh installs without commands: do nothing
+        }
+
+        // Install AI integrations if enabled
+        if (installationSettings.isInstallAiIntegrations() &&
+            installationSettings.hasAiIntegrations() &&
+            !installationSettings.getSelectedAiTools().isEmpty()) {
+            try {
+                AiIntegrationInstallResult aiResult = installAiIntegrations(fullyQualifiedPackageName, installedApp);
+                if (aiResult != null) {
+                    installationSettings.setAiIntegrationResult(aiResult);
+                    // Update manifest with AI integration entries
+                    updateManifestWithAiIntegrations(aiResult);
+                }
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to install AI integrations: " + e.getMessage());
+                e.printStackTrace(System.err);
+                // Continue - AI integrations are optional
+            }
         }
 
         File tmpPlatformBundles = new File(tmpBundles, target);
@@ -1900,6 +1994,20 @@ public class Main implements Runnable, Constants {
                 }
             }
 
+            // Copy existing AI integrations (in case they were installed before Helper)
+            UninstallManifest.AiIntegrations existingAi = manifest.getAiIntegrations();
+            if (existingAi != null) {
+                for (UninstallManifest.McpServerEntry entry : existingAi.getMcpServers()) {
+                    builder.addMcpServerEntry(entry.getConfigFile(), entry.getEntryKey(), entry.getToolName());
+                }
+                for (UninstallManifest.SkillEntry entry : existingAi.getSkills()) {
+                    builder.addSkillEntry(entry.getPath(), entry.getName());
+                }
+                for (UninstallManifest.AgentEntry entry : existingAi.getAgents()) {
+                    builder.addAgentEntry(entry.getPath(), entry.getName());
+                }
+            }
+
             // Add Helper entries
             HelperManifestHelper.addHelperToManifest(builder, helperResult);
 
@@ -1912,6 +2020,215 @@ public class Main implements Runnable, Constants {
             System.err.println("Warning: Failed to update manifest with Helper entries: " + e.getMessage());
             // Continue - Helper installation was successful, manifest update is best-effort
         }
+    }
+
+    /**
+     * Updates the uninstall manifest with AI integration entries.
+     *
+     * This loads the existing manifest, adds the AI integration entries, and saves it back.
+     * If the manifest doesn't exist or cannot be updated, a warning is logged but
+     * installation continues.
+     *
+     * @param aiResult The AI integration installation result
+     */
+    private void updateManifestWithAiIntegrations(AiIntegrationInstallResult aiResult) {
+        if (aiResult == null || aiResult.getManifestEntries().isEmpty()) {
+            return;
+        }
+
+        try {
+            FileUninstallManifestRepository repository = new FileUninstallManifestRepository();
+            String packageName = appInfo().getNpmPackage();
+            String packageSource = appInfo().getNpmSource();
+
+            Optional<UninstallManifest> existingManifest = repository.load(packageName, packageSource);
+            if (!existingManifest.isPresent()) {
+                System.err.println("Warning: Could not load existing manifest to add AI integration entries");
+                return;
+            }
+
+            UninstallManifest manifest = existingManifest.get();
+            UninstallManifestBuilder builder = new UninstallManifestBuilder();
+
+            // Copy package info from existing manifest
+            UninstallManifest.PackageInfo pkgInfo = manifest.getPackageInfo();
+            builder.withPackageInfo(pkgInfo.getName(), pkgInfo.getSource(), pkgInfo.getVersion(), pkgInfo.getArchitecture());
+            if (pkgInfo.getInstallerVersion() != null) {
+                builder.withInstallerVersion(pkgInfo.getInstallerVersion());
+            }
+
+            // Copy existing files
+            for (UninstallManifest.InstalledFile file : manifest.getFiles()) {
+                builder.addFile(file.getPath(), file.getType(), file.getDescription());
+            }
+
+            // Copy existing directories
+            for (UninstallManifest.InstalledDirectory dir : manifest.getDirectories()) {
+                builder.addDirectory(dir.getPath(), dir.getCleanup(), dir.getDescription());
+            }
+
+            // Copy existing registry entries (Windows)
+            UninstallManifest.RegistryInfo registry = manifest.getRegistry();
+            if (registry != null) {
+                for (UninstallManifest.RegistryKey key : registry.getCreatedKeys()) {
+                    builder.addCreatedRegistryKey(key.getRoot(), key.getPath(), key.getDescription());
+                }
+                for (UninstallManifest.ModifiedRegistryValue value : registry.getModifiedValues()) {
+                    builder.addModifiedRegistryValue(
+                            value.getRoot(), value.getPath(), value.getName(),
+                            value.getPreviousValue(), value.getPreviousType(), value.getDescription());
+                }
+            }
+
+            // Copy existing PATH modifications
+            UninstallManifest.PathModifications pathMods = manifest.getPathModifications();
+            if (pathMods != null) {
+                for (UninstallManifest.WindowsPathEntry entry : pathMods.getWindowsPaths()) {
+                    builder.addWindowsPathEntry(entry.getAddedEntry(), entry.getDescription());
+                }
+                for (UninstallManifest.ShellProfileEntry entry : pathMods.getShellProfiles()) {
+                    builder.addShellProfileEntry(entry.getFile(), entry.getExportLine(), entry.getDescription());
+                }
+                for (UninstallManifest.GitBashProfileEntry entry : pathMods.getGitBashProfiles()) {
+                    builder.addGitBashProfileEntry(entry.getFile(), entry.getExportLine(), entry.getDescription());
+                }
+            }
+
+            // Copy existing AI integrations (in case of updates)
+            UninstallManifest.AiIntegrations existingAi = manifest.getAiIntegrations();
+            if (existingAi != null) {
+                for (UninstallManifest.McpServerEntry entry : existingAi.getMcpServers()) {
+                    builder.addMcpServerEntry(entry.getConfigFile(), entry.getEntryKey(), entry.getToolName());
+                }
+                for (UninstallManifest.SkillEntry entry : existingAi.getSkills()) {
+                    builder.addSkillEntry(entry.getPath(), entry.getName());
+                }
+                for (UninstallManifest.AgentEntry entry : existingAi.getAgents()) {
+                    builder.addAgentEntry(entry.getPath(), entry.getName());
+                }
+            }
+
+            // Add new AI integration entries
+            for (AiIntegrationManifestEntry entry : aiResult.getManifestEntries()) {
+                if (entry.isMcpServer()) {
+                    builder.addMcpServerEntry(
+                            entry.getConfigFilePath(),
+                            entry.getEntryKey(),
+                            entry.getToolType().name()
+                    );
+                } else if (entry.isSkill()) {
+                    builder.addSkillEntry(entry.getPath(), entry.getName());
+                } else if (entry.isAgent()) {
+                    builder.addAgentEntry(entry.getPath(), entry.getName());
+                }
+            }
+
+            // Save updated manifest
+            UninstallManifest updatedManifest = builder.build();
+            repository.save(updatedManifest);
+
+            System.out.println("Updated uninstall manifest with AI integration entries");
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to update manifest with AI integration entries: " + e.getMessage());
+            // Continue - AI integration installation was successful, manifest update is best-effort
+        }
+    }
+
+    /**
+     * Installs AI integrations (MCP servers, skills, agents) to selected AI tools.
+     *
+     * @param fullyQualifiedPackageName The FQPN used as the MCP server name
+     * @param installedApp The installed application file/directory
+     * @return The installation result, or null if installation was skipped
+     */
+    private AiIntegrationInstallResult installAiIntegrations(String fullyQualifiedPackageName, File installedApp) {
+        AiIntegrationInstaller aiInstaller = new AiIntegrationInstaller();
+
+        // Determine the binary command based on platform
+        String binaryCommand = getBinaryCommandForAiIntegration(installedApp);
+        if (binaryCommand == null) {
+            System.err.println("Warning: Could not determine binary command for AI integrations");
+            return null;
+        }
+
+        // Get the MCP command name from config
+        String mcpCommandName = null;
+        if (installationSettings.getAiIntegrationConfig() != null &&
+            installationSettings.getAiIntegrationConfig().getMcpConfig() != null) {
+            mcpCommandName = installationSettings.getAiIntegrationConfig().getMcpConfig().getCommand();
+        }
+
+        if (mcpCommandName == null) {
+            System.err.println("Warning: No MCP command configured for AI integrations");
+            return null;
+        }
+
+        // Get bundle's ai directory
+        File bundleAiDir = new File(installationSettings.getInstallFilesDir(), "ai");
+
+        try {
+            AiIntegrationInstallResult result = aiInstaller.install(
+                    installationSettings.getAiIntegrationConfig(),
+                    installationSettings.getSelectedAiTools(),
+                    binaryCommand,
+                    mcpCommandName,
+                    fullyQualifiedPackageName,
+                    appInfo().getTitle(),
+                    bundleAiDir
+            );
+
+            // TODO: Add manifest entries to uninstall manifest in Phase 6
+            System.out.println("AI integrations installed: " + result.getManifestEntries().size() + " entries");
+
+            // Log any conflicts
+            if (result.hasConflicts()) {
+                System.err.println("AI integration conflicts:");
+                for (AiIntegrationInstallResult.McpServerConflict conflict : result.getConflicts()) {
+                    System.err.println("  - " + conflict);
+                }
+            }
+
+            return result;
+        } catch (IOException e) {
+            System.err.println("Warning: Failed to install AI integrations: " + e.getMessage());
+            e.printStackTrace(System.err);
+            return null;
+        }
+    }
+
+    /**
+     * Gets the binary command to use for AI integration invocations.
+     * Uses the CLI launcher binary which avoids GUI initialization.
+     *
+     * Platform-specific binaries (per cli-commands-in-installer.md RFC):
+     * - macOS: {AppName}.app/Contents/MacOS/Client4JLauncher-cli
+     * - Windows: {AppDir}/{AppName}-cli.exe
+     * - Linux: {AppDir}/{binary} (same as GUI binary)
+     *
+     * @param installedApp The installed application
+     * @return The binary command path, or null if not determined
+     */
+    private String getBinaryCommandForAiIntegration(File installedApp) {
+        if (installedApp == null || !installedApp.exists()) {
+            return null;
+        }
+
+        if (Platform.getSystemPlatform().isMac()) {
+            // macOS: Use Client4JLauncher-cli inside the app bundle
+            // This avoids GUI initialization triggered by AppKit/NSApplication
+            return installedApp.getAbsolutePath() + "/Contents/MacOS/" + CliInstallerConstants.CLI_LAUNCHER_NAME;
+        } else if (Platform.getSystemPlatform().isWindows()) {
+            // Windows: Use {AppName}-cli.exe which has Console subsystem instead of GUI
+            String appName = installedApp.getName();
+            if (appName.endsWith(".exe")) {
+                appName = appName.substring(0, appName.length() - 4);
+            }
+            return installedApp.getParent() + File.separator + appName + "-cli.exe";
+        } else if (Platform.getSystemPlatform().isLinux()) {
+            // Linux: Use the installed binary directly
+            return installedApp.getAbsolutePath();
+        }
+        return null;
     }
 
     /**

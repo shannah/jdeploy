@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.npm;
 
+import ca.weblite.jdeploy.ai.models.AiIntegrationConfig;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.jdeploy.models.CommandSpecParser;
@@ -10,6 +11,8 @@ import ca.weblite.jdeploy.app.permissions.PermissionRequest;
 import ca.weblite.jdeploy.app.permissions.PermissionRequestService;
 import org.json.JSONArray;
 import org.json.JSONObject;
+
+import java.io.File;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -257,5 +260,16 @@ public class NPMPackageVersion {
         }
 
         return actions;
+    }
+
+    /**
+     * Gets the AI integration configuration from the package.json.
+     * This includes MCP server config, skills, and agents.
+     *
+     * @param bundleDir the bundle directory for scanning skills/agents subdirectories
+     * @return the AI integration configuration
+     */
+    public AiIntegrationConfig getAiIntegrationConfig(File bundleDir) {
+        return AiIntegrationConfig.fromBundle(packageJson, bundleDir);
     }
 }

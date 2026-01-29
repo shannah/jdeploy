@@ -620,6 +620,7 @@ public class PackageService implements BundleConstants {
         bundleJarRunner(context);
         bundleIcon(context);
         bundleSplash(context);
+        bundleAiAssets(context);
 
         if (context.getPostCopyScript(null) != null) {
             int code = 0;
@@ -1113,6 +1114,11 @@ public class PackageService implements BundleConstants {
 
         File bundledSplashFile = new File(bin, splashFile.getName());
         FileUtils.copyFile(splashFile, bundledSplashFile);
+    }
+
+    private void bundleAiAssets(PackagingContext context) throws IOException {
+        AiAssetBundler bundler = new AiAssetBundler();
+        bundler.bundleAiAssets(context);
     }
 
     private void fail(PackagingContext context, String message, int code) {

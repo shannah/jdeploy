@@ -1,5 +1,8 @@
 package ca.weblite.jdeploy.installer.tray;
 
+import ca.weblite.jdeploy.ai.models.AIToolType;
+import ca.weblite.jdeploy.installer.ai.services.AiIntegrationStateService;
+import ca.weblite.jdeploy.installer.ai.tray.AiIntegrationsTraySubmenu;
 import ca.weblite.jdeploy.installer.models.InstallationSettings;
 import ca.weblite.jdeploy.installer.models.ServiceRowModel;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptor;
@@ -7,6 +10,8 @@ import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
 import ca.weblite.jdeploy.installer.services.ServiceStatusMonitor;
 import ca.weblite.jdeploy.installer.services.ServiceStatusPoller;
+import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
+import ca.weblite.tools.io.MD5;
 
 import javax.swing.ImageIcon;
 import java.awt.*;
@@ -14,6 +19,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -197,6 +203,140 @@ public class ServiceTrayController {
         String appName = getApplicationName();
 
         trayMenu = new ServiceTrayMenu(appName, appIcon, serviceModels, settings.getHelperActions(), listener);
+
+        // Add AI integrations submenu if available
+        AiIntegrationsTraySubmenu aiSubmenu = createAiIntegrationsSubmenu();
+        if (aiSubmenu != null) {
+            trayMenu.setAiIntegrationsSubmenu(aiSubmenu);
+        }
+    }
+
+    /**
+     * Creates the AI integrations submenu if AI integrations are installed.
+     *
+     * @return The AI integrations submenu, or null if not applicable
+     */
+    private AiIntegrationsTraySubmenu createAiIntegrationsSubmenu() {
+        String packageName = getPackageNameForLock();
+        String source = getSourceForLock();
+
+        if (packageName == null || packageName.isEmpty()) {
+            return null;
+        }
+
+        // Compute fully qualified package name
+        String fqpn = computeFullyQualifiedPackageName(packageName, source);
+        String architecture = ArchitectureUtil.getArchitecture();
+
+        // Get install directory
+        File installDir = getInstallDir();
+        if (installDir == null) {
+            return null;
+        }
+
+        // Check if AI integrations state exists
+        AiIntegrationStateService stateService = new AiIntegrationStateService(fqpn, architecture);
+        AiIntegrationStateService.AiIntegrationState state = stateService.loadState();
+
+        // Only show submenu if there are installed tools
+        if (state.getInstalledTools().isEmpty()) {
+            return null;
+        }
+
+        // Create the toggle handler
+        AiIntegrationsTraySubmenu.AiIntegrationToggleHandler toggleHandler =
+            createAiToggleHandler(fqpn, installDir);
+
+        return new AiIntegrationsTraySubmenu(fqpn, architecture, installDir, toggleHandler);
+    }
+
+    /**
+     * Creates the AI integration toggle handler.
+     */
+    private AiIntegrationsTraySubmenu.AiIntegrationToggleHandler createAiToggleHandler(
+            final String fqpn, final File installDir) {
+        return new AiIntegrationsTraySubmenu.AiIntegrationToggleHandler() {
+            @Override
+            public void enableMcp(Set<AIToolType> tools) throws Exception {
+                // TODO: Implement MCP enabling using config writers
+                logger.info("Enable MCP for tools: " + tools);
+            }
+
+            @Override
+            public void disableMcp(Set<AIToolType> tools) throws Exception {
+                // TODO: Implement MCP disabling using config writers
+                logger.info("Disable MCP for tools: " + tools);
+            }
+
+            @Override
+            public void enableSkills() throws Exception {
+                // TODO: Implement skills enabling
+                logger.info("Enable skills");
+            }
+
+            @Override
+            public void disableSkills() throws Exception {
+                // TODO: Implement skills disabling
+                logger.info("Disable skills");
+            }
+
+            @Override
+            public void enableAgents() throws Exception {
+                // TODO: Implement agents enabling
+                logger.info("Enable agents");
+            }
+
+            @Override
+            public void disableAgents() throws Exception {
+                // TODO: Implement agents disabling
+                logger.info("Disable agents");
+            }
+        };
+    }
+
+    /**
+     * Computes the fully qualified package name.
+     */
+    private String computeFullyQualifiedPackageName(String packageName, String source) {
+        String sanitized = sanitizeName(packageName);
+        if (source != null && !source.isEmpty()) {
+            String sourceHash = MD5.getMd5(source);
+            return sourceHash + "." + sanitized;
+        }
+        return sanitized;
+    }
+
+    /**
+     * Sanitizes a name to make it filesystem-safe.
+     */
+    private String sanitizeName(String name) {
+        return name.toLowerCase()
+                .replace(" ", "-")
+                .replace("@", "")
+                .replace("/", "-")
+                .replace("\\", "-")
+                .replace(":", "-")
+                .replace("*", "-")
+                .replace("?", "-")
+                .replace("\"", "-")
+                .replace("<", "-")
+                .replace(">", "-")
+                .replace("|", "-");
+    }
+
+    /**
+     * Gets the install directory for the application.
+     */
+    private File getInstallDir() {
+        String packageName = getPackageNameForLock();
+        if (packageName != null) {
+            String source = getSourceForLock();
+            String fqpn = computeFullyQualifiedPackageName(packageName, source);
+            String architecture = ArchitectureUtil.getArchitecture();
+            String userHome = System.getProperty("user.home");
+            return new File(userHome, ".jdeploy/apps/" + architecture + "/" + fqpn);
+        }
+        return null;
     }
 
     /**

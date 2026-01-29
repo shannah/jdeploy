@@ -47,7 +47,13 @@ public class UninstallManifestXmlParser {
         if (pathElem != null) {
             pathMods = parsePathModifications(pathElem);
         }
-        
+
+        UninstallManifest.AiIntegrations aiIntegrations = null;
+        Element aiElem = getElementByTagName(root, "aiIntegrations");
+        if (aiElem != null) {
+            aiIntegrations = parseAiIntegrations(aiElem);
+        }
+
         return UninstallManifest.builder()
             .version(version)
             .packageInfo(packageInfo)
@@ -55,6 +61,7 @@ public class UninstallManifestXmlParser {
             .directories(directories)
             .registry(registry)
             .pathModifications(pathMods)
+            .aiIntegrations(aiIntegrations)
             .build();
     }
 
@@ -230,6 +237,64 @@ public class UninstallManifestXmlParser {
             .windowsPaths(windowsPaths)
             .shellProfiles(shellProfiles)
             .gitBashProfiles(gitBashProfiles)
+            .build();
+    }
+
+    private UninstallManifest.AiIntegrations parseAiIntegrations(Element elem) {
+        List<UninstallManifest.McpServerEntry> mcpServers = new ArrayList<>();
+        Element mcpServersElem = getElementByTagName(elem, "mcpServers");
+        if (mcpServersElem != null) {
+            NodeList entryElems = mcpServersElem.getElementsByTagNameNS(NAMESPACE, "mcpServer");
+            for (int i = 0; i < entryElems.getLength(); i++) {
+                Element entryElem = (Element) entryElems.item(i);
+                String configFile = getTextContent(entryElem, "configFile");
+                String entryKey = getTextContent(entryElem, "entryKey");
+                String toolName = getTextContent(entryElem, "toolName");
+
+                mcpServers.add(UninstallManifest.McpServerEntry.builder()
+                    .configFile(configFile)
+                    .entryKey(entryKey)
+                    .toolName(toolName)
+                    .build());
+            }
+        }
+
+        List<UninstallManifest.SkillEntry> skills = new ArrayList<>();
+        Element skillsElem = getElementByTagName(elem, "skills");
+        if (skillsElem != null) {
+            NodeList entryElems = skillsElem.getElementsByTagNameNS(NAMESPACE, "skill");
+            for (int i = 0; i < entryElems.getLength(); i++) {
+                Element entryElem = (Element) entryElems.item(i);
+                String path = getTextContent(entryElem, "path");
+                String name = getTextContent(entryElem, "name");
+
+                skills.add(UninstallManifest.SkillEntry.builder()
+                    .path(path)
+                    .name(name)
+                    .build());
+            }
+        }
+
+        List<UninstallManifest.AgentEntry> agents = new ArrayList<>();
+        Element agentsElem = getElementByTagName(elem, "agents");
+        if (agentsElem != null) {
+            NodeList entryElems = agentsElem.getElementsByTagNameNS(NAMESPACE, "agent");
+            for (int i = 0; i < entryElems.getLength(); i++) {
+                Element entryElem = (Element) entryElems.item(i);
+                String path = getTextContent(entryElem, "path");
+                String name = getTextContent(entryElem, "name");
+
+                agents.add(UninstallManifest.AgentEntry.builder()
+                    .path(path)
+                    .name(name)
+                    .build());
+            }
+        }
+
+        return UninstallManifest.AiIntegrations.builder()
+            .mcpServers(mcpServers)
+            .skills(skills)
+            .agents(agents)
             .build();
     }
 

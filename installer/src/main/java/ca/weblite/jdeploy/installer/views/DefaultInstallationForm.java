@@ -1,7 +1,11 @@
 package ca.weblite.jdeploy.installer.views;
 
+import ca.weblite.jdeploy.ai.models.AIToolType;
+import ca.weblite.jdeploy.ai.models.AiIntegrationConfig;
+import ca.weblite.jdeploy.ai.services.AiToolDetector;
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.installer.Main;
+import ca.weblite.jdeploy.installer.ai.views.AiToolSelectionDialog;
 import ca.weblite.jdeploy.installer.events.InstallationFormEvent;
 import ca.weblite.jdeploy.installer.events.InstallationFormEventDispatcher;
 import ca.weblite.jdeploy.installer.events.InstallationFormEventListener;
@@ -20,6 +24,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.TimerTask;
 
 public class DefaultInstallationForm extends JFrame implements InstallationForm {
@@ -32,6 +37,9 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
     private JProgressBar progressBar;
     private boolean appAlreadyInstalled = false;
     private boolean hasServices = false;
+    private AiToolDetector aiToolDetector;
+    private JCheckBox aiIntegrationsCheckBox;
+    private boolean aiDialogShown = false;
 
 
     private void fireEvent(InstallationFormEvent event) {
@@ -49,6 +57,8 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
 
         // Build message with command-line info for Linux
         Object message = "Installation was completed successfully";
+        boolean hasAiConflicts = installationSettings.hasAiIntegrationConflicts();
+
         if (Platform.getSystemPlatform().isLinux() && installationSettings.isCommandLineSymlinkCreated()) {
             String commandPath = installationSettings.getCommandLinePath();
             if (commandPath != null) {
@@ -108,8 +118,29 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
                     panel.add(noteLabel);
                 }
 
+                // Add AI integration conflict warning if applicable
+                if (hasAiConflicts) {
+                    panel.add(Box.createVerticalStrut(15));
+                    addAiConflictWarning(panel);
+                }
+
                 message = panel;
             }
+        } else if (hasAiConflicts) {
+            // For non-Linux or when there's no CLI info, but we have AI conflicts
+            JPanel panel = new JPanel();
+            panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+            panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+            JLabel successLabel = new JLabel("Installation was completed successfully");
+            successLabel.setFont(successLabel.getFont().deriveFont(Font.BOLD, 14f));
+            successLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            panel.add(successLabel);
+
+            panel.add(Box.createVerticalStrut(15));
+            addAiConflictWarning(panel);
+
+            message = panel;
         }
 
         int choice = JOptionPane.showOptionDialog(this,
@@ -128,6 +159,24 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
                 fireEvent(new InstallationFormEvent(InstallationFormEvent.Type.InstallCompleteCloseInstaller));
                 break;
         }
+    }
+
+    /**
+     * Adds a warning panel about AI integration conflicts.
+     */
+    private void addAiConflictWarning(JPanel panel) {
+        JLabel warningLabel = new JLabel("<html><b>Note:</b> Some MCP servers could not be installed due to naming conflicts with existing configurations.</html>");
+        warningLabel.setFont(warningLabel.getFont().deriveFont(Font.PLAIN, 11f));
+        warningLabel.setForeground(new Color(180, 100, 0)); // Orange/amber warning color
+        warningLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(warningLabel);
+
+        JLabel detailsLabel = new JLabel("<html><i>See installer log for details.</i></html>");
+        detailsLabel.setFont(detailsLabel.getFont().deriveFont(Font.PLAIN, 10f));
+        detailsLabel.setForeground(Color.GRAY);
+        detailsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(Box.createVerticalStrut(3));
+        panel.add(detailsLabel);
     }
 
     public DefaultInstallationForm(InstallationSettings installationSettings) {
@@ -150,6 +199,14 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
 
         installButton = new JButton("Install");
         installButton.addActionListener(evt->{
+            // If AI integrations are enabled but user hasn't seen the selection dialog, show it now
+            if (aiIntegrationsCheckBox.isSelected() && !aiDialogShown) {
+                showAiToolSelectionDialog();
+                // If user cancelled the dialog, don't proceed with install
+                if (!installationSettings.isInstallAiIntegrations()) {
+                    return;
+                }
+            }
             fireEvent(new InstallationFormEvent(InstallationFormEvent.Type.InstallClicked));
         });
 
@@ -239,6 +296,28 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
             checkboxesPanel.add(addToDockCheckBox);
         }
         checkboxesPanel.add(desktopCheckbox);
+
+        // AI Integrations checkbox
+        aiToolDetector = new AiToolDetector();
+        aiIntegrationsCheckBox = new JCheckBox("Install AI Integrations");
+        aiIntegrationsCheckBox.setToolTipText("Configure MCP server, skills, and agents with AI tools like Claude, Codex, Cursor, etc.");
+        aiIntegrationsCheckBox.setSelected(false);
+        aiIntegrationsCheckBox.setVisible(false); // Hidden by default, shown if AI integrations exist AND tools detected
+
+        aiIntegrationsCheckBox.addActionListener(evt -> {
+            if (aiIntegrationsCheckBox.isSelected()) {
+                // Show tool selection dialog
+                showAiToolSelectionDialog();
+            } else {
+                installationSettings.setInstallAiIntegrations(false);
+            }
+        });
+
+        // Check if AI integrations should be shown
+        checkForAiIntegrations();
+        if (aiIntegrationsCheckBox.isVisible()) {
+            checkboxesPanel.add(aiIntegrationsCheckBox);
+        }
 
         JPanel southPanel = new JPanel();
         southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
@@ -421,6 +500,55 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         } catch (Exception e) {
             // Log but don't fail - just hide the button
             System.err.println("Warning: Could not check for services: " + e.getMessage());
+        }
+    }
+
+    private void checkForAiIntegrations() {
+        // Check if the bundle has AI integrations configured
+        if (!installationSettings.hasAiIntegrations()) {
+            aiIntegrationsCheckBox.setVisible(false);
+            return;
+        }
+
+        // Check if any AI tools are installed on the system
+        List<AIToolType> installedTools = aiToolDetector.getInstalledTools();
+        if (installedTools.isEmpty()) {
+            aiIntegrationsCheckBox.setVisible(false);
+            return;
+        }
+
+        // Show the checkbox - bundle has AI integrations AND user has AI tools installed
+        aiIntegrationsCheckBox.setVisible(true);
+
+        // Auto-select if there are auto-configurable tools
+        Set<AIToolType> autoConfigurableTools = aiToolDetector.getAutoConfigurableTools();
+        if (!autoConfigurableTools.isEmpty()) {
+            // Pre-check the checkbox but don't auto-open the dialog
+            // User can uncheck if they don't want AI integrations
+            aiIntegrationsCheckBox.setSelected(true);
+            installationSettings.setInstallAiIntegrations(true);
+            // Pre-select auto-configurable tools
+            installationSettings.setSelectedAiTools(new java.util.HashSet<>(autoConfigurableTools));
+        }
+    }
+
+    private void showAiToolSelectionDialog() {
+        AiIntegrationConfig config = installationSettings.getAiIntegrationConfig();
+        if (config != null) {
+            aiDialogShown = true;
+            Set<AIToolType> selectedTools = AiToolSelectionDialog.showDialog(
+                    DefaultInstallationForm.this,
+                    config,
+                    aiToolDetector
+            );
+            if (selectedTools != null && !selectedTools.isEmpty()) {
+                installationSettings.setSelectedAiTools(selectedTools);
+                installationSettings.setInstallAiIntegrations(true);
+            } else {
+                // User cancelled or selected no tools
+                aiIntegrationsCheckBox.setSelected(false);
+                installationSettings.setInstallAiIntegrations(false);
+            }
         }
     }
 

@@ -64,6 +64,7 @@
             <xs:element name="directories" type="tns:DirectoriesType" minOccurs="0" maxOccurs="1"/>
             <xs:element name="registry" type="tns:RegistryType" minOccurs="0" maxOccurs="1"/>
             <xs:element name="pathModifications" type="tns:PathModificationsType" minOccurs="0" maxOccurs="1"/>
+            <xs:element name="aiIntegrations" type="tns:AiIntegrationsType" minOccurs="0" maxOccurs="1"/>
         </xs:sequence>
         <xs:attribute name="version" type="xs:string" use="required">
             <xs:annotation>
@@ -586,5 +587,127 @@
             <xs:minLength value="1"/>
         </xs:restriction>
     </xs:simpleType>
+
+    <!-- AI Integrations Section -->
+    <xs:complexType name="AiIntegrationsType">
+        <xs:annotation>
+            <xs:documentation>AI integrations (MCP servers, skills, agents) installed to AI tools.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="mcpServers" type="tns:McpServersType" minOccurs="0" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>MCP server entries added to AI tool configuration files</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="skills" type="tns:SkillsType" minOccurs="0" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>Skills installed to AI tools that support them</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="agents" type="tns:AgentsType" minOccurs="0" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>Agents installed to AI tools that support them</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="McpServersType">
+        <xs:annotation>
+            <xs:documentation>Collection of MCP server entries added to AI tool configurations.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="mcpServer" type="tns:McpServerEntryType" minOccurs="0" maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>An MCP server entry to be removed</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="McpServerEntryType">
+        <xs:annotation>
+            <xs:documentation>An MCP server entry added to an AI tool's configuration file.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="configFile" type="tns:PathType" minOccurs="1" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>Path to the AI tool's config file that was modified</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="entryKey" type="xs:string" minOccurs="1" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>The key/name of the MCP server entry in the config file</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="toolName" type="xs:string" minOccurs="1" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>Name of the AI tool (e.g., "CLAUDE_DESKTOP", "CLAUDE_CODE")</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="SkillsType">
+        <xs:annotation>
+            <xs:documentation>Collection of skills installed to AI tools.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="skill" type="tns:SkillEntryType" minOccurs="0" maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>A skill directory to be removed</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="SkillEntryType">
+        <xs:annotation>
+            <xs:documentation>A skill installed to an AI tool's skills directory.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="path" type="tns:PathType" minOccurs="1" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>Path to the installed skill directory</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="name" type="xs:string" minOccurs="1" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>The skill name</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="AgentsType">
+        <xs:annotation>
+            <xs:documentation>Collection of agents installed to AI tools.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="agent" type="tns:AgentEntryType" minOccurs="0" maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>An agent directory to be removed</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="AgentEntryType">
+        <xs:annotation>
+            <xs:documentation>An agent installed to an AI tool's agents directory.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="path" type="tns:PathType" minOccurs="1" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>Path to the installed agent directory</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="name" type="xs:string" minOccurs="1" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>The agent name</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
 
 </xs:schema>

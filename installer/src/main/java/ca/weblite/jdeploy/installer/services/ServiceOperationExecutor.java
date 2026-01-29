@@ -103,13 +103,22 @@ public class ServiceOperationExecutor {
 
             Process process = pb.start();
 
-            // Consume output stream in background thread to prevent blocking when buffer fills up
+            // Capture output for error reporting
+            final StringBuilder outputBuilder = new StringBuilder();
             Thread outputConsumer = new Thread(() -> {
                 try {
                     java.io.InputStream inputStream = process.getInputStream();
-                    byte[] buffer = new byte[1024];
-                    while (inputStream.read(buffer) != -1) {
-                        // Discard output
+                    java.io.BufferedReader reader = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(inputStream)
+                    );
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        synchronized (outputBuilder) {
+                            if (outputBuilder.length() > 0) {
+                                outputBuilder.append("\n");
+                            }
+                            outputBuilder.append(line);
+                        }
                     }
                 } catch (Exception e) {
                     // Ignore - process may have been destroyed
@@ -125,10 +134,25 @@ public class ServiceOperationExecutor {
                 return ServiceOperationResult.failure("Application update timed out after " + OPERATION_TIMEOUT_SECONDS + " seconds");
             }
 
+            // Wait briefly for output consumer to finish
+            outputConsumer.join(1000);
+
             int exitCode = process.exitValue();
+            String output;
+            synchronized (outputBuilder) {
+                output = outputBuilder.toString();
+            }
+
             if (exitCode == 0) {
                 return ServiceOperationResult.success("Application update completed");
             } else {
+                // Log full details to log file for debugging
+                System.err.println("Application update failed with exit code " + exitCode);
+                if (!output.isEmpty()) {
+                    System.err.println("Process output:");
+                    System.err.println(output);
+                }
+                // Return simple message for UI - details are in the log
                 return ServiceOperationResult.failure("Application update failed", exitCode);
             }
         } catch (Exception e) {
