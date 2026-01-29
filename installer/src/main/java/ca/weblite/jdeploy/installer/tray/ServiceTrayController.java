@@ -11,6 +11,7 @@ import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
 import ca.weblite.jdeploy.installer.services.ServiceStatusMonitor;
 import ca.weblite.jdeploy.installer.services.ServiceStatusPoller;
 import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
+import ca.weblite.jdeploy.installer.util.PackagePathResolver;
 import ca.weblite.tools.io.MD5;
 
 import javax.swing.ImageIcon;
@@ -325,18 +326,11 @@ public class ServiceTrayController {
     }
 
     /**
-     * Gets the install directory for the application.
+     * Gets the jdeploy home directory, used as the base for AI integration assets
+     * (skills, agents) which live under ~/.jdeploy/ai/.
      */
     private File getInstallDir() {
-        String packageName = getPackageNameForLock();
-        if (packageName != null) {
-            String source = getSourceForLock();
-            String fqpn = computeFullyQualifiedPackageName(packageName, source);
-            String architecture = ArchitectureUtil.getArchitecture();
-            String userHome = System.getProperty("user.home");
-            return new File(userHome, ".jdeploy/apps/" + architecture + "/" + fqpn);
-        }
-        return null;
+        return PackagePathResolver.getJDeployHome();
     }
 
     /**

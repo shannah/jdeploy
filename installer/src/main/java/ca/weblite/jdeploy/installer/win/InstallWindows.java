@@ -15,6 +15,7 @@ import ca.weblite.jdeploy.installer.uninstall.UninstallManifestWriter;
 import ca.weblite.jdeploy.installer.uninstall.model.UninstallManifest;
 import ca.weblite.jdeploy.installer.util.ArchitectureUtil;
 import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
+import ca.weblite.jdeploy.installer.util.WindowsAppDirResolver;
 import ca.weblite.tools.io.FileUtil;
 import com.izforge.izpack.util.os.ShellLink;
 import com.joshondesign.appbundler.win.WindowsPESubsystemModifier;
@@ -85,10 +86,24 @@ public class InstallWindows {
         AppInfo appInfo = installationSettings.getAppInfo();
         File tmpExePath = findTmpExeFile(tmpBundles);
         File appXmlFile = context.findAppXml();
-        File userHome = new File(System.getProperty("user.home"));
-        File jdeployHome = new File(userHome, ".jdeploy");
-        File appsDir = new File(jdeployHome, "apps");
-        File appDir = new File(appsDir, fullyQualifiedPackageName);
+        File appDir = WindowsAppDirResolver.resolveAppDir(
+                installationSettings.getWinAppDir(), fullyQualifiedPackageName);
+
+        // Clean up old app directory if the install location has changed
+        File legacyAppDir = WindowsAppDirResolver.getLegacyAppDir(fullyQualifiedPackageName);
+        if (!legacyAppDir.equals(appDir) && legacyAppDir.exists()) {
+            try {
+                FileUtils.deleteDirectory(legacyAppDir);
+                if (logger != null) {
+                    logger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
+                            legacyAppDir.getAbsolutePath(), "Old app directory at legacy location");
+                }
+            } catch (IOException e) {
+                if (logger != null) {
+                    logger.logError("Failed to delete old app directory at " + legacyAppDir.getAbsolutePath(), e);
+                }
+            }
+        }
 
         if (logger != null) {
             logger.logInfo("Starting installation of " + appInfo.getTitle() + " version " + appInfo.getNpmVersion());
@@ -299,6 +314,21 @@ public class InstallWindows {
                 logger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED, jdeployFilesDestDir.getAbsolutePath(), "jDeploy files for uninstaller");
             }
 
+            // Persist winAppDir config so the uninstaller knows the app directory
+            try {
+                File winAppDirConfig = new File(uninstallerPath.getParentFile(), "winAppDir.txt");
+                String configuredDir = installationSettings.getWinAppDir();
+                FileUtils.writeStringToFile(winAppDirConfig, configuredDir != null ? configuredDir : "", "UTF-8");
+                if (logger != null) {
+                    logger.logFileOperation(InstallationLogger.FileOperation.CREATED,
+                            winAppDirConfig.getAbsolutePath(), "Windows app directory config for uninstaller");
+                }
+            } catch (IOException e) {
+                if (logger != null) {
+                    logger.logError("Failed to persist winAppDir config", e);
+                }
+            }
+
             // Build and write uninstall manifest
             try {
                 UninstallManifestBuilder manifestBuilder = new UninstallManifestBuilder();
@@ -311,6 +341,7 @@ public class InstallWindows {
                     appInfo.getNpmVersion(),
                     arch
                 );
+                manifestBuilder.withWinAppDir(installationSettings.getWinAppDir());
                 manifestBuilder.withInstallerVersion(appInfo.getLauncherVersion() != null ? appInfo.getLauncherVersion() : "1.0");
                 
                 // Add executable

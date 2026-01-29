@@ -39,6 +39,8 @@ public class InstallationSettings {
     private String source;
     private List<HelperAction> helperActions = new ArrayList<>();
 
+    private String winAppDir;
+
     private AutoUpdateSettings autoUpdate = AutoUpdateSettings.Stable;
 
     // AI Integration fields
@@ -229,6 +231,14 @@ public class InstallationSettings {
 
     public void setSource(String source) {
         this.source = source;
+    }
+
+    public String getWinAppDir() {
+        return winAppDir;
+    }
+
+    public void setWinAppDir(String winAppDir) {
+        this.winAppDir = winAppDir;
     }
 
     /**

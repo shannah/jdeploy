@@ -3,6 +3,7 @@ package ca.weblite.jdeploy.installer.win;
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
 import ca.weblite.jdeploy.installer.logging.InstallationLogger;
 import ca.weblite.jdeploy.installer.util.PackagePathResolver;
+import ca.weblite.jdeploy.installer.util.WindowsAppDirResolver;
 import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
@@ -26,6 +27,7 @@ public class UninstallWindows {
     private String source;
 
     private String appFileName;
+    private String winAppDir;
     private InstallationLogger installationLogger;
 
     public UninstallWindows(
@@ -98,7 +100,22 @@ public class UninstallWindows {
     }
 
     private File getAppDirPath() {
-        return new File(getJDeployHome(), "apps" + File.separator + new File(fullyQualifiedPackageName).getName());
+        // Check configured path first
+        File configuredDir = WindowsAppDirResolver.resolveAppDir(winAppDir, new File(fullyQualifiedPackageName).getName());
+        if (configuredDir.exists()) {
+            return configuredDir;
+        }
+        // Fall back to legacy path
+        File legacyDir = WindowsAppDirResolver.getLegacyAppDir(new File(fullyQualifiedPackageName).getName());
+        if (legacyDir.exists()) {
+            return legacyDir;
+        }
+        // If neither exists, return configured path (for consistency)
+        return configuredDir;
+    }
+
+    public void setWinAppDir(String winAppDir) {
+        this.winAppDir = winAppDir;
     }
 
     private File getUninstallerPath() {
@@ -214,12 +231,27 @@ public class UninstallWindows {
         if (installationLogger != null) {
             installationLogger.logSection("Deleting Application Directory");
         }
-        if (getAppDirPath().exists()) {
-            System.out.println("Deleting app dir: "+getAppDirPath().getAbsolutePath());
-            FileUtils.deleteDirectory(getAppDirPath());
+        String fqpnName = new File(fullyQualifiedPackageName).getName();
+
+        // Delete configured app directory
+        File configuredDir = WindowsAppDirResolver.resolveAppDir(winAppDir, fqpnName);
+        if (configuredDir.exists()) {
+            System.out.println("Deleting app dir: " + configuredDir.getAbsolutePath());
+            FileUtils.deleteDirectory(configuredDir);
             if (installationLogger != null) {
                 installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
-                    getAppDirPath().getAbsolutePath(), "Application directory");
+                    configuredDir.getAbsolutePath(), "Application directory");
+            }
+        }
+
+        // Also delete legacy app directory if it's at a different location
+        File legacyDir = WindowsAppDirResolver.getLegacyAppDir(fqpnName);
+        if (!legacyDir.equals(configuredDir) && legacyDir.exists()) {
+            System.out.println("Deleting legacy app dir: " + legacyDir.getAbsolutePath());
+            FileUtils.deleteDirectory(legacyDir);
+            if (installationLogger != null) {
+                installationLogger.logDirectoryOperation(InstallationLogger.DirectoryOperation.DELETED,
+                    legacyDir.getAbsolutePath(), "Legacy application directory");
             }
         }
     }

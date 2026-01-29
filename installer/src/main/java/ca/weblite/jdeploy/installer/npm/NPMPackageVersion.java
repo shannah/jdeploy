@@ -56,6 +56,19 @@ public class NPMPackageVersion {
         return DEFAULT_JAVA_VERSION;
     }
 
+    /**
+     * Gets the Windows app directory path (relative to user home) from package.json.
+     * This controls where apps are installed on Windows.
+     *
+     * @return The winAppDir value, or null if not specified (uses default .jdeploy/apps)
+     */
+    public String getWinAppDir() {
+        if (jdeploy().has("winAppDir")) {
+            return jdeploy().getString("winAppDir");
+        }
+        return null;
+    }
+
     private JSONObject jdeploy() {
         return packageJson.getJSONObject("jdeploy");
     }

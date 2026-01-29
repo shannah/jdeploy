@@ -122,8 +122,24 @@ public class UninstallManifestBuilder {
     }
     
     /**
+     * Override the APP_DIR substitution to use a custom Windows app directory.
+     * Must be called after {@link #withPackageInfo} since it depends on the fully qualified name.
+     *
+     * @param winAppDir The winAppDir value (relative to user home), or null to keep default
+     * @return this builder instance
+     */
+    public UninstallManifestBuilder withWinAppDir(String winAppDir) {
+        if (winAppDir != null && !winAppDir.isEmpty() && fullyQualifiedName != null) {
+            String userHome = variableSubstitutions.get("USER_HOME");
+            String appDir = userHome + File.separator + winAppDir + File.separator + fullyQualifiedName;
+            variableSubstitutions.put("APP_DIR", appDir);
+        }
+        return this;
+    }
+
+    /**
      * Set the installer version.
-     * 
+     *
      * @param version Installer version string
      * @return this builder instance
      */
