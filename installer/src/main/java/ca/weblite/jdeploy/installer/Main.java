@@ -1290,6 +1290,17 @@ public class Main implements Runnable, Constants {
             appInfo().getNpmSource()
         );
 
+        // In headless mode, run the update directly without GUI progress dialog
+        if (headlessInstall) {
+            ServiceOperationResult result = executor.runApplicationUpdate(version);
+            if (result.isFailure()) {
+                throw new RuntimeException(result.getMessage() != null
+                    ? result.getMessage()
+                    : "Application update failed");
+            }
+            return;
+        }
+
         // Get parent window for dialog
         // DefaultInstallationForm extends JFrame, so it is itself a Window
         Window parentWindow = (installationForm instanceof Window) ? (Window) installationForm : null;
