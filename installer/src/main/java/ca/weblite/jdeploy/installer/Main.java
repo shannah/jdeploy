@@ -1851,6 +1851,8 @@ public class Main implements Runnable, Constants {
                 AiIntegrationInstallResult aiResult = installAiIntegrations(fullyQualifiedPackageName, installedApp);
                 if (aiResult != null) {
                     installationSettings.setAiIntegrationResult(aiResult);
+                    // Update manifest with AI integration entries
+                    updateManifestWithAiIntegrations(aiResult);
                 }
             } catch (Exception e) {
                 System.err.println("Warning: Failed to install AI integrations: " + e.getMessage());
@@ -1981,6 +1983,20 @@ public class Main implements Runnable, Constants {
                 }
             }
 
+            // Copy existing AI integrations (in case they were installed before Helper)
+            UninstallManifest.AiIntegrations existingAi = manifest.getAiIntegrations();
+            if (existingAi != null) {
+                for (UninstallManifest.McpServerEntry entry : existingAi.getMcpServers()) {
+                    builder.addMcpServerEntry(entry.getConfigFile(), entry.getEntryKey(), entry.getToolName());
+                }
+                for (UninstallManifest.SkillEntry entry : existingAi.getSkills()) {
+                    builder.addSkillEntry(entry.getPath(), entry.getName());
+                }
+                for (UninstallManifest.AgentEntry entry : existingAi.getAgents()) {
+                    builder.addAgentEntry(entry.getPath(), entry.getName());
+                }
+            }
+
             // Add Helper entries
             HelperManifestHelper.addHelperToManifest(builder, helperResult);
 
@@ -1992,6 +2008,118 @@ public class Main implements Runnable, Constants {
         } catch (Exception e) {
             System.err.println("Warning: Failed to update manifest with Helper entries: " + e.getMessage());
             // Continue - Helper installation was successful, manifest update is best-effort
+        }
+    }
+
+    /**
+     * Updates the uninstall manifest with AI integration entries.
+     *
+     * This loads the existing manifest, adds the AI integration entries, and saves it back.
+     * If the manifest doesn't exist or cannot be updated, a warning is logged but
+     * installation continues.
+     *
+     * @param aiResult The AI integration installation result
+     */
+    private void updateManifestWithAiIntegrations(AiIntegrationInstallResult aiResult) {
+        if (aiResult == null || aiResult.getManifestEntries().isEmpty()) {
+            return;
+        }
+
+        try {
+            FileUninstallManifestRepository repository = new FileUninstallManifestRepository();
+            String packageName = appInfo().getNpmPackage();
+            String packageSource = appInfo().getNpmSource();
+
+            Optional<UninstallManifest> existingManifest = repository.load(packageName, packageSource);
+            if (!existingManifest.isPresent()) {
+                System.err.println("Warning: Could not load existing manifest to add AI integration entries");
+                return;
+            }
+
+            UninstallManifest manifest = existingManifest.get();
+            UninstallManifestBuilder builder = new UninstallManifestBuilder();
+
+            // Copy package info from existing manifest
+            UninstallManifest.PackageInfo pkgInfo = manifest.getPackageInfo();
+            builder.withPackageInfo(pkgInfo.getName(), pkgInfo.getSource(), pkgInfo.getVersion(), pkgInfo.getArchitecture());
+            if (pkgInfo.getInstallerVersion() != null) {
+                builder.withInstallerVersion(pkgInfo.getInstallerVersion());
+            }
+
+            // Copy existing files
+            for (UninstallManifest.InstalledFile file : manifest.getFiles()) {
+                builder.addFile(file.getPath(), file.getType(), file.getDescription());
+            }
+
+            // Copy existing directories
+            for (UninstallManifest.InstalledDirectory dir : manifest.getDirectories()) {
+                builder.addDirectory(dir.getPath(), dir.getCleanup(), dir.getDescription());
+            }
+
+            // Copy existing registry entries (Windows)
+            UninstallManifest.RegistryInfo registry = manifest.getRegistry();
+            if (registry != null) {
+                for (UninstallManifest.RegistryKey key : registry.getCreatedKeys()) {
+                    builder.addCreatedRegistryKey(key.getRoot(), key.getPath(), key.getDescription());
+                }
+                for (UninstallManifest.ModifiedRegistryValue value : registry.getModifiedValues()) {
+                    builder.addModifiedRegistryValue(
+                            value.getRoot(), value.getPath(), value.getName(),
+                            value.getPreviousValue(), value.getPreviousType(), value.getDescription());
+                }
+            }
+
+            // Copy existing PATH modifications
+            UninstallManifest.PathModifications pathMods = manifest.getPathModifications();
+            if (pathMods != null) {
+                for (UninstallManifest.WindowsPathEntry entry : pathMods.getWindowsPaths()) {
+                    builder.addWindowsPathEntry(entry.getAddedEntry(), entry.getDescription());
+                }
+                for (UninstallManifest.ShellProfileEntry entry : pathMods.getShellProfiles()) {
+                    builder.addShellProfileEntry(entry.getFile(), entry.getExportLine(), entry.getDescription());
+                }
+                for (UninstallManifest.GitBashProfileEntry entry : pathMods.getGitBashProfiles()) {
+                    builder.addGitBashProfileEntry(entry.getFile(), entry.getExportLine(), entry.getDescription());
+                }
+            }
+
+            // Copy existing AI integrations (in case of updates)
+            UninstallManifest.AiIntegrations existingAi = manifest.getAiIntegrations();
+            if (existingAi != null) {
+                for (UninstallManifest.McpServerEntry entry : existingAi.getMcpServers()) {
+                    builder.addMcpServerEntry(entry.getConfigFile(), entry.getEntryKey(), entry.getToolName());
+                }
+                for (UninstallManifest.SkillEntry entry : existingAi.getSkills()) {
+                    builder.addSkillEntry(entry.getPath(), entry.getName());
+                }
+                for (UninstallManifest.AgentEntry entry : existingAi.getAgents()) {
+                    builder.addAgentEntry(entry.getPath(), entry.getName());
+                }
+            }
+
+            // Add new AI integration entries
+            for (AiIntegrationManifestEntry entry : aiResult.getManifestEntries()) {
+                if (entry.isMcpServer()) {
+                    builder.addMcpServerEntry(
+                            entry.getConfigFilePath(),
+                            entry.getEntryKey(),
+                            entry.getToolType().name()
+                    );
+                } else if (entry.isSkill()) {
+                    builder.addSkillEntry(entry.getPath(), entry.getName());
+                } else if (entry.isAgent()) {
+                    builder.addAgentEntry(entry.getPath(), entry.getName());
+                }
+            }
+
+            // Save updated manifest
+            UninstallManifest updatedManifest = builder.build();
+            repository.save(updatedManifest);
+
+            System.out.println("Updated uninstall manifest with AI integration entries");
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to update manifest with AI integration entries: " + e.getMessage());
+            // Continue - AI integration installation was successful, manifest update is best-effort
         }
     }
 
