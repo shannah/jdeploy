@@ -403,8 +403,6 @@ public class MacBundler {
         xml.append("        <string>").append(escapeXml(
                 CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX + cmd.getName()
         )).append("</string>\n");
-        xml.append("        <string>--jdeploy:service</string>\n");
-        xml.append("        <string>start</string>\n");
         for (String arg : cmd.getArgs()) {
             xml.append("        <string>").append(escapeXml(arg)).append("</string>\n");
         }

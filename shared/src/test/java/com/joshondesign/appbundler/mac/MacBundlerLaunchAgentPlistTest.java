@@ -144,10 +144,10 @@ public class MacBundlerLaunchAgentPlistTest {
                 "ProgramArguments should include CLI launcher path");
         assertTrue(content.contains("<string>--jdeploy:command=sync</string>"),
                 "ProgramArguments should include --jdeploy:command=<name>");
-        assertTrue(content.contains("<string>--jdeploy:service</string>"),
-                "ProgramArguments should include --jdeploy:service");
-        assertTrue(content.contains("<string>start</string>"),
-                "ProgramArguments should include start");
+        assertFalse(content.contains("<string>--jdeploy:service</string>"),
+                "ProgramArguments should NOT include --jdeploy:service (launchd runs the process directly)");
+        assertFalse(content.contains("<string>start</string>"),
+                "ProgramArguments should NOT include start (launchd runs the process directly)");
 
         // RunAtLoad and KeepAlive
         assertTrue(content.contains("<key>RunAtLoad</key>"), "Should contain RunAtLoad");
@@ -174,11 +174,11 @@ public class MacBundlerLaunchAgentPlistTest {
         assertTrue(content.contains("<string>-Xmx2g</string>"), "Should include first extra arg");
         assertTrue(content.contains("<string>-Dfoo=bar</string>"), "Should include second extra arg");
 
-        // Extra args should come after the fixed args
-        int serviceIdx = content.indexOf("<string>start</string>");
+        // Extra args should come after the --jdeploy:command arg
+        int commandIdx = content.indexOf("<string>--jdeploy:command=sync</string>");
         int xmxIdx = content.indexOf("<string>-Xmx2g</string>");
         int dfooIdx = content.indexOf("<string>-Dfoo=bar</string>");
-        assertTrue(xmxIdx > serviceIdx, "Extra args should appear after 'start'");
+        assertTrue(xmxIdx > commandIdx, "Extra args should appear after --jdeploy:command");
         assertTrue(dfooIdx > xmxIdx, "Args should preserve order");
     }
 
@@ -207,14 +207,14 @@ public class MacBundlerLaunchAgentPlistTest {
 
         String content = FileUtils.readFileToString(plistFile, StandardCharsets.UTF_8);
 
-        // Count <string> tags inside the <array> — should be exactly 4:
-        // cli launcher, --jdeploy:command=ctl, --jdeploy:service, start
+        // Count <string> tags inside the <array> — should be exactly 2:
+        // cli launcher, --jdeploy:command=ctl
         int arrayStart = content.indexOf("<array>");
         int arrayEnd = content.indexOf("</array>");
         String arrayContent = content.substring(arrayStart, arrayEnd);
         int stringCount = countOccurrences(arrayContent, "<string>");
-        assertEquals(4, stringCount,
-                "ProgramArguments should have exactly 4 entries when no extra args");
+        assertEquals(2, stringCount,
+                "ProgramArguments should have exactly 2 entries when no extra args");
     }
 
     // -----------------------------------------------------------------------

@@ -191,6 +191,8 @@ public class Main implements Runnable, Constants {
                 appInfo().setDescription("Desktop application");
             }
 
+            appInfo().setCommands(npmPackageVersion().getCommands());
+
             for (DocumentTypeAssociation documentTypeAssociation : npmPackageVersion().getDocumentTypeAssociations()) {
                 if (documentTypeAssociation.isDirectory()) {
                     // Handle directory association - check for default directory icon if none specified
