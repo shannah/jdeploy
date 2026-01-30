@@ -13,8 +13,9 @@ public class CommandSpec {
     private final String description;
     private final List<String> args;
     private final List<String> implementations;
+    private final Boolean embedPlist;
 
-    public CommandSpec(String name, String description, List<String> args, List<String> implementations) {
+    public CommandSpec(String name, String description, List<String> args, List<String> implementations, Boolean embedPlist) {
         if (name == null) {
             throw new IllegalArgumentException("Command name cannot be null");
         }
@@ -30,13 +31,18 @@ public class CommandSpec {
         } else {
             this.implementations = Collections.unmodifiableList(new ArrayList<>(implementations));
         }
+        this.embedPlist = embedPlist;
+    }
+
+    public CommandSpec(String name, String description, List<String> args, List<String> implementations) {
+        this(name, description, args, implementations, null);
     }
 
     /**
      * Constructor for backward compatibility (no implementations specified).
      */
     public CommandSpec(String name, String description, List<String> args) {
-        this(name, description, args, null);
+        this(name, description, args, null, null);
     }
 
     public String getName() {
@@ -64,6 +70,18 @@ public class CommandSpec {
         return implementations.contains(implementation);
     }
 
+    /**
+     * Returns whether this command should have an embedded LaunchAgent plist
+     * generated in the macOS app bundle.
+     *
+     * @return {@code Boolean.TRUE} to force embedding, {@code Boolean.FALSE} to force
+     *         the launchctl fallback, or {@code null} to use the default heuristic
+     *         (embed if all args are static).
+     */
+    public Boolean getEmbedPlist() {
+        return embedPlist;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -73,12 +91,13 @@ public class CommandSpec {
         return Objects.equals(name, that.name) &&
                Objects.equals(description, that.description) &&
                Objects.equals(args, that.args) &&
-               Objects.equals(implementations, that.implementations);
+               Objects.equals(implementations, that.implementations) &&
+               Objects.equals(embedPlist, that.embedPlist);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, description, args, implementations);
+        return Objects.hash(name, description, args, implementations, embedPlist);
     }
 
     @Override
@@ -88,6 +107,7 @@ public class CommandSpec {
                 ", description='" + description + '\'' +
                 ", args=" + args +
                 ", implementations=" + implementations +
+                ", embedPlist=" + embedPlist +
                 '}';
     }
 }

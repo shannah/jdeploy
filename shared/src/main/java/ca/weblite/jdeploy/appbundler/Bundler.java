@@ -142,6 +142,7 @@ public class Bundler {
         setupFileAssociations(appInfo, app);
         setupUrlSchemes(appInfo, app);
         setupMacUsageDescriptions(appInfo, app);
+        app.setCommands(appInfo.getCommands());
         return app;
     }
 

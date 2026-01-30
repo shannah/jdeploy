@@ -5,6 +5,8 @@
 
 package ca.weblite.jdeploy.appbundler;
 
+import ca.weblite.jdeploy.models.CommandSpec;
+
 import java.io.File;
 import java.security.cert.Certificate;
 import java.util.*;
@@ -67,6 +69,8 @@ public class AppDescription {
      * This is parsed from the installer filename and only set when running as the installer.
      */
     private String initialAppVersion;
+
+    private List<CommandSpec> commands = Collections.emptyList();
 
     private Map<String,String> macUsageDescriptions = new HashMap<>();
 
@@ -511,5 +515,13 @@ public class AppDescription {
 
     public void setInitialAppVersion(String initialAppVersion) {
         this.initialAppVersion = initialAppVersion;
+    }
+
+    public List<CommandSpec> getCommands() {
+        return commands;
+    }
+
+    public void setCommands(List<CommandSpec> commands) {
+        this.commands = commands != null ? Collections.unmodifiableList(new ArrayList<>(commands)) : Collections.emptyList();
     }
 }
