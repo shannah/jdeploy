@@ -13,6 +13,7 @@ import ca.weblite.jdeploy.helpers.filemergers.ProjectDirectoryExtensionMerger;
 import ca.weblite.tools.io.IOUtil;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import javax.inject.Inject;
@@ -343,6 +344,19 @@ public class ProjectGenerator {
         github.put("releases_repository", getReleasesRepository(request));
         github.put("releases_url", getReleasesUrl(request));
         jdeploy.put("github", github);
+
+        String releasesUrl = getReleasesUrl(request);
+        JSONArray publishTargets = jdeploy.optJSONArray("publishTargets");
+        if (publishTargets == null) {
+            publishTargets = new JSONArray();
+            jdeploy.put("publishTargets", publishTargets);
+        }
+        JSONObject githubTarget = new JSONObject();
+        githubTarget.put("name", "github: " + request.getGithubRepository());
+        githubTarget.put("type", "GITHUB");
+        githubTarget.put("url", releasesUrl);
+        githubTarget.put("isDefault", true);
+        publishTargets.put(githubTarget);
 
         FileUtils.writeStringToFile(packageJson, json.toString(2), "UTF-8");
     }
