@@ -9,6 +9,8 @@ import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionListener;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.util.ArrayList;
 import java.util.List;
 import org.json.JSONObject;
@@ -71,10 +73,18 @@ public class PublishSettingsPanel extends JPanel {
         githubPanel.add(githubRepositoryLabel, gbc);
 
         githubRepositoryField = new JTextField(20);
+        githubRepositoryField.setToolTipText("https://github.com/owner/repo");
         gbc.gridx = 1;
         gbc.gridy = 1;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         githubPanel.add(githubRepositoryField, gbc);
+
+        JLabel hintLabel = new JLabel("e.g. https://github.com/owner/repo");
+        hintLabel.setFont(hintLabel.getFont().deriveFont(Font.ITALIC, hintLabel.getFont().getSize() - 1f));
+        hintLabel.setForeground(Color.GRAY);
+        gbc.gridx = 1;
+        gbc.gridy = 2;
+        githubPanel.add(hintLabel, gbc);
 
         // Add panels to the main panel
         add(npmPanel);
@@ -85,6 +95,8 @@ public class PublishSettingsPanel extends JPanel {
         initializeChangeListeners();
     }
 
+    private static final String GITHUB_URL_PREFIX = "https://github.com/";
+
     /**
      * Initialize internal listeners for checkbox and text field changes.
      */
@@ -92,6 +104,30 @@ public class PublishSettingsPanel extends JPanel {
         npmCheckbox.addItemListener(e -> onFieldChanged());
         githubCheckbox.addItemListener(e -> onFieldChanged());
         SwingUtils.addChangeListenerTo(githubRepositoryField, this::onFieldChanged);
+
+        githubRepositoryField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent e) {
+                normalizeGitHubUrl();
+            }
+        });
+    }
+
+    /**
+     * If the repository field contains a value like "owner/repo" (no URL prefix),
+     * automatically prepend https://github.com/.
+     */
+    private void normalizeGitHubUrl() {
+        String text = githubRepositoryField.getText().trim();
+        if (text.isEmpty()) {
+            return;
+        }
+        if (text.startsWith("http://") || text.startsWith("https://")) {
+            return;
+        }
+        if (text.matches("[^/\\s]+/[^/\\s]+")) {
+            githubRepositoryField.setText(GITHUB_URL_PREFIX + text);
+        }
     }
 
     /**

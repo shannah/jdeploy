@@ -180,6 +180,11 @@ public class PublishActionHandler {
      */
     private void handlePublish0() throws ValidationException {
         if (!EventQueue.isDispatchThread()) {
+            // Confirm publish (allows context to intercept, e.g. to suggest GitHub release)
+            if (!context.confirmPublish(frame)) {
+                return;
+            }
+
             // Prompt for tokens if needed (not on dispatch thread to allow blocking)
             if (publishingCoordinator.isNpmPublishingEnabled() && !context.promptForNpmToken(frame)) {
                 return;

@@ -687,13 +687,14 @@ public class JDeployProjectEditor {
         // Publish Settings Panel (conditional)
         if (context.shouldDisplayPublishSettingsTab()) {
             publishSettingsPanel = createPublishSettingsPanel();
+            PublishTargetServiceInterface publishTargetService = DIContext.get(PublishTargetServiceInterface.class);
             registry.register(NavigablePanelAdapter.forPackageJsonPanel(
                 "Publish Settings",
                 null,
                 FontIcon.of(Material.CLOUD_UPLOAD),
                 publishSettingsPanel,
                 json -> publishSettingsPanel.load(json),
-                json -> {},  // PublishSettingsPanel doesn't have a save method, data is managed via UI
+                json -> publishTargetService.updatePublishTargetsForPackageJson(json, publishSettingsPanel.getPublishTargets()),
                 listener -> publishSettingsPanel.addChangeListener(listener),
                 () -> context.shouldDisplayPublishSettingsTab()
             ));

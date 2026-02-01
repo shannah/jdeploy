@@ -109,6 +109,16 @@ public class JDeployProjectEditorContext {
         return false;
     }
 
+    /**
+     * Called before publishing begins. Subclasses can override to show
+     * confirmation dialogs or intercept the publish flow.
+     * @param parent the parent frame for any dialogs
+     * @return true to proceed with publishing, false to cancel
+     */
+    public boolean confirmPublish(Object parent) {
+        return true;
+    }
+
     public void showWebPreview(Frame projectEditorFrame) {
         // Do nothing
     }
