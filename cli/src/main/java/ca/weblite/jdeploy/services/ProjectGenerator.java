@@ -13,6 +13,7 @@ import ca.weblite.jdeploy.helpers.filemergers.ProjectDirectoryExtensionMerger;
 import ca.weblite.tools.io.IOUtil;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.json.JSONObject;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -106,6 +107,7 @@ public class ProjectGenerator {
         }
 
         updateFilesInDirectory(projectDir, request);
+        updatePackageJsonWithGithubSettings(projectDir, request);
 
         if (mavenWrapperInjector.isMavenProject(projectDir.getPath())) {
             mavenWrapperInjector.installIntoProject(projectDir.getPath());
@@ -314,6 +316,35 @@ public class ProjectGenerator {
         setupReleasesProject(new File(releasesProjectPath), request);
         initAndPublishReleasesProject(releasesRepository, releasesProjectPath);
         setReleasesRepositoryInWorkflow(projectDirectory, releasesRepository);
+    }
+
+    private void updatePackageJsonWithGithubSettings(File projectDir, ProjectGeneratorRequest request) throws IOException {
+        if (request.getGithubRepository() == null) {
+            return;
+        }
+        File packageJson = new File(projectDir, "package.json");
+        if (!packageJson.exists()) {
+            return;
+        }
+
+        String content = FileUtils.readFileToString(packageJson, "UTF-8");
+        JSONObject json = new JSONObject(content);
+
+        json.put("repository", GITHUB_URL + request.getGithubRepository());
+
+        JSONObject jdeploy = json.optJSONObject("jdeploy");
+        if (jdeploy == null) {
+            jdeploy = new JSONObject();
+            json.put("jdeploy", jdeploy);
+        }
+
+        JSONObject github = new JSONObject();
+        github.put("repository", request.getGithubRepository());
+        github.put("releases_repository", getReleasesRepository(request));
+        github.put("releases_url", getReleasesUrl(request));
+        jdeploy.put("github", github);
+
+        FileUtils.writeStringToFile(packageJson, json.toString(2), "UTF-8");
     }
 
     private String getReleasesRepository(ProjectGeneratorRequest request) {

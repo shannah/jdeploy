@@ -6,6 +6,7 @@
 package ca.weblite.jdeploy.app;
 
 import ca.weblite.jdeploy.app.permissions.PermissionRequest;
+import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 
 import ca.weblite.tools.platform.Platform;
@@ -1433,6 +1434,7 @@ public class AppInfo  {
         out.requireRunAsAdmin = requireRunAsAdmin;
         out.codeSignSettings = codeSignSettings;
         out.macAppBundleId = macAppBundleId;
+        out.commands = commands;
         if (permissions != null) {
             //out.permissions = new ArrayList<>();
             for (Permission p : permissions) {
@@ -1585,7 +1587,8 @@ public class AppInfo  {
                 windowsJdeployHome, o.windowsJdeployHome,
                 linuxJdeployHome, o.linuxJdeployHome,
                 permissionRequests, o.permissionRequests,
-                directoryAssociation, o.directoryAssociation
+                directoryAssociation, o.directoryAssociation,
+                commands, o.commands
 
         });
     }
@@ -1628,6 +1631,16 @@ public class AppInfo  {
     private CodeSignSettings codeSignSettings = CodeSignSettings.None;
     
     private String macAppBundleId;
+
+    private List<CommandSpec> commands = Collections.emptyList();
+
+    public List<CommandSpec> getCommands() {
+        return commands;
+    }
+
+    public void setCommands(List<CommandSpec> commands) {
+        this.commands = commands != null ? Collections.unmodifiableList(new ArrayList<>(commands)) : Collections.emptyList();
+    }
 
     public String getLauncherVersion() {
         return launcherVersion;

@@ -2,6 +2,7 @@ package com.joshondesign.appbundler.mac;
 
 import ca.weblite.jdeploy.appbundler.*;
 import ca.weblite.jdeploy.installer.CliInstallerConstants;
+import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.io.IOUtil;
 import ca.weblite.tools.io.URLUtil;
@@ -15,6 +16,8 @@ import java.awt.image.BufferedImage;
 
 import java.io.*;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
@@ -95,6 +98,11 @@ public class MacBundler {
         // emit a second, byte-identical launcher named "Client4JLauncher-cli" next to the GUI
         // launcher.
         maybeCreateCliLauncher(bundlerSettings, contentsDir, stub_dest);
+
+        // Generate embedded LaunchAgent plists for service_controller commands.
+        // The native launcher checks for these at Contents/Library/LaunchAgents/<commandName>.plist
+        // and uses SMAppService (macOS 13+) when present; otherwise falls back to launchctl.
+        maybeCreateLaunchAgentPlists(app, bundlerSettings, contentsDir);
 
         SigningRequest signingRequest = new SigningRequest(
                 app.getMacDeveloperID(),
@@ -280,7 +288,150 @@ public class MacBundler {
             cliDest.setExecutable(true, false);
         }
     }
-    
+
+    /**
+     * Generates embedded LaunchAgent plist files for service_controller commands
+     * whose arguments are fully static (no runtime placeholders).
+     *
+     * <p>The native launcher checks for these at
+     * {@code Contents/Library/LaunchAgents/<commandName>.plist} and uses
+     * {@code SMAppService} (macOS 13+) when present; otherwise it falls back
+     * to the existing {@code launchctl} approach.</p>
+     *
+     * @param app the app description containing commands and bundle ID
+     * @param settings the bundler settings (CLI commands must be enabled)
+     * @param contentsDir the Contents directory of the .app bundle
+     */
+    static void maybeCreateLaunchAgentPlists(AppDescription app, BundlerSettings settings, File contentsDir) {
+        if (!settings.isCliCommandsEnabled()) {
+            return;
+        }
+
+        String bundleId = app.getMacBundleId();
+        if (bundleId == null || bundleId.isEmpty()) {
+            return;
+        }
+
+        List<CommandSpec> serviceCommands = new ArrayList<>();
+        for (CommandSpec cmd : app.getCommands()) {
+            if (cmd.implements_("service_controller") && canEmbedPlist(cmd)) {
+                serviceCommands.add(cmd);
+            }
+        }
+
+        if (serviceCommands.isEmpty()) {
+            return;
+        }
+
+        File launchAgentsDir = new File(contentsDir, "Library/LaunchAgents");
+        if (!launchAgentsDir.mkdirs() && !launchAgentsDir.isDirectory()) {
+            System.err.println("Warning: Failed to create LaunchAgents directory: " + launchAgentsDir);
+            return;
+        }
+
+        for (CommandSpec cmd : serviceCommands) {
+            String label = bundleId + "." + cmd.getName();
+            File plistFile = new File(launchAgentsDir, cmd.getName() + ".plist");
+            try {
+                writeLaunchAgentPlist(plistFile, label, cmd);
+                p("Generated LaunchAgent plist: " + plistFile.getName());
+            } catch (IOException e) {
+                System.err.println("Warning: Failed to write LaunchAgent plist for command '"
+                        + cmd.getName() + "': " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Determines whether a service_controller command's arguments are static
+     * enough to embed in a LaunchAgent plist at bundle time.
+     *
+     * <p>If the command has an explicit {@code embedPlist} flag, that takes
+     * precedence.  Otherwise, the heuristic rejects any command whose args
+     * contain {@code $} (shell variable references) or {@code &#123;&#123;}
+     * (template expressions).</p>
+     *
+     * @param cmd the command spec to evaluate
+     * @return true if an embedded plist should be generated
+     */
+    static boolean canEmbedPlist(CommandSpec cmd) {
+        Boolean explicit = cmd.getEmbedPlist();
+        if (explicit != null) {
+            return explicit;
+        }
+        for (String arg : cmd.getArgs()) {
+            if (arg.contains("$") || arg.contains("{{")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Writes a LaunchAgent plist file for a service_controller command.
+     *
+     * <p>The plist uses {@code BundleProgram} (bundle-relative path) instead
+     * of {@code Program} (absolute path), as required by {@code SMAppService}.</p>
+     *
+     * @param plistFile the destination file
+     * @param label the launchd service label (reverse-DNS)
+     * @param cmd the command spec
+     * @throws IOException if writing fails
+     */
+    static void writeLaunchAgentPlist(File plistFile, String label, CommandSpec cmd) throws IOException {
+        String cliLauncher = "Contents/MacOS/" + CliInstallerConstants.CLI_LAUNCHER_NAME;
+
+        StringBuilder xml = new StringBuilder();
+        xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        xml.append("<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" ");
+        xml.append("\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n");
+        xml.append("<plist version=\"1.0\">\n");
+        xml.append("<dict>\n");
+
+        // Label
+        xml.append("    <key>Label</key>\n");
+        xml.append("    <string>").append(escapeXml(label)).append("</string>\n");
+
+        // BundleProgram — path relative to the app bundle root
+        xml.append("    <key>BundleProgram</key>\n");
+        xml.append("    <string>").append(cliLauncher).append("</string>\n");
+
+        // ProgramArguments
+        xml.append("    <key>ProgramArguments</key>\n");
+        xml.append("    <array>\n");
+        xml.append("        <string>").append(cliLauncher).append("</string>\n");
+        xml.append("        <string>").append(escapeXml(
+                CliInstallerConstants.JDEPLOY_COMMAND_ARG_PREFIX + cmd.getName()
+        )).append("</string>\n");
+        for (String arg : cmd.getArgs()) {
+            xml.append("        <string>").append(escapeXml(arg)).append("</string>\n");
+        }
+        xml.append("    </array>\n");
+
+        // Service behavior
+        xml.append("    <key>RunAtLoad</key>\n");
+        xml.append("    <true/>\n");
+        xml.append("    <key>KeepAlive</key>\n");
+        xml.append("    <true/>\n");
+
+        xml.append("</dict>\n");
+        xml.append("</plist>\n");
+
+        Files.write(plistFile.toPath(), xml.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Escapes special XML characters in a string for use in plist values.
+     */
+    private static String escapeXml(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&apos;");
+    }
+
     private static void processAppXml(AppDescription app, File contentsDir) throws Exception {
         p("Processing the app.xml file");
         XMLWriter out = new XMLWriter(new File(contentsDir, "app.xml"));

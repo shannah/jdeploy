@@ -4,6 +4,7 @@ import ca.weblite.jdeploy.BundleConstants;
 import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.app.JVMSpecification;
+import ca.weblite.jdeploy.models.CommandSpecParser;
 import ca.weblite.jdeploy.app.permissions.PermissionRequest;
 import ca.weblite.jdeploy.app.permissions.PermissionRequestService;
 import ca.weblite.jdeploy.appbundler.*;
@@ -895,6 +896,10 @@ public class PackageService implements BundleConstants {
         } else {
             appInfo.setJdeployRegistryUrl(packagingConfig.getJdeployRegistry());
         }
+
+        // Parse CLI commands from jdeploy config for bundler use (e.g., embedded LaunchAgent plists)
+        JSONObject jdeployJson = new JSONObject(context.mj());
+        appInfo.setCommands(CommandSpecParser.parseCommands(jdeployJson));
 
         String jarPath = context.getString("jar", null);
         if (jarPath != null) {
