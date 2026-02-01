@@ -58,6 +58,7 @@ class PublishActionHandlerTest {
         mockOnSave = mock(Runnable.class);
 
         // Configure default mock behaviors
+        when(mockContext.confirmPublish(mockFrame)).thenReturn(true);
         when(mockContext.promptForNpmToken(mockFrame)).thenReturn(true);
         when(mockContext.promptForGithubToken(mockFrame)).thenReturn(true);
         when(mockContext.getNpmToken()).thenReturn("fake-npm-token");
