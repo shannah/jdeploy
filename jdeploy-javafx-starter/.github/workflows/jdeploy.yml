@@ -5,8 +5,14 @@ name: jDeploy CI with Maven
 
 on:
   push:
-    branches: *
-    tags: *
+    branches:
+      - '*-snapshot'
+    tags:
+      - 'v*'
+
+concurrency:
+  group: jdeploy-release-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
   build:

@@ -5,12 +5,13 @@ name: jDeploy CI with Gradle
 
 on:
   push:
-    branches: [ '*' ]
-    tags: [ '*' ]
+    branches:
+      - '*-snapshot'
+    tags:
+      - 'v*'
 
-# Prevent concurrent jDeploy workflows to avoid race conditions
 concurrency:
-  group: jdeploy-${{ github.repository }}
+  group: jdeploy-release-${{ github.repository }}
   cancel-in-progress: false
 
 permissions:
