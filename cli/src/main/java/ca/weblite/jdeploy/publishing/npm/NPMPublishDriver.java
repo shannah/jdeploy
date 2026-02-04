@@ -9,8 +9,10 @@ import ca.weblite.jdeploy.publishing.PublishDriverInterface;
 import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.jdeploy.models.JDeployProject;
 import ca.weblite.jdeploy.models.Platform;
+import ca.weblite.jdeploy.services.PackageSigningService;
 import ca.weblite.jdeploy.services.PlatformBundleGenerator;
 import ca.weblite.jdeploy.services.DefaultBundleService;
+import ca.weblite.jdeploy.services.VersionCleaner;
 import ca.weblite.jdeploy.factories.JDeployProjectFactory;
 import ca.weblite.tools.io.IOUtil;
 import org.apache.commons.io.FileUtils;
@@ -107,10 +109,20 @@ public class NPMPublishDriver implements PublishDriverInterface {
         tempDir.mkdirs();
         
         try {
+            // Pass signing service so platform bundles are re-signed after JAR filtering
+            PackageSigningService signingService = null;
+            String signingVersionString = null;
+            if (context.packagingContext.isPackageSigningEnabled()) {
+                signingService = context.packagingContext.packageSigningService;
+                signingVersionString = getPackageSigningVersionString(context);
+            }
+
             Map<Platform, File> platformBundles = platformBundleGenerator.generatePlatformBundles(
                     project,
                     context.getPublishDir(),
-                    tempDir
+                    tempDir,
+                    signingService,
+                    signingVersionString
             );
             
             // Publish each platform-specific bundle
@@ -249,6 +261,21 @@ public class NPMPublishDriver implements PublishDriverInterface {
 
     private String getPackageUrl(String packageName, PublishTargetInterface target) throws UnsupportedEncodingException {
         return REGISTRY_URL+ URLEncoder.encode(packageName, "UTF-8");
+    }
+
+    private String getPackageSigningVersionString(PublishingContext context) {
+        try {
+            JSONObject packageJSON = new JSONObject(
+                    FileUtils.readFileToString(context.packagingContext.packageJsonFile, StandardCharsets.UTF_8)
+            );
+            String versionString = VersionCleaner.cleanVersion(packageJSON.getString("version"));
+            if (packageJSON.has("commitHash")) {
+                versionString += "#" + packageJSON.getString("commitHash");
+            }
+            return versionString;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read package.json for signing version string", e);
+        }
     }
 
     private String cleanVersion(String version) {

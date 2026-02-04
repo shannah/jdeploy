@@ -4,6 +4,9 @@ import ca.weblite.jdeploy.factories.JDeployProjectFactory;
 import ca.weblite.jdeploy.models.JDeployProject;
 import ca.weblite.jdeploy.models.Platform;
 import ca.weblite.jdeploy.publishing.PublishingContext;
+import ca.weblite.jdeploy.services.VersionCleaner;
+import org.apache.commons.io.FileUtils;
+import org.json.JSONObject;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -62,11 +65,22 @@ public class DefaultBundleService {
             // Process JARs in the publish directory using global ignore patterns only
             // Platform.DEFAULT ensures only global patterns are applied, not platform-specific ones
             platformBundleGenerator.processJarsWithIgnoreService(
-                    context.getPublishDir(), 
-                    project, 
+                    context.getPublishDir(),
+                    project,
                     Platform.DEFAULT  // DEFAULT platform means global patterns only
             );
-            
+
+            // Re-sign after filtering to fix certificate pinning
+            if (context.packagingContext.isPackageSigningEnabled()) {
+                File jdeployBundleDir = new File(context.getPublishDir(), "jdeploy-bundle");
+                if (jdeployBundleDir.isDirectory()) {
+                    String versionString = getPackageSigningVersionString(context);
+                    context.packagingContext.packageSigningService.signPackage(
+                            versionString, jdeployBundleDir.getAbsolutePath()
+                    );
+                }
+            }
+
             context.out().println("Successfully processed default bundle with global .jdpignore rules");
             
         } catch (Exception e) {
@@ -104,6 +118,17 @@ public class DefaultBundleService {
         }
     }
     
+    private String getPackageSigningVersionString(PublishingContext context) throws IOException {
+        JSONObject packageJSON = new JSONObject(
+                FileUtils.readFileToString(context.packagingContext.packageJsonFile, "UTF-8")
+        );
+        String versionString = VersionCleaner.cleanVersion(packageJSON.getString("version"));
+        if (packageJSON.has("commitHash")) {
+            versionString += "#" + packageJSON.getString("commitHash");
+        }
+        return versionString;
+    }
+
     /**
      * Checks if the project has any global .jdpignore rules that would affect the default bundle.
      * This is a convenience method for drivers to check if default bundle processing is needed.
