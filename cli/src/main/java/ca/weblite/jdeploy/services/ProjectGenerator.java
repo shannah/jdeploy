@@ -130,9 +130,9 @@ public class ProjectGenerator {
         buildFileSource = buildFileSource.replace("{{ packageName }}", request.getPackageName());
         buildFileSource = buildFileSource.replace("{{ packagePath }}", request.getPackageName().replace(".", "/"));
         buildFileSource = buildFileSource.replace("{{ javaVersion }}", String.valueOf(getJavaVersion()));
-        buildFileSource = buildFileSource.replace("{{ githubRepository }}", String.valueOf(request.getGithubRepository()));
-        buildFileSource = buildFileSource.replace("{{ githubReleasesRepository }}", getReleasesRepository(request));
-        buildFileSource = buildFileSource.replace("{{ releasesUrl }}", getReleasesUrl(request));
+        buildFileSource = buildFileSource.replace("{{ githubRepository }}", request.getGithubRepository() != null ? request.getGithubRepository() : "");
+        buildFileSource = buildFileSource.replace("{{ githubReleasesRepository }}", request.getGithubRepository() != null ? getReleasesRepository(request) : "");
+        buildFileSource = buildFileSource.replace("{{ releasesUrl }}", request.getGithubRepository() != null ? getReleasesUrl(request) : "");
         return buildFileSource;
     }
 
