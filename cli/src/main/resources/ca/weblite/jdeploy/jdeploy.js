@@ -588,6 +588,7 @@ function run(_javaHome) {
 
     var userArgs = process.argv.slice(2);
     var javaArgs = [];
+    javaArgs.push('-Djdeploy.mode=npx');
     javaArgs.push('-Djdeploy.base='+__dirname);
     javaArgs.push('-Djdeploy.port='+port);
     javaArgs.push('-Djdeploy.war.path='+warPath);
