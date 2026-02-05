@@ -539,7 +539,7 @@ if (!done) {
 }
 
 if (!done) {
-    console.log("Downloading java runtime environment for version "+targetJavaVersion);
+    console.error("Downloading java runtime environment for version "+targetJavaVersion);
     njre.install(targetJavaVersion, {type: bundleType, javafx: javafx}).then(function(dir) {
         var _javaHome = getJavaHomeInPath(dir);
         if (_javaHome == null)
