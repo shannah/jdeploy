@@ -189,9 +189,10 @@ public class PublishingCoordinator {
      * 5. Version publication status
      * 6. NPM login status (if NPM publishing enabled)
      *
+     * @param npmToken the NPM token for authentication (may be null)
      * @return ValidationResult indicating success or the first validation error encountered
      */
-    public ValidationResult validateForPublishing() {
+    public ValidationResult validateForPublishing(String npmToken) {
         File absDirectory = packageJSONFile.getAbsoluteFile().getParentFile();
 
         // Validate required fields
@@ -254,6 +255,9 @@ public class PublishingCoordinator {
 
         if (isNpmPublishingEnabled()) {
             JDeploy jdeploy0 = new JDeploy(absDirectory, false);
+            if (npmToken != null) {
+                jdeploy0.setNpmToken(npmToken);
+            }
             if (jdeploy0.getNPM().isVersionPublished(packageName, version, source)) {
                 return ValidationResult.failure(
                         "The package " + packageName + " already has a published version " + version + ". " +

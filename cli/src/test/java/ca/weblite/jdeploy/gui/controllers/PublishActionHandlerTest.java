@@ -87,7 +87,7 @@ class PublishActionHandlerTest {
     @DisplayName("handlePublish() should guard against concurrent calls when publishInProgress is true")
     void testConcurrentCallGuard() throws IOException, InterruptedException {
         // Setup validation to never complete so the handler stays in progress
-        when(mockCoordinator.validateForPublishing()).thenAnswer(invocation -> {
+        when(mockCoordinator.validateForPublishing(any())).thenAnswer(invocation -> {
             Thread.sleep(1000); // Sleep to keep it in progress
             return PublishingCoordinator.ValidationResult.success();
         });
@@ -106,7 +106,7 @@ class PublishActionHandlerTest {
         handler.handlePublish();
 
         // Verify validation was called only once (not twice)
-        verify(mockCoordinator, timeout(2000).times(1)).validateForPublishing();
+        verify(mockCoordinator, timeout(2000).times(1)).validateForPublishing(any());
 
         // Clean up
         try {
@@ -123,7 +123,7 @@ class PublishActionHandlerTest {
         PublishingCoordinator.ValidationResult failureResult = 
                 PublishingCoordinator.ValidationResult.failure(errorMessage);
 
-        when(mockCoordinator.validateForPublishing()).thenReturn(failureResult);
+        when(mockCoordinator.validateForPublishing(any())).thenReturn(failureResult);
         when(mockCoordinator.isNpmPublishingEnabled()).thenReturn(false);
 
         // Mock the frame to capture the error dialog
@@ -138,13 +138,13 @@ class PublishActionHandlerTest {
         verify(mockOnSave, never()).run();
 
         // Verify validation was called
-        verify(mockCoordinator).validateForPublishing();
+        verify(mockCoordinator).validateForPublishing(any());
     }
 
     @Test
     @DisplayName("handlePublish() should show error without proceeding on validation failure")
     void testValidationFailureDoesNotProceedWithPublish() throws InterruptedException, IOException {
-        when(mockCoordinator.validateForPublishing()).thenReturn(
+        when(mockCoordinator.validateForPublishing(any())).thenReturn(
                 PublishingCoordinator.ValidationResult.failure("Invalid configuration")
         );
         when(mockCoordinator.isNpmPublishingEnabled()).thenReturn(false);
@@ -176,7 +176,7 @@ class PublishActionHandlerTest {
                         "You must be logged into NPM",
                         PublishingCoordinator.ValidationResult.ERROR_TYPE_NOT_LOGGED_IN
                 );
-        when(mockCoordinator.validateForPublishing()).thenReturn(notLoggedInResult);
+        when(mockCoordinator.validateForPublishing(any())).thenReturn(notLoggedInResult);
         when(mockCoordinator.isNpmPublishingEnabled()).thenReturn(true);
 
         handler.handlePublish();
@@ -188,14 +188,14 @@ class PublishActionHandlerTest {
         verify(mockOnSave, never()).run();
 
         // Verify validation was called
-        verify(mockCoordinator).validateForPublishing();
+        verify(mockCoordinator).validateForPublishing(any());
     }
 
     @Test
     @DisplayName("Successful validation should call onSave callback before publishing")
     void testSuccessfulValidationCallsOnSaveBeforePublish() throws InterruptedException, IOException {
         // Mock successful validation
-        when(mockCoordinator.validateForPublishing()).thenReturn(
+        when(mockCoordinator.validateForPublishing(any())).thenReturn(
                 PublishingCoordinator.ValidationResult.success()
         );
         when(mockCoordinator.isNpmPublishingEnabled()).thenReturn(false);
@@ -212,14 +212,14 @@ class PublishActionHandlerTest {
         verify(mockOnSave, timeout(2000)).run();
 
         // Verify coordinator.publish was called after validation
-        verify(mockCoordinator).validateForPublishing();
+        verify(mockCoordinator).validateForPublishing(any());
     }
 
     @Test
     @DisplayName("ProgressDialog should be shown during publish and updated on completion")
     void testProgressDialogShownAndUpdatedOnCompletion() throws InterruptedException, IOException {
         // Mock successful validation and publishing
-        when(mockCoordinator.validateForPublishing()).thenReturn(
+        when(mockCoordinator.validateForPublishing(any())).thenReturn(
                 PublishingCoordinator.ValidationResult.success()
         );
         when(mockCoordinator.isNpmPublishingEnabled()).thenReturn(false);
@@ -258,7 +258,7 @@ class PublishActionHandlerTest {
     @DisplayName("ProgressDialog should be shown during publish and updated on failure")
     void testProgressDialogUpdatedOnFailure() throws InterruptedException, IOException {
         // Mock successful validation
-        when(mockCoordinator.validateForPublishing()).thenReturn(
+        when(mockCoordinator.validateForPublishing(any())).thenReturn(
                 PublishingCoordinator.ValidationResult.success()
         );
         when(mockCoordinator.isNpmPublishingEnabled()).thenReturn(false);
@@ -296,7 +296,7 @@ class PublishActionHandlerTest {
     @Test
     @DisplayName("Should prompt for NPM token when NPM publishing is enabled")
     void testPromptsForNpmTokenWhenNpmPublishingEnabled() throws InterruptedException, IOException {
-        when(mockCoordinator.validateForPublishing()).thenReturn(
+        when(mockCoordinator.validateForPublishing(any())).thenReturn(
                 PublishingCoordinator.ValidationResult.success()
         );
         when(mockCoordinator.isNpmPublishingEnabled()).thenReturn(true);
@@ -313,7 +313,7 @@ class PublishActionHandlerTest {
     @Test
     @DisplayName("Should prompt for GitHub token when GitHub publishing is enabled")
     void testPromptsForGithubTokenWhenGitHubPublishingEnabled() throws InterruptedException, IOException {
-        when(mockCoordinator.validateForPublishing()).thenReturn(
+        when(mockCoordinator.validateForPublishing(any())).thenReturn(
                 PublishingCoordinator.ValidationResult.success()
         );
         when(mockCoordinator.isNpmPublishingEnabled()).thenReturn(false);
@@ -338,7 +338,7 @@ class PublishActionHandlerTest {
         Thread.sleep(500);
 
         // Verify that validation was NOT called since token prompt was declined
-        verify(mockCoordinator, never()).validateForPublishing();
+        verify(mockCoordinator, never()).validateForPublishing(any());
 
         // Verify onSave was NOT called
         verify(mockOnSave, never()).run();
@@ -356,7 +356,7 @@ class PublishActionHandlerTest {
         Thread.sleep(500);
 
         // Verify that validation was NOT called since token prompt was declined
-        verify(mockCoordinator, never()).validateForPublishing();
+        verify(mockCoordinator, never()).validateForPublishing(any());
 
         // Verify onSave was NOT called
         verify(mockOnSave, never()).run();
@@ -367,7 +367,7 @@ class PublishActionHandlerTest {
     void testUsesGithubTokenFromContext() throws InterruptedException, IOException {
         String expectedGithubToken = "test-github-token-123";
         when(mockContext.getGithubToken()).thenReturn(expectedGithubToken);
-        when(mockCoordinator.validateForPublishing()).thenReturn(
+        when(mockCoordinator.validateForPublishing(any())).thenReturn(
                 PublishingCoordinator.ValidationResult.success()
         );
         when(mockCoordinator.isNpmPublishingEnabled()).thenReturn(false);
@@ -404,7 +404,7 @@ class PublishActionHandlerTest {
                 () -> expectedUrl
         );
 
-        when(mockCoordinator.validateForPublishing()).thenReturn(
+        when(mockCoordinator.validateForPublishing(any())).thenReturn(
                 PublishingCoordinator.ValidationResult.success()
         );
         when(mockCoordinator.isNpmPublishingEnabled()).thenReturn(false);
@@ -426,7 +426,7 @@ class PublishActionHandlerTest {
     @Test
     @DisplayName("Should reset publishInProgress flag after publish completes")
     void testResetsPublishInProgressFlagAfterCompletion() throws InterruptedException, IOException {
-        when(mockCoordinator.validateForPublishing()).thenReturn(
+        when(mockCoordinator.validateForPublishing(any())).thenReturn(
                 PublishingCoordinator.ValidationResult.success()
         );
         when(mockCoordinator.isNpmPublishingEnabled()).thenReturn(false);
@@ -441,7 +441,7 @@ class PublishActionHandlerTest {
         Thread.sleep(500);
 
         // Verify validate was called twice (once for each publish call)
-        verify(mockCoordinator, timeout(2000).times(2)).validateForPublishing();
+        verify(mockCoordinator, timeout(2000).times(2)).validateForPublishing(any());
     }
 
     @Test
@@ -455,7 +455,7 @@ class PublishActionHandlerTest {
                         logFile
                 );
 
-        when(mockCoordinator.validateForPublishing()).thenReturn(failureResult);
+        when(mockCoordinator.validateForPublishing(any())).thenReturn(failureResult);
         when(mockCoordinator.isNpmPublishingEnabled()).thenReturn(false);
 
         handler.handlePublish();
@@ -463,7 +463,7 @@ class PublishActionHandlerTest {
         Thread.sleep(500);
 
         // Verify validation was called
-        verify(mockCoordinator).validateForPublishing();
+        verify(mockCoordinator).validateForPublishing(any());
 
         // Verify onSave was NOT called
         verify(mockOnSave, never()).run();
@@ -474,7 +474,7 @@ class PublishActionHandlerTest {
     void testGetsBuildPreferencesFromCoordinator() throws InterruptedException, IOException {
         PackagingPreferences prefs = new PackagingPreferences("test-app", true);
         when(mockCoordinator.getBuildPreferences()).thenReturn(prefs);
-        when(mockCoordinator.validateForPublishing()).thenReturn(
+        when(mockCoordinator.validateForPublishing(any())).thenReturn(
                 PublishingCoordinator.ValidationResult.success()
         );
         when(mockCoordinator.isNpmPublishingEnabled()).thenReturn(false);

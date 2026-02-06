@@ -195,7 +195,7 @@ public class PublishActionHandler {
         }
 
         // Validate all preconditions for publishing
-        PublishingCoordinator.ValidationResult validationResult = publishingCoordinator.validateForPublishing();
+        PublishingCoordinator.ValidationResult validationResult = publishingCoordinator.validateForPublishing(context.getNpmToken());
         if (!validationResult.isValid()) {
             throw new ValidationException(
                     validationResult.getErrorMessage(),

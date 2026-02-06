@@ -85,7 +85,7 @@ class PublishingCoordinatorTest {
     void testValidationFailsWhenNameMissing() {
         packageJSON.remove("name");
         
-        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing();
+        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing(null);
         
         assertFalse(result.isValid());
         assertTrue(result.getErrorMessage().contains("name"));
@@ -96,7 +96,7 @@ class PublishingCoordinatorTest {
     void testValidationFailsWhenAuthorMissing() {
         packageJSON.remove("author");
         
-        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing();
+        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing(null);
         
         assertFalse(result.isValid());
         assertTrue(result.getErrorMessage().contains("author"));
@@ -107,7 +107,7 @@ class PublishingCoordinatorTest {
     void testValidationFailsWhenDescriptionMissing() {
         packageJSON.remove("description");
         
-        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing();
+        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing(null);
         
         assertFalse(result.isValid());
         assertTrue(result.getErrorMessage().contains("description"));
@@ -118,7 +118,7 @@ class PublishingCoordinatorTest {
     void testValidationFailsWhenVersionMissing() {
         packageJSON.remove("version");
         
-        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing();
+        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing(null);
         
         assertFalse(result.isValid());
         assertTrue(result.getErrorMessage().contains("version"));
@@ -129,7 +129,7 @@ class PublishingCoordinatorTest {
     void testValidationFailsWhenJdeployMissing() {
         packageJSON.remove("jdeploy");
         
-        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing();
+        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing(null);
         
         assertFalse(result.isValid());
         assertTrue(result.getErrorMessage().contains("jdeploy"));
@@ -138,7 +138,7 @@ class PublishingCoordinatorTest {
     @Test
     @DisplayName("Should fail validation when jar is not selected")
     void testValidationFailsWhenJarNotSelected() {
-        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing();
+        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing(null);
         
         assertFalse(result.isValid());
         assertTrue(result.getErrorMessage().contains("jar"));
@@ -150,7 +150,7 @@ class PublishingCoordinatorTest {
         JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
         jdeploy.put("jar", "app.zip");
         
-        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing();
+        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing(null);
         
         assertFalse(result.isValid());
         assertTrue(result.getErrorMessage().contains(".jar"));
@@ -162,7 +162,7 @@ class PublishingCoordinatorTest {
         JSONObject jdeploy = packageJSON.getJSONObject("jdeploy");
         jdeploy.put("jar", "nonexistent.jar");
         
-        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing();
+        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing(null);
         
         assertFalse(result.isValid());
         assertTrue(result.getErrorMessage().contains("does not exist"));
@@ -248,7 +248,7 @@ class PublishingCoordinatorTest {
     void testValidationFailsWhenFieldIsEmpty() {
         packageJSON.put("name", "");
         
-        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing();
+        PublishingCoordinator.ValidationResult result = coordinator.validateForPublishing(null);
         
         assertFalse(result.isValid());
         assertTrue(result.getErrorMessage().contains("name"));
