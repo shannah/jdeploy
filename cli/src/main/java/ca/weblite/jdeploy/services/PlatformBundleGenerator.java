@@ -6,6 +6,7 @@ import ca.weblite.jdeploy.models.Platform;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
+import ca.weblite.jdeploy.services.PackageSigningService;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 
@@ -48,10 +49,31 @@ public class PlatformBundleGenerator {
      * @throws IOException if bundle generation fails
      */
     public Map<Platform, File> generatePlatformBundles(
-            JDeployProject project, 
-            File universalPublishDir, 
+            JDeployProject project,
+            File universalPublishDir,
             File outputDir) throws IOException {
-        
+        return generatePlatformBundles(project, universalPublishDir, outputDir, null, null);
+    }
+
+    /**
+     * Generates platform-specific bundles from a universal publish directory,
+     * re-signing each bundle after JAR filtering if a signing service is provided.
+     *
+     * @param project the jDeploy project configuration
+     * @param universalPublishDir the universal bundle directory (contains package.json, jars, etc.)
+     * @param outputDir the directory where platform-specific bundles will be created
+     * @param signingService the signing service to re-sign after filtering (nullable)
+     * @param signingVersionString the version string for signing (required if signingService is non-null)
+     * @return map of platform to generated bundle directory
+     * @throws IOException if bundle generation fails
+     */
+    public Map<Platform, File> generatePlatformBundles(
+            JDeployProject project,
+            File universalPublishDir,
+            File outputDir,
+            PackageSigningService signingService,
+            String signingVersionString) throws IOException {
+
         if (!project.isPlatformBundlesEnabled()) {
             return Collections.emptyMap();
         }
@@ -73,7 +95,7 @@ public class PlatformBundleGenerator {
         Map<Platform, File> generatedBundles = new HashMap<>();
 
         for (Platform platform : platformsRequiringBundles) {
-            File platformBundleDir = generatePlatformBundle(project, universalPublishDir, outputDir, platform);
+            File platformBundleDir = generatePlatformBundle(project, universalPublishDir, outputDir, platform, signingService, signingVersionString);
             generatedBundles.put(platform, platformBundleDir);
         }
 
@@ -95,11 +117,34 @@ public class PlatformBundleGenerator {
             File universalPublishDir,
             File outputDir,
             Platform targetPlatform) throws IOException {
+        return generatePlatformBundle(project, universalPublishDir, outputDir, targetPlatform, null, null);
+    }
+
+    /**
+     * Generates a single platform-specific bundle, re-signing after JAR filtering
+     * if a signing service is provided.
+     *
+     * @param project the jDeploy project configuration
+     * @param universalPublishDir the universal bundle directory
+     * @param outputDir the base output directory
+     * @param targetPlatform the platform to generate bundle for
+     * @param signingService the signing service to re-sign after filtering (nullable)
+     * @param signingVersionString the version string for signing (required if signingService is non-null)
+     * @return the generated platform bundle directory
+     * @throws IOException if bundle generation fails
+     */
+    public File generatePlatformBundle(
+            JDeployProject project,
+            File universalPublishDir,
+            File outputDir,
+            Platform targetPlatform,
+            PackageSigningService signingService,
+            String signingVersionString) throws IOException {
 
         // Create platform-specific directory
         String bundleDirName = getPlatformBundleDirectoryName(project, targetPlatform);
         File platformBundleDir = new File(outputDir, bundleDirName);
-        
+
         if (platformBundleDir.exists()) {
             FileUtils.deleteDirectory(platformBundleDir);
         }
@@ -114,6 +159,18 @@ public class PlatformBundleGenerator {
         // Process JARs using .jdpignore files if they exist
         if (ignoreService.hasIgnoreFiles(project)) {
             processJarsWithIgnoreService(platformBundleDir, project, targetPlatform);
+
+            // Re-sign after filtering to fix certificate pinning
+            if (signingService != null) {
+                File jdeployBundleDir = new File(platformBundleDir, "jdeploy-bundle");
+                if (jdeployBundleDir.isDirectory()) {
+                    try {
+                        signingService.signPackage(signingVersionString, jdeployBundleDir.getAbsolutePath());
+                    } catch (Exception ex) {
+                        throw new IOException("Failed to re-sign platform bundle after filtering for " + targetPlatform.getIdentifier(), ex);
+                    }
+                }
+            }
         }
 
         return platformBundleDir;
@@ -133,32 +190,57 @@ public class PlatformBundleGenerator {
      */
     public Map<Platform, File> generatePlatformTarballs(
             JDeployProject project,
-            File universalPublishDir, 
+            File universalPublishDir,
             File outputDir,
             NPM npm,
             boolean exitOnFail) throws IOException {
+        return generatePlatformTarballs(project, universalPublishDir, outputDir, npm, exitOnFail, null, null);
+    }
+
+    /**
+     * Generates platform-specific tarballs using npm pack, re-signing each bundle
+     * after JAR filtering if a signing service is provided.
+     *
+     * @param project the jDeploy project configuration
+     * @param universalPublishDir the universal bundle directory
+     * @param outputDir the directory where tarballs will be created
+     * @param npm the NPM instance to use for packing
+     * @param exitOnFail whether to exit on failure
+     * @param signingService the signing service to re-sign after filtering (nullable)
+     * @param signingVersionString the version string for signing (required if signingService is non-null)
+     * @return map of platform to generated tarball file
+     * @throws IOException if generation fails
+     */
+    public Map<Platform, File> generatePlatformTarballs(
+            JDeployProject project,
+            File universalPublishDir,
+            File outputDir,
+            NPM npm,
+            boolean exitOnFail,
+            PackageSigningService signingService,
+            String signingVersionString) throws IOException {
 
         // First generate platform bundles in a temp directory
         File tempDir = Files.createTempDirectory("platform-bundles").toFile();
-        
+
         try {
-            Map<Platform, File> platformBundles = generatePlatformBundles(project, universalPublishDir, tempDir);
+            Map<Platform, File> platformBundles = generatePlatformBundles(project, universalPublishDir, tempDir, signingService, signingVersionString);
             Map<Platform, File> tarballs = new HashMap<>();
 
             for (Map.Entry<Platform, File> entry : platformBundles.entrySet()) {
                 Platform platform = entry.getKey();
                 File bundleDir = entry.getValue();
-                
+
                 // Create tarball using npm pack (generates file based on package.json name)
                 createTarball(bundleDir, outputDir, npm, exitOnFail);
-                
+
                 // Find the actual generated tarball file and rename it to RFC convention
                 File renamedTarball = findAndRenameTarball(project, platform, bundleDir, outputDir);
                 tarballs.put(platform, renamedTarball);
             }
 
             return tarballs;
-            
+
         } finally {
             // Clean up temp directory
             if (tempDir.exists()) {

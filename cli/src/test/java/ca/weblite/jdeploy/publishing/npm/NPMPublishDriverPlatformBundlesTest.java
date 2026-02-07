@@ -141,7 +141,7 @@ class NPMPublishDriverPlatformBundlesTest {
 
         // Then: Only universal bundle should be published
         verify(npm, times(1)).publish(eq(publishDir), eq(false), eq(null), eq(null));
-        verify(platformBundleGenerator, never()).generatePlatformBundles(any(), any(), any());
+        verify(platformBundleGenerator, never()).generatePlatformBundles(any(), any(), any(), any(), any());
         verify(defaultBundleService, times(1)).processDefaultBundle(eq(publishingContext));
         verify(out).println("Publishing main package...");
         verify(out).println("Successfully published main package to npm.");
@@ -192,7 +192,7 @@ class NPMPublishDriverPlatformBundlesTest {
         platformBundles.put(Platform.MAC_X64, macBundle);
         platformBundles.put(Platform.WIN_X64, winBundle);
 
-        when(platformBundleGenerator.generatePlatformBundles(eq(project), eq(publishDir), any(File.class)))
+        when(platformBundleGenerator.generatePlatformBundles(eq(project), eq(publishDir), any(File.class), any(), any()))
                 .thenReturn(platformBundles);
 
         // When: Publishing
@@ -205,7 +205,7 @@ class NPMPublishDriverPlatformBundlesTest {
         verify(npm).publish(eq(publishDir), eq(false), eq(null), eq(null));
 
         // Verify platform bundles generated
-        verify(platformBundleGenerator).generatePlatformBundles(eq(project), eq(publishDir), any(File.class));
+        verify(platformBundleGenerator).generatePlatformBundles(eq(project), eq(publishDir), any(File.class), any(), any());
 
         // Verify default bundle processing
         verify(defaultBundleService, times(1)).processDefaultBundle(eq(publishingContext));
@@ -233,7 +233,7 @@ class NPMPublishDriverPlatformBundlesTest {
 
         Map<Platform, File> platformBundles = new HashMap<>();
         platformBundles.put(Platform.MAC_X64, macBundle);
-        when(platformBundleGenerator.generatePlatformBundles(any(), any(), any())).thenReturn(platformBundles);
+        when(platformBundleGenerator.generatePlatformBundles(any(), any(), any(File.class), any(), any())).thenReturn(platformBundles);
 
         // Simulate OTP required for platform bundle publishing
         doNothing().when(npm).publish(eq(publishDir), eq(false), eq(null), eq(null)); // Universal bundle succeeds
@@ -267,7 +267,7 @@ class NPMPublishDriverPlatformBundlesTest {
 
         Map<Platform, File> platformBundles = new HashMap<>();
         platformBundles.put(Platform.MAC_X64, macBundle);
-        when(platformBundleGenerator.generatePlatformBundles(any(), any(), any())).thenReturn(platformBundles);
+        when(platformBundleGenerator.generatePlatformBundles(any(), any(), any(File.class), any(), any())).thenReturn(platformBundles);
 
         doNothing().when(npm).publish(eq(publishDir), eq(false), eq(null), eq(null)); // Universal bundle succeeds
         doThrow(new OneTimePasswordRequestedException())
@@ -304,7 +304,7 @@ class NPMPublishDriverPlatformBundlesTest {
         platformBundles.put(Platform.MAC_X64, macBundle);
         // WIN_X64 bundle not generated (null)
 
-        when(platformBundleGenerator.generatePlatformBundles(eq(project), eq(publishDir), any(File.class)))
+        when(platformBundleGenerator.generatePlatformBundles(eq(project), eq(publishDir), any(File.class), any(), any()))
                 .thenReturn(platformBundles);
 
         // When: Publishing
@@ -329,7 +329,7 @@ class NPMPublishDriverPlatformBundlesTest {
 
         Map<Platform, File> platformBundles = new HashMap<>();
         platformBundles.put(Platform.MAC_X64, macBundle);
-        when(platformBundleGenerator.generatePlatformBundles(any(), any(), any())).thenReturn(platformBundles);
+        when(platformBundleGenerator.generatePlatformBundles(any(), any(), any(File.class), any(), any())).thenReturn(platformBundles);
 
         // When: Publishing
         driver.publish(publishingContext, target, otpProvider);
