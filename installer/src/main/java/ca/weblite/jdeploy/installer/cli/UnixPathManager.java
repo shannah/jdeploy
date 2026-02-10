@@ -107,6 +107,24 @@ public class UnixPathManager {
                     parent.mkdirs();
                 }
                 configFile.createNewFile();
+
+                // If we're creating .bash_profile, source .profile if it exists
+                // This prevents breaking existing user configurations, since bash
+                // only reads the first file it finds among .bash_profile, .bash_login, .profile
+                if (".bash_profile".equals(configFile.getName())) {
+                    File profile = new File(homeDir, ".profile");
+                    if (profile.exists()) {
+                        DebugLogger.log("Sourcing .profile from new .bash_profile to preserve existing config");
+                        String sourceProfile = "# Source .profile to preserve existing configuration\n" +
+                                "if [ -f ~/.profile ]; then\n" +
+                                "    . ~/.profile\n" +
+                                "fi\n";
+                        try (FileOutputStream fos = new FileOutputStream(configFile)) {
+                            fos.write(sourceProfile.getBytes(StandardCharsets.UTF_8));
+                        }
+                        System.out.println("Created .bash_profile with sourcing of existing .profile");
+                    }
+                }
             } else {
                 // Check for user override marker
                 String content = IOUtil.readToString(new FileInputStream(configFile));

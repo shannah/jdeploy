@@ -615,11 +615,11 @@ public class UnixPathManagerTest {
         // Create a bin directory under homeDir
         File homeBinDir = new File(homeDir, ".local/bin");
         homeBinDir.mkdirs();
-        
+
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:/bin";
         File bashrc = new File(homeDir, ".bashrc");
-        
+
         // Create bashrc with existing $HOME-relative PATH entry
         String originalContent = "# First config\n# Added by jDeploy installer\nexport PATH=\"$HOME/.local/bin:$PATH\"\n# More config\n";
         Files.write(bashrc.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
@@ -628,9 +628,98 @@ public class UnixPathManagerTest {
 
         assertTrue(result);
         String content = IOUtil.readToString(new FileInputStream(bashrc));
-        
+
         // Verify the old entry was removed and new one added at the end
         int pathOccurrences = countOccurrences(content, "$HOME/.local/bin");
         assertEquals(1, pathOccurrences, "PATH should appear exactly once");
+    }
+
+    @Test
+    public void testAddToPathSourcesProfileWhenCreatingBashProfile() throws IOException {
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        // Create a .profile with existing content (simulating a user who had aliases there)
+        File profile = new File(homeDir, ".profile");
+        String profileContent = "# User's existing profile\nalias ll='ls -la'\nexport MY_VAR=value\n";
+        Files.write(profile.toPath(), profileContent.getBytes(StandardCharsets.UTF_8));
+
+        // Verify no .bash_profile exists yet
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertFalse(bashProfile.exists(), ".bash_profile should not exist initially");
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+
+        assertTrue(result);
+        assertTrue(bashProfile.exists(), ".bash_profile should be created");
+
+        String bashProfileContent = IOUtil.readToString(new FileInputStream(bashProfile));
+
+        // Verify .bash_profile sources .profile
+        assertTrue(bashProfileContent.contains("if [ -f ~/.profile ]; then"),
+                ".bash_profile should contain conditional to source .profile");
+        assertTrue(bashProfileContent.contains(". ~/.profile"),
+                ".bash_profile should source .profile");
+
+        // Verify the PATH was also added
+        assertTrue(bashProfileContent.contains(binDir.getAbsolutePath()),
+                ".bash_profile should contain the PATH export");
+    }
+
+    @Test
+    public void testAddToPathDoesNotSourceProfileWhenProfileMissing() throws IOException {
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        // Verify no .profile exists
+        File profile = new File(homeDir, ".profile");
+        assertFalse(profile.exists(), ".profile should not exist");
+
+        // Verify no .bash_profile exists yet
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertFalse(bashProfile.exists(), ".bash_profile should not exist initially");
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+
+        assertTrue(result);
+        assertTrue(bashProfile.exists(), ".bash_profile should be created");
+
+        String bashProfileContent = IOUtil.readToString(new FileInputStream(bashProfile));
+
+        // Verify .bash_profile does NOT try to source .profile (since it doesn't exist)
+        assertFalse(bashProfileContent.contains(". ~/.profile"),
+                ".bash_profile should not source .profile when it doesn't exist");
+
+        // Verify the PATH was added
+        assertTrue(bashProfileContent.contains(binDir.getAbsolutePath()),
+                ".bash_profile should contain the PATH export");
+    }
+
+    @Test
+    public void testAddToPathDoesNotAddDuplicateProfileSourcing() throws IOException {
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        // Create a .profile
+        File profile = new File(homeDir, ".profile");
+        Files.write(profile.toPath(), "# User profile\n".getBytes(StandardCharsets.UTF_8));
+
+        // Create a .bash_profile that already sources .profile
+        File bashProfile = new File(homeDir, ".bash_profile");
+        String existingContent = "# Existing bash_profile\nif [ -f ~/.profile ]; then\n    . ~/.profile\nfi\n";
+        Files.write(bashProfile.toPath(), existingContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+
+        assertTrue(result);
+        String bashProfileContent = IOUtil.readToString(new FileInputStream(bashProfile));
+
+        // Verify .profile is only sourced once (the existing sourcing should remain)
+        int sourceOccurrences = countOccurrences(bashProfileContent, ". ~/.profile");
+        assertEquals(1, sourceOccurrences, ".profile should only be sourced once");
+
+        // Verify the PATH was added
+        assertTrue(bashProfileContent.contains(binDir.getAbsolutePath()),
+                ".bash_profile should contain the PATH export");
     }
 }
