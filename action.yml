@@ -18,7 +18,7 @@ inputs:
     required: false
   jdeploy_version:
     description: The version of Jdeploy
-    default: '6.0.12'
+    default: '6.0.13'
   jdeploy_registry_url:
     description: The URL of the jDeploy application registry
     required: false
