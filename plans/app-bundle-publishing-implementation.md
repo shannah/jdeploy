@@ -31,29 +31,38 @@ Create a service to determine when prebuilt apps are needed.
 **Key Files:**
 - New: `cli/src/main/java/ca/weblite/jdeploy/services/PrebuiltAppRequirementService.java`
 
-### 1.2 Prebuilt App Generation
+### 1.2 Native Bundle Generation (Bundler)
 
-Modify the bundler to generate standalone app tarballs.
+The bundler creates native app bundles (exe, .app, etc.). This is existing behavior.
 
 **Tasks:**
-- [ ] Extend bundler to output platform-specific `.tgz` files
-- [ ] Implement naming convention: `{appname}-{version}-{platform}-bin.tgz`
-- [ ] Generate checksums for each tarball (same approach as icons)
+- [ ] Ensure bundler can generate native bundles for platforms other than current host (cross-platform bundling)
 - [ ] Support all platforms: win-x64, win-arm64, mac-x64, mac-arm64, linux-x64, linux-arm64
-- [ ] Ensure bundler can run for platforms other than current host (cross-platform bundling)
+- [ ] Verify native bundles are complete and self-contained
 
 **Key Files:**
 - `shared/src/main/java/ca/weblite/jdeploy/appbundler/Bundler.java`
 - `shared/src/main/java/com/joshondesign/appbundler/win/WindowsBundler.java`
 - `shared/src/main/java/com/joshondesign/appbundler/mac/MacBundler.java`
 
-### 1.3 GitHub Publishing Integration
+### 1.3 Tarball Packaging (Publisher)
+
+The publisher packages native bundles into `.tgz` tarballs for upload. This is a new publishing step.
+
+**Tasks:**
+- [ ] Create tarball packaging logic in publisher
+- [ ] Implement naming convention: `{appname}-{version}-{platform}-bin.tgz`
+- [ ] Generate checksums for each tarball (same approach as icons)
+- [ ] Package the native bundle output from bundler into tarball format
+
+### 1.4 GitHub Publishing Integration
 
 Modify the GitHub publish driver to upload prebuilt apps.
 
 **Tasks:**
 - [ ] Query `PrebuiltAppRequirementService` during publish
-- [ ] Generate prebuilt app tarballs for required platforms
+- [ ] Invoke bundler to generate native bundles for required platforms
+- [ ] Package native bundles into tarballs (via 1.3)
 - [ ] Upload tarballs to GitHub release alongside installers
 - [ ] Handle upload failures gracefully (retry, error reporting)
 - [ ] Add integration tests for GitHub upload flow
@@ -61,7 +70,7 @@ Modify the GitHub publish driver to upload prebuilt apps.
 **Key Files:**
 - `cli/src/main/java/ca/weblite/jdeploy/publishing/GitHubPublishDriver.java`
 
-### 1.4 Package.json Embedding
+### 1.5 Package.json Embedding
 
 Write the `prebuiltApps` platform list to package.json at publish time.
 
