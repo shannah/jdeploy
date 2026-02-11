@@ -541,10 +541,11 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
             // Enable delayed expansion so !errorlevel! works correctly inside if blocks
             sb.append("setlocal enabledelayedexpansion\r\n");
 
-            // Check for updater: single "update" argument
+            // Check for updater: single argument matching the configured trigger
             if (hasUpdater) {
-                sb.append("REM Check if single argument is \"update\"\r\n");
-                sb.append("if \"%~1\"==\"update\" if \"%~2\"==\"\" (\r\n");
+                String trigger = command.getUpdateTrigger();
+                sb.append("REM Check if single argument is \"").append(trigger).append("\"\r\n");
+                sb.append("if \"%~1\"==\"").append(trigger).append("\" if \"%~2\"==\"\" (\r\n");
                 sb.append("  \"").append(launcherPathStr).append("\" --jdeploy:update\r\n");
                 sb.append("  exit /b !errorlevel!\r\n");
                 sb.append(")\r\n\r\n");
@@ -629,10 +630,11 @@ public class WindowsCliCommandInstaller implements CliCommandInstaller {
         if (hasUpdater || hasServiceController) {
             // Generate conditional shell script
 
-            // Check for updater: single "update" argument
+            // Check for updater: single argument matching the configured trigger
             if (hasUpdater) {
-                sb.append("# Check if single argument is \"update\"\n");
-                sb.append("if [ \"$#\" -eq 1 ] && [ \"$1\" = \"update\" ]; then\n");
+                String trigger = command.getUpdateTrigger();
+                sb.append("# Check if single argument is \"").append(trigger).append("\"\n");
+                sb.append("if [ \"$#\" -eq 1 ] && [ \"$1\" = \"").append(trigger).append("\" ]; then\n");
                 sb.append("  exec \"").append(msysLauncherPath).append("\" --jdeploy:update\n");
                 sb.append("fi\n\n");
             }
