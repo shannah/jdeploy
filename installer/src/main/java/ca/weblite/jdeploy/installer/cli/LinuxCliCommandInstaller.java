@@ -266,10 +266,11 @@ public class LinuxCliCommandInstaller extends AbstractUnixCliCommandInstaller {
         if (hasUpdater || hasServiceController) {
             // Generate conditional script with checks
 
-            // Check for updater: single "update" argument
+            // Check for updater: single argument matching the configured trigger
             if (hasUpdater) {
-                sb.append("# Check if single argument is \"update\"\n");
-                sb.append("if [ \"$#\" -eq 1 ] && [ \"$1\" = \"update\" ]; then\n");
+                String trigger = command.getUpdateTrigger();
+                sb.append("# Check if single argument is \"").append(trigger).append("\"\n");
+                sb.append("if [ \"$#\" -eq 1 ] && [ \"$1\" = \"").append(trigger).append("\" ]; then\n");
                 sb.append("  exec \"").append(escapedLauncher).append("\" --jdeploy:update\n");
                 sb.append("fi\n\n");
             }

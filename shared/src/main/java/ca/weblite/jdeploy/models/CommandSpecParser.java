@@ -141,7 +141,18 @@ public class CommandSpecParser {
                 }
             }
 
-            result.add(new CommandSpec(name, description, args, implementations, embedPlist));
+            String updateTrigger = null;
+            if (specObj.has("updateTrigger")) {
+                Object triggerObj = specObj.get("updateTrigger");
+                if (triggerObj != JSONObject.NULL && triggerObj instanceof String) {
+                    updateTrigger = (String) triggerObj;
+                    validateUpdateTrigger(name, updateTrigger);
+                } else if (triggerObj != JSONObject.NULL) {
+                    throw new IllegalArgumentException("Command '" + name + "': 'updateTrigger' must be a string");
+                }
+            }
+
+            result.add(new CommandSpec(name, description, args, implementations, embedPlist, updateTrigger));
         }
 
         // sort by name for deterministic order
@@ -185,6 +196,28 @@ public class CommandSpecParser {
             throw new IllegalArgumentException(
                 "Command '" + commandName + "': implementation at index " + index + " is invalid: '" + implementation + "'. " +
                 "Must be one of: " + String.join(", ", VALID_IMPLEMENTATIONS)
+            );
+        }
+    }
+
+    /**
+     * Validates that an updateTrigger string is safe to use in shell scripts.
+     * The trigger must be a simple alphanumeric string (with optional dashes/underscores)
+     * and must not contain dangerous shell metacharacters.
+     *
+     * @param commandName the command name (for error messages)
+     * @param updateTrigger the trigger string to validate
+     * @throws IllegalArgumentException if the trigger contains dangerous characters or is invalid
+     */
+    private static void validateUpdateTrigger(String commandName, String updateTrigger) {
+        if (updateTrigger == null || updateTrigger.isEmpty()) {
+            return; // null/empty will use default
+        }
+        // Allow alphanumeric, dash, underscore only for safety in shell scripts
+        if (!updateTrigger.matches("^[A-Za-z0-9_-]+$")) {
+            throw new IllegalArgumentException(
+                "Command '" + commandName + "': 'updateTrigger' must contain only alphanumeric characters, " +
+                "dashes, and underscores. Got: '" + updateTrigger + "'"
             );
         }
     }

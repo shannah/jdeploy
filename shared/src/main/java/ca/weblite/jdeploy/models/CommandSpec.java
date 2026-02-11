@@ -9,13 +9,19 @@ import java.util.Objects;
  * Immutable specification for a CLI command installed by the installer.
  */
 public class CommandSpec {
+    /**
+     * Default trigger argument for the updater implementation.
+     */
+    public static final String DEFAULT_UPDATE_TRIGGER = "update";
+
     private final String name;
     private final String description;
     private final List<String> args;
     private final List<String> implementations;
     private final Boolean embedPlist;
+    private final String updateTrigger;
 
-    public CommandSpec(String name, String description, List<String> args, List<String> implementations, Boolean embedPlist) {
+    public CommandSpec(String name, String description, List<String> args, List<String> implementations, Boolean embedPlist, String updateTrigger) {
         if (name == null) {
             throw new IllegalArgumentException("Command name cannot be null");
         }
@@ -32,17 +38,22 @@ public class CommandSpec {
             this.implementations = Collections.unmodifiableList(new ArrayList<>(implementations));
         }
         this.embedPlist = embedPlist;
+        this.updateTrigger = (updateTrigger != null && !updateTrigger.isEmpty()) ? updateTrigger : DEFAULT_UPDATE_TRIGGER;
+    }
+
+    public CommandSpec(String name, String description, List<String> args, List<String> implementations, Boolean embedPlist) {
+        this(name, description, args, implementations, embedPlist, null);
     }
 
     public CommandSpec(String name, String description, List<String> args, List<String> implementations) {
-        this(name, description, args, implementations, null);
+        this(name, description, args, implementations, null, null);
     }
 
     /**
      * Constructor for backward compatibility (no implementations specified).
      */
     public CommandSpec(String name, String description, List<String> args) {
-        this(name, description, args, null, null);
+        this(name, description, args, null, null, null);
     }
 
     public String getName() {
@@ -82,6 +93,17 @@ public class CommandSpec {
         return embedPlist;
     }
 
+    /**
+     * Returns the trigger argument that activates the updater implementation.
+     * When the command is invoked with this single argument, it triggers the
+     * {@code --jdeploy:update} launcher flag.
+     *
+     * @return the update trigger argument, defaults to "update"
+     */
+    public String getUpdateTrigger() {
+        return updateTrigger;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -92,12 +114,13 @@ public class CommandSpec {
                Objects.equals(description, that.description) &&
                Objects.equals(args, that.args) &&
                Objects.equals(implementations, that.implementations) &&
-               Objects.equals(embedPlist, that.embedPlist);
+               Objects.equals(embedPlist, that.embedPlist) &&
+               Objects.equals(updateTrigger, that.updateTrigger);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, description, args, implementations, embedPlist);
+        return Objects.hash(name, description, args, implementations, embedPlist, updateTrigger);
     }
 
     @Override
@@ -108,6 +131,7 @@ public class CommandSpec {
                 ", args=" + args +
                 ", implementations=" + implementations +
                 ", embedPlist=" + embedPlist +
+                ", updateTrigger='" + updateTrigger + '\'' +
                 '}';
     }
 }

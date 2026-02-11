@@ -229,4 +229,88 @@ public class CommandSpecTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("Command not found: " + name));
     }
+
+    // ===== updateTrigger tests =====
+
+    @Test
+    public void testUpdateTriggerDefaultsToUpdate() {
+        CommandSpec cs = new CommandSpec("cmd", null, null);
+        assertEquals(CommandSpec.DEFAULT_UPDATE_TRIGGER, cs.getUpdateTrigger());
+        assertEquals("update", cs.getUpdateTrigger());
+    }
+
+    @Test
+    public void testUpdateTriggerCanBeCustomized() {
+        CommandSpec cs = new CommandSpec("cmd", null, null, null, null, "upgrade");
+        assertEquals("upgrade", cs.getUpdateTrigger());
+    }
+
+    @Test
+    public void testUpdateTriggerNullDefaultsToUpdate() {
+        CommandSpec cs = new CommandSpec("cmd", null, null, null, null, null);
+        assertEquals("update", cs.getUpdateTrigger());
+    }
+
+    @Test
+    public void testUpdateTriggerEmptyDefaultsToUpdate() {
+        CommandSpec cs = new CommandSpec("cmd", null, null, null, null, "");
+        assertEquals("update", cs.getUpdateTrigger());
+    }
+
+    @Test
+    public void testUpdateTriggerIncludedInEquals() {
+        CommandSpec cs1 = new CommandSpec("cmd", null, null, null, null, "upgrade");
+        CommandSpec cs2 = new CommandSpec("cmd", null, null, null, null, "upgrade");
+        CommandSpec cs3 = new CommandSpec("cmd", null, null, null, null, "refresh");
+        assertEquals(cs1, cs2);
+        assertNotEquals(cs1, cs3);
+    }
+
+    @Test
+    public void testUpdateTriggerIncludedInHashCode() {
+        CommandSpec cs1 = new CommandSpec("cmd", null, null, null, null, "upgrade");
+        CommandSpec cs2 = new CommandSpec("cmd", null, null, null, null, "upgrade");
+        CommandSpec cs3 = new CommandSpec("cmd", null, null, null, null, "refresh");
+        assertEquals(cs1.hashCode(), cs2.hashCode());
+        assertNotEquals(cs1.hashCode(), cs3.hashCode());
+    }
+
+    @Test
+    public void testUpdateTriggerIncludedInToString() {
+        CommandSpec cs = new CommandSpec("cmd", null, null, null, null, "upgrade");
+        String s = cs.toString();
+        assertTrue(s.contains("upgrade"));
+        assertTrue(s.contains("updateTrigger"));
+    }
+
+    @Test
+    public void testParserExtractsUpdateTrigger() {
+        JSONObject config = new JSONObject();
+        JSONObject commands = new JSONObject();
+        JSONObject cmdSpec = new JSONObject();
+        cmdSpec.put("implements", new JSONArray().put("updater"));
+        cmdSpec.put("updateTrigger", "upgrade");
+        commands.put("mycmd", cmdSpec);
+        config.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(config);
+        assertEquals(1, result.size());
+        CommandSpec cmd = result.get(0);
+        assertEquals("upgrade", cmd.getUpdateTrigger());
+    }
+
+    @Test
+    public void testParserDefaultsUpdateTriggerWhenNotSpecified() {
+        JSONObject config = new JSONObject();
+        JSONObject commands = new JSONObject();
+        JSONObject cmdSpec = new JSONObject();
+        cmdSpec.put("implements", new JSONArray().put("updater"));
+        commands.put("mycmd", cmdSpec);
+        config.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(config);
+        assertEquals(1, result.size());
+        CommandSpec cmd = result.get(0);
+        assertEquals("update", cmd.getUpdateTrigger());
+    }
 }

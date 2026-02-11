@@ -784,7 +784,7 @@ public class CommandSpecParserTest {
         // Verify that commands with nested objects (which parser doesn't support) are rejected
         JSONObject jdeployConfig = new JSONObject();
         JSONObject commands = new JSONObject();
-        
+
         JSONObject nestedSpec = new JSONObject();
         JSONObject nestedLevel2 = new JSONObject();
         nestedLevel2.put("deep", new JSONObject());
@@ -795,5 +795,101 @@ public class CommandSpecParserTest {
         // Should parse successfully (extra fields are ignored by the parser)
         List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
         assertEquals(1, result.size());
+    }
+
+    // ===== updateTrigger tests =====
+
+    @Test
+    void testParseCommands_updateTriggerParsed() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        JSONObject cmdSpec = new JSONObject();
+        cmdSpec.put("implements", new JSONArray().put("updater"));
+        cmdSpec.put("updateTrigger", "upgrade");
+        commands.put("mycmd", cmdSpec);
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+        assertEquals(1, result.size());
+        assertEquals("upgrade", result.get(0).getUpdateTrigger());
+    }
+
+    @Test
+    void testParseCommands_updateTriggerDefaultsWhenMissing() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        JSONObject cmdSpec = new JSONObject();
+        cmdSpec.put("implements", new JSONArray().put("updater"));
+        commands.put("mycmd", cmdSpec);
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+        assertEquals(1, result.size());
+        assertEquals("update", result.get(0).getUpdateTrigger());
+    }
+
+    @Test
+    void testParseCommands_updateTriggerWithValidChars() {
+        // Test various valid trigger values
+        String[] validTriggers = {"update", "upgrade", "refresh", "sync", "self-update", "my_trigger", "Update123"};
+
+        for (String trigger : validTriggers) {
+            JSONObject jdeployConfig = new JSONObject();
+            JSONObject commands = new JSONObject();
+            JSONObject cmdSpec = new JSONObject();
+            cmdSpec.put("updateTrigger", trigger);
+            commands.put("mycmd", cmdSpec);
+            jdeployConfig.put("commands", commands);
+
+            List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+            assertEquals(1, result.size(), "Failed for trigger: " + trigger);
+            assertEquals(trigger, result.get(0).getUpdateTrigger(), "Failed for trigger: " + trigger);
+        }
+    }
+
+    @Test
+    void testParseCommands_updateTriggerRejectsSpecialChars() {
+        String[] invalidTriggers = {"update;rm", "up|date", "up&date", "up`date", "$(cmd)", "up date"};
+
+        for (String trigger : invalidTriggers) {
+            JSONObject jdeployConfig = new JSONObject();
+            JSONObject commands = new JSONObject();
+            JSONObject cmdSpec = new JSONObject();
+            cmdSpec.put("updateTrigger", trigger);
+            commands.put("mycmd", cmdSpec);
+            jdeployConfig.put("commands", commands);
+
+            assertThrows(IllegalArgumentException.class,
+                () -> CommandSpecParser.parseCommands(jdeployConfig),
+                "Should reject trigger with special chars: " + trigger);
+        }
+    }
+
+    @Test
+    void testParseCommands_updateTriggerRejectsNonString() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        JSONObject cmdSpec = new JSONObject();
+        cmdSpec.put("updateTrigger", 123);
+        commands.put("mycmd", cmdSpec);
+        jdeployConfig.put("commands", commands);
+
+        assertThrows(IllegalArgumentException.class,
+            () -> CommandSpecParser.parseCommands(jdeployConfig),
+            "Should reject non-string updateTrigger");
+    }
+
+    @Test
+    void testParseCommands_updateTriggerIgnoresNullValue() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        JSONObject cmdSpec = new JSONObject();
+        cmdSpec.put("updateTrigger", JSONObject.NULL);
+        commands.put("mycmd", cmdSpec);
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+        assertEquals(1, result.size());
+        assertEquals("update", result.get(0).getUpdateTrigger());
     }
 }
