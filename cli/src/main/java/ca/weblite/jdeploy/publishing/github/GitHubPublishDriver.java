@@ -17,8 +17,10 @@ import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.jdeploy.services.BundleCodeService;
 import ca.weblite.jdeploy.services.CheerpjService;
 import ca.weblite.jdeploy.services.PackageNameService;
+import ca.weblite.jdeploy.services.PackageSigningService;
 import ca.weblite.jdeploy.services.PlatformBundleGenerator;
 import ca.weblite.jdeploy.services.DefaultBundleService;
+import ca.weblite.jdeploy.services.VersionCleaner;
 import ca.weblite.jdeploy.models.JDeployProject;
 import ca.weblite.jdeploy.models.Platform;
 import ca.weblite.jdeploy.factories.JDeployProjectFactory;
@@ -598,6 +600,21 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         return "tag";
     }
 
+    private String getPackageSigningVersionString(PublishingContext context) {
+        try {
+            JSONObject packageJSON = new JSONObject(
+                    FileUtils.readFileToString(context.packagingContext.packageJsonFile, "UTF-8")
+            );
+            String versionString = VersionCleaner.cleanVersion(packageJSON.getString("version"));
+            if (packageJSON.has("commitHash")) {
+                versionString += "#" + packageJSON.getString("commitHash");
+            }
+            return versionString;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read package.json for signing version string", e);
+        }
+    }
+
     private String[] getInstallers(PublishingContext context) {
         DownloadPageSettings downloadPageSettings = downloadPageSettingsService.read(
                 context.packagingContext.packageJsonFile
@@ -664,13 +681,23 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             // Generate platform-specific tarballs
             List<Platform> platforms = platformBundleGenerator.getPlatformsForBundleGeneration(project);
             context.out().println("Generating platform-specific tarballs for " + platforms.size() + " platforms...");
-            
+
+            // Pass signing service so platform bundles are re-signed after JAR filtering
+            PackageSigningService signingService = null;
+            String signingVersionString = null;
+            if (context.packagingContext.isPackageSigningEnabled()) {
+                signingService = context.packagingContext.packageSigningService;
+                signingVersionString = getPackageSigningVersionString(context);
+            }
+
             Map<Platform, File> tarballs = platformBundleGenerator.generatePlatformTarballs(
                     project,
                     context.getPublishDir(),
                     context.getGithubReleaseFilesDir(),
                     context.npm,
-                    context.packagingContext.exitOnFail
+                    context.packagingContext.exitOnFail,
+                    signingService,
+                    signingVersionString
             );
             
             // Log the generated tarballs
