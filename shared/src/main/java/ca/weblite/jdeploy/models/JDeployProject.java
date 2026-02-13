@@ -143,4 +143,80 @@ public class JDeployProject {
             jdeployConfig.remove("singleton");
         }
     }
+
+    // ==================== Prebuilt Apps Support ====================
+
+    /**
+     * Gets the list of platforms that have prebuilt apps available.
+     * This is populated at publish time when prebuilt apps are uploaded.
+     *
+     * @return list of platform identifiers (e.g., "win-x64", "mac-arm64"), or empty list if none
+     */
+    public List<String> getPrebuiltApps() {
+        JSONObject jdeployConfig = getJDeployConfig();
+        JSONArray arr = jdeployConfig.optJSONArray("prebuiltApps");
+        if (arr == null) {
+            return Collections.emptyList();
+        }
+        List<String> platforms = new ArrayList<>();
+        for (int i = 0; i < arr.length(); i++) {
+            platforms.add(arr.getString(i));
+        }
+        return platforms;
+    }
+
+    /**
+     * Sets the list of platforms that have prebuilt apps available.
+     * This should only be called at publish time after successful upload.
+     *
+     * @param platforms list of platform identifiers
+     */
+    public void setPrebuiltApps(List<String> platforms) {
+        JSONObject jdeployConfig = getJDeployConfig();
+        if (platforms == null || platforms.isEmpty()) {
+            jdeployConfig.remove("prebuiltApps");
+        } else {
+            JSONArray arr = new JSONArray();
+            for (String p : platforms) {
+                arr.put(p);
+            }
+            jdeployConfig.put("prebuiltApps", arr);
+        }
+    }
+
+    /**
+     * Checks if a prebuilt app is available for the given platform.
+     *
+     * @param platform the platform to check
+     * @return true if a prebuilt app exists for this platform
+     */
+    public boolean hasPrebuiltApp(Platform platform) {
+        if (platform == null) {
+            return false;
+        }
+        return getPrebuiltApps().contains(platform.getIdentifier());
+    }
+
+    // ==================== Windows Signing Support ====================
+
+    /**
+     * Checks if Windows code signing is enabled for this project.
+     *
+     * @return true if Windows signing is enabled
+     */
+    public boolean isWindowsSigningEnabled() {
+        JSONObject jdeployConfig = getJDeployConfig();
+        JSONObject windowsSigning = jdeployConfig.optJSONObject("windowsSigning");
+        return windowsSigning != null && windowsSigning.optBoolean("enabled", false);
+    }
+
+    /**
+     * Gets the Windows signing configuration object.
+     *
+     * @return the windowsSigning JSONObject, or null if not configured
+     */
+    public JSONObject getWindowsSigningConfig() {
+        JSONObject jdeployConfig = getJDeployConfig();
+        return jdeployConfig.optJSONObject("windowsSigning");
+    }
 }
