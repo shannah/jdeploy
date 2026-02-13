@@ -59,6 +59,7 @@ import ca.weblite.jdeploy.installer.helpers.HelperUpdateService;
 import ca.weblite.jdeploy.installer.ai.models.AiIntegrationInstallResult;
 import ca.weblite.jdeploy.installer.ai.models.AiIntegrationManifestEntry;
 import ca.weblite.jdeploy.installer.ai.services.AiIntegrationInstaller;
+import ca.weblite.jdeploy.installer.prebuilt.PrebuiltAppInstaller;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
@@ -1563,7 +1564,39 @@ public class Main implements Runnable, Constants {
         // Configure JCEF frameworks if using JBR with JCEF variant
         JCEFConfigurer.configureJCEF(bundlerSettings, npmPackageVersion());
 
-        Bundler.runit(bundlerSettings, appInfo(), findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
+        // Try to use prebuilt app if available for this platform
+        // target is already in the correct format: "mac-x64", "win-arm64", "linux-x64", etc.
+        boolean usedPrebuiltApp = false;
+        String prebuiltPlatform = target;
+
+        if (npmPackageVersion().hasPrebuiltApp(prebuiltPlatform) && npmPackageVersion().hasGitHubSource()) {
+            System.out.println("Prebuilt app available for " + prebuiltPlatform + ", attempting download...");
+            try {
+                PrebuiltAppInstaller prebuiltInstaller = new PrebuiltAppInstaller(System.out, System.err);
+                File prebuiltTargetDir = new File(tmpBundles, target);
+                prebuiltTargetDir.mkdirs();
+
+                PrebuiltAppInstaller.InstallResult result = prebuiltInstaller.install(
+                        npmPackageVersion().getPackageJson(),
+                        prebuiltTargetDir
+                );
+
+                if (result.isSuccess()) {
+                    System.out.println("Successfully downloaded prebuilt app from " + result.getSource());
+                    usedPrebuiltApp = true;
+                } else {
+                    System.out.println("Prebuilt app download failed: " + result.getErrorMessage());
+                    System.out.println("Falling back to standard installation with JRE bundling...");
+                }
+            } catch (Exception e) {
+                System.out.println("Error during prebuilt app installation: " + e.getMessage());
+                System.out.println("Falling back to standard installation with JRE bundling...");
+            }
+        }
+
+        if (!usedPrebuiltApp) {
+            Bundler.runit(bundlerSettings, appInfo(), findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
+        }
 
         if (Platform.getSystemPlatform().isWindows()) {
             installedApp = new InstallWindows().install(

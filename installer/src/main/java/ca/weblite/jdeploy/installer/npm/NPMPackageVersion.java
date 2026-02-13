@@ -285,4 +285,80 @@ public class NPMPackageVersion {
     public AiIntegrationConfig getAiIntegrationConfig(File bundleDir) {
         return AiIntegrationConfig.fromBundle(packageJson, bundleDir);
     }
+
+    /**
+     * Gets the raw package.json object.
+     *
+     * @return the package.json JSONObject
+     */
+    public JSONObject getPackageJson() {
+        return packageJson;
+    }
+
+    /**
+     * Checks if a prebuilt app is available for the specified platform.
+     *
+     * @param platform the platform identifier (e.g., "win-x64", "mac-arm64")
+     * @return true if a prebuilt app is available for the platform
+     */
+    public boolean hasPrebuiltApp(String platform) {
+        if (!jdeploy().has("prebuiltApps")) {
+            return false;
+        }
+        JSONArray prebuiltApps = jdeploy().getJSONArray("prebuiltApps");
+        for (int i = 0; i < prebuiltApps.length(); i++) {
+            if (platform.equals(prebuiltApps.optString(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Gets the list of platforms that have prebuilt apps available.
+     *
+     * @return list of platform identifiers, or empty list if none
+     */
+    public List<String> getPrebuiltAppPlatforms() {
+        if (!jdeploy().has("prebuiltApps")) {
+            return Collections.emptyList();
+        }
+        JSONArray prebuiltApps = jdeploy().getJSONArray("prebuiltApps");
+        List<String> platforms = new ArrayList<>();
+        for (int i = 0; i < prebuiltApps.length(); i++) {
+            String platform = prebuiltApps.optString(i);
+            if (platform != null && !platform.isEmpty()) {
+                platforms.add(platform);
+            }
+        }
+        return platforms;
+    }
+
+    /**
+     * Checks if the app has a GitHub source configured.
+     *
+     * @return true if the app has a GitHub source
+     */
+    public boolean hasGitHubSource() {
+        String source = jdeploy().optString("source", "");
+        return source.contains("github.com");
+    }
+
+    /**
+     * Gets the GitHub repository URL from the source.
+     *
+     * @return the GitHub repository URL, or null if not a GitHub source
+     */
+    public String getGitHubRepositoryUrl() {
+        String source = jdeploy().optString("source", "");
+        if (!source.contains("github.com")) {
+            return null;
+        }
+        // Source might have suffix like "#package-name", remove it
+        int hashIndex = source.indexOf('#');
+        if (hashIndex > 0) {
+            source = source.substring(0, hashIndex);
+        }
+        return source;
+    }
 }
