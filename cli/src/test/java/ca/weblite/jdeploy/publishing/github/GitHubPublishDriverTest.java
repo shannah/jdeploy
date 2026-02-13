@@ -87,6 +87,15 @@ class GitHubPublishDriverTest {
     @Mock
     private ca.weblite.jdeploy.environment.Environment environment;
 
+    @Mock
+    private ca.weblite.jdeploy.services.PrebuiltAppRequirementService prebuiltAppRequirementService;
+
+    @Mock
+    private ca.weblite.jdeploy.services.PrebuiltAppPackager prebuiltAppPackager;
+
+    @Mock
+    private ca.weblite.jdeploy.services.PrebuiltAppBundlerService prebuiltAppBundlerService;
+
     @TempDir
     File tempDir;
 
@@ -112,7 +121,10 @@ class GitHubPublishDriverTest {
                 defaultBundleService,
                 projectFactory,
                 environment,
-                mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class)
+                mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class),
+                prebuiltAppRequirementService,
+                prebuiltAppPackager,
+                prebuiltAppBundlerService
         );
 
         packageJsonFile = new File(tempDir, "package.json");

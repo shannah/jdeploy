@@ -8,6 +8,8 @@ import ca.weblite.jdeploy.project.service.DefaultProjectLoader;
 import ca.weblite.jdeploy.project.service.ProjectLoader;
 import ca.weblite.jdeploy.publishTargets.PublishTargetService;
 import ca.weblite.jdeploy.publishTargets.PublishTargetServiceInterface;
+import ca.weblite.jdeploy.services.PrebuiltAppRequirementService;
+import ca.weblite.jdeploy.services.PrebuiltAppRequirementServiceImpl;
 import org.codejargon.feather.Provides;
 
 public class JDeployCliModule {
@@ -29,6 +31,11 @@ public class JDeployCliModule {
 
     @Provides
     public PublishTargetServiceInterface publishTargetServiceInterface(PublishTargetService impl) {
+        return impl;
+    }
+
+    @Provides
+    public PrebuiltAppRequirementService prebuiltAppRequirementService(PrebuiltAppRequirementServiceImpl impl) {
         return impl;
     }
 

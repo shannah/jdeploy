@@ -141,6 +141,9 @@ public class GitHubPublishDriverIntegrationTest {
         ca.weblite.jdeploy.services.DefaultBundleService defaultBundleService = mock(ca.weblite.jdeploy.services.DefaultBundleService.class);
         ca.weblite.jdeploy.factories.JDeployProjectFactory projectFactory = mock(ca.weblite.jdeploy.factories.JDeployProjectFactory.class);
         ca.weblite.jdeploy.environment.Environment githubDriverEnvironment = mock(ca.weblite.jdeploy.environment.Environment.class);
+        ca.weblite.jdeploy.services.PrebuiltAppRequirementService prebuiltAppRequirementService = mock(ca.weblite.jdeploy.services.PrebuiltAppRequirementService.class);
+        ca.weblite.jdeploy.services.PrebuiltAppPackager prebuiltAppPackager = mock(ca.weblite.jdeploy.services.PrebuiltAppPackager.class);
+        ca.weblite.jdeploy.services.PrebuiltAppBundlerService prebuiltAppBundlerService = mock(ca.weblite.jdeploy.services.PrebuiltAppBundlerService.class);
 
         when(cheerpjServiceFactory.create(any())).thenReturn(cheerpjService);
         when(cheerpjService.isEnabled()).thenReturn(false);
@@ -157,7 +160,10 @@ public class GitHubPublishDriverIntegrationTest {
             defaultBundleService,
             projectFactory,
             githubDriverEnvironment,
-            mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class)
+            mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class),
+            prebuiltAppRequirementService,
+            prebuiltAppPackager,
+            prebuiltAppBundlerService
         );
         
         // Setup test target

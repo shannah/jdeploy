@@ -69,6 +69,15 @@ class GitHubPublishDriverPackageInfoTest {
     @Mock
     private PublishTargetInterface target;
 
+    @Mock
+    private ca.weblite.jdeploy.services.PrebuiltAppRequirementService prebuiltAppRequirementService;
+
+    @Mock
+    private ca.weblite.jdeploy.services.PrebuiltAppPackager prebuiltAppPackager;
+
+    @Mock
+    private ca.weblite.jdeploy.services.PrebuiltAppBundlerService prebuiltAppBundlerService;
+
     @TempDir
     File tempDir;
 
@@ -139,7 +148,10 @@ class GitHubPublishDriverPackageInfoTest {
                 defaultBundleService,
                 projectFactory,
                 environment,
-                mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class)
+                mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class),
+                prebuiltAppRequirementService,
+                prebuiltAppPackager,
+                prebuiltAppBundlerService
         );
     }
 

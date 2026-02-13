@@ -19,6 +19,9 @@ import ca.weblite.jdeploy.services.CheerpjService;
 import ca.weblite.jdeploy.services.PackageNameService;
 import ca.weblite.jdeploy.services.PlatformBundleGenerator;
 import ca.weblite.jdeploy.services.DefaultBundleService;
+import ca.weblite.jdeploy.services.PrebuiltAppRequirementService;
+import ca.weblite.jdeploy.services.PrebuiltAppPackager;
+import ca.weblite.jdeploy.services.PrebuiltAppBundlerService;
 import ca.weblite.jdeploy.models.JDeployProject;
 import ca.weblite.jdeploy.models.Platform;
 import ca.weblite.jdeploy.factories.JDeployProjectFactory;
@@ -70,6 +73,12 @@ public class GitHubPublishDriver implements PublishDriverInterface {
 
     private final ca.weblite.jdeploy.services.JDeployFilesZipGenerator jdeployFilesZipGenerator;
 
+    private final PrebuiltAppRequirementService prebuiltAppRequirementService;
+
+    private final PrebuiltAppPackager prebuiltAppPackager;
+
+    private final PrebuiltAppBundlerService prebuiltAppBundlerService;
+
     @Inject
     public GitHubPublishDriver(
             BasePublishDriver baseDriver,
@@ -82,7 +91,10 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             DefaultBundleService defaultBundleService,
             JDeployProjectFactory projectFactory,
             Environment environment,
-            ca.weblite.jdeploy.services.JDeployFilesZipGenerator jdeployFilesZipGenerator
+            ca.weblite.jdeploy.services.JDeployFilesZipGenerator jdeployFilesZipGenerator,
+            PrebuiltAppRequirementService prebuiltAppRequirementService,
+            PrebuiltAppPackager prebuiltAppPackager,
+            PrebuiltAppBundlerService prebuiltAppBundlerService
     ) {
         this.baseDriver = baseDriver;
         this.bundleCodeService = bundleCodeService;
@@ -95,6 +107,9 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         this.projectFactory = projectFactory;
         this.environment = environment;
         this.jdeployFilesZipGenerator = jdeployFilesZipGenerator;
+        this.prebuiltAppRequirementService = prebuiltAppRequirementService;
+        this.prebuiltAppPackager = prebuiltAppPackager;
+        this.prebuiltAppBundlerService = prebuiltAppBundlerService;
     }
 
     @Override
@@ -254,6 +269,9 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         );
 
         saveGithubReleaseFiles(context, target);
+
+        // Generate prebuilt app tarballs if signing is enabled
+        generatePrebuiltApps(context, bundlerSettings);
 
         // Generate jdeploy-files.zip for GitHub releases
         jdeployFilesZipGenerator.generate(context, target);
@@ -694,6 +712,196 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             context.err().println("Warning: Failed to generate platform-specific tarballs: " + e.getMessage());
             context.err().println("Universal bundle will still be published to GitHub release");
             e.printStackTrace(context.err());
+        }
+    }
+
+    /**
+     * Generates prebuilt app tarballs for platforms that require them.
+     * Prebuilt apps are native bundles (exe, .app) packaged as tarballs with a -bin suffix.
+     * This is typically used when Windows signing is enabled.
+     *
+     * @param context the publishing context
+     * @param bundlerSettings the bundler settings from the prepare phase
+     */
+    private void generatePrebuiltApps(PublishingContext context, BundlerSettings bundlerSettings) {
+        try {
+            // Load the project to check if prebuilt apps are needed
+            JDeployProject project = projectFactory.createProject(context.packagingContext.packageJsonFile.toPath());
+
+            // Check if prebuilt apps generation is enabled
+            if (!prebuiltAppRequirementService.isPrebuiltAppsEnabled(project)) {
+                context.out().println("Prebuilt apps not enabled, skipping native bundle generation");
+                return;
+            }
+
+            // Get the platforms that need prebuilt apps
+            List<Platform> requiredPlatforms = prebuiltAppRequirementService.getRequiredPlatforms(project);
+            if (requiredPlatforms.isEmpty()) {
+                context.out().println("No platforms require prebuilt apps");
+                return;
+            }
+
+            context.out().println("Generating prebuilt apps for " + requiredPlatforms.size() + " platform(s)...");
+
+            // Create AppInfo for the bundler
+            ca.weblite.jdeploy.app.AppInfo appInfo = createAppInfoForPrebuiltApps(context, project);
+
+            // Create temp directory for bundle generation
+            File tempBundleDir = new File(context.getGithubReleaseFilesDir(), "prebuilt-temp");
+            if (tempBundleDir.exists()) {
+                FileUtils.deleteDirectory(tempBundleDir);
+            }
+            tempBundleDir.mkdirs();
+
+            try {
+                // Generate native bundles for each required platform
+                Map<Platform, File> nativeBundles = prebuiltAppBundlerService.generateNativeBundles(
+                        context,
+                        bundlerSettings,
+                        appInfo,
+                        requiredPlatforms,
+                        tempBundleDir
+                );
+
+                // Package each bundle into a tarball and move to release files dir
+                JSONObject packageJson = project.getPackageJSON();
+                String appName = packageJson.optString("name", "app");
+                String version = packageJson.optString("version", "1.0.0");
+                List<String> successfulPlatforms = new java.util.ArrayList<>();
+
+                for (Map.Entry<Platform, File> entry : nativeBundles.entrySet()) {
+                    Platform platform = entry.getKey();
+                    File bundleDir = entry.getValue();
+
+                    try {
+                        // Create tarball using the packager
+                        File tarball = prebuiltAppPackager.packageNativeBundleWithoutNpm(
+                                bundleDir,
+                                appName,
+                                version,
+                                platform,
+                                context.getGithubReleaseFilesDir()
+                        );
+
+                        // Generate checksum
+                        String checksum = prebuiltAppPackager.generateChecksum(tarball);
+
+                        context.out().println("Created prebuilt app tarball: " + tarball.getName() +
+                                " (SHA-256: " + checksum.substring(0, 12) + "...)");
+                        successfulPlatforms.add(platform.getIdentifier());
+
+                    } catch (Exception e) {
+                        context.err().println("Warning: Failed to package prebuilt app for " +
+                                platform.getIdentifier() + ": " + e.getMessage());
+                    }
+                }
+
+                if (!successfulPlatforms.isEmpty()) {
+                    context.out().println("Successfully created " + successfulPlatforms.size() + " prebuilt app tarball(s)");
+
+                    // Embed the successful platforms into the publish package.json
+                    embedPrebuiltAppsList(context, successfulPlatforms);
+                } else if (!nativeBundles.isEmpty()) {
+                    context.err().println("Warning: No prebuilt app tarballs were created successfully");
+                }
+
+            } finally {
+                // Clean up temp directory
+                if (tempBundleDir.exists()) {
+                    FileUtils.deleteDirectory(tempBundleDir);
+                }
+            }
+
+        } catch (Exception e) {
+            // Log the error but don't fail the entire publishing process
+            context.err().println("Warning: Failed to generate prebuilt apps: " + e.getMessage());
+            context.err().println("The standard bundle will still be published to GitHub release");
+            e.printStackTrace(context.err());
+        }
+    }
+
+    /**
+     * Creates an AppInfo instance populated with the necessary information for prebuilt app bundling.
+     *
+     * @param context the publishing context
+     * @param project the jDeploy project
+     * @return the populated AppInfo
+     * @throws IOException if loading app info fails
+     */
+    private ca.weblite.jdeploy.app.AppInfo createAppInfoForPrebuiltApps(
+            PublishingContext context,
+            JDeployProject project
+    ) throws IOException {
+        ca.weblite.jdeploy.app.AppInfo appInfo = new ca.weblite.jdeploy.app.AppInfo();
+
+        // Get values from package.json
+        JSONObject packageJson = project.getPackageJSON();
+        String name = packageJson.optString("name", "app");
+        String version = packageJson.optString("version", "1.0.0");
+
+        // Get display name from jdeploy config or package name
+        String displayName = name;
+        if (packageJson.has("jdeploy")) {
+            JSONObject jdeploy = packageJson.getJSONObject("jdeploy");
+            displayName = jdeploy.optString("displayName", jdeploy.optString("title", name));
+        }
+
+        // Set basic package info
+        appInfo.setNpmPackage(name);
+        appInfo.setNpmVersion(version);
+        appInfo.setTitle(displayName);
+
+        // Set the app URL to the publish directory (where the jar and icons are)
+        File publishDir = context.getPublishDir();
+        appInfo.setAppURL(publishDir.toURI().toURL());
+
+        return appInfo;
+    }
+
+    /**
+     * Embeds the list of successfully generated prebuilt app platforms into the publish package.json.
+     * This allows installers to know which platforms have prebuilt apps available.
+     *
+     * @param context the publishing context
+     * @param platforms the list of platform identifiers (e.g., "win-x64", "mac-arm64")
+     * @throws IOException if updating package.json fails
+     */
+    private void embedPrebuiltAppsList(PublishingContext context, List<String> platforms) throws IOException {
+        // Load the package.json from the publish directory
+        File publishPackageJson = context.getPublishPackageJsonFile();
+        if (!publishPackageJson.exists()) {
+            context.err().println("Warning: Could not embed prebuiltApps - package.json not found at " +
+                    publishPackageJson.getAbsolutePath());
+            return;
+        }
+
+        String content = FileUtils.readFileToString(publishPackageJson, StandardCharsets.UTF_8);
+        JSONObject packageJson = new JSONObject(content);
+
+        // Get or create the jdeploy object
+        JSONObject jdeploy;
+        if (packageJson.has("jdeploy")) {
+            jdeploy = packageJson.getJSONObject("jdeploy");
+        } else {
+            jdeploy = new JSONObject();
+            packageJson.put("jdeploy", jdeploy);
+        }
+
+        // Add the prebuiltApps list
+        org.json.JSONArray prebuiltApps = new org.json.JSONArray();
+        for (String platform : platforms) {
+            prebuiltApps.put(platform);
+        }
+        jdeploy.put("prebuiltApps", prebuiltApps);
+
+        // Save the updated package.json
+        FileUtils.writeStringToFile(publishPackageJson, packageJson.toString(2), StandardCharsets.UTF_8);
+        context.out().println("Embedded prebuiltApps list into package.json: " + platforms);
+
+        // Also update the package.json in the release files directory (for version-specific metadata)
+        File releasePackageJson = new File(context.getGithubReleaseFilesDir(), "package.json");
+        if (releasePackageJson.exists()) {
+            FileUtils.writeStringToFile(releasePackageJson, packageJson.toString(2), StandardCharsets.UTF_8);
         }
     }
 }
