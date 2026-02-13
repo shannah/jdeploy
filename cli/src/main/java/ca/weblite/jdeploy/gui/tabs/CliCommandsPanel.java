@@ -33,6 +33,7 @@ public class CliCommandsPanel extends JPanel {
     private JCheckBox updaterCheckbox;
     private JCheckBox launcherCheckbox;
     private JCheckBox serviceControllerCheckbox;
+    private JCheckBox uninstallerCheckbox;
     private JTextArea argsField;
     private JLabel validationLabel;
     private ActionListener changeListener;
@@ -225,6 +226,14 @@ public class CliCommandsPanel extends JPanel {
                 "Example: <code>myappctl service start</code> → calls launcher with --jdeploy:service start</html>");
         serviceControllerCheckbox.addActionListener(e -> onFieldChanged());
         checkboxPanel.add(serviceControllerCheckbox);
+        checkboxPanel.add(Box.createHorizontalStrut(15));
+
+        uninstallerCheckbox = new JCheckBox("Uninstaller");
+        uninstallerCheckbox.setOpaque(false);
+        uninstallerCheckbox.setToolTipText("<html>Intercepts 'uninstall' argument to trigger app uninstallation.<br>" +
+                "Example: <code>myapp-cli uninstall</code> → calls launcher with --jdeploy:uninstall</html>");
+        uninstallerCheckbox.addActionListener(e -> onFieldChanged());
+        checkboxPanel.add(uninstallerCheckbox);
 
         // Constrain the height of the checkbox panel to prevent vertical expansion
         checkboxPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, updaterCheckbox.getPreferredSize().height));
@@ -368,6 +377,7 @@ public class CliCommandsPanel extends JPanel {
             updaterCheckbox.setSelected(false);
             launcherCheckbox.setSelected(false);
             serviceControllerCheckbox.setSelected(false);
+            uninstallerCheckbox.setSelected(false);
             argsField.setForeground(Color.GRAY);
             argsField.setText(ARGS_PLACEHOLDER);
             validationLabel.setText(" ");
@@ -493,6 +503,7 @@ public class CliCommandsPanel extends JPanel {
             updaterCheckbox.setSelected(false);
             launcherCheckbox.setSelected(false);
             serviceControllerCheckbox.setSelected(false);
+            uninstallerCheckbox.setSelected(false);
             argsField.setForeground(Color.GRAY);
             argsField.setText(ARGS_PLACEHOLDER);
             validationLabel.setText(" ");
@@ -522,6 +533,7 @@ public class CliCommandsPanel extends JPanel {
                 updaterCheckbox.setSelected(false);
                 launcherCheckbox.setSelected(false);
                 serviceControllerCheckbox.setSelected(false);
+                uninstallerCheckbox.setSelected(false);
 
                 if (spec.has("implements")) {
                     JSONArray implArray = spec.getJSONArray("implements");
@@ -533,6 +545,8 @@ public class CliCommandsPanel extends JPanel {
                             launcherCheckbox.setSelected(true);
                         } else if (CommandSpecParser.IMPL_SERVICE_CONTROLLER.equals(impl)) {
                             serviceControllerCheckbox.setSelected(true);
+                        } else if (CommandSpecParser.IMPL_UNINSTALLER.equals(impl)) {
+                            uninstallerCheckbox.setSelected(true);
                         }
                     }
                 }
@@ -556,6 +570,7 @@ public class CliCommandsPanel extends JPanel {
                 updaterCheckbox.setSelected(false);
                 launcherCheckbox.setSelected(false);
                 serviceControllerCheckbox.setSelected(false);
+                uninstallerCheckbox.setSelected(false);
                 argsField.setForeground(Color.GRAY);
                 argsField.setText(ARGS_PLACEHOLDER);
             }
@@ -638,6 +653,9 @@ public class CliCommandsPanel extends JPanel {
                         if (serviceControllerCheckbox.isSelected()) {
                             implArray.put(CommandSpecParser.IMPL_SERVICE_CONTROLLER);
                         }
+                        if (uninstallerCheckbox.isSelected()) {
+                            implArray.put(CommandSpecParser.IMPL_UNINSTALLER);
+                        }
                         if (implArray.length() > 0) {
                             spec.put("implements", implArray);
                         } else {
@@ -706,6 +724,7 @@ public class CliCommandsPanel extends JPanel {
             updaterCheckbox.setSelected(false);
             launcherCheckbox.setSelected(false);
             serviceControllerCheckbox.setSelected(false);
+            uninstallerCheckbox.setSelected(false);
             argsField.setForeground(Color.GRAY);
             argsField.setText(ARGS_PLACEHOLDER);
             validationLabel.setText(" ");
@@ -742,6 +761,9 @@ public class CliCommandsPanel extends JPanel {
         }
         if (serviceControllerCheckbox.isSelected()) {
             implArray.put(CommandSpecParser.IMPL_SERVICE_CONTROLLER);
+        }
+        if (uninstallerCheckbox.isSelected()) {
+            implArray.put(CommandSpecParser.IMPL_UNINSTALLER);
         }
         if (implArray.length() > 0) {
             spec.put("implements", implArray);
@@ -805,6 +827,9 @@ public class CliCommandsPanel extends JPanel {
                 }
                 if (serviceControllerCheckbox.isSelected()) {
                     implArray.put(CommandSpecParser.IMPL_SERVICE_CONTROLLER);
+                }
+                if (uninstallerCheckbox.isSelected()) {
+                    implArray.put(CommandSpecParser.IMPL_UNINSTALLER);
                 }
                 if (implArray.length() > 0) {
                     spec.put("implements", implArray);
