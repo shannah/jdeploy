@@ -3,7 +3,7 @@
 **RFC**: `rfc/app-bundle-publishing.md`
 **Status**: Detailed Implementation Tasks
 **Created**: 2026-02-08
-**Updated**: 2026-02-12
+**Updated**: 2026-02-13
 
 ## Overview
 
@@ -284,7 +284,7 @@ Implement loading of external preferences.xml file.
 
 **Tasks:**
 
-- [ ] **2.1.1** Define preferences.xml schema:
+- [x] **2.1.1** Define preferences.xml schema:
   ```xml
   <?xml version="1.0" encoding="UTF-8"?>
   <preferences>
@@ -295,36 +295,45 @@ Implement loading of external preferences.xml file.
   </preferences>
   ```
 
-- [ ] **2.1.2** Implement FQN calculation:
+- [x] **2.1.2** Implement FQN calculation:
   ```
   With source hash: {hash}.{package-name}  → abc123.my-app
   Without source:   {package-name}         → my-app
   ```
 
-- [ ] **2.1.3** Implement preferences file path resolution:
+- [x] **2.1.3** Implement preferences file path resolution:
   ```
   ~/.jdeploy/preferences/{fqn}/preferences.xml
   ```
 
-- [ ] **2.1.4** Implement preferences loading at startup:
+- [x] **2.1.4** Implement preferences loading at startup:
   - Check if preferences.xml exists
   - Parse XML if present
   - Fall back to embedded app.xml values if missing
 
-- [ ] **2.1.5** Implement settings overlay logic:
+- [x] **2.1.5** Implement settings overlay logic:
   - External preferences override embedded values
   - Handle missing keys gracefully (use embedded default)
 
-- [ ] **2.1.6** Implement preferences writing:
+- [x] **2.1.6** Implement preferences writing:
   - Create directory structure if needed
   - Write XML file when user changes settings
 
-- [ ] **2.1.7** Handle corrupted preferences:
+- [x] **2.1.7** Handle corrupted preferences:
   - Catch XML parse errors
   - Log warning and use embedded defaults
   - Optionally rename corrupted file for debugging
 
-- [ ] **2.1.8** Add unit tests for preferences loading/saving
+- [x] **2.1.8** Add unit tests for preferences loading/saving
+
+**Implementation Note:** Phase 4 (External Preferences) was implemented on the Java installer side:
+- `installer/src/main/java/ca/weblite/jdeploy/installer/preferences/AppPreferences.java`
+- `installer/src/main/java/ca/weblite/jdeploy/installer/preferences/PreferencesService.java`
+- `installer/src/test/java/ca/weblite/jdeploy/installer/preferences/PreferencesServiceTest.java` (16 tests)
+- Integrated into `Main.java` install flow
+
+The Go-based Client4JLauncher needs to be updated separately. See coordination document:
+- `plans/client4jlauncher-external-preferences.md`
 
 ---
 

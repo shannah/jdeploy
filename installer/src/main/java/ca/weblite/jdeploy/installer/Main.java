@@ -60,6 +60,7 @@ import ca.weblite.jdeploy.installer.ai.models.AiIntegrationInstallResult;
 import ca.weblite.jdeploy.installer.ai.models.AiIntegrationManifestEntry;
 import ca.weblite.jdeploy.installer.ai.services.AiIntegrationInstaller;
 import ca.weblite.jdeploy.installer.prebuilt.PrebuiltAppInstaller;
+import ca.weblite.jdeploy.installer.preferences.PreferencesService;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
@@ -1936,6 +1937,15 @@ public class Main implements Runnable, Constants {
             }
         }
 
+        // Write external preferences file
+        // This allows prebuilt signed apps to have user-configurable settings
+        try {
+            writeExternalPreferences(fullyQualifiedPackageName, usedPrebuiltApp);
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to write external preferences: " + e.getMessage());
+            // Continue - preferences are optional
+        }
+
         File tmpPlatformBundles = new File(tmpBundles, target);
 
     }
@@ -2293,6 +2303,49 @@ public class Main implements Runnable, Constants {
             return installedApp.getAbsolutePath();
         }
         return null;
+    }
+
+    /**
+     * Writes external preferences to ~/.jdeploy/preferences/{fqn}/preferences.xml
+     *
+     * External preferences allow:
+     * 1. Prebuilt signed apps to have user-configurable settings without re-signing
+     * 2. User preferences to survive app updates
+     * 3. The launcher to know if this is a prebuilt installation
+     *
+     * @param fullyQualifiedPackageName The FQN for the preferences directory
+     * @param usedPrebuiltApp Whether this installation used a prebuilt app
+     * @throws IOException if writing preferences fails
+     */
+    private void writeExternalPreferences(String fullyQualifiedPackageName, boolean usedPrebuiltApp) throws IOException {
+        PreferencesService prefsService = new PreferencesService(System.out, System.err);
+
+        // Determine auto-update setting from installation settings
+        String autoUpdate = "minor"; // Default
+        if (installationSettings.getAutoUpdate() != null) {
+            switch (installationSettings.getAutoUpdate()) {
+                case Stable:
+                    autoUpdate = "all";
+                    break;
+                case MinorOnly:
+                    autoUpdate = "minor";
+                    break;
+                case PatchesOnly:
+                    autoUpdate = "patch";
+                    break;
+                case Off:
+                    autoUpdate = "none";
+                    break;
+            }
+        }
+
+        prefsService.createInitialPreferences(
+                fullyQualifiedPackageName,
+                npmPackageVersion() != null ? npmPackageVersion().getVersion() : appInfo().getNpmVersion(),
+                installationSettings.isPrerelease(),
+                autoUpdate,
+                usedPrebuiltApp
+        );
     }
 
     /**
