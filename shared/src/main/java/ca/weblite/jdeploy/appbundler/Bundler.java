@@ -210,6 +210,22 @@ public class Bundler {
             }
         }
 
+        // Setup Windows code signing
+        if (appInfo.isWindowsSigningEnabled() && C4JPublisherSettings.isWindowsSigningConfigured()) {
+            String certPath = C4JPublisherSettings.getWindowsCertificatePath();
+            String certPassword = C4JPublisherSettings.getWindowsCertificatePassword();
+
+            if (certPath != null && !certPath.isEmpty()) {
+                app.enableWindowsCodeSigning(certPath, certPassword);
+                app.setWindowsTimestampServer(C4JPublisherSettings.getWindowsTimestampServer());
+
+                String publisherName = C4JPublisherSettings.getWindowsPublisherName();
+                if (publisherName != null && !publisherName.isEmpty()) {
+                    app.setWindowsPublisherName(publisherName);
+                }
+            }
+        }
+
         return app;
     }
 

@@ -361,7 +361,25 @@ public class AppInfo  {
             codeSignSettings = settings;
         }
     }
-    
+
+    /**
+     * Checks if Windows code signing is enabled for this app.
+     *
+     * @return true if Windows signing is enabled
+     */
+    public boolean isWindowsSigningEnabled() {
+        return windowsSigningEnabled;
+    }
+
+    /**
+     * Sets whether Windows code signing is enabled for this app.
+     *
+     * @param enabled true to enable Windows signing
+     */
+    public void setWindowsSigningEnabled(boolean enabled) {
+        this.windowsSigningEnabled = enabled;
+    }
+
     /**
      * @return the macAppUrl
      */
@@ -1629,7 +1647,9 @@ public class AppInfo  {
     private List<Dependency> dependencies;
     private List<JRE> runtimes;
     private CodeSignSettings codeSignSettings = CodeSignSettings.None;
-    
+
+    private boolean windowsSigningEnabled = false;
+
     private String macAppBundleId;
 
     private List<CommandSpec> commands = Collections.emptyList();

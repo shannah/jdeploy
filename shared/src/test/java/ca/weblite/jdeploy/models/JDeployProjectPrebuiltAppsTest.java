@@ -273,6 +273,82 @@ public class JDeployProjectPrebuiltAppsTest {
         assertEquals("jsign", config.getString("provider"));
     }
 
+    // ==================== getWindowsSigningProvider Tests ====================
+
+    @Test
+    public void testGetWindowsSigningProvider_NotConfigured() {
+        createProject();
+        assertEquals("jsign", project.getWindowsSigningProvider());
+    }
+
+    @Test
+    public void testGetWindowsSigningProvider_DefaultWhenMissing() {
+        JSONObject jdeploy = new JSONObject();
+        JSONObject windowsSigning = new JSONObject();
+        windowsSigning.put("enabled", true);
+        // No provider specified
+        jdeploy.put("windowsSigning", windowsSigning);
+        packageJSON.put("jdeploy", jdeploy);
+
+        createProject();
+        assertEquals("jsign", project.getWindowsSigningProvider());
+    }
+
+    @Test
+    public void testGetWindowsSigningProvider_CustomProvider() {
+        JSONObject jdeploy = new JSONObject();
+        JSONObject windowsSigning = new JSONObject();
+        windowsSigning.put("enabled", true);
+        windowsSigning.put("provider", "signtool");
+        jdeploy.put("windowsSigning", windowsSigning);
+        packageJSON.put("jdeploy", jdeploy);
+
+        createProject();
+        assertEquals("signtool", project.getWindowsSigningProvider());
+    }
+
+    // ==================== setWindowsSigningEnabled Tests ====================
+
+    @Test
+    public void testSetWindowsSigningEnabled_Enable() {
+        JSONObject jdeploy = new JSONObject();
+        packageJSON.put("jdeploy", jdeploy);
+
+        createProject();
+        project.setWindowsSigningEnabled(true);
+
+        assertTrue(project.isWindowsSigningEnabled());
+    }
+
+    @Test
+    public void testSetWindowsSigningEnabled_Disable() {
+        JSONObject jdeploy = new JSONObject();
+        JSONObject windowsSigning = new JSONObject();
+        windowsSigning.put("enabled", true);
+        jdeploy.put("windowsSigning", windowsSigning);
+        packageJSON.put("jdeploy", jdeploy);
+
+        createProject();
+        assertTrue(project.isWindowsSigningEnabled());
+
+        project.setWindowsSigningEnabled(false);
+        assertFalse(project.isWindowsSigningEnabled());
+    }
+
+    @Test
+    public void testSetWindowsSigningEnabled_CreatesConfigIfMissing() {
+        JSONObject jdeploy = new JSONObject();
+        packageJSON.put("jdeploy", jdeploy);
+
+        createProject();
+        assertNull(project.getWindowsSigningConfig());
+
+        project.setWindowsSigningEnabled(true);
+
+        assertNotNull(project.getWindowsSigningConfig());
+        assertTrue(project.isWindowsSigningEnabled());
+    }
+
     // ==================== Integration Tests ====================
 
     @Test

@@ -41,6 +41,13 @@ public class C4JPublisherSettings {
     private static final String MAC_NOTORIZATION_PASSWORD = "mac.notarization-password";
     private static final String MAC_SIGNING_SETTINGS = "mac.signing-settings";
     private static final String MAC_APPS_NODE = "mac.apps";
+
+    // Windows signing constants
+    private static final String WINDOWS_CERTIFICATE_PATH = "windows.certificate-path";
+    private static final String WINDOWS_CERTIFICATE_PASSWORD = "windows.certificate-password";
+    private static final String WINDOWS_TIMESTAMP_SERVER = "windows.timestamp-server";
+    private static final String WINDOWS_PUBLISHER_NAME = "windows.publisher-name";
+    private static final String DEFAULT_WINDOWS_TIMESTAMP_SERVER = "http://timestamp.digicert.com";
     
     private static Preferences root;
 
@@ -254,9 +261,77 @@ public class C4JPublisherSettings {
     public static void flush() throws IOException {
         try {
             root().flush();
-            
+
         } catch (BackingStoreException ex) {
             throw new IOException("Failed to save settings", ex);
         }
+    }
+
+    // ==================== Windows Signing Settings ====================
+
+    /**
+     * Gets the Windows certificate path from environment or properties.
+     * Priority: env JDEPLOY_WINDOWS_CERTIFICATE_PATH > properties file
+     *
+     * @return the certificate path, or empty string if not configured
+     */
+    public static String getWindowsCertificatePath() {
+        String path = System.getenv("JDEPLOY_WINDOWS_CERTIFICATE_PATH");
+        if (path != null && !path.isEmpty()) {
+            return path;
+        }
+        return jDeployProperties.getProperty(WINDOWS_CERTIFICATE_PATH, "");
+    }
+
+    /**
+     * Gets the Windows certificate password from environment or properties.
+     * Priority: env JDEPLOY_WINDOWS_CERTIFICATE_PASSWORD > properties file
+     *
+     * @return the certificate password, or empty string if not configured
+     */
+    public static String getWindowsCertificatePassword() {
+        String password = System.getenv("JDEPLOY_WINDOWS_CERTIFICATE_PASSWORD");
+        if (password != null) {
+            return password;
+        }
+        return jDeployProperties.getProperty(WINDOWS_CERTIFICATE_PASSWORD, "");
+    }
+
+    /**
+     * Gets the Windows timestamp server URL from environment or properties.
+     * Priority: env JDEPLOY_WINDOWS_TIMESTAMP_SERVER > properties file > default
+     *
+     * @return the timestamp server URL
+     */
+    public static String getWindowsTimestampServer() {
+        String server = System.getenv("JDEPLOY_WINDOWS_TIMESTAMP_SERVER");
+        if (server != null && !server.isEmpty()) {
+            return server;
+        }
+        return jDeployProperties.getProperty(WINDOWS_TIMESTAMP_SERVER, DEFAULT_WINDOWS_TIMESTAMP_SERVER);
+    }
+
+    /**
+     * Gets the Windows publisher name from environment or properties.
+     * Priority: env JDEPLOY_WINDOWS_PUBLISHER_NAME > properties file
+     *
+     * @return the publisher name, or empty string if not configured
+     */
+    public static String getWindowsPublisherName() {
+        String name = System.getenv("JDEPLOY_WINDOWS_PUBLISHER_NAME");
+        if (name != null && !name.isEmpty()) {
+            return name;
+        }
+        return jDeployProperties.getProperty(WINDOWS_PUBLISHER_NAME, "");
+    }
+
+    /**
+     * Checks if Windows signing is configured (certificate path is set).
+     *
+     * @return true if Windows signing credentials are available
+     */
+    public static boolean isWindowsSigningConfigured() {
+        String certPath = getWindowsCertificatePath();
+        return certPath != null && !certPath.isEmpty();
     }
 }

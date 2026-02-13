@@ -27,7 +27,7 @@ Add methods to read Windows signing configuration from package.json.
 
 **Tasks:**
 
-- [ ] **1.1.1** Add `isWindowsSigningEnabled()` method:
+- [x] **1.1.1** Add `isWindowsSigningEnabled()` method:
   ```java
   public boolean isWindowsSigningEnabled() {
       JSONObject jdeployConfig = getJDeployConfig();
@@ -36,7 +36,7 @@ Add methods to read Windows signing configuration from package.json.
   }
   ```
 
-- [ ] **1.1.2** Add `getWindowsSigningProvider()` method:
+- [x] **1.1.2** Add `getWindowsSigningProvider()` method:
   ```java
   public String getWindowsSigningProvider() {
       JSONObject windowsSigning = getWindowsSigningConfig();
@@ -45,14 +45,14 @@ Add methods to read Windows signing configuration from package.json.
   }
   ```
 
-- [ ] **1.1.3** Add `getWindowsSigningConfig()` method:
+- [x] **1.1.3** Add `getWindowsSigningConfig()` method:
   ```java
   public JSONObject getWindowsSigningConfig() {
       return getJDeployConfig().optJSONObject("windowsSigning");
   }
   ```
 
-- [ ] **1.1.4** Add unit tests for Windows signing config methods
+- [x] **1.1.4** Add unit tests for Windows signing config methods
 
 ---
 
@@ -64,7 +64,7 @@ Add Windows signing properties to the bundler's app description model.
 
 **Tasks:**
 
-- [ ] **1.2.1** Add Windows signing fields:
+- [x] **1.2.1** Add Windows signing fields:
   ```java
   private boolean windowsCodeSigningEnabled;
   private String windowsCertificatePath;
@@ -74,11 +74,11 @@ Add Windows signing properties to the bundler's app description model.
   private String windowsPublicKey; // Extracted from cert, embedded in package.json
   ```
 
-- [ ] **1.2.2** Add getters and setters for all Windows signing fields
+- [x] **1.2.2** Add getters and setters for all Windows signing fields
 
-- [ ] **1.2.3** Add `isWindowsCodeSigningEnabled()` method (follow macOS pattern)
+- [x] **1.2.3** Add `isWindowsCodeSigningEnabled()` method (follow macOS pattern)
 
-- [ ] **1.2.4** Update `AppDescriptionBuilder` to load Windows signing config:
+- [x] **1.2.4** Update `AppDescriptionBuilder` to load Windows signing config:
   ```java
   if (project.isWindowsSigningEnabled()) {
       app.setWindowsCodeSigningEnabled(true);
@@ -89,7 +89,7 @@ Add Windows signing properties to the bundler's app description model.
   }
   ```
 
-- [ ] **1.2.5** Add unit tests for Windows signing properties
+- [x] **1.2.5** Add unit tests for Windows signing properties
 
 ---
 
@@ -101,7 +101,7 @@ Create a dedicated configuration model for Windows signing.
 
 **Tasks:**
 
-- [ ] **1.3.1** Create `WindowsSigningConfiguration` class:
+- [x] **1.3.1** Create `WindowsSigningConfiguration` class:
   ```java
   public class WindowsSigningConfiguration {
       private String certificatePath;
@@ -119,7 +119,7 @@ Create a dedicated configuration model for Windows signing.
   }
   ```
 
-- [ ] **1.3.2** Add factory method to create from environment/properties:
+- [x] **1.3.2** Add factory method to create from environment/properties:
   ```java
   public static WindowsSigningConfiguration fromEnvironment() {
       return builder()
@@ -131,7 +131,7 @@ Create a dedicated configuration model for Windows signing.
   }
   ```
 
-- [ ] **1.3.3** Add validation method:
+- [x] **1.3.3** Add validation method:
   ```java
   public void validate() throws SigningConfigurationException {
       if (certificatePath == null || certificatePath.isEmpty()) {
@@ -144,7 +144,7 @@ Create a dedicated configuration model for Windows signing.
   }
   ```
 
-- [ ] **1.3.4** Add unit tests for configuration and validation
+- [x] **1.3.4** Add unit tests for configuration and validation
 
 ---
 

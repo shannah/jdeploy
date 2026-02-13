@@ -219,4 +219,31 @@ public class JDeployProject {
         JSONObject jdeployConfig = getJDeployConfig();
         return jdeployConfig.optJSONObject("windowsSigning");
     }
+
+    /**
+     * Gets the Windows signing provider name.
+     * Defaults to "jsign" if not specified.
+     *
+     * @return the signing provider name
+     */
+    public String getWindowsSigningProvider() {
+        JSONObject windowsSigning = getWindowsSigningConfig();
+        if (windowsSigning == null) {
+            return "jsign";
+        }
+        return windowsSigning.optString("provider", "jsign");
+    }
+
+    /**
+     * Enables or disables Windows code signing.
+     *
+     * @param enabled true to enable signing, false to disable
+     */
+    public void setWindowsSigningEnabled(boolean enabled) {
+        JSONObject jdeployConfig = getJDeployConfig();
+        if (!jdeployConfig.has("windowsSigning")) {
+            jdeployConfig.put("windowsSigning", new JSONObject());
+        }
+        jdeployConfig.getJSONObject("windowsSigning").put("enabled", enabled);
+    }
 }

@@ -44,6 +44,14 @@ public class AppDescription {
 
     private String macDeveloperTeamID;
 
+    // Windows code signing
+    private boolean enableWindowsCodeSigning;
+    private String windowsCertificatePath;
+    private String windowsCertificatePassword;
+    private String windowsTimestampServer = "http://timestamp.digicert.com";
+    private String windowsPublisherName;
+    private String windowsPublicKey; // Extracted from cert, embedded in package.json
+
     // Directory association support
     private ca.weblite.jdeploy.models.DocumentTypeAssociation directoryAssociation;
 
@@ -331,7 +339,108 @@ public class AppDescription {
         return enableMacNotarization && getMacDeveloperID() != null && getMacNotarizationPassword() != null;
     }
 
-    
+    // ==================== Windows Code Signing ====================
+
+    /**
+     * Enables Windows code signing with the specified certificate.
+     *
+     * @param certificatePath path to the .pfx/.p12 certificate file
+     * @param certificatePassword password for the certificate
+     */
+    public void enableWindowsCodeSigning(String certificatePath, String certificatePassword) {
+        enableWindowsCodeSigning = true;
+        if (certificatePath != null) {
+            setWindowsCertificatePath(certificatePath);
+        }
+        if (certificatePassword != null) {
+            setWindowsCertificatePassword(certificatePassword);
+        }
+    }
+
+    /**
+     * Disables Windows code signing.
+     */
+    public void disableWindowsCodeSigning() {
+        enableWindowsCodeSigning = false;
+    }
+
+    /**
+     * @return true if Windows code signing is enabled and configured
+     */
+    public boolean isWindowsCodeSigningEnabled() {
+        return enableWindowsCodeSigning && getWindowsCertificatePath() != null;
+    }
+
+    /**
+     * @return the path to the Windows code signing certificate (.pfx/.p12)
+     */
+    public String getWindowsCertificatePath() {
+        return windowsCertificatePath;
+    }
+
+    /**
+     * @param windowsCertificatePath the certificate path to set
+     */
+    public void setWindowsCertificatePath(String windowsCertificatePath) {
+        this.windowsCertificatePath = windowsCertificatePath;
+    }
+
+    /**
+     * @return the Windows certificate password
+     */
+    public String getWindowsCertificatePassword() {
+        return windowsCertificatePassword;
+    }
+
+    /**
+     * @param windowsCertificatePassword the certificate password to set
+     */
+    public void setWindowsCertificatePassword(String windowsCertificatePassword) {
+        this.windowsCertificatePassword = windowsCertificatePassword;
+    }
+
+    /**
+     * @return the timestamp server URL for Windows signing
+     */
+    public String getWindowsTimestampServer() {
+        return windowsTimestampServer;
+    }
+
+    /**
+     * @param windowsTimestampServer the timestamp server URL to set
+     */
+    public void setWindowsTimestampServer(String windowsTimestampServer) {
+        this.windowsTimestampServer = windowsTimestampServer;
+    }
+
+    /**
+     * @return the publisher name displayed in Windows security dialogs
+     */
+    public String getWindowsPublisherName() {
+        return windowsPublisherName;
+    }
+
+    /**
+     * @param windowsPublisherName the publisher name to set
+     */
+    public void setWindowsPublisherName(String windowsPublisherName) {
+        this.windowsPublisherName = windowsPublisherName;
+    }
+
+    /**
+     * @return the Base64-encoded public key from the signing certificate
+     */
+    public String getWindowsPublicKey() {
+        return windowsPublicKey;
+    }
+
+    /**
+     * @param windowsPublicKey the public key to set (Base64-encoded)
+     */
+    public void setWindowsPublicKey(String windowsPublicKey) {
+        this.windowsPublicKey = windowsPublicKey;
+    }
+
     /**
      * @return the macCertificateName
      */
