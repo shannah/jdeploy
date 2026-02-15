@@ -14,14 +14,20 @@ public class CommandSpec {
      */
     public static final String DEFAULT_UPDATE_TRIGGER = "update";
 
+    /**
+     * Default trigger argument for the uninstaller implementation.
+     */
+    public static final String DEFAULT_UNINSTALL_TRIGGER = "uninstall";
+
     private final String name;
     private final String description;
     private final List<String> args;
     private final List<String> implementations;
     private final Boolean embedPlist;
     private final String updateTrigger;
+    private final String uninstallTrigger;
 
-    public CommandSpec(String name, String description, List<String> args, List<String> implementations, Boolean embedPlist, String updateTrigger) {
+    public CommandSpec(String name, String description, List<String> args, List<String> implementations, Boolean embedPlist, String updateTrigger, String uninstallTrigger) {
         if (name == null) {
             throw new IllegalArgumentException("Command name cannot be null");
         }
@@ -39,10 +45,15 @@ public class CommandSpec {
         }
         this.embedPlist = embedPlist;
         this.updateTrigger = (updateTrigger != null && !updateTrigger.isEmpty()) ? updateTrigger : DEFAULT_UPDATE_TRIGGER;
+        this.uninstallTrigger = (uninstallTrigger != null && !uninstallTrigger.isEmpty()) ? uninstallTrigger : DEFAULT_UNINSTALL_TRIGGER;
+    }
+
+    public CommandSpec(String name, String description, List<String> args, List<String> implementations, Boolean embedPlist, String updateTrigger) {
+        this(name, description, args, implementations, embedPlist, updateTrigger, null);
     }
 
     public CommandSpec(String name, String description, List<String> args, List<String> implementations, Boolean embedPlist) {
-        this(name, description, args, implementations, embedPlist, null);
+        this(name, description, args, implementations, embedPlist, null, null);
     }
 
     public CommandSpec(String name, String description, List<String> args, List<String> implementations) {
@@ -74,7 +85,7 @@ public class CommandSpec {
 
     /**
      * Checks if this command implements a specific behavior.
-     * @param implementation one of: "updater", "service_controller", "launcher"
+     * @param implementation one of: "updater", "service_controller", "launcher", "uninstaller"
      * @return true if this command implements the given behavior
      */
     public boolean implements_(String implementation) {
@@ -104,6 +115,17 @@ public class CommandSpec {
         return updateTrigger;
     }
 
+    /**
+     * Returns the trigger argument that activates the uninstaller implementation.
+     * When the command is invoked with this single argument, it triggers the
+     * {@code --jdeploy:uninstall} launcher flag.
+     *
+     * @return the uninstall trigger argument, defaults to "uninstall"
+     */
+    public String getUninstallTrigger() {
+        return uninstallTrigger;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -115,12 +137,13 @@ public class CommandSpec {
                Objects.equals(args, that.args) &&
                Objects.equals(implementations, that.implementations) &&
                Objects.equals(embedPlist, that.embedPlist) &&
-               Objects.equals(updateTrigger, that.updateTrigger);
+               Objects.equals(updateTrigger, that.updateTrigger) &&
+               Objects.equals(uninstallTrigger, that.uninstallTrigger);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, description, args, implementations, embedPlist, updateTrigger);
+        return Objects.hash(name, description, args, implementations, embedPlist, updateTrigger, uninstallTrigger);
     }
 
     @Override
@@ -132,6 +155,7 @@ public class CommandSpec {
                 ", implementations=" + implementations +
                 ", embedPlist=" + embedPlist +
                 ", updateTrigger='" + updateTrigger + '\'' +
+                ", uninstallTrigger='" + uninstallTrigger + '\'' +
                 '}';
     }
 }

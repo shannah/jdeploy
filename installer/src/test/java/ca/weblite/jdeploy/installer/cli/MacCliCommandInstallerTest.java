@@ -278,24 +278,34 @@ public class MacCliCommandInstallerTest {
     public void testAddToPathFish() {
         String shell = "/usr/bin/fish";
         String pathEnv = "/usr/bin:/bin";
-        File profile = new File(homeDir, ".profile");
 
         boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        assertTrue(profile.exists(), "Fish shell should use .profile for POSIX compatibility");
+        // Now we write to both bash and zsh config files regardless of shell
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists(), "bashrc should be created");
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertTrue(bashProfile.exists(), "bash_profile should be created");
+        File zshrc = new File(homeDir, ".zshrc");
+        assertTrue(zshrc.exists(), "zshrc should be created");
     }
 
     @Test
     public void testAddToPathUnknownShell() {
         String shell = "/bin/unknown";
         String pathEnv = "/usr/bin:/bin";
-        File profile = new File(homeDir, ".profile");
 
         boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        assertTrue(profile.exists(), "Unknown shell should use .profile for POSIX compatibility");
+        // Now we write to both bash and zsh config files regardless of shell
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists(), "bashrc should be created");
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertTrue(bashProfile.exists(), "bash_profile should be created");
+        File zshrc = new File(homeDir, ".zshrc");
+        assertTrue(zshrc.exists(), "zshrc should be created");
     }
 
     @Test

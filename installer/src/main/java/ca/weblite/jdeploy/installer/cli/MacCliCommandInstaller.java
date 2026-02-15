@@ -239,8 +239,9 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
 
         boolean hasUpdater = implementations.contains("updater");
         boolean hasServiceController = implementations.contains("service_controller");
+        boolean hasUninstaller = implementations.contains("uninstaller");
 
-        if (hasUpdater || hasServiceController) {
+        if (hasUpdater || hasServiceController || hasUninstaller) {
             // Generate conditional script with checks
 
             // Check for updater: single argument matching the configured trigger
@@ -249,6 +250,15 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
                 sb.append("# Check if single argument is \"").append(trigger).append("\"\n");
                 sb.append("if [ \"$#\" -eq 1 ] && [ \"$1\" = \"").append(trigger).append("\" ]; then\n");
                 sb.append("  exec \"").append(escapedLauncher).append("\" --jdeploy:update\n");
+                sb.append("fi\n\n");
+            }
+
+            // Check for uninstaller: single argument matching the configured trigger
+            if (hasUninstaller) {
+                String trigger = command.getUninstallTrigger();
+                sb.append("# Check if single argument is \"").append(trigger).append("\"\n");
+                sb.append("if [ \"$#\" -eq 1 ] && [ \"$1\" = \"").append(trigger).append("\" ]; then\n");
+                sb.append("  exec \"").append(escapedLauncher).append("\" --jdeploy:uninstall\n");
                 sb.append("fi\n\n");
             }
 

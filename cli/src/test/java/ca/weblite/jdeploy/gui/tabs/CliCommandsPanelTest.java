@@ -257,4 +257,63 @@ public class CliCommandsPanelTest {
         assertTrue(hasServiceController, "Should have service_controller implementation");
         assertTrue(hasUpdater, "Should have updater implementation");
     }
+
+    @Test
+    public void testUninstallerImplementsSaveAndLoad() {
+        // Create a command with uninstaller implementation
+        JSONObject jdeploy = new JSONObject();
+        JSONObject commands = new JSONObject();
+
+        JSONObject cmd1 = new JSONObject();
+        cmd1.put("description", "Uninstaller command");
+        JSONArray impl1 = new JSONArray();
+        impl1.put("uninstaller");
+        cmd1.put("implements", impl1);
+
+        JSONObject cmd2 = new JSONObject();
+        cmd2.put("description", "Combined updater and uninstaller");
+        JSONArray impl2 = new JSONArray();
+        impl2.put("updater");
+        impl2.put("uninstaller");
+        cmd2.put("implements", impl2);
+
+        commands.put("uninstaller-cmd", cmd1);
+        commands.put("combined-cmd", cmd2);
+        jdeploy.put("commands", commands);
+
+        // Load and verify
+        panel.load(jdeploy);
+
+        // Save and verify implements are preserved
+        JSONObject saved = new JSONObject();
+        panel.save(saved);
+
+        JSONObject savedCommands = saved.getJSONObject("commands");
+        assertEquals(2, savedCommands.length());
+
+        // Verify uninstaller-cmd has uninstaller implementation
+        assertTrue(savedCommands.has("uninstaller-cmd"));
+        JSONObject savedCmd1 = savedCommands.getJSONObject("uninstaller-cmd");
+        assertTrue(savedCmd1.has("implements"));
+        JSONArray savedImpl1 = savedCmd1.getJSONArray("implements");
+        assertEquals(1, savedImpl1.length());
+        assertEquals("uninstaller", savedImpl1.getString(0));
+
+        // Verify combined-cmd has both updater and uninstaller implementations
+        assertTrue(savedCommands.has("combined-cmd"));
+        JSONObject savedCmd2 = savedCommands.getJSONObject("combined-cmd");
+        assertTrue(savedCmd2.has("implements"));
+        JSONArray savedImpl2 = savedCmd2.getJSONArray("implements");
+        assertEquals(2, savedImpl2.length());
+        // Check both are present
+        boolean hasUpdater = false;
+        boolean hasUninstaller = false;
+        for (int i = 0; i < savedImpl2.length(); i++) {
+            String impl = savedImpl2.getString(i);
+            if ("updater".equals(impl)) hasUpdater = true;
+            if ("uninstaller".equals(impl)) hasUninstaller = true;
+        }
+        assertTrue(hasUpdater, "Should have updater implementation");
+        assertTrue(hasUninstaller, "Should have uninstaller implementation");
+    }
 }
