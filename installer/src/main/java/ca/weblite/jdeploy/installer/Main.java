@@ -1158,6 +1158,10 @@ public class Main implements Runnable, Constants {
         // Output suppression is handled by setupStaticHeadlessOutputSuppression() in main()
         // Use staticOriginalOut for user-facing messages
 
+        // Apply installation context to load AI config and other resources
+        // This is also done in buildUI() for GUI mode, but headless mode skips buildUI()
+        installationContext.applyContext(installationSettings);
+
         staticOriginalOut.println(
             "Installing " + appInfo().getTitle() + " " + npmPackageVersion().getVersion() + "..."
         );
@@ -1190,6 +1194,24 @@ public class Main implements Runnable, Constants {
             String appXmlPath,
             PrintStream out,
             PrintStream err
+    ) throws Exception {
+        runHeadlessInstallProgrammatic(appXmlPath, out, err, null);
+    }
+
+    /**
+     * Runs the headless installer programmatically with optional AI tools configuration.
+     *
+     * @param appXmlPath Path to the app.xml file
+     * @param out Output stream for progress messages
+     * @param err Error stream for error messages
+     * @param aiTools Set of AI tools to configure for MCP server installation, or null to skip AI integrations
+     * @throws Exception if installation fails
+     */
+    public static void runHeadlessInstallProgrammatic(
+            String appXmlPath,
+            PrintStream out,
+            PrintStream err,
+            java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> aiTools
     ) throws Exception {
         // Set up static fields for headless mode
         headlessInstall = true;
@@ -1230,8 +1252,15 @@ public class Main implements Runnable, Constants {
             System.setErr(logOnlyStream);
 
             try {
+                // Create installation settings with AI tools if provided
+                HeadlessInstallationSettings settings = new HeadlessInstallationSettings();
+                if (aiTools != null && !aiTools.isEmpty()) {
+                    settings.setInstallAiIntegrations(true);
+                    settings.setSelectedAiTools(aiTools);
+                }
+
                 // Create and run installer
-                Main installer = new Main(new HeadlessInstallationSettings());
+                Main installer = new Main(settings);
                 installer.run();
             } finally {
                 // Restore original streams

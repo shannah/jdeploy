@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.services;
 
+import ca.weblite.jdeploy.ai.models.AIToolType;
 import ca.weblite.jdeploy.installer.Main;
 import ca.weblite.jdeploy.packaging.PackageService;
 import ca.weblite.jdeploy.packaging.PackagingContext;
@@ -12,6 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 
 /**
  * Service to perform local installation of jDeploy applications.
@@ -49,6 +51,18 @@ public class LocalInstallService {
      * @throws IOException if installation fails
      */
     public void install(PackagingContext context, PrintStream out) throws IOException {
+        install(context, out, null);
+    }
+
+    /**
+     * Performs a local installation of the application with optional AI tools configuration.
+     *
+     * @param context The packaging context
+     * @param out Output stream for progress messages
+     * @param aiTools Set of AI tools to configure for MCP server installation, or null to skip AI integrations
+     * @throws IOException if installation fails
+     */
+    public void install(PackagingContext context, PrintStream out, Set<AIToolType> aiTools) throws IOException {
         File projectDir = context.directory;
         File bundleDir = new File(projectDir, "jdeploy-bundle");
 
@@ -73,7 +87,10 @@ public class LocalInstallService {
 
         // Step 3: Run the headless installer
         out.println("Running headless installer...");
-        runHeadlessInstaller(jdeployFilesDir, out);
+        if (aiTools != null && !aiTools.isEmpty()) {
+            out.println("Configuring AI tools: " + aiTools);
+        }
+        runHeadlessInstaller(jdeployFilesDir, out, aiTools);
 
         out.println("Local installation completed successfully!");
     }
@@ -81,7 +98,7 @@ public class LocalInstallService {
     /**
      * Runs the headless installer with the generated jdeploy-files.
      */
-    private void runHeadlessInstaller(File jdeployFilesDir, PrintStream out) throws IOException {
+    private void runHeadlessInstaller(File jdeployFilesDir, PrintStream out, Set<AIToolType> aiTools) throws IOException {
         File appXmlFile = new File(jdeployFilesDir, "app.xml");
         if (!appXmlFile.exists()) {
             throw new IOException("app.xml not found in jdeploy-files directory: " + jdeployFilesDir);
@@ -92,7 +109,8 @@ public class LocalInstallService {
             Main.runHeadlessInstallProgrammatic(
                 appXmlFile.getAbsolutePath(),
                 out,
-                System.err
+                System.err,
+                aiTools
             );
         } catch (Exception e) {
             throw new IOException("Headless installer failed: " + e.getMessage(), e);
