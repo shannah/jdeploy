@@ -138,6 +138,11 @@ public class Bundler {
         if (appInfo.getNpmSource() != null) {
             app.setNpmSource(appInfo.getNpmSource());
         }
+        // Handle local development mode
+        if (appInfo.isLocalMode()) {
+            app.setLocalPackageJson(appInfo.getLocalPackageJson());
+            app.setLocalBundle(appInfo.getLocalBundle());
+        }
         setupMacCodeSigning(appInfo, app);
         setupFileAssociations(appInfo, app);
         setupUrlSchemes(appInfo, app);

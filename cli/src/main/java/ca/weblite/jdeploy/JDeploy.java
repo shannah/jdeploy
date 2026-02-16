@@ -323,8 +323,27 @@ public class JDeploy implements BundleConstants {
     }
     
     private void install(PackagingContext context) throws IOException {
-        _package(context);
-        getNPM().link(context.exitOnFail);
+        install(context, false);
+    }
+
+    /**
+     * Installs the application locally.
+     *
+     * @param context The packaging context
+     * @param fullInstall If true, performs a full local installation using the headless installer.
+     *                    If false, just packages and runs npm link (legacy behavior).
+     * @throws IOException if installation fails
+     */
+    private void install(PackagingContext context, boolean fullInstall) throws IOException {
+        if (fullInstall) {
+            // Full local installation using headless installer
+            DIContext.get(ca.weblite.jdeploy.services.LocalInstallService.class)
+                    .install(context, System.out);
+        } else {
+            // Legacy behavior: package and npm link
+            _package(context);
+            getNPM().link(context.exitOnFail);
+        }
     }
 
     private void uploadResources(PackagingContext packagingContext) throws IOException {
@@ -503,6 +522,7 @@ public class JDeploy implements BundleConstants {
                 + "  init : Initialize the project\n"
                 + "  package : Prepare for install.  This copies necessary files into bin directory.\n"
                 + "  install : Installs the app locally (links to PATH)\n"
+                + "  install --full : Full local installation with native launchers, CLI commands, etc.\n"
                 + "  publish : Publishes to NPM\n"
                 + "  generate: Generates a new project\n"
                 + "  github init -n <repo-name>:  Initializes commits, and pushes to github\n",
@@ -553,8 +573,10 @@ public class JDeploy implements BundleConstants {
             opts.addOption("t", "tag", true, "Optional tag for publish.");
             opts.addOption("y", "no-prompt", false,"Indicates not to prompt_ user ");
             opts.addOption("W", "no-workflow", false,"Indicates not to create a github workflow if true");
+            opts.addOption("F", "full", false, "Full local installation with native launchers, CLI commands, etc.");
             boolean noPromptFlag = false;
             boolean noWorkflowFlag = false;
+            boolean fullInstallFlag = false;
             String distTag = null;
             if (args.length > 0 && !"jpackage".equals(args[0])) {
                 CommandLineParser parser = new DefaultParser();
@@ -562,6 +584,7 @@ public class JDeploy implements BundleConstants {
                 args = line.getArgs();
                 noPromptFlag = line.hasOption("no-prompt");
                 noWorkflowFlag = line.hasOption("no-workflow");
+                fullInstallFlag = line.hasOption("full");
                 distTag = line.getOptionValue("tag", null);
 
             }
@@ -683,7 +706,7 @@ public class JDeploy implements BundleConstants {
                 final boolean generateGithubWorkflow = !noWorkflowFlag;
                 prog.init(packageJSON, commandName, prompt, generateGithubWorkflow);
             } else if ("install".equals(args[0])) {
-                prog.install(context);
+                prog.install(context, fullInstallFlag);
             } else if ("publish".equals(args[0])) {
                 prog.publish(context, distTag);
             } else if ("github-prepare-release".equals(args[0])) {

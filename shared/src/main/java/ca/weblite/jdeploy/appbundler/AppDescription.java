@@ -24,6 +24,16 @@ public class AppDescription {
     private String npmSource = "";
     private boolean npmPrerelease;
     private boolean fork;
+
+    /**
+     * Path to local package.json for local development mode.
+     */
+    private String localPackageJson;
+
+    /**
+     * Path to local jdeploy-bundle for local development mode.
+     */
+    private String localBundle;
     private String url;
     private List<Jar> jars;
     private String name;
@@ -396,6 +406,47 @@ public class AppDescription {
 
     public void setNpmSource(String npmSource) {
         this.npmSource = npmSource;
+    }
+
+    /**
+     * Gets the path to local package.json for local development mode.
+     * @return the local package.json path, or null if not in local mode
+     */
+    public String getLocalPackageJson() {
+        return localPackageJson;
+    }
+
+    /**
+     * Sets the path to local package.json for local development mode.
+     * @param localPackageJson the absolute path to the local package.json
+     */
+    public void setLocalPackageJson(String localPackageJson) {
+        this.localPackageJson = localPackageJson;
+    }
+
+    /**
+     * Gets the path to local jdeploy-bundle for local development mode.
+     * @return the local bundle path, or null if not in local mode
+     */
+    public String getLocalBundle() {
+        return localBundle;
+    }
+
+    /**
+     * Sets the path to local jdeploy-bundle for local development mode.
+     * @param localBundle the absolute path to the local jdeploy-bundle
+     */
+    public void setLocalBundle(String localBundle) {
+        this.localBundle = localBundle;
+    }
+
+    /**
+     * Checks if this app is configured for local development mode.
+     * @return true if both localPackageJson and localBundle are set
+     */
+    public boolean isLocalMode() {
+        return localPackageJson != null && !localPackageJson.isEmpty()
+                && localBundle != null && !localBundle.isEmpty();
     }
 
     public String getNpmVersion() {

@@ -511,6 +511,14 @@ public class MacBundler {
             atts.add(app.getInitialAppVersion());
         }
 
+        // Local development mode attributes
+        if (app.isLocalMode()) {
+            atts.add("local-package-json");
+            atts.add(app.getLocalPackageJson());
+            atts.add("local-bundle");
+            atts.add(app.getLocalBundle());
+        }
+
         return atts.toArray(new String[0]);
     }
 
