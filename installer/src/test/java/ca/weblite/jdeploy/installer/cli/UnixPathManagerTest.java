@@ -123,11 +123,17 @@ public class UnixPathManagerTest {
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
+        // Now we write to both bash and zsh config files regardless of shell
         File zshrc = new File(homeDir, ".zshrc");
         assertTrue(zshrc.exists());
         String content = IOUtil.readToString(new FileInputStream(zshrc));
-        // binDir is not under homeDir (it's in tempDir), so absolute path should be used
         assertTrue(content.contains(binDir.getAbsolutePath()));
+
+        // bash config files should also be created
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists(), ".bashrc should also be created");
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertTrue(bashProfile.exists(), ".bash_profile should also be created");
     }
 
     @Test
@@ -138,8 +144,13 @@ public class UnixPathManagerTest {
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        File profile = new File(homeDir, ".profile");
-        assertTrue(profile.exists());
+        // Now we write to both bash and zsh config files regardless of shell
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists());
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertTrue(bashProfile.exists());
+        File zshrc = new File(homeDir, ".zshrc");
+        assertTrue(zshrc.exists());
     }
 
     @Test
@@ -150,8 +161,13 @@ public class UnixPathManagerTest {
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        File profile = new File(homeDir, ".profile");
-        assertTrue(profile.exists());
+        // Now we write to both bash and zsh config files regardless of shell
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists());
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertTrue(bashProfile.exists());
+        File zshrc = new File(homeDir, ".zshrc");
+        assertTrue(zshrc.exists());
     }
 
     @Test
@@ -162,9 +178,13 @@ public class UnixPathManagerTest {
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        // Should default to bash and create .bashrc
+        // Now we write to both bash and zsh config files regardless of shell
         File bashrc = new File(homeDir, ".bashrc");
         assertTrue(bashrc.exists());
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertTrue(bashProfile.exists());
+        File zshrc = new File(homeDir, ".zshrc");
+        assertTrue(zshrc.exists(), ".zshrc should also be created");
     }
 
     @Test
@@ -187,16 +207,19 @@ public class UnixPathManagerTest {
     }
 
     @Test
-    public void testAddToPathAlreadyInPathEnvNonBash() {
+    public void testAddToPathAlreadyInPathEnvNonBash() throws IOException {
         String shell = "/bin/zsh";
         String pathEnv = "/usr/bin:" + binDir.getAbsolutePath() + ":/bin";
 
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        // For non-bash shells, we optimize and skip if already in PATH env
+        // We now always write to config files to ensure PATH persists across reboots
+        // and works for both bash and zsh regardless of current PATH env
         File zshrc = new File(homeDir, ".zshrc");
-        assertFalse(zshrc.exists(), ".zshrc should not be created if already in PATH env for zsh");
+        assertTrue(zshrc.exists(), ".zshrc should be created to persist PATH");
+        String content = IOUtil.readToString(new FileInputStream(zshrc));
+        assertTrue(content.contains(binDir.getAbsolutePath()));
     }
 
     @Test
@@ -274,9 +297,13 @@ public class UnixPathManagerTest {
         boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
 
         assertTrue(result);
-        // Should default to bash and create .bashrc
+        // Now we write to both bash and zsh config files regardless of shell
         File bashrc = new File(homeDir, ".bashrc");
         assertTrue(bashrc.exists());
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertTrue(bashProfile.exists());
+        File zshrc = new File(homeDir, ".zshrc");
+        assertTrue(zshrc.exists(), ".zshrc should also be created");
     }
 
     @Test
@@ -289,6 +316,10 @@ public class UnixPathManagerTest {
         assertTrue(result);
         File bashrc = new File(homeDir, ".bashrc");
         assertTrue(bashrc.exists());
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertTrue(bashProfile.exists());
+        File zshrc = new File(homeDir, ".zshrc");
+        assertTrue(zshrc.exists(), ".zshrc should also be created");
     }
 
     @Test
@@ -533,7 +564,7 @@ public class UnixPathManagerTest {
     public void testAddToPathSkipsWhenMarkerPresent() throws IOException {
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:/bin";
-        
+
         // Create bashrc with the no-auto-path marker
         File bashrc = new File(homeDir, ".bashrc");
         String originalContent = "# My custom config\n" + UnixPathManager.NO_AUTO_PATH_MARKER + "\nexport MYVAR=myvalue\n";
@@ -543,8 +574,19 @@ public class UnixPathManagerTest {
 
         assertTrue(result, "Should return true (success) when marker is present");
         String content = IOUtil.readToString(new FileInputStream(bashrc));
-        assertEquals(originalContent, content, "File should not be modified when marker is present");
-        assertFalse(content.contains(binDir.getAbsolutePath()), "PATH should not be added when marker is present");
+        assertEquals(originalContent, content, "bashrc should not be modified when marker is present");
+        assertFalse(content.contains(binDir.getAbsolutePath()), "PATH should not be added to bashrc when marker is present");
+
+        // Other config files without the marker should still be updated
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertTrue(bashProfile.exists(), ".bash_profile should be created");
+        String profileContent = IOUtil.readToString(new FileInputStream(bashProfile));
+        assertTrue(profileContent.contains(binDir.getAbsolutePath()), ".bash_profile should have PATH");
+
+        File zshrc = new File(homeDir, ".zshrc");
+        assertTrue(zshrc.exists(), ".zshrc should be created");
+        String zshrcContent = IOUtil.readToString(new FileInputStream(zshrc));
+        assertTrue(zshrcContent.contains(binDir.getAbsolutePath()), ".zshrc should have PATH");
     }
 
     @Test

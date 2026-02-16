@@ -892,4 +892,153 @@ public class CommandSpecParserTest {
         assertEquals(1, result.size());
         assertEquals("update", result.get(0).getUpdateTrigger());
     }
+
+    // ===== uninstaller tests =====
+
+    @Test
+    void testParseCommands_uninstallerImplementationValid() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        JSONObject cmdSpec = new JSONObject();
+        JSONArray impl = new JSONArray();
+        impl.put("uninstaller");
+        cmdSpec.put("implements", impl);
+        commands.put("mycmd", cmdSpec);
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+        assertEquals(1, result.size());
+        assertTrue(result.get(0).implements_("uninstaller"));
+    }
+
+    @Test
+    void testParseCommands_uninstallerWithUpdaterCombined() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        JSONObject cmdSpec = new JSONObject();
+        JSONArray impl = new JSONArray();
+        impl.put("updater");
+        impl.put("uninstaller");
+        cmdSpec.put("implements", impl);
+        commands.put("mycmd", cmdSpec);
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+        assertEquals(1, result.size());
+        assertTrue(result.get(0).implements_("updater"));
+        assertTrue(result.get(0).implements_("uninstaller"));
+    }
+
+    @Test
+    void testParseCommands_uninstallTriggerParsed() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        JSONObject cmdSpec = new JSONObject();
+        cmdSpec.put("implements", new JSONArray().put("uninstaller"));
+        cmdSpec.put("uninstallTrigger", "remove");
+        commands.put("mycmd", cmdSpec);
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+        assertEquals(1, result.size());
+        assertEquals("remove", result.get(0).getUninstallTrigger());
+    }
+
+    @Test
+    void testParseCommands_uninstallTriggerDefaultsWhenMissing() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        JSONObject cmdSpec = new JSONObject();
+        cmdSpec.put("implements", new JSONArray().put("uninstaller"));
+        commands.put("mycmd", cmdSpec);
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+        assertEquals(1, result.size());
+        assertEquals("uninstall", result.get(0).getUninstallTrigger());
+    }
+
+    @Test
+    void testParseCommands_uninstallTriggerWithValidChars() {
+        String[] validTriggers = {"uninstall", "remove", "delete", "purge", "self-destruct", "my_uninstaller", "Uninstall123"};
+
+        for (String trigger : validTriggers) {
+            JSONObject jdeployConfig = new JSONObject();
+            JSONObject commands = new JSONObject();
+            JSONObject cmdSpec = new JSONObject();
+            cmdSpec.put("uninstallTrigger", trigger);
+            commands.put("mycmd", cmdSpec);
+            jdeployConfig.put("commands", commands);
+
+            List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+            assertEquals(1, result.size(), "Failed for trigger: " + trigger);
+            assertEquals(trigger, result.get(0).getUninstallTrigger(), "Failed for trigger: " + trigger);
+        }
+    }
+
+    @Test
+    void testParseCommands_uninstallTriggerRejectsSpecialChars() {
+        String[] invalidTriggers = {"uninstall;rm", "un|install", "un&install", "un`install", "$(cmd)", "un install"};
+
+        for (String trigger : invalidTriggers) {
+            JSONObject jdeployConfig = new JSONObject();
+            JSONObject commands = new JSONObject();
+            JSONObject cmdSpec = new JSONObject();
+            cmdSpec.put("uninstallTrigger", trigger);
+            commands.put("mycmd", cmdSpec);
+            jdeployConfig.put("commands", commands);
+
+            assertThrows(IllegalArgumentException.class,
+                () -> CommandSpecParser.parseCommands(jdeployConfig),
+                "Should reject trigger with special chars: " + trigger);
+        }
+    }
+
+    @Test
+    void testParseCommands_uninstallTriggerRejectsNonString() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        JSONObject cmdSpec = new JSONObject();
+        cmdSpec.put("uninstallTrigger", 123);
+        commands.put("mycmd", cmdSpec);
+        jdeployConfig.put("commands", commands);
+
+        assertThrows(IllegalArgumentException.class,
+            () -> CommandSpecParser.parseCommands(jdeployConfig),
+            "Should reject non-string uninstallTrigger");
+    }
+
+    @Test
+    void testParseCommands_uninstallTriggerIgnoresNullValue() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        JSONObject cmdSpec = new JSONObject();
+        cmdSpec.put("uninstallTrigger", JSONObject.NULL);
+        commands.put("mycmd", cmdSpec);
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+        assertEquals(1, result.size());
+        assertEquals("uninstall", result.get(0).getUninstallTrigger());
+    }
+
+    @Test
+    void testParseCommands_bothTriggersCustomized() {
+        JSONObject jdeployConfig = new JSONObject();
+        JSONObject commands = new JSONObject();
+        JSONObject cmdSpec = new JSONObject();
+        JSONArray impl = new JSONArray();
+        impl.put("updater");
+        impl.put("uninstaller");
+        cmdSpec.put("implements", impl);
+        cmdSpec.put("updateTrigger", "upgrade");
+        cmdSpec.put("uninstallTrigger", "remove");
+        commands.put("mycmd", cmdSpec);
+        jdeployConfig.put("commands", commands);
+
+        List<CommandSpec> result = CommandSpecParser.parseCommands(jdeployConfig);
+        assertEquals(1, result.size());
+        assertEquals("upgrade", result.get(0).getUpdateTrigger());
+        assertEquals("remove", result.get(0).getUninstallTrigger());
+    }
 }

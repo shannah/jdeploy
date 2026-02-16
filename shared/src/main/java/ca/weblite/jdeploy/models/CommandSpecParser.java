@@ -33,6 +33,7 @@ public class CommandSpecParser {
     public static final String IMPL_UPDATER = "updater";
     public static final String IMPL_SERVICE_CONTROLLER = "service_controller";
     public static final String IMPL_LAUNCHER = "launcher";
+    public static final String IMPL_UNINSTALLER = "uninstaller";
 
     private static final List<String> VALID_IMPLEMENTATIONS;
 
@@ -41,6 +42,7 @@ public class CommandSpecParser {
         impls.add(IMPL_UPDATER);
         impls.add(IMPL_SERVICE_CONTROLLER);
         impls.add(IMPL_LAUNCHER);
+        impls.add(IMPL_UNINSTALLER);
         VALID_IMPLEMENTATIONS = Collections.unmodifiableList(impls);
     }
 
@@ -146,13 +148,24 @@ public class CommandSpecParser {
                 Object triggerObj = specObj.get("updateTrigger");
                 if (triggerObj != JSONObject.NULL && triggerObj instanceof String) {
                     updateTrigger = (String) triggerObj;
-                    validateUpdateTrigger(name, updateTrigger);
+                    validateTrigger(name, updateTrigger, "updateTrigger");
                 } else if (triggerObj != JSONObject.NULL) {
                     throw new IllegalArgumentException("Command '" + name + "': 'updateTrigger' must be a string");
                 }
             }
 
-            result.add(new CommandSpec(name, description, args, implementations, embedPlist, updateTrigger));
+            String uninstallTrigger = null;
+            if (specObj.has("uninstallTrigger")) {
+                Object triggerObj = specObj.get("uninstallTrigger");
+                if (triggerObj != JSONObject.NULL && triggerObj instanceof String) {
+                    uninstallTrigger = (String) triggerObj;
+                    validateTrigger(name, uninstallTrigger, "uninstallTrigger");
+                } else if (triggerObj != JSONObject.NULL) {
+                    throw new IllegalArgumentException("Command '" + name + "': 'uninstallTrigger' must be a string");
+                }
+            }
+
+            result.add(new CommandSpec(name, description, args, implementations, embedPlist, updateTrigger, uninstallTrigger));
         }
 
         // sort by name for deterministic order
@@ -201,23 +214,24 @@ public class CommandSpecParser {
     }
 
     /**
-     * Validates that an updateTrigger string is safe to use in shell scripts.
+     * Validates that a trigger string is safe to use in shell scripts.
      * The trigger must be a simple alphanumeric string (with optional dashes/underscores)
      * and must not contain dangerous shell metacharacters.
      *
      * @param commandName the command name (for error messages)
-     * @param updateTrigger the trigger string to validate
+     * @param trigger the trigger string to validate
+     * @param propertyName the property name (for error messages, e.g., "updateTrigger" or "uninstallTrigger")
      * @throws IllegalArgumentException if the trigger contains dangerous characters or is invalid
      */
-    private static void validateUpdateTrigger(String commandName, String updateTrigger) {
-        if (updateTrigger == null || updateTrigger.isEmpty()) {
+    private static void validateTrigger(String commandName, String trigger, String propertyName) {
+        if (trigger == null || trigger.isEmpty()) {
             return; // null/empty will use default
         }
         // Allow alphanumeric, dash, underscore only for safety in shell scripts
-        if (!updateTrigger.matches("^[A-Za-z0-9_-]+$")) {
+        if (!trigger.matches("^[A-Za-z0-9_-]+$")) {
             throw new IllegalArgumentException(
-                "Command '" + commandName + "': 'updateTrigger' must contain only alphanumeric characters, " +
-                "dashes, and underscores. Got: '" + updateTrigger + "'"
+                "Command '" + commandName + "': '" + propertyName + "' must contain only alphanumeric characters, " +
+                "dashes, and underscores. Got: '" + trigger + "'"
             );
         }
     }

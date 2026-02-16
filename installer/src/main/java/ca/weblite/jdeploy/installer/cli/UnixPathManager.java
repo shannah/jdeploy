@@ -29,6 +29,10 @@ public class UnixPathManager {
      * Updates shell configuration files (.bashrc, .zshrc, etc.) to persist the change.
      * This method is idempotent: it checks if the directory is already in PATH or config before adding.
      *
+     * On Unix systems, we always write to BOTH bash and zsh configuration files to ensure
+     * PATH works regardless of which shell the user is using. This is especially important
+     * when running from GUI applications where the SHELL environment variable may not be set.
+     *
      * @param binDir   directory to add to PATH
      * @param shell    shell path from environment (e.g., /bin/bash), or null to use default
      * @param pathEnv  current PATH environment variable
@@ -39,7 +43,7 @@ public class UnixPathManager {
         // Log input parameters
         DebugLogger.log("UnixPathManager.addToPath() called with:");
         DebugLogger.log("  binDir: " + (binDir != null ? binDir.getAbsolutePath() : "null"));
-        DebugLogger.log("  shell: " + (shell != null && !shell.isEmpty() ? shell : "(null or empty, will default to /bin/bash)"));
+        DebugLogger.log("  shell: " + (shell != null && !shell.isEmpty() ? shell : "(null or empty)"));
         DebugLogger.log("  homeDir: " + (homeDir != null ? homeDir.getAbsolutePath() : "null"));
 
         // Verify binDir exists and is a directory before modifying shell config
@@ -50,40 +54,31 @@ public class UnixPathManager {
             return false;
         }
 
-        // Detect the user's shell; default to bash when unknown
-        if (shell == null || shell.isEmpty()) {
-            DebugLogger.log("Shell is null or empty, defaulting to /bin/bash");
-            shell = "/bin/bash";
+        // Always write to BOTH bash and zsh configuration files to ensure PATH works
+        // for both shells regardless of which one the user is using. This is critical
+        // when running from GUI applications where SHELL env var may not be set.
+        DebugLogger.log("Writing to both bash and zsh configuration files");
+
+        boolean anyUpdated = false;
+
+        // Update bash configuration files (.bash_profile and .bashrc)
+        File bashProfile = new File(homeDir, ".bash_profile");
+        File bashrc = new File(homeDir, ".bashrc");
+
+        boolean profileUpdated = addPathToConfigFile(bashProfile, binDir, homeDir);
+        boolean bashrcUpdated = addPathToConfigFile(bashrc, binDir, homeDir);
+        anyUpdated = profileUpdated || bashrcUpdated;
+
+        // Update zsh configuration file (.zshrc)
+        File zshrc = new File(homeDir, ".zshrc");
+        boolean zshrcUpdated = addPathToConfigFile(zshrc, binDir, homeDir);
+        anyUpdated = anyUpdated || zshrcUpdated;
+
+        if (anyUpdated) {
+            System.out.println("Please restart your terminal or source your shell configuration.");
+            return true;
         }
-
-        String shellName = new File(shell).getName();
-        if ("bash".equals(shellName)) {
-            // For bash, write to BOTH .bash_profile and .bashrc to handle login and non-login shells
-            File bashProfile = new File(homeDir, ".bash_profile");
-            File bashrc = new File(homeDir, ".bashrc");
-
-            boolean profileUpdated = addPathToConfigFile(bashProfile, binDir, homeDir);
-            boolean bashrcUpdated = addPathToConfigFile(bashrc, binDir, homeDir);
-
-            if (profileUpdated || bashrcUpdated) {
-                System.out.println("Please restart your terminal or source your shell configuration.");
-                return true;
-            }
-            return false;
-        } else {
-            // For non-bash shells, we can use the PATH environment check as an optimization
-            // since we only have one configuration file to worry about.
-            if (pathEnv != null && pathEnv.contains(binDir.getAbsolutePath())) {
-                DebugLogger.log("Early return: binDir already in PATH environment variable for non-bash shell");
-                return true;
-            }
-
-            File configFile = selectConfigFile(shell, homeDir);
-            if (configFile == null) {
-                return false;
-            }
-            return addPathToConfigFile(configFile, binDir, homeDir);
-        }
+        return false;
     }
 
     /**
