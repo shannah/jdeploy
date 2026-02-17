@@ -9,9 +9,18 @@ fi
 
 JDEPLOY="$SCRIPTPATH/cli/target/jdeploy-cli-1.0-SNAPSHOT.jar"
 
+echo "-------- Installing Parent POM ---------------"
+# Install the parent pom first so child modules can reference it
+mvn install -N
+
 echo "-------- Building jDeploy Shared Library ---------------"
 #First build the shared library which is used by both cli and installer
 cd shared
+mvn clean install
+
+echo "-------- Building jDeploy Installer Module ---------------"
+# Build and install installer module (cli depends on it)
+cd ../installer
 mvn clean install
 
 echo "-------- Building jDeploy CLI ------------"
