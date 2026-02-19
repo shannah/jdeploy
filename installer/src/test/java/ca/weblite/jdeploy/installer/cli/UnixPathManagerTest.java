@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.installer.cli;
 
 import ca.weblite.tools.io.IOUtil;
+import ca.weblite.tools.platform.Platform;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
@@ -763,5 +764,133 @@ public class UnixPathManagerTest {
         // Verify the PATH was added
         assertTrue(bashProfileContent.contains(binDir.getAbsolutePath()),
                 ".bash_profile should contain the PATH export");
+    }
+
+    // ==================== Platform-Specific Tests ====================
+
+    @Test
+    public void testAddToPathOnLinuxSkipsBashProfile() throws IOException {
+        // Simulate Linux platform
+        Platform linuxPlatform = new Platform("Linux", "amd64");
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        // Verify no .bash_profile exists initially
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertFalse(bashProfile.exists(), ".bash_profile should not exist initially");
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, linuxPlatform);
+
+        assertTrue(result);
+
+        // On Linux, .bash_profile should NOT be created
+        assertFalse(bashProfile.exists(),
+                "On Linux, .bash_profile should NOT be created to preserve Ubuntu's .profile chain");
+
+        // But .bashrc should be created
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists(), ".bashrc should be created on Linux");
+        String bashrcContent = IOUtil.readToString(new FileInputStream(bashrc));
+        assertTrue(bashrcContent.contains(binDir.getAbsolutePath()),
+                ".bashrc should contain the PATH export");
+
+        // And .zshrc should be created
+        File zshrc = new File(homeDir, ".zshrc");
+        assertTrue(zshrc.exists(), ".zshrc should be created on Linux");
+    }
+
+    @Test
+    public void testAddToPathOnMacOSCreatesBashProfile() throws IOException {
+        // Simulate macOS platform
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
+
+        assertTrue(result);
+
+        // On macOS, .bash_profile SHOULD be created
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertTrue(bashProfile.exists(),
+                "On macOS, .bash_profile should be created for Terminal.app login shells");
+        String profileContent = IOUtil.readToString(new FileInputStream(bashProfile));
+        assertTrue(profileContent.contains(binDir.getAbsolutePath()),
+                ".bash_profile should contain the PATH export");
+
+        // .bashrc should also be created
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists(), ".bashrc should be created on macOS");
+
+        // And .zshrc should be created
+        File zshrc = new File(homeDir, ".zshrc");
+        assertTrue(zshrc.exists(), ".zshrc should be created on macOS");
+    }
+
+    @Test
+    public void testAddToPathOnLinuxPreservesExistingBashProfile() throws IOException {
+        // Simulate Linux platform
+        Platform linuxPlatform = new Platform("Linux", "amd64");
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        // Create an existing .bash_profile with user content
+        File bashProfile = new File(homeDir, ".bash_profile");
+        String existingContent = "# User's custom bash_profile\nexport MY_VAR=value\n";
+        Files.write(bashProfile.toPath(), existingContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, linuxPlatform);
+
+        assertTrue(result);
+
+        // On Linux, existing .bash_profile should NOT be modified
+        String contentAfter = IOUtil.readToString(new FileInputStream(bashProfile));
+        assertEquals(existingContent, contentAfter,
+                "On Linux, existing .bash_profile should not be modified");
+
+        // But .bashrc should still be created/updated
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists(), ".bashrc should be created");
+        String bashrcContent = IOUtil.readToString(new FileInputStream(bashrc));
+        assertTrue(bashrcContent.contains(binDir.getAbsolutePath()),
+                ".bashrc should contain the PATH export");
+    }
+
+    @Test
+    public void testAddToPathOnLinuxWithExistingProfileChain() throws IOException {
+        // Simulate Linux platform with typical Ubuntu setup
+        Platform linuxPlatform = new Platform("Linux", "amd64");
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        // Create .profile that sources .bashrc (typical Ubuntu setup)
+        File profile = new File(homeDir, ".profile");
+        String profileContent = "# ~/.profile: executed by login shells\n" +
+                "if [ -n \"$BASH_VERSION\" ]; then\n" +
+                "    if [ -f \"$HOME/.bashrc\" ]; then\n" +
+                "        . \"$HOME/.bashrc\"\n" +
+                "    fi\n" +
+                "fi\n";
+        Files.write(profile.toPath(), profileContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, linuxPlatform);
+
+        assertTrue(result);
+
+        // .bash_profile should NOT be created (would break the .profile chain)
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertFalse(bashProfile.exists(),
+                ".bash_profile should NOT be created on Linux to preserve .profile -> .bashrc chain");
+
+        // .profile should be unchanged
+        String profileAfter = IOUtil.readToString(new FileInputStream(profile));
+        assertEquals(profileContent, profileAfter, ".profile should not be modified");
+
+        // PATH should be added to .bashrc (which .profile sources)
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists(), ".bashrc should be created");
+        String bashrcContent = IOUtil.readToString(new FileInputStream(bashrc));
+        assertTrue(bashrcContent.contains(binDir.getAbsolutePath()),
+                ".bashrc should contain the PATH export");
     }
 }
