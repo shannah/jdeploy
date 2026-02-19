@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.installer.cli;
 
 import ca.weblite.jdeploy.installer.util.DebugLogger;
 import ca.weblite.tools.io.IOUtil;
+import ca.weblite.tools.platform.Platform;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -40,6 +41,21 @@ public class UnixPathManager {
      * @return true if PATH was updated or already contained the directory, false otherwise
      */
     public static boolean addToPath(File binDir, String shell, String pathEnv, File homeDir) {
+        return addToPath(binDir, shell, pathEnv, homeDir, Platform.getSystemPlatform());
+    }
+
+    /**
+     * Adds a directory to the system PATH environment variable.
+     * This overload allows specifying the platform for testing purposes.
+     *
+     * @param binDir   directory to add to PATH
+     * @param shell    shell path from environment (e.g., /bin/bash), or null to use default
+     * @param pathEnv  current PATH environment variable
+     * @param homeDir  user's home directory to update config files under
+     * @param platform the platform to use for determining behavior
+     * @return true if PATH was updated or already contained the directory, false otherwise
+     */
+    static boolean addToPath(File binDir, String shell, String pathEnv, File homeDir, Platform platform) {
         // Log input parameters
         DebugLogger.log("UnixPathManager.addToPath() called with:");
         DebugLogger.log("  binDir: " + (binDir != null ? binDir.getAbsolutePath() : "null"));
@@ -54,20 +70,45 @@ public class UnixPathManager {
             return false;
         }
 
-        // Always write to BOTH bash and zsh configuration files to ensure PATH works
-        // for both shells regardless of which one the user is using. This is critical
-        // when running from GUI applications where SHELL env var may not be set.
-        DebugLogger.log("Writing to both bash and zsh configuration files");
+        // Write to shell configuration files to ensure PATH works for both bash and zsh.
+        // Platform-specific behavior:
+        // - macOS: Write to .bash_profile (Terminal.app uses login shells) and .bashrc
+        // - Linux: Write to .bashrc only (avoid creating .bash_profile which would break
+        //          Ubuntu's convention where .profile sources .bashrc)
+        boolean isMac = platform != null && platform.isMac();
+        DebugLogger.log("Platform detection: isMac=" + isMac);
+        DebugLogger.log("Writing to shell configuration files");
 
         boolean anyUpdated = false;
 
-        // Update bash configuration files (.bash_profile and .bashrc)
-        File bashProfile = new File(homeDir, ".bash_profile");
+        // Update bash configuration files
         File bashrc = new File(homeDir, ".bashrc");
-
-        boolean profileUpdated = addPathToConfigFile(bashProfile, binDir, homeDir);
         boolean bashrcUpdated = addPathToConfigFile(bashrc, binDir, homeDir);
-        anyUpdated = profileUpdated || bashrcUpdated;
+        anyUpdated = bashrcUpdated;
+
+        // On macOS, also update login shell config because Terminal.app starts login shells.
+        // Bash reads the first file it finds among: .bash_profile, .bash_login, .profile
+        // We mirror this logic to avoid breaking existing setups:
+        // - If .bash_profile exists → use it
+        // - Else if .profile exists → use it (don't create .bash_profile)
+        // - Else → create .bash_profile
+        if (isMac) {
+            File bashProfile = new File(homeDir, ".bash_profile");
+            File profile = new File(homeDir, ".profile");
+
+            File loginShellConfig;
+            if (bashProfile.exists()) {
+                loginShellConfig = bashProfile;
+            } else if (profile.exists()) {
+                loginShellConfig = profile;
+                DebugLogger.log("Using existing .profile instead of creating .bash_profile");
+            } else {
+                loginShellConfig = bashProfile;
+            }
+
+            boolean profileUpdated = addPathToConfigFile(loginShellConfig, binDir, homeDir);
+            anyUpdated = anyUpdated || profileUpdated;
+        }
 
         // Update zsh configuration file (.zshrc)
         File zshrc = new File(homeDir, ".zshrc");
@@ -192,7 +233,6 @@ public class UnixPathManager {
         }
         return binPath;
     }
-
     /**
      * Checks if the given config file contains the no-auto-path marker.
      * If present, automatic PATH modification should be skipped for this file.
