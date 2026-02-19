@@ -86,11 +86,27 @@ public class UnixPathManager {
         boolean bashrcUpdated = addPathToConfigFile(bashrc, binDir, homeDir);
         anyUpdated = bashrcUpdated;
 
-        // On macOS, also update .bash_profile because Terminal.app starts login shells
-        // which read .bash_profile instead of .bashrc
+        // On macOS, also update login shell config because Terminal.app starts login shells.
+        // Bash reads the first file it finds among: .bash_profile, .bash_login, .profile
+        // We mirror this logic to avoid breaking existing setups:
+        // - If .bash_profile exists → use it
+        // - Else if .profile exists → use it (don't create .bash_profile)
+        // - Else → create .bash_profile
         if (isMac) {
             File bashProfile = new File(homeDir, ".bash_profile");
-            boolean profileUpdated = addPathToConfigFile(bashProfile, binDir, homeDir);
+            File profile = new File(homeDir, ".profile");
+
+            File loginShellConfig;
+            if (bashProfile.exists()) {
+                loginShellConfig = bashProfile;
+            } else if (profile.exists()) {
+                loginShellConfig = profile;
+                DebugLogger.log("Using existing .profile instead of creating .bash_profile");
+            } else {
+                loginShellConfig = bashProfile;
+            }
+
+            boolean profileUpdated = addPathToConfigFile(loginShellConfig, binDir, homeDir);
             anyUpdated = anyUpdated || profileUpdated;
         }
 

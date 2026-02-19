@@ -118,10 +118,12 @@ public class UnixPathManagerTest {
 
     @Test
     public void testAddToPathZsh() throws IOException {
+        // Use explicit macOS platform to test full behavior including .bash_profile
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
         String shell = "/bin/zsh";
         String pathEnv = "/usr/bin:/bin";
 
-        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
 
         assertTrue(result);
         // Now we write to both bash and zsh config files regardless of shell
@@ -130,73 +132,81 @@ public class UnixPathManagerTest {
         String content = IOUtil.readToString(new FileInputStream(zshrc));
         assertTrue(content.contains(binDir.getAbsolutePath()));
 
-        // bash config files should also be created
+        // bash config files should also be created on macOS
         File bashrc = new File(homeDir, ".bashrc");
         assertTrue(bashrc.exists(), ".bashrc should also be created");
         File bashProfile = new File(homeDir, ".bash_profile");
-        assertTrue(bashProfile.exists(), ".bash_profile should also be created");
+        assertTrue(bashProfile.exists(), ".bash_profile should also be created on macOS");
     }
 
     @Test
     public void testAddToPathFish() throws IOException {
+        // Use explicit macOS platform to test full behavior including .bash_profile
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
         String shell = "/usr/bin/fish";
         String pathEnv = "/usr/bin:/bin";
 
-        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
 
         assertTrue(result);
         // Now we write to both bash and zsh config files regardless of shell
         File bashrc = new File(homeDir, ".bashrc");
         assertTrue(bashrc.exists());
         File bashProfile = new File(homeDir, ".bash_profile");
-        assertTrue(bashProfile.exists());
+        assertTrue(bashProfile.exists(), ".bash_profile should be created on macOS");
         File zshrc = new File(homeDir, ".zshrc");
         assertTrue(zshrc.exists());
     }
 
     @Test
     public void testAddToPathUnknownShell() throws IOException {
+        // Use explicit macOS platform to test full behavior including .bash_profile
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
         String shell = "/bin/unknown";
         String pathEnv = "/usr/bin:/bin";
 
-        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
 
         assertTrue(result);
         // Now we write to both bash and zsh config files regardless of shell
         File bashrc = new File(homeDir, ".bashrc");
         assertTrue(bashrc.exists());
         File bashProfile = new File(homeDir, ".bash_profile");
-        assertTrue(bashProfile.exists());
+        assertTrue(bashProfile.exists(), ".bash_profile should be created on macOS");
         File zshrc = new File(homeDir, ".zshrc");
         assertTrue(zshrc.exists());
     }
 
     @Test
     public void testAddToPathNullShell() throws IOException {
+        // Use explicit macOS platform to test full behavior including .bash_profile
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
         String shell = null;
         String pathEnv = "/usr/bin:/bin";
 
-        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
 
         assertTrue(result);
         // Now we write to both bash and zsh config files regardless of shell
         File bashrc = new File(homeDir, ".bashrc");
         assertTrue(bashrc.exists());
         File bashProfile = new File(homeDir, ".bash_profile");
-        assertTrue(bashProfile.exists());
+        assertTrue(bashProfile.exists(), ".bash_profile should be created on macOS");
         File zshrc = new File(homeDir, ".zshrc");
         assertTrue(zshrc.exists(), ".zshrc should also be created");
     }
 
     @Test
     public void testAddToPathAlreadyInPathEnv() throws IOException {
+        // Use explicit macOS platform to test full behavior including .bash_profile
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:" + binDir.getAbsolutePath() + ":/bin";
 
-        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
 
         assertTrue(result);
-        // For bash, we should still create/update config files even if already in PATH env
+        // For bash on macOS, we should still create/update config files even if already in PATH env
         // because the current PATH might come from .bashrc while .bash_profile is still missing it.
         File bashProfile = new File(homeDir, ".bash_profile");
         File bashrc = new File(homeDir, ".bashrc");
@@ -295,14 +305,16 @@ public class UnixPathManagerTest {
         String shell = "";
         String pathEnv = "/usr/bin:/bin";
 
-        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+        // Use explicit macOS platform to test full behavior including .bash_profile
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
 
         assertTrue(result);
-        // Now we write to both bash and zsh config files regardless of shell
+        // On macOS, we write to bashrc, bash_profile, and zshrc
         File bashrc = new File(homeDir, ".bashrc");
         assertTrue(bashrc.exists());
         File bashProfile = new File(homeDir, ".bash_profile");
-        assertTrue(bashProfile.exists());
+        assertTrue(bashProfile.exists(), ".bash_profile should be created on macOS");
         File zshrc = new File(homeDir, ".zshrc");
         assertTrue(zshrc.exists(), ".zshrc should also be created");
     }
@@ -312,13 +324,15 @@ public class UnixPathManagerTest {
         String shell = "/bin/bash";
         String pathEnv = null;
 
-        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+        // Use explicit macOS platform to test full behavior including .bash_profile
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
 
         assertTrue(result);
         File bashrc = new File(homeDir, ".bashrc");
         assertTrue(bashrc.exists());
         File bashProfile = new File(homeDir, ".bash_profile");
-        assertTrue(bashProfile.exists());
+        assertTrue(bashProfile.exists(), ".bash_profile should be created on macOS");
         File zshrc = new File(homeDir, ".zshrc");
         assertTrue(zshrc.exists(), ".zshrc should also be created");
     }
@@ -571,16 +585,18 @@ public class UnixPathManagerTest {
         String originalContent = "# My custom config\n" + UnixPathManager.NO_AUTO_PATH_MARKER + "\nexport MYVAR=myvalue\n";
         Files.write(bashrc.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
 
-        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+        // Use explicit macOS platform to test full behavior including .bash_profile
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
 
         assertTrue(result, "Should return true (success) when marker is present");
         String content = IOUtil.readToString(new FileInputStream(bashrc));
         assertEquals(originalContent, content, "bashrc should not be modified when marker is present");
         assertFalse(content.contains(binDir.getAbsolutePath()), "PATH should not be added to bashrc when marker is present");
 
-        // Other config files without the marker should still be updated
+        // Other config files without the marker should still be updated (on macOS)
         File bashProfile = new File(homeDir, ".bash_profile");
-        assertTrue(bashProfile.exists(), ".bash_profile should be created");
+        assertTrue(bashProfile.exists(), ".bash_profile should be created on macOS");
         String profileContent = IOUtil.readToString(new FileInputStream(bashProfile));
         assertTrue(profileContent.contains(binDir.getAbsolutePath()), ".bash_profile should have PATH");
 
@@ -678,7 +694,10 @@ public class UnixPathManagerTest {
     }
 
     @Test
-    public void testAddToPathSourcesProfileWhenCreatingBashProfile() throws IOException {
+    public void testAddToPathUsesProfileDirectlyWhenNoBashProfile() throws IOException {
+        // This test simulates macOS behavior where:
+        // When .profile exists but .bash_profile doesn't, we should use .profile directly
+        // instead of creating .bash_profile (which would break the .profile chain)
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:/bin";
 
@@ -691,22 +710,23 @@ public class UnixPathManagerTest {
         File bashProfile = new File(homeDir, ".bash_profile");
         assertFalse(bashProfile.exists(), ".bash_profile should not exist initially");
 
-        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+        // Use explicit macOS platform
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
 
         assertTrue(result);
-        assertTrue(bashProfile.exists(), ".bash_profile should be created");
 
-        String bashProfileContent = IOUtil.readToString(new FileInputStream(bashProfile));
+        // On macOS, when .profile exists but .bash_profile doesn't,
+        // we should use .profile directly instead of creating .bash_profile
+        assertFalse(bashProfile.exists(),
+                ".bash_profile should NOT be created when .profile exists");
 
-        // Verify .bash_profile sources .profile
-        assertTrue(bashProfileContent.contains("if [ -f ~/.profile ]; then"),
-                ".bash_profile should contain conditional to source .profile");
-        assertTrue(bashProfileContent.contains(". ~/.profile"),
-                ".bash_profile should source .profile");
-
-        // Verify the PATH was also added
-        assertTrue(bashProfileContent.contains(binDir.getAbsolutePath()),
-                ".bash_profile should contain the PATH export");
+        // Verify the PATH was added to .profile
+        String profileAfter = IOUtil.readToString(new FileInputStream(profile));
+        assertTrue(profileAfter.contains(binDir.getAbsolutePath()),
+                ".profile should contain the PATH export");
+        assertTrue(profileAfter.contains("alias ll='ls -la'"),
+                "Original .profile content should be preserved");
     }
 
     @Test
@@ -722,10 +742,12 @@ public class UnixPathManagerTest {
         File bashProfile = new File(homeDir, ".bash_profile");
         assertFalse(bashProfile.exists(), ".bash_profile should not exist initially");
 
-        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+        // Use explicit macOS platform (this behavior only applies on macOS)
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
 
         assertTrue(result);
-        assertTrue(bashProfile.exists(), ".bash_profile should be created");
+        assertTrue(bashProfile.exists(), ".bash_profile should be created on macOS when .profile doesn't exist");
 
         String bashProfileContent = IOUtil.readToString(new FileInputStream(bashProfile));
 
@@ -752,7 +774,9 @@ public class UnixPathManagerTest {
         String existingContent = "# Existing bash_profile\nif [ -f ~/.profile ]; then\n    . ~/.profile\nfi\n";
         Files.write(bashProfile.toPath(), existingContent.getBytes(StandardCharsets.UTF_8));
 
-        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+        // Use explicit macOS platform (this behavior only applies on macOS)
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
 
         assertTrue(result);
         String bashProfileContent = IOUtil.readToString(new FileInputStream(bashProfile));
@@ -892,5 +916,97 @@ public class UnixPathManagerTest {
         String bashrcContent = IOUtil.readToString(new FileInputStream(bashrc));
         assertTrue(bashrcContent.contains(binDir.getAbsolutePath()),
                 ".bashrc should contain the PATH export");
+    }
+
+    @Test
+    public void testAddToPathOnMacOSUsesExistingProfileWhenNoBashProfile() throws IOException {
+        // Simulate macOS platform where user has .profile but no .bash_profile
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        // Create .profile (but no .bash_profile)
+        File profile = new File(homeDir, ".profile");
+        String profileContent = "# User's existing profile\nexport MY_VAR=value\n";
+        Files.write(profile.toPath(), profileContent.getBytes(StandardCharsets.UTF_8));
+
+        // Verify no .bash_profile exists
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertFalse(bashProfile.exists(), ".bash_profile should not exist initially");
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
+
+        assertTrue(result);
+
+        // .bash_profile should NOT be created (would break .profile)
+        assertFalse(bashProfile.exists(),
+                "On macOS, .bash_profile should NOT be created when .profile exists");
+
+        // PATH should be added to .profile instead
+        String profileAfter = IOUtil.readToString(new FileInputStream(profile));
+        assertTrue(profileAfter.contains(binDir.getAbsolutePath()),
+                ".profile should contain the PATH export");
+        assertTrue(profileAfter.contains("export MY_VAR=value"),
+                "Original .profile content should be preserved");
+    }
+
+    @Test
+    public void testAddToPathOnMacOSPrefersBashProfileOverProfile() throws IOException {
+        // Simulate macOS platform where user has both .bash_profile and .profile
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        // Create both .bash_profile and .profile
+        File bashProfile = new File(homeDir, ".bash_profile");
+        String bashProfileContent = "# User's bash_profile\nexport BASH_VAR=value\n";
+        Files.write(bashProfile.toPath(), bashProfileContent.getBytes(StandardCharsets.UTF_8));
+
+        File profile = new File(homeDir, ".profile");
+        String profileContent = "# User's profile\nexport PROFILE_VAR=value\n";
+        Files.write(profile.toPath(), profileContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
+
+        assertTrue(result);
+
+        // PATH should be added to .bash_profile (since it exists)
+        String bashProfileAfter = IOUtil.readToString(new FileInputStream(bashProfile));
+        assertTrue(bashProfileAfter.contains(binDir.getAbsolutePath()),
+                ".bash_profile should contain the PATH export");
+
+        // .profile should NOT be modified
+        String profileAfter = IOUtil.readToString(new FileInputStream(profile));
+        assertEquals(profileContent, profileAfter,
+                ".profile should not be modified when .bash_profile exists");
+    }
+
+    @Test
+    public void testAddToPathOnMacOSCreatesBashProfileWhenNeitherExists() throws IOException {
+        // Simulate macOS platform where user has neither .bash_profile nor .profile
+        Platform macPlatform = new Platform("Mac OS X", "x86_64");
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        // Verify neither file exists
+        File bashProfile = new File(homeDir, ".bash_profile");
+        File profile = new File(homeDir, ".profile");
+        assertFalse(bashProfile.exists(), ".bash_profile should not exist initially");
+        assertFalse(profile.exists(), ".profile should not exist initially");
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, macPlatform);
+
+        assertTrue(result);
+
+        // .bash_profile should be created (default when neither exists)
+        assertTrue(bashProfile.exists(),
+                "On macOS, .bash_profile should be created when neither .bash_profile nor .profile exists");
+
+        String bashProfileContent = IOUtil.readToString(new FileInputStream(bashProfile));
+        assertTrue(bashProfileContent.contains(binDir.getAbsolutePath()),
+                ".bash_profile should contain the PATH export");
+
+        // .profile should NOT be created
+        assertFalse(profile.exists(), ".profile should not be created");
     }
 }
