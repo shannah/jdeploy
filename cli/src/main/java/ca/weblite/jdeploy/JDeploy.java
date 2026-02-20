@@ -323,8 +323,28 @@ public class JDeploy implements BundleConstants {
     }
     
     private void install(PackagingContext context) throws IOException {
-        _package(context);
-        getNPM().link(context.exitOnFail);
+        install(context, false, null);
+    }
+
+    /**
+     * Installs the application locally.
+     *
+     * @param context The packaging context
+     * @param fullInstall If true, performs a full local installation using the headless installer.
+     *                    If false, just packages and runs npm link (legacy behavior).
+     * @param aiTools Set of AI tools to configure for MCP server installation, or null to skip AI integrations.
+     * @throws IOException if installation fails
+     */
+    private void install(PackagingContext context, boolean fullInstall, java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> aiTools) throws IOException {
+        if (fullInstall) {
+            // Full local installation using headless installer
+            DIContext.get(ca.weblite.jdeploy.services.LocalInstallService.class)
+                    .install(context, System.out, aiTools);
+        } else {
+            // Legacy behavior: package and npm link
+            _package(context);
+            getNPM().link(context.exitOnFail);
+        }
     }
 
     private void uploadResources(PackagingContext packagingContext) throws IOException {
@@ -503,6 +523,8 @@ public class JDeploy implements BundleConstants {
                 + "  init : Initialize the project\n"
                 + "  package : Prepare for install.  This copies necessary files into bin directory.\n"
                 + "  install : Installs the app locally (links to PATH)\n"
+                + "  install --full : Full local installation with native launchers, CLI commands, etc.\n"
+                + "  install --full --ai-tools=claude-code,cursor : Also configure MCP server for specified AI tools\n"
                 + "  publish : Publishes to NPM\n"
                 + "  generate: Generates a new project\n"
                 + "  github init -n <repo-name>:  Initializes commits, and pushes to github\n",
@@ -553,16 +575,25 @@ public class JDeploy implements BundleConstants {
             opts.addOption("t", "tag", true, "Optional tag for publish.");
             opts.addOption("y", "no-prompt", false,"Indicates not to prompt_ user ");
             opts.addOption("W", "no-workflow", false,"Indicates not to create a github workflow if true");
+            opts.addOption("F", "full", false, "Full local installation with native launchers, CLI commands, etc.");
+            opts.addOption("A", "ai-tools", true, "Comma-separated list of AI tools to configure for MCP server (e.g., claude-code,cursor,claude-desktop)");
             boolean noPromptFlag = false;
             boolean noWorkflowFlag = false;
+            boolean fullInstallFlag = false;
             String distTag = null;
+            java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> aiTools = null;
             if (args.length > 0 && !"jpackage".equals(args[0])) {
                 CommandLineParser parser = new DefaultParser();
                 CommandLine line = parser.parse(opts, args);
                 args = line.getArgs();
                 noPromptFlag = line.hasOption("no-prompt");
                 noWorkflowFlag = line.hasOption("no-workflow");
+                fullInstallFlag = line.hasOption("full");
                 distTag = line.getOptionValue("tag", null);
+                String aiToolsStr = line.getOptionValue("ai-tools", null);
+                if (aiToolsStr != null && !aiToolsStr.isEmpty()) {
+                    aiTools = parseAiTools(aiToolsStr);
+                }
 
             }
             if (args.length == 0 || "gui".equals(args[0])) {
@@ -683,7 +714,7 @@ public class JDeploy implements BundleConstants {
                 final boolean generateGithubWorkflow = !noWorkflowFlag;
                 prog.init(packageJSON, commandName, prompt, generateGithubWorkflow);
             } else if ("install".equals(args[0])) {
-                prog.install(context);
+                prog.install(context, fullInstallFlag, aiTools);
             } else if ("publish".equals(args[0])) {
                 prog.publish(context, distTag);
             } else if ("github-prepare-release".equals(args[0])) {
@@ -743,6 +774,67 @@ public class JDeploy implements BundleConstants {
         if (controller.getExitCode() != 0) {
             fail("Failed to initialize github repository", controller.getExitCode(), exitOnFail);
         }
+    }
+
+    /**
+     * Parses a comma-separated list of AI tool names into a set of AIToolType enums.
+     *
+     * @param aiToolsStr Comma-separated list of AI tool names (e.g., "claude-code,cursor,claude-desktop")
+     * @return Set of AIToolType enums
+     */
+    private static java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> parseAiTools(String aiToolsStr) {
+        java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> tools = new java.util.HashSet<>();
+        for (String toolName : aiToolsStr.split(",")) {
+            toolName = toolName.trim().toLowerCase();
+            if (toolName.isEmpty()) continue;
+
+            ca.weblite.jdeploy.ai.models.AIToolType tool = null;
+            switch (toolName) {
+                case "claude-code":
+                case "claudecode":
+                    tool = ca.weblite.jdeploy.ai.models.AIToolType.CLAUDE_CODE;
+                    break;
+                case "claude-desktop":
+                case "claudedesktop":
+                    tool = ca.weblite.jdeploy.ai.models.AIToolType.CLAUDE_DESKTOP;
+                    break;
+                case "cursor":
+                    tool = ca.weblite.jdeploy.ai.models.AIToolType.CURSOR;
+                    break;
+                case "windsurf":
+                    tool = ca.weblite.jdeploy.ai.models.AIToolType.WINDSURF;
+                    break;
+                case "vscode":
+                case "vscode-copilot":
+                case "copilot":
+                    tool = ca.weblite.jdeploy.ai.models.AIToolType.VSCODE_COPILOT;
+                    break;
+                case "codex":
+                case "codex-cli":
+                    tool = ca.weblite.jdeploy.ai.models.AIToolType.CODEX_CLI;
+                    break;
+                case "gemini":
+                case "gemini-cli":
+                    tool = ca.weblite.jdeploy.ai.models.AIToolType.GEMINI_CLI;
+                    break;
+                case "opencode":
+                    tool = ca.weblite.jdeploy.ai.models.AIToolType.OPENCODE;
+                    break;
+                case "warp":
+                    tool = ca.weblite.jdeploy.ai.models.AIToolType.WARP;
+                    break;
+                case "jetbrains":
+                    tool = ca.weblite.jdeploy.ai.models.AIToolType.JETBRAINS;
+                    break;
+                default:
+                    System.err.println("Warning: Unknown AI tool: " + toolName);
+                    break;
+            }
+            if (tool != null) {
+                tools.add(tool);
+            }
+        }
+        return tools;
     }
 
     private void generate(String[] args) {

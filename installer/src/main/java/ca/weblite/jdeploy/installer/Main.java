@@ -277,6 +277,114 @@ public class Main implements Runnable, Constants {
         }
     }
 
+    /**
+     * Loads package.json from the local path specified in app.xml for local development mode.
+     * This is used instead of loadNPMPackageInfo() when local-package-json and local-bundle
+     * attributes are present in app.xml.
+     */
+    private void loadLocalPackageInfo() throws IOException {
+        if (appInfo() == null) {
+            throw new IllegalStateException("App Info must be loaded before loading local package info");
+        }
+
+        String localPackageJsonPath = appInfo().getLocalPackageJson();
+        if (localPackageJsonPath == null || localPackageJsonPath.isEmpty()) {
+            throw new IOException("Local package.json path is not set");
+        }
+
+        File packageJsonFile = new File(localPackageJsonPath);
+        if (!packageJsonFile.exists()) {
+            throw new IOException("Local package.json not found at: " + localPackageJsonPath);
+        }
+
+        System.out.println("Loading local package.json from: " + localPackageJsonPath);
+
+        String packageJsonContent = org.apache.commons.io.FileUtils.readFileToString(
+            packageJsonFile,
+            java.nio.charset.StandardCharsets.UTF_8
+        );
+        JSONObject packageJson = new JSONObject(packageJsonContent);
+
+        // Create NPMPackageVersion directly from local package.json
+        NPMPackageVersion localVersion = NPMPackageVersion.fromLocalPackageJson(packageJson);
+
+        installationSettings.setNpmPackageVersion(localVersion);
+        System.out.println("Loaded local version: " + localVersion.getVersion());
+
+        // Process package info similar to loadNPMPackageInfo()
+        if (appInfo().getDescription() == null || appInfo().getDescription().isEmpty()) {
+            try {
+                appInfo().setDescription(localVersion.getDescription());
+            } catch (Exception e) {
+                // Description may not be present
+            }
+        }
+
+        if (appInfo().getDescription() == null || appInfo().getDescription().isEmpty()) {
+            appInfo().setDescription("Desktop application");
+        }
+
+        appInfo().setCommands(localVersion.getCommands());
+
+        for (DocumentTypeAssociation documentTypeAssociation : localVersion.getDocumentTypeAssociations()) {
+            if (documentTypeAssociation.isDirectory()) {
+                DocumentTypeAssociation dirAssoc = documentTypeAssociation;
+                if (documentTypeAssociation.getIconPath() == null) {
+                    File dirIconPath = new File(packageJsonFile.getParentFile(), "icon.directory.png");
+                    if (dirIconPath.exists()) {
+                        dirAssoc = new DocumentTypeAssociation(
+                            documentTypeAssociation.getRole(),
+                            documentTypeAssociation.getDescription(),
+                            dirIconPath.getAbsolutePath()
+                        );
+                    }
+                }
+                appInfo().setDirectoryAssociation(dirAssoc);
+            } else {
+                appInfo().addDocumentMimetype(documentTypeAssociation.getExtension(), documentTypeAssociation.getMimetype());
+                if (documentTypeAssociation.getIconPath() != null) {
+                    appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), documentTypeAssociation.getIconPath());
+                } else {
+                    File iconPath = new File(packageJsonFile.getParentFile(), "icon." + documentTypeAssociation.getExtension() + ".png");
+                    if (iconPath.exists()) {
+                        appInfo().addDocumentTypeIcon(documentTypeAssociation.getExtension(), iconPath.getAbsolutePath());
+                    }
+                }
+                if (documentTypeAssociation.isEditor()) {
+                    appInfo().setDocumentTypeEditor(documentTypeAssociation.getExtension());
+                }
+            }
+        }
+
+        for (String scheme : localVersion.getUrlSchemes()) {
+            appInfo().addUrlScheme(scheme);
+        }
+
+        for (Map.Entry<PermissionRequest, String> entry : localVersion.getPermissionRequests().entrySet()) {
+            appInfo().addPermissionRequest(entry.getKey(), entry.getValue());
+        }
+
+        if (Platform.getSystemPlatform().isWindows() && "8".equals(localVersion.getJavaVersion())) {
+            appInfo().setUsePrivateJVM(true);
+        }
+
+        RunAsAdministratorSettings runAsAdministratorSettings = localVersion.getRunAsAdministratorSettings();
+        switch (runAsAdministratorSettings) {
+            case Required:
+                appInfo().setRequireRunAsAdmin(true);
+                break;
+            case Allowed:
+                appInfo().setAllowRunAsAdmin(true);
+                break;
+        }
+
+        installationSettings.setHelperActions(localVersion.getHelperActions());
+
+        if (localVersion.getWinAppDir() != null) {
+            installationSettings.setWinAppDir(localVersion.getWinAppDir());
+        }
+    }
+
     private static class InvalidAppXMLFormatException extends IOException {
         InvalidAppXMLFormatException(String message) {
             super("The app.xml file is invalid. "+message);
@@ -349,6 +457,14 @@ public class Main implements Runnable, Constants {
         }
         appInfo().setFork(false);
 
+        // Parse local development mode attributes
+        if (root.hasAttribute("local-package-json")) {
+            appInfo().setLocalPackageJson(root.getAttribute("local-package-json"));
+        }
+        if (root.hasAttribute("local-bundle")) {
+            appInfo().setLocalBundle(root.getAttribute("local-bundle"));
+        }
+
         // First we set the version in appInfo according to the app.xml file
         appInfo().setNpmVersion(ifEmpty(root.getAttribute("version"), "latest"));
 
@@ -361,6 +477,9 @@ public class Main implements Runnable, Constants {
                 System.err.println("Warning: Failed to load NPM package info (running in background helper mode): " + e.getMessage());
                 System.err.println("Continuing without NPM package info - uninstall functionality will still work.");
             }
+        } else if (appInfo().isLocalMode()) {
+            // For local development mode, load package.json from local path
+            loadLocalPackageInfo();
         } else {
             // For normal installer mode, NPM package info is required
             loadNPMPackageInfo();
@@ -1039,6 +1158,10 @@ public class Main implements Runnable, Constants {
         // Output suppression is handled by setupStaticHeadlessOutputSuppression() in main()
         // Use staticOriginalOut for user-facing messages
 
+        // Apply installation context to load AI config and other resources
+        // This is also done in buildUI() for GUI mode, but headless mode skips buildUI()
+        installationContext.applyContext(installationSettings);
+
         staticOriginalOut.println(
             "Installing " + appInfo().getTitle() + " " + npmPackageVersion().getVersion() + "..."
         );
@@ -1054,6 +1177,111 @@ public class Main implements Runnable, Constants {
         }
 
         staticOriginalOut.println("Installation complete");
+    }
+
+    /**
+     * Performs a headless installation programmatically.
+     *
+     * This method is intended for use by external callers (like jdeploy CLI)
+     * who want to run the headless installer without going through main().
+     *
+     * @param appXmlPath Path to the app.xml file
+     * @param out Output stream for user-facing messages
+     * @param err Error stream for error messages
+     * @throws Exception if installation fails
+     */
+    public static void runHeadlessInstallProgrammatic(
+            String appXmlPath,
+            PrintStream out,
+            PrintStream err
+    ) throws Exception {
+        runHeadlessInstallProgrammatic(appXmlPath, out, err, null);
+    }
+
+    /**
+     * Runs the headless installer programmatically with optional AI tools configuration.
+     *
+     * @param appXmlPath Path to the app.xml file
+     * @param out Output stream for progress messages
+     * @param err Error stream for error messages
+     * @param aiTools Set of AI tools to configure for MCP server installation, or null to skip AI integrations
+     * @throws Exception if installation fails
+     */
+    public static void runHeadlessInstallProgrammatic(
+            String appXmlPath,
+            PrintStream out,
+            PrintStream err,
+            java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> aiTools
+    ) throws Exception {
+        // Set up static fields for headless mode
+        headlessInstall = true;
+        staticOriginalOut = out;
+        staticOriginalErr = err;
+
+        // Set AWT headless mode
+        System.setProperty("java.awt.headless", "true");
+
+        // Set app.xml path
+        System.setProperty("client4j.appxml.path", appXmlPath);
+
+        // Set up output suppression (logs to file, user messages to provided streams)
+        staticLogFile = new File(
+            System.getProperty("user.home") + File.separator + ".jdeploy" +
+            File.separator + "log" + File.separator + "jdeploy-local-install.log"
+        );
+        staticLogFile.getParentFile().mkdirs();
+
+        try {
+            staticLogStream = new PrintStream(new FileOutputStream(staticLogFile));
+            // Don't redirect System.out/err - we want verbose logging to go to log file
+            // but keep original streams for user-facing messages
+            PrintStream logOnlyStream = staticLogStream;
+
+            // Suppress java.util.logging output
+            java.util.logging.Logger rootLogger = java.util.logging.Logger.getLogger("");
+            java.util.logging.Handler[] handlers = rootLogger.getHandlers();
+            for (java.util.logging.Handler handler : handlers) {
+                handler.setLevel(java.util.logging.Level.OFF);
+            }
+            rootLogger.setLevel(java.util.logging.Level.OFF);
+
+            // Redirect System.out/err to log file during installation
+            PrintStream savedOut = System.out;
+            PrintStream savedErr = System.err;
+            System.setOut(logOnlyStream);
+            System.setErr(logOnlyStream);
+
+            try {
+                // Create installation settings with AI tools if provided
+                HeadlessInstallationSettings settings = new HeadlessInstallationSettings();
+                if (aiTools != null && !aiTools.isEmpty()) {
+                    settings.setInstallAiIntegrations(true);
+                    settings.setSelectedAiTools(aiTools);
+                }
+
+                // Create and run installer
+                Main installer = new Main(settings);
+                installer.run();
+            } finally {
+                // Restore original streams
+                System.setOut(savedOut);
+                System.setErr(savedErr);
+            }
+
+        } finally {
+            // Clean up system properties
+            System.clearProperty("client4j.appxml.path");
+
+            // Reset static fields
+            headlessInstall = false;
+            staticOriginalOut = null;
+            staticOriginalErr = null;
+            staticLogFile = null;
+            if (staticLogStream != null) {
+                staticLogStream.close();
+                staticLogStream = null;
+            }
+        }
     }
 
     private File installedApp;
