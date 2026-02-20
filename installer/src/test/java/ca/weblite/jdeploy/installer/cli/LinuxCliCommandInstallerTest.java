@@ -366,10 +366,15 @@ public class LinuxCliCommandInstallerTest {
         String pathEnv = "/usr/bin:/bin";
         File bashrc = new File(homeDir, ".bashrc");
 
-        boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        // Use explicit Linux platform to test Linux-specific behavior
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir,
+                new ca.weblite.tools.platform.Platform("Linux", "amd64"));
 
         assertTrue(result);
         assertTrue(bashrc.exists(), "bashrc was not created");
+        // On Linux, .bash_profile should NOT be created
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertFalse(bashProfile.exists(), "bash_profile should NOT be created on Linux");
     }
 
     @Test
@@ -378,19 +383,25 @@ public class LinuxCliCommandInstallerTest {
         String pathEnv = "/usr/bin:/bin";
         File zshrc = new File(homeDir, ".zshrc");
 
-        boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        // Use explicit Linux platform to test Linux-specific behavior
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir,
+                new ca.weblite.tools.platform.Platform("Linux", "amd64"));
 
         assertTrue(result);
         assertTrue(zshrc.exists());
+        // On Linux, .bash_profile should NOT be created
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertFalse(bashProfile.exists(), "bash_profile should NOT be created on Linux");
     }
 
     @Test
     public void testAddToPathAlreadyInPath() {
         String shell = "/bin/bash";
         String pathEnv = "/usr/bin:" + binDir.getAbsolutePath() + ":/bin";
-        File bashrc = new File(homeDir, ".bashrc");
 
-        boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        // Use explicit Linux platform to test Linux-specific behavior
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir,
+                new ca.weblite.tools.platform.Platform("Linux", "amd64"));
 
         assertTrue(result);
     }
@@ -405,7 +416,9 @@ public class LinuxCliCommandInstallerTest {
         // Pre-populate bashrc with the path
         Files.write(bashrc.toPath(), ("export PATH=\"$HOME/.local/bin:$PATH\"\n").getBytes(StandardCharsets.UTF_8));
 
-        boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        // Use explicit Linux platform to test Linux-specific behavior
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir,
+                new ca.weblite.tools.platform.Platform("Linux", "amd64"));
 
         assertTrue(result);
     }
@@ -415,14 +428,16 @@ public class LinuxCliCommandInstallerTest {
         String shell = "/usr/bin/fish";
         String pathEnv = "/usr/bin:/bin";
 
-        boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        // Use explicit Linux platform to test Linux-specific behavior
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir,
+                new ca.weblite.tools.platform.Platform("Linux", "amd64"));
 
         assertTrue(result);
-        // Now we write to both bash and zsh config files regardless of shell
+        // On Linux, we write to bashrc and zshrc but NOT bash_profile
         File bashrc = new File(homeDir, ".bashrc");
         assertTrue(bashrc.exists(), "bashrc should be created");
         File bashProfile = new File(homeDir, ".bash_profile");
-        assertTrue(bashProfile.exists(), "bash_profile should be created");
+        assertFalse(bashProfile.exists(), "bash_profile should NOT be created on Linux");
         File zshrc = new File(homeDir, ".zshrc");
         assertTrue(zshrc.exists(), "zshrc should be created");
     }
@@ -432,14 +447,16 @@ public class LinuxCliCommandInstallerTest {
         String shell = "/bin/unknown";
         String pathEnv = "/usr/bin:/bin";
 
-        boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        // Use explicit Linux platform to test Linux-specific behavior
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir,
+                new ca.weblite.tools.platform.Platform("Linux", "amd64"));
 
         assertTrue(result);
-        // Now we write to both bash and zsh config files regardless of shell
+        // On Linux, we write to bashrc and zshrc but NOT bash_profile
         File bashrc = new File(homeDir, ".bashrc");
         assertTrue(bashrc.exists(), "bashrc should be created");
         File bashProfile = new File(homeDir, ".bash_profile");
-        assertTrue(bashProfile.exists(), "bash_profile should be created");
+        assertFalse(bashProfile.exists(), "bash_profile should NOT be created on Linux");
         File zshrc = new File(homeDir, ".zshrc");
         assertTrue(zshrc.exists(), "zshrc should be created");
     }
@@ -450,9 +467,15 @@ public class LinuxCliCommandInstallerTest {
         String pathEnv = "/usr/bin:/bin";
         File bashrc = new File(homeDir, ".bashrc");
 
-        boolean result = AbstractUnixCliCommandInstaller.addToPath(binDir, shell, pathEnv, homeDir);
+        // Use explicit Linux platform to test Linux-specific behavior
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir,
+                new ca.weblite.tools.platform.Platform("Linux", "amd64"));
 
         assertTrue(result);
+        assertTrue(bashrc.exists(), "bashrc should be created");
+        // On Linux, .bash_profile should NOT be created
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertFalse(bashProfile.exists(), "bash_profile should NOT be created on Linux");
     }
 
     @Test
