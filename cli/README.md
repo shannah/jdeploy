@@ -51,6 +51,14 @@ This will generate a package.json file with settings to allow you to publish the
 $ jdeploy install
 ~~~~
 
+This performs a full native installation with native launchers, CLI commands, etc.
+
+To use legacy npm link behavior instead:
+
+~~~~
+$ jdeploy install --npm
+~~~~
+
 **Publish App to NPM**
 
 ~~~~
