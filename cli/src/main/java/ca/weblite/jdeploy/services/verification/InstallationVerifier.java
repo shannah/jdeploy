@@ -32,7 +32,19 @@ public class InstallationVerifier {
      */
     public InstallationVerificationResult verifyInstallationFromPackageJson(String pathOrUrl)
             throws IOException {
-        ResolvedPackageInfo pkg = packageInfoResolver.resolveFromPackageJson(pathOrUrl);
+        return verifyInstallationFromPackageJson(pathOrUrl, null);
+    }
+
+    /**
+     * Verifies an installation using a package.json path or URL with source override.
+     *
+     * @param pathOrUrl path or URL to package.json
+     * @param sourceOverride if non-null, overrides the source from package.json
+     *                       (use for GitHub-published packages where source affects install location)
+     */
+    public InstallationVerificationResult verifyInstallationFromPackageJson(String pathOrUrl, String sourceOverride)
+            throws IOException {
+        ResolvedPackageInfo pkg = packageInfoResolver.resolveFromPackageJson(pathOrUrl, sourceOverride);
         return verifyInstallation(pkg);
     }
 
@@ -59,7 +71,18 @@ public class InstallationVerifier {
      */
     public InstallationVerificationResult verifyUninstallationFromPackageJson(String pathOrUrl)
             throws IOException {
-        ResolvedPackageInfo pkg = packageInfoResolver.resolveFromPackageJson(pathOrUrl);
+        return verifyUninstallationFromPackageJson(pathOrUrl, null);
+    }
+
+    /**
+     * Verifies an uninstallation using a package.json path or URL with source override.
+     *
+     * @param pathOrUrl path or URL to package.json
+     * @param sourceOverride if non-null, overrides the source from package.json
+     */
+    public InstallationVerificationResult verifyUninstallationFromPackageJson(String pathOrUrl, String sourceOverride)
+            throws IOException {
+        ResolvedPackageInfo pkg = packageInfoResolver.resolveFromPackageJson(pathOrUrl, sourceOverride);
         return verifyUninstallation(pkg);
     }
 

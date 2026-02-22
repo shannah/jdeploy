@@ -32,6 +32,17 @@ public class PackageInfoResolver {
      * Resolves package info from a local file path or URL to package.json.
      */
     public ResolvedPackageInfo resolveFromPackageJson(String pathOrUrl) throws IOException {
+        return resolveFromPackageJson(pathOrUrl, null);
+    }
+
+    /**
+     * Resolves package info from a local file path or URL to package.json,
+     * with optional source override.
+     *
+     * @param pathOrUrl path or URL to package.json
+     * @param sourceOverride if non-null, overrides the source from package.json
+     */
+    public ResolvedPackageInfo resolveFromPackageJson(String pathOrUrl, String sourceOverride) throws IOException {
         String content;
 
         if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
@@ -48,7 +59,7 @@ public class PackageInfoResolver {
             content = FileUtils.readFileToString(file, StandardCharsets.UTF_8);
         }
 
-        return parsePackageJson(content);
+        return parsePackageJson(content, sourceOverride);
     }
 
     /**
@@ -101,7 +112,8 @@ public class PackageInfoResolver {
             throw new IOException("Failed to fetch package from npm: " + packageName, e);
         }
 
-        return parsePackageJson(content);
+        // NPM packages have no source override (source is always null for NPM)
+        return parsePackageJson(content, null);
     }
 
     private ResolvedPackageInfo resolveFromGitHub(String packageName, String source) throws IOException {
@@ -147,7 +159,7 @@ public class PackageInfoResolver {
         return parseVersionInfo(packageName, source, latestVersion, latestVersionInfo);
     }
 
-    private ResolvedPackageInfo parsePackageJson(String content) throws IOException {
+    private ResolvedPackageInfo parsePackageJson(String content, String sourceOverride) throws IOException {
         JSONObject json = new JSONObject(content);
 
         String packageName = json.optString("name", null);
@@ -175,6 +187,11 @@ public class PackageInfoResolver {
                 JDeployProject project = new JDeployProject(packageJsonPath, json);
                 commands = project.getCommandSpecs();
             }
+        }
+
+        // Apply source override if provided
+        if (sourceOverride != null && !sourceOverride.isEmpty()) {
+            source = sourceOverride;
         }
 
         return ResolvedPackageInfo.builder()

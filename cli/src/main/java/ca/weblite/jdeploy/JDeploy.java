@@ -544,7 +544,7 @@ public class JDeploy implements BundleConstants {
                 + "    --package-json=<path|url> : Path or URL to package.json\n"
                 + "    --project-code=<code> : Project code to lookup\n"
                 + "    --package=<name> : Package name\n"
-                + "    --source=<url> : GitHub source URL (optional with --package)\n"
+                + "    --source=<url> : GitHub source URL (overrides source in package.json)\n"
                 + "    --verbose : Show all checks, not just failures\n",
                 opts);
 
@@ -593,7 +593,7 @@ public class JDeploy implements BundleConstants {
             String packageName, String source) throws IOException {
 
         if (packageJson != null && !packageJson.isEmpty()) {
-            return verifier.verifyInstallationFromPackageJson(packageJson);
+            return verifier.verifyInstallationFromPackageJson(packageJson, source);
         } else if (projectCode != null && !projectCode.isEmpty()) {
             return verifier.verifyInstallationFromProjectCode(projectCode);
         } else if (packageName != null && !packageName.isEmpty()) {
@@ -602,7 +602,7 @@ public class JDeploy implements BundleConstants {
             // Try to use package.json in current directory
             File localPackageJson = new File("package.json");
             if (localPackageJson.exists()) {
-                return verifier.verifyInstallationFromPackageJson(localPackageJson.getAbsolutePath());
+                return verifier.verifyInstallationFromPackageJson(localPackageJson.getAbsolutePath(), source);
             }
             throw new IllegalArgumentException(
                     "No input specified. Use --package-json, --project-code, or --package option, "
@@ -615,7 +615,7 @@ public class JDeploy implements BundleConstants {
             String packageName, String source) throws IOException {
 
         if (packageJson != null && !packageJson.isEmpty()) {
-            return verifier.verifyUninstallationFromPackageJson(packageJson);
+            return verifier.verifyUninstallationFromPackageJson(packageJson, source);
         } else if (projectCode != null && !projectCode.isEmpty()) {
             return verifier.verifyUninstallationFromProjectCode(projectCode);
         } else if (packageName != null && !packageName.isEmpty()) {
@@ -624,7 +624,7 @@ public class JDeploy implements BundleConstants {
             // Try to use package.json in current directory
             File localPackageJson = new File("package.json");
             if (localPackageJson.exists()) {
-                return verifier.verifyUninstallationFromPackageJson(localPackageJson.getAbsolutePath());
+                return verifier.verifyUninstallationFromPackageJson(localPackageJson.getAbsolutePath(), source);
             }
             throw new IllegalArgumentException(
                     "No input specified. Use --package-json, --project-code, or --package option, "
