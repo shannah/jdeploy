@@ -350,6 +350,42 @@ public class JDeploy implements BundleConstants {
         }
     }
 
+    /**
+     * Uninstalls the app locally.
+     *
+     * @param context The packaging context (may be null if using --package option)
+     * @param packageName The package name to uninstall (optional, extracted from context if null)
+     * @param source The GitHub source URL (optional)
+     */
+    private void uninstall(PackagingContext context, String packageName, String source) {
+        ca.weblite.jdeploy.services.LocalUninstallService uninstallService =
+                new ca.weblite.jdeploy.services.LocalUninstallService();
+
+        boolean success;
+        try {
+            if (packageName != null && !packageName.isEmpty()) {
+                // Uninstall by package name
+                success = uninstallService.uninstall(packageName, source, System.out);
+            } else if (context != null && context.directory != null) {
+                // Uninstall from package.json in current directory
+                success = uninstallService.uninstall(context.directory, System.out);
+            } else {
+                err.println("Error: No package specified and no package.json found in current directory");
+                err.println("Usage: jdeploy uninstall");
+                err.println("       jdeploy uninstall --package=<name> [--source=<url>]");
+                System.exit(1);
+                return;
+            }
+
+            if (!success) {
+                System.exit(1);
+            }
+        } catch (Exception e) {
+            err.println("Uninstallation failed: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+
     private void uploadResources(PackagingContext packagingContext) throws IOException {
         PublishingContext context = PublishingContext.builder()
                 .setPackagingContext(packagingContext)
@@ -528,6 +564,8 @@ public class JDeploy implements BundleConstants {
                 + "  install : Installs the app locally with native launchers, CLI commands, etc.\n"
                 + "  install --ai-tools=claude-code,cursor : Also configure MCP server for specified AI tools\n"
                 + "  install --npm : Use npm link instead of native installation (legacy behavior)\n"
+                + "  uninstall : Uninstalls the app locally\n"
+                + "  uninstall --package=<name> --source=<url> : Uninstall by package name\n"
                 + "  run : Launch the installed GUI application\n"
                 + "  run <command> -- [args...] : Run a CLI command with arguments\n"
                 + "  run --install : Install first, then launch\n"
@@ -927,6 +965,8 @@ public class JDeploy implements BundleConstants {
                 prog.init(packageJSON, commandName, prompt, generateGithubWorkflow);
             } else if ("install".equals(args[0])) {
                 prog.install(context, npmInstallFlag, aiTools);
+            } else if ("uninstall".equals(args[0])) {
+                prog.uninstall(context, verifyPackage, verifySource);
             } else if ("publish".equals(args[0])) {
                 prog.publish(context, distTag);
             } else if ("github-prepare-release".equals(args[0])) {
