@@ -32,7 +32,9 @@ public class WindowsDockerConfig {
     private Mode mode = Mode.HEADLESS;
     private String windowsVersion = "win11";
     private int rdpPort = 3389;
+    private int webPort = 8006;  // dockurr/windows provides web-based viewer on port 8006
     private int timeoutMinutes = 15;
+    private boolean clean = false;  // If true, start from clean golden snapshot
 
     public WindowsDockerConfig() {
     }
@@ -64,6 +66,15 @@ public class WindowsDockerConfig {
         return this;
     }
 
+    public int getWebPort() {
+        return webPort;
+    }
+
+    public WindowsDockerConfig setWebPort(int webPort) {
+        this.webPort = webPort;
+        return this;
+    }
+
     public int getTimeoutMinutes() {
         return timeoutMinutes;
     }
@@ -73,22 +84,53 @@ public class WindowsDockerConfig {
         return this;
     }
 
+    public boolean isClean() {
+        return clean;
+    }
+
+    public WindowsDockerConfig setClean(boolean clean) {
+        this.clean = clean;
+        return this;
+    }
+
     /**
      * Parses the --windows option value.
      *
-     * @param value The option value (null, "headless", or "rdp")
+     * Supported formats:
+     * - null, "", "headless" → headless mode
+     * - "rdp" → interactive RDP/web mode
+     * - "clean" → headless mode with clean state
+     * - "rdp,clean" or "clean,rdp" → RDP mode with clean state
+     *
+     * @param value The option value
      * @return Configured WindowsDockerConfig
      */
     public static WindowsDockerConfig fromOptionValue(String value) {
         WindowsDockerConfig config = new WindowsDockerConfig();
 
-        if (value == null || value.isEmpty() || "headless".equalsIgnoreCase(value)) {
+        if (value == null || value.isEmpty()) {
             config.setMode(Mode.HEADLESS);
-        } else if ("rdp".equalsIgnoreCase(value)) {
-            config.setMode(Mode.RDP);
-        } else {
-            throw new IllegalArgumentException(
-                    "Invalid --windows value: " + value + ". Use 'headless' or 'rdp'");
+            return config;
+        }
+
+        // Parse comma-separated options
+        String[] parts = value.toLowerCase().split(",");
+        for (String part : parts) {
+            part = part.trim();
+            switch (part) {
+                case "headless":
+                    config.setMode(Mode.HEADLESS);
+                    break;
+                case "rdp":
+                    config.setMode(Mode.RDP);
+                    break;
+                case "clean":
+                    config.setClean(true);
+                    break;
+                default:
+                    throw new IllegalArgumentException(
+                            "Invalid --windows value: " + part + ". Use 'headless', 'rdp', and/or 'clean'");
+            }
         }
 
         return config;

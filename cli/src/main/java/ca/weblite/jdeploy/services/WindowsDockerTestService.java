@@ -84,15 +84,22 @@ public class WindowsDockerTestService {
             out.println("Preparing shared folder for Windows container...");
             prepareSharedFolder(sharedDir, bundleDir, jdeployFilesDir);
 
-            // Step 4: Start Docker container
+            // Step 4: Check if this is the first run (installing to golden volume)
+            boolean isFirstRun = !isGoldenVolumeReady();
+
+            // Step 5: Start Docker container
             out.println("Starting Windows Docker container...");
-            out.println("(First run may take several minutes to download and boot Windows)");
+            if (isFirstRun) {
+                out.println("(First run: Installing Windows to golden snapshot - this takes ~20 minutes)");
+                out.println("(Subsequent runs will start from clean snapshot in ~30 seconds)");
+            }
             Process dockerProcess = startDockerContainer(config, sharedDir, out);
 
             try {
                 if (config.getMode() == WindowsDockerConfig.Mode.RDP) {
                     // Interactive RDP mode
-                    return runInteractiveMode(config, dockerProcess, sharedDir, out);
+                    WindowsTestResult result = runInteractiveMode(config, dockerProcess, sharedDir, out, isFirstRun);
+                    return result;
                 } else {
                     // Headless automated mode
                     return runHeadlessMode(config, dockerProcess, sharedDir, out);
@@ -184,16 +191,128 @@ public class WindowsDockerTestService {
         }
     }
 
+    private static final String GOLDEN_VOLUME = "jdeploy-windows-golden";
+    private static final String WORKING_VOLUME = "jdeploy-windows-storage";
+    private static final String CONTAINER_NAME = "jdeploy-windows-test";
+
+    /**
+     * Checks if the golden Windows volume exists and is ready.
+     */
+    private boolean isGoldenVolumeReady() {
+        try {
+            // Check if volume exists
+            ProcessBuilder pb = new ProcessBuilder("docker", "volume", "inspect", GOLDEN_VOLUME);
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            int exitCode = p.waitFor();
+            if (exitCode != 0) {
+                return false;
+            }
+
+            // Check for completion marker inside the volume
+            ProcessBuilder checkMarker = new ProcessBuilder(
+                    "docker", "run", "--rm",
+                    "-v", GOLDEN_VOLUME + ":/storage:ro",
+                    "alpine", "test", "-f", "/storage/.jdeploy-windows-ready"
+            );
+            checkMarker.redirectErrorStream(true);
+            Process markerProcess = checkMarker.start();
+            return markerProcess.waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Creates a completion marker in the golden volume.
+     */
+    private void markGoldenVolumeReady(PrintStream out) {
+        try {
+            out.println("Marking golden volume as ready...");
+            ProcessBuilder pb = new ProcessBuilder(
+                    "docker", "run", "--rm",
+                    "-v", GOLDEN_VOLUME + ":/storage",
+                    "alpine", "touch", "/storage/.jdeploy-windows-ready"
+            );
+            pb.redirectErrorStream(true);
+            pb.start().waitFor();
+        } catch (Exception e) {
+            out.println("Warning: Could not mark golden volume as ready: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Copies the golden volume to the working volume for a clean test environment.
+     */
+    private void copyGoldenToWorking(PrintStream out) throws IOException, InterruptedException {
+        out.println("Copying golden Windows image to working volume (this gives you a clean state)...");
+
+        // Remove existing working volume
+        new ProcessBuilder("docker", "volume", "rm", "-f", WORKING_VOLUME)
+                .redirectErrorStream(true).start().waitFor();
+
+        // Create new working volume
+        new ProcessBuilder("docker", "volume", "create", WORKING_VOLUME)
+                .redirectErrorStream(true).start().waitFor();
+
+        // Copy contents from golden to working
+        ProcessBuilder pb = new ProcessBuilder(
+                "docker", "run", "--rm",
+                "-v", GOLDEN_VOLUME + ":/source:ro",
+                "-v", WORKING_VOLUME + ":/dest",
+                "alpine", "sh", "-c", "cp -a /source/. /dest/"
+        );
+        pb.inheritIO();
+        Process p = pb.start();
+        int exitCode = p.waitFor();
+
+        if (exitCode != 0) {
+            throw new IOException("Failed to copy golden volume to working volume");
+        }
+
+        out.println("Clean Windows environment ready.");
+    }
+
     /**
      * Starts the Docker container with Windows.
      */
     private Process startDockerContainer(WindowsDockerConfig config, File sharedDir, PrintStream out)
-            throws IOException {
+            throws IOException, InterruptedException {
+
+        // Stop and remove any existing container with this name
+        try {
+            new ProcessBuilder("docker", "stop", CONTAINER_NAME)
+                    .redirectErrorStream(true).start().waitFor();
+            new ProcessBuilder("docker", "rm", CONTAINER_NAME)
+                    .redirectErrorStream(true).start().waitFor();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        // Determine which volume to use
+        String storageVolume;
+
+        if (!isGoldenVolumeReady()) {
+            // Golden doesn't exist - install Windows to golden volume
+            out.println("First run: Installing Windows to golden volume (this will take ~20 minutes)...");
+            out.println("Subsequent runs will be much faster.");
+            storageVolume = GOLDEN_VOLUME;
+        } else if (config.isClean()) {
+            // Golden exists and clean requested - copy golden to working for clean state
+            copyGoldenToWorking(out);
+            storageVolume = WORKING_VOLUME;
+        } else {
+            // Golden exists, not clean - reuse working volume as-is
+            out.println("Reusing existing Windows state (use --windows=rdp,clean for fresh state)");
+            storageVolume = WORKING_VOLUME;
+        }
 
         List<String> cmd = new ArrayList<>();
         cmd.add("docker");
         cmd.add("run");
         cmd.add("--rm");
+        cmd.add("--name");
+        cmd.add(CONTAINER_NAME);
 
         // Required for dockur/windows - needs privileged mode or device access
         cmd.add("--privileged");
@@ -201,6 +320,10 @@ public class WindowsDockerTestService {
         // Mount shared folder
         cmd.add("-v");
         cmd.add(sharedDir.getAbsolutePath() + ":/shared");
+
+        // Mount storage volume (either golden for first install, or working for subsequent runs)
+        cmd.add("-v");
+        cmd.add(storageVolume + ":/storage");
 
         // Windows version
         cmd.add("-e");
@@ -219,7 +342,11 @@ public class WindowsDockerTestService {
             out.println("Note: Running without KVM acceleration (macOS). Windows boot will be slower.");
         }
 
-        // For RDP mode, expose port
+        // Expose web interface port (always needed for viewing Windows desktop)
+        cmd.add("-p");
+        cmd.add(config.getWebPort() + ":8006");
+
+        // For RDP mode, also expose RDP port
         if (config.getMode() == WindowsDockerConfig.Mode.RDP) {
             cmd.add("-p");
             cmd.add(config.getRdpPort() + ":3389");
@@ -307,21 +434,34 @@ public class WindowsDockerTestService {
     }
 
     /**
-     * Runs interactive RDP mode.
+     * Runs interactive mode with web-based viewer.
      */
     private WindowsTestResult runInteractiveMode(
             WindowsDockerConfig config,
             Process dockerProcess,
             File sharedDir,
-            PrintStream out
+            PrintStream out,
+            boolean isFirstRun
     ) throws InterruptedException {
 
         out.println();
         out.println("========================================");
-        out.println("Windows container started in RDP mode");
+        out.println("Windows container started");
         out.println("========================================");
         out.println();
-        out.println("Connect via Microsoft Remote Desktop:");
+        if (isFirstRun) {
+            out.println("MODE: First run - creating golden snapshot");
+            out.println("      (This Windows installation will be saved for future runs)");
+        } else if (config.isClean()) {
+            out.println("MODE: Clean state (from golden snapshot)");
+        } else {
+            out.println("MODE: Reusing previous state");
+            out.println("      (Use --windows=rdp,clean for fresh state)");
+        }
+        out.println();
+        out.println("Web viewer will open at: http://localhost:" + config.getWebPort());
+        out.println();
+        out.println("You can also connect via RDP:");
         out.println("  Host: localhost:" + config.getRdpPort());
         out.println("  Username: (leave blank or use 'Docker')");
         out.println("  Password: (leave blank)");
@@ -336,44 +476,70 @@ public class WindowsDockerTestService {
         out.println("Press Ctrl+C to stop the container...");
         out.println();
 
-        // Start a thread to wait for Windows to be ready and then open RDP
-        Thread rdpOpenerThread = new Thread(() -> {
+        // Start a thread to wait for web interface and then open browser
+        Thread browserOpenerThread = new Thread(() -> {
             try {
-                File readyMarker = new File(sharedDir, "windows-ready.marker");
+                // Wait for web interface to become available
+                out.println("Waiting for web interface to become available...");
+                long deadline = System.currentTimeMillis() + 180000; // 3 minute timeout for Windows boot
+                boolean ready = false;
 
-                // Wait up to 5 minutes for Windows to boot
-                long deadline = System.currentTimeMillis() + (5 * 60 * 1000L);
                 while (System.currentTimeMillis() < deadline && dockerProcess.isAlive()) {
-                    if (readyMarker.exists()) {
-                        out.println("Windows is ready! Opening RDP client...");
-                        openRdpClient(config.getRdpPort(), out);
-                        return;
+                    try {
+                        java.net.Socket socket = new java.net.Socket();
+                        socket.connect(new java.net.InetSocketAddress("localhost", config.getWebPort()), 1000);
+                        socket.close();
+                        ready = true;
+                        break;
+                    } catch (Exception e) {
+                        // Not ready yet, wait and retry
+                        Thread.sleep(3000);
                     }
-                    Thread.sleep(5000);
                 }
 
-                // If marker never appeared but container still running, try opening anyway
-                if (dockerProcess.isAlive()) {
-                    out.println("Opening RDP client (Windows may still be booting)...");
-                    openRdpClient(config.getRdpPort(), out);
+                if (ready && dockerProcess.isAlive()) {
+                    out.println("Web interface ready! Opening browser...");
+                    openBrowser("http://localhost:" + config.getWebPort(), out);
+
+                    // If this is the first run, mark golden volume as ready after Windows boots
+                    if (isFirstRun) {
+                        // Wait a bit more for Windows to fully initialize
+                        Thread.sleep(30000);
+                        out.println("Marking golden snapshot as ready for future runs...");
+                        markGoldenVolumeReady(out);
+                    }
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
-        rdpOpenerThread.setDaemon(true);
-        rdpOpenerThread.start();
+        browserOpenerThread.setDaemon(true);
+        browserOpenerThread.start();
 
         // Set up shutdown hook to handle Ctrl+C gracefully
-        Thread currentThread = Thread.currentThread();
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            currentThread.interrupt();
-        }));
+        final String containerToStop = "jdeploy-windows-test";
+        Thread shutdownHook = new Thread(() -> {
+            out.println("\nStopping Windows container...");
+            try {
+                Process stopProcess = new ProcessBuilder("docker", "stop", containerToStop)
+                        .redirectErrorStream(true).start();
+                stopProcess.waitFor(30, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception e) {
+                // Ignore errors during shutdown
+            }
+        });
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
 
         try {
             // Wait for process to end (user Ctrl+C or container exit)
             int exitCode = dockerProcess.waitFor();
             out.println("Container exited with code: " + exitCode);
+            // Remove shutdown hook if we exited normally
+            try {
+                Runtime.getRuntime().removeShutdownHook(shutdownHook);
+            } catch (IllegalStateException e) {
+                // Already shutting down
+            }
         } catch (InterruptedException e) {
             out.println("\nStopping container...");
             throw e;
@@ -479,6 +645,29 @@ public class WindowsDockerTestService {
         } catch (IOException e) {
             out.println("Could not open RDP client: " + e.getMessage());
             out.println("Please connect manually using your RDP client to localhost:" + port);
+        }
+    }
+
+    /**
+     * Opens a URL in the default browser.
+     */
+    private void openBrowser(String url, PrintStream out) {
+        String os = System.getProperty("os.name").toLowerCase();
+
+        try {
+            if (os.contains("mac")) {
+                ProcessBuilder pb = new ProcessBuilder("open", url);
+                pb.start();
+            } else if (os.contains("win")) {
+                ProcessBuilder pb = new ProcessBuilder("cmd", "/c", "start", url);
+                pb.start();
+            } else if (os.contains("linux")) {
+                ProcessBuilder pb = new ProcessBuilder("xdg-open", url);
+                pb.start();
+            }
+        } catch (IOException e) {
+            out.println("Could not open browser: " + e.getMessage());
+            out.println("Please open manually: " + url);
         }
     }
 }

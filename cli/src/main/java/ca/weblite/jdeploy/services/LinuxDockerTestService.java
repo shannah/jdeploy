@@ -22,6 +22,9 @@ import java.util.List;
  */
 public class LinuxDockerTestService {
 
+    private static final String CONTAINER_NAME = "jdeploy-linux-test";
+    private static final String CONFIG_VOLUME = "jdeploy-linux-config";
+
     private final PackageService packageService;
     private final LocalJDeployFilesGenerator jdeployFilesGenerator;
 
@@ -254,18 +257,109 @@ public class LinuxDockerTestService {
     }
 
     /**
+     * Checks if the Linux container already exists.
+     */
+    private boolean containerExists() {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                    "docker", "container", "inspect", CONTAINER_NAME);
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            // Consume output
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                while (reader.readLine() != null) {}
+            }
+            return p.waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Checks if the Linux container is running.
+     */
+    private boolean containerRunning() {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                    "docker", "ps", "-q", "-f", "name=" + CONTAINER_NAME);
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                String line = reader.readLine();
+                return line != null && !line.isEmpty();
+            }
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Removes the existing Linux container and optionally the config volume.
+     */
+    private void removeContainer(boolean removeVolume, PrintStream out) {
+        try {
+            out.println("Removing existing Linux container...");
+            new ProcessBuilder("docker", "stop", CONTAINER_NAME)
+                    .redirectErrorStream(true).start().waitFor();
+            new ProcessBuilder("docker", "rm", CONTAINER_NAME)
+                    .redirectErrorStream(true).start().waitFor();
+            if (removeVolume) {
+                out.println("Removing config volume for clean state...");
+                new ProcessBuilder("docker", "volume", "rm", "-f", CONFIG_VOLUME)
+                        .redirectErrorStream(true).start().waitFor();
+            }
+        } catch (Exception e) {
+            // Ignore errors
+        }
+    }
+
+    /**
      * Starts the Docker container with Linux desktop.
      */
     private Process startDockerContainer(LinuxDockerConfig config, File sharedDir,
                                           File projectDir, PrintStream out)
-            throws IOException {
+            throws IOException, InterruptedException {
+
+        // Handle existing container
+        if (containerExists()) {
+            if (config.isClean()) {
+                // Clean mode: remove container and volume for fresh state
+                removeContainer(true, out);
+            } else if (containerRunning()) {
+                // Container already running - stop it first so we can start fresh with new mounts
+                out.println("Stopping existing container...");
+                new ProcessBuilder("docker", "stop", CONTAINER_NAME)
+                        .redirectErrorStream(true).start().waitFor();
+            }
+        }
+
+        // If container exists but not clean, try to start it
+        if (!config.isClean() && containerExists()) {
+            out.println("Starting existing Linux container (use --linux=vnc,clean for fresh state)...");
+            ProcessBuilder pb = new ProcessBuilder("docker", "start", "-a", CONTAINER_NAME);
+            pb.redirectErrorStream(true);
+            pb.inheritIO();
+            return pb.start();
+        }
+
+        // Create new container
+        if (config.isClean()) {
+            out.println("Creating fresh Linux container (clean mode)...");
+        } else {
+            out.println("Creating new Linux container...");
+        }
 
         List<String> cmd = new ArrayList<>();
         cmd.add("docker");
         cmd.add("run");
-        cmd.add("--rm");
+        cmd.add("--name");
+        cmd.add(CONTAINER_NAME);
 
-        // Mount shared folder to /config/shared (linuxserver/webtop uses /config as home)
+        // Mount persistent config volume (preserves installed apps between runs)
+        cmd.add("-v");
+        cmd.add(CONFIG_VOLUME + ":/config");
+
+        // Mount shared folder to /config/shared
         cmd.add("-v");
         cmd.add(sharedDir.getAbsolutePath() + ":/config/shared");
 
@@ -399,11 +493,18 @@ public class LinuxDockerTestService {
 
         out.println();
         out.println("========================================");
-        out.println("Linux container started in VNC mode");
-        if (config.isDevMode()) {
-            out.println("(Dev mode: jdeploy will build from source)");
-        }
+        out.println("Linux container started");
         out.println("========================================");
+        out.println();
+        if (config.isClean()) {
+            out.println("MODE: Clean state (fresh container)");
+        } else {
+            out.println("MODE: Reusing previous state");
+            out.println("      (Use --linux=vnc,clean for fresh state)");
+        }
+        if (config.isDevMode()) {
+            out.println("      Dev mode: jdeploy will build from source");
+        }
         out.println();
         out.println("Connect via browser (recommended):");
         out.println("  http://localhost:" + config.getNoVncPort());
@@ -467,15 +568,28 @@ public class LinuxDockerTestService {
         browserOpenerThread.start();
 
         // Set up shutdown hook to handle Ctrl+C gracefully
-        Thread currentThread = Thread.currentThread();
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            currentThread.interrupt();
-        }));
+        Thread shutdownHook = new Thread(() -> {
+            out.println("\nStopping Linux container...");
+            try {
+                Process stopProcess = new ProcessBuilder("docker", "stop", CONTAINER_NAME)
+                        .redirectErrorStream(true).start();
+                stopProcess.waitFor(30, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception e) {
+                // Ignore errors during shutdown
+            }
+        });
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
 
         try {
             // Wait for process to end (user Ctrl+C or container exit)
             int exitCode = dockerProcess.waitFor();
             out.println("Container exited with code: " + exitCode);
+            // Remove shutdown hook if we exited normally
+            try {
+                Runtime.getRuntime().removeShutdownHook(shutdownHook);
+            } catch (IllegalStateException e) {
+                // Already shutting down
+            }
         } catch (InterruptedException e) {
             out.println("\nStopping container...");
             throw e;

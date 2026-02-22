@@ -35,6 +35,7 @@ public class LinuxDockerConfig {
     private int noVncPort = 3000;  // linuxserver/webtop uses port 3000
     private int timeoutMinutes = 10;
     private String resolution = "1280x720";
+    private boolean clean = false;  // If true, start from fresh container
 
     // Dev mode fields
     private java.io.File jdeployHome;  // jDeploy project directory (for dev mode)
@@ -113,22 +114,53 @@ public class LinuxDockerConfig {
         return this;
     }
 
+    public boolean isClean() {
+        return clean;
+    }
+
+    public LinuxDockerConfig setClean(boolean clean) {
+        this.clean = clean;
+        return this;
+    }
+
     /**
      * Parses the --linux option value.
      *
-     * @param value The option value (null, "headless", or "vnc")
+     * Supported formats:
+     * - null, "", "headless" → headless mode
+     * - "vnc" → interactive VNC/web mode
+     * - "clean" → headless mode with clean state
+     * - "vnc,clean" or "clean,vnc" → VNC mode with clean state
+     *
+     * @param value The option value
      * @return Configured LinuxDockerConfig
      */
     public static LinuxDockerConfig fromOptionValue(String value) {
         LinuxDockerConfig config = new LinuxDockerConfig();
 
-        if (value == null || value.isEmpty() || "headless".equalsIgnoreCase(value)) {
+        if (value == null || value.isEmpty()) {
             config.setMode(Mode.HEADLESS);
-        } else if ("vnc".equalsIgnoreCase(value)) {
-            config.setMode(Mode.VNC);
-        } else {
-            throw new IllegalArgumentException(
-                    "Invalid --linux value: " + value + ". Use 'headless' or 'vnc'");
+            return config;
+        }
+
+        // Parse comma-separated options
+        String[] parts = value.toLowerCase().split(",");
+        for (String part : parts) {
+            part = part.trim();
+            switch (part) {
+                case "headless":
+                    config.setMode(Mode.HEADLESS);
+                    break;
+                case "vnc":
+                    config.setMode(Mode.VNC);
+                    break;
+                case "clean":
+                    config.setClean(true);
+                    break;
+                default:
+                    throw new IllegalArgumentException(
+                            "Invalid --linux value: " + part + ". Use 'headless', 'vnc', and/or 'clean'");
+            }
         }
 
         return config;
