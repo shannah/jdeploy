@@ -186,7 +186,8 @@ public class MacVerifier extends PlatformVerifier {
     protected File getAppDirectory(InstalledAppLocator.InstalledApp app) {
         File appBundle = app.getAppBundle();
         if (appBundle != null) {
-            return new File(appBundle, "Contents");
+            // CLI metadata is stored in Contents/MacOS alongside the launcher
+            return new File(appBundle, "Contents" + File.separator + "MacOS");
         }
         return null;
     }
