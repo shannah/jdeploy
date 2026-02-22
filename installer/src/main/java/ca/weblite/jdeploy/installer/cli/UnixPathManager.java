@@ -73,8 +73,9 @@ public class UnixPathManager {
         // Write to shell configuration files to ensure PATH works for both bash and zsh.
         // Platform-specific behavior:
         // - macOS: Write to .bash_profile (Terminal.app uses login shells) and .bashrc
-        // - Linux: Write to .bashrc only (avoid creating .bash_profile which would break
+        // - Linux: Write to .bashrc and .profile (avoid creating .bash_profile which would break
         //          Ubuntu's convention where .profile sources .bashrc)
+        //          .profile is needed for login shells and non-interactive environments
         boolean isMac = platform != null && platform.isMac();
         DebugLogger.log("Platform detection: isMac=" + isMac);
         DebugLogger.log("Writing to shell configuration files");
@@ -86,12 +87,16 @@ public class UnixPathManager {
         boolean bashrcUpdated = addPathToConfigFile(bashrc, binDir, homeDir);
         anyUpdated = bashrcUpdated;
 
-        // On macOS, also update login shell config because Terminal.app starts login shells.
+        // Update login shell config for PATH persistence in login shells and non-interactive environments.
         // Bash reads the first file it finds among: .bash_profile, .bash_login, .profile
         // We mirror this logic to avoid breaking existing setups:
-        // - If .bash_profile exists → use it
-        // - Else if .profile exists → use it (don't create .bash_profile)
-        // - Else → create .bash_profile
+        // - On macOS:
+        //   - If .bash_profile exists → use it
+        //   - Else if .profile exists → use it (don't create .bash_profile)
+        //   - Else → create .bash_profile
+        // - On Linux:
+        //   - Always write to .profile (never create .bash_profile, which would break
+        //     Ubuntu's convention where .profile sources .bashrc)
         if (isMac) {
             File bashProfile = new File(homeDir, ".bash_profile");
             File profile = new File(homeDir, ".profile");
@@ -107,6 +112,13 @@ public class UnixPathManager {
             }
 
             boolean profileUpdated = addPathToConfigFile(loginShellConfig, binDir, homeDir);
+            anyUpdated = anyUpdated || profileUpdated;
+        } else {
+            // On Linux, write to .profile for login shells and non-interactive environments.
+            // .bashrc is only sourced by interactive bash shells, so .profile is needed
+            // to ensure PATH is available in login shells, SSH sessions, cron jobs, etc.
+            File profile = new File(homeDir, ".profile");
+            boolean profileUpdated = addPathToConfigFile(profile, binDir, homeDir);
             anyUpdated = anyUpdated || profileUpdated;
         }
 
