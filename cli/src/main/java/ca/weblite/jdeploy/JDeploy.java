@@ -26,6 +26,9 @@ import ca.weblite.jdeploy.publishing.PublishService;
 import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.jdeploy.publishing.ResourceUploader;
 import ca.weblite.jdeploy.services.*;
+import ca.weblite.jdeploy.services.verification.InstallationVerificationResult;
+import ca.weblite.jdeploy.services.verification.InstallationVerifier;
+import ca.weblite.jdeploy.services.verification.PackageInfoResolver;
 import java.awt.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -535,11 +538,100 @@ public class JDeploy implements BundleConstants {
                 + "  debug --no-suspend : Don't wait for debugger to attach\n"
                 + "  publish : Publishes to NPM\n"
                 + "  generate: Generates a new project\n"
-                + "  github init -n <repo-name>:  Initializes commits, and pushes to github\n",
+                + "  github init -n <repo-name>:  Initializes commits, and pushes to github\n"
+                + "  verify-installation : Verify an app is properly installed\n"
+                + "  verify-uninstallation : Verify an app is properly uninstalled\n"
+                + "    --package-json=<path|url> : Path or URL to package.json\n"
+                + "    --project-code=<code> : Project code to lookup\n"
+                + "    --package=<name> : Package name\n"
+                + "    --source=<url> : GitHub source URL (optional with --package)\n"
+                + "    --verbose : Show all checks, not just failures\n",
                 opts);
 
     }
-    
+
+    private void verifyInstallation(String packageJson, String projectCode,
+                                     String packageName, String source, boolean verbose) {
+        try {
+            InstallationVerifier verifier = new InstallationVerifier(new PackageInfoResolver());
+            InstallationVerificationResult result = resolveAndVerifyInstallation(
+                    verifier, packageJson, projectCode, packageName, source);
+
+            if (verbose) {
+                result.printVerbose(out);
+            } else {
+                result.print(out);
+            }
+            System.exit(result.getExitCode());
+        } catch (Exception e) {
+            err.println("Error: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+
+    private void verifyUninstallation(String packageJson, String projectCode,
+                                       String packageName, String source, boolean verbose) {
+        try {
+            InstallationVerifier verifier = new InstallationVerifier(new PackageInfoResolver());
+            InstallationVerificationResult result = resolveAndVerifyUninstallation(
+                    verifier, packageJson, projectCode, packageName, source);
+
+            if (verbose) {
+                result.printVerbose(out);
+            } else {
+                result.print(out);
+            }
+            System.exit(result.getExitCode());
+        } catch (Exception e) {
+            err.println("Error: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+
+    private InstallationVerificationResult resolveAndVerifyInstallation(
+            InstallationVerifier verifier, String packageJson, String projectCode,
+            String packageName, String source) throws IOException {
+
+        if (packageJson != null && !packageJson.isEmpty()) {
+            return verifier.verifyInstallationFromPackageJson(packageJson);
+        } else if (projectCode != null && !projectCode.isEmpty()) {
+            return verifier.verifyInstallationFromProjectCode(projectCode);
+        } else if (packageName != null && !packageName.isEmpty()) {
+            return verifier.verifyInstallationFromPackage(packageName, source);
+        } else {
+            // Try to use package.json in current directory
+            File localPackageJson = new File("package.json");
+            if (localPackageJson.exists()) {
+                return verifier.verifyInstallationFromPackageJson(localPackageJson.getAbsolutePath());
+            }
+            throw new IllegalArgumentException(
+                    "No input specified. Use --package-json, --project-code, or --package option, "
+                            + "or run from a directory with package.json");
+        }
+    }
+
+    private InstallationVerificationResult resolveAndVerifyUninstallation(
+            InstallationVerifier verifier, String packageJson, String projectCode,
+            String packageName, String source) throws IOException {
+
+        if (packageJson != null && !packageJson.isEmpty()) {
+            return verifier.verifyUninstallationFromPackageJson(packageJson);
+        } else if (projectCode != null && !projectCode.isEmpty()) {
+            return verifier.verifyUninstallationFromProjectCode(projectCode);
+        } else if (packageName != null && !packageName.isEmpty()) {
+            return verifier.verifyUninstallationFromPackage(packageName, source);
+        } else {
+            // Try to use package.json in current directory
+            File localPackageJson = new File("package.json");
+            if (localPackageJson.exists()) {
+                return verifier.verifyUninstallationFromPackageJson(localPackageJson.getAbsolutePath());
+            }
+            throw new IllegalArgumentException(
+                    "No input specified. Use --package-json, --project-code, or --package option, "
+                            + "or run from a directory with package.json");
+        }
+    }
+
     private void _run(PackagingContext context, String commandName, String[] commandArgs,
                        boolean installFirst, boolean npmInstallFlag,
                        java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> aiTools) {
@@ -650,6 +742,11 @@ public class JDeploy implements BundleConstants {
             opts.addOption("p", "port", true, "Debug port for 'jdeploy debug' command (default: 5005)");
             opts.addOption("S", "no-suspend", false, "Don't wait for debugger to attach (default: wait)");
             opts.addOption("I", "install", false, "Run 'jdeploy install' before run/debug command");
+            opts.addOption(null, "package-json", true, "Path or URL to package.json for verify commands");
+            opts.addOption(null, "project-code", true, "Project code for verify commands");
+            opts.addOption(null, "package", true, "Package name for verify commands");
+            opts.addOption(null, "source", true, "GitHub source URL for verify commands");
+            opts.addOption("v", "verbose", false, "Show verbose output for verify commands");
             boolean noPromptFlag = false;
             boolean noWorkflowFlag = false;
             boolean npmInstallFlag = false;
@@ -658,6 +755,11 @@ public class JDeploy implements BundleConstants {
             int debugPort = LocalRunService.getDefaultDebugPort();
             boolean debugSuspend = true;
             java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> aiTools = null;
+            String verifyPackageJson = null;
+            String verifyProjectCode = null;
+            String verifyPackage = null;
+            String verifySource = null;
+            boolean verboseFlag = false;
             // Pre-process args to extract portion after '--' delimiter
             // This prevents Commons CLI from consuming the delimiter
             String[] commandArgs = new String[0];
@@ -699,6 +801,11 @@ public class JDeploy implements BundleConstants {
                 }
                 debugSuspend = !line.hasOption("no-suspend");
                 runInstallFirst = line.hasOption("install");
+                verifyPackageJson = line.getOptionValue("package-json", null);
+                verifyProjectCode = line.getOptionValue("project-code", null);
+                verifyPackage = line.getOptionValue("package", null);
+                verifySource = line.getOptionValue("source", null);
+                verboseFlag = line.hasOption("verbose");
 
             }
             if (args.length == 0 || "gui".equals(args[0])) {
@@ -845,6 +952,10 @@ public class JDeploy implements BundleConstants {
                 prog._debug(context, commandName, commandArgs, debugPort, debugSuspend, runInstallFirst, npmInstallFlag, aiTools);
             } else if ("help".equals(args[0])) {
                 prog.help(opts);
+            } else if ("verify-installation".equals(args[0])) {
+                prog.verifyInstallation(verifyPackageJson, verifyProjectCode, verifyPackage, verifySource, verboseFlag);
+            } else if ("verify-uninstallation".equals(args[0])) {
+                prog.verifyUninstallation(verifyPackageJson, verifyProjectCode, verifyPackage, verifySource, verboseFlag);
             } else {
                 prog.help(opts);
                 System.exit(1);
