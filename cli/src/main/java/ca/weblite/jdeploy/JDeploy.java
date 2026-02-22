@@ -569,6 +569,8 @@ public class JDeploy implements BundleConstants {
                 + "  run : Launch the installed GUI application\n"
                 + "  run <command> -- [args...] : Run a CLI command with arguments\n"
                 + "  run --install : Install first, then launch\n"
+                + "  run --windows : Test on Windows using Docker (headless mode)\n"
+                + "  run --windows=rdp : Test on Windows using Docker (interactive RDP mode)\n"
                 + "  debug : Launch the installed GUI application with debugging enabled\n"
                 + "  debug <command> -- [args...] : Run a CLI command with debugging enabled\n"
                 + "  debug --install : Install first, then debug\n"
@@ -737,6 +739,38 @@ public class JDeploy implements BundleConstants {
     }
 
     /**
+     * Runs the application on Windows using Docker.
+     *
+     * @param context The packaging context
+     * @param windowsMode The Windows testing mode (headless or rdp)
+     */
+    private void runOnWindows(PackagingContext context, String windowsMode) {
+        try {
+            WindowsDockerConfig config = WindowsDockerConfig.fromOptionValue(windowsMode);
+
+            WindowsDockerTestService testService = new WindowsDockerTestService(
+                    DIContext.get(ca.weblite.jdeploy.packaging.PackageService.class),
+                    DIContext.get(LocalJDeployFilesGenerator.class)
+            );
+
+            WindowsTestResult result = testService.runTest(context, config, out);
+            result.print(out);
+            System.exit(result.getExitCode());
+        } catch (IllegalArgumentException e) {
+            err.println("Error: " + e.getMessage());
+            System.exit(1);
+        } catch (InterruptedException e) {
+            err.println("Windows test interrupted.");
+            Thread.currentThread().interrupt();
+            System.exit(1);
+        } catch (Exception e) {
+            err.println("Windows Docker test failed: " + e.getMessage());
+            e.printStackTrace(err);
+            System.exit(1);
+        }
+    }
+
+    /**
      * @param args the command line arguments
      */
     public static void main(String[] args) {
@@ -785,6 +819,12 @@ public class JDeploy implements BundleConstants {
             opts.addOption(null, "package", true, "Package name for verify commands");
             opts.addOption(null, "source", true, "GitHub source URL for verify commands");
             opts.addOption("v", "verbose", false, "Show verbose output for verify commands");
+            opts.addOption(org.apache.commons.cli.Option.builder()
+                    .longOpt("windows")
+                    .hasArg()
+                    .optionalArg(true)
+                    .desc("Test on Windows via Docker (values: headless, rdp)")
+                    .build());
             boolean noPromptFlag = false;
             boolean noWorkflowFlag = false;
             boolean npmInstallFlag = false;
@@ -798,6 +838,8 @@ public class JDeploy implements BundleConstants {
             String verifyPackage = null;
             String verifySource = null;
             boolean verboseFlag = false;
+            String windowsMode = null;
+            boolean runOnWindows = false;
             // Pre-process args to extract portion after '--' delimiter
             // This prevents Commons CLI from consuming the delimiter
             String[] commandArgs = new String[0];
@@ -844,6 +886,8 @@ public class JDeploy implements BundleConstants {
                 verifyPackage = line.getOptionValue("package", null);
                 verifySource = line.getOptionValue("source", null);
                 verboseFlag = line.hasOption("verbose");
+                runOnWindows = line.hasOption("windows");
+                windowsMode = line.getOptionValue("windows", "headless");
 
             }
             if (args.length == 0 || "gui".equals(args[0])) {
@@ -985,8 +1029,12 @@ public class JDeploy implements BundleConstants {
             } else if ("scan".equals(args[0])) {
                 prog.scan(context);
             } else if ("run".equals(args[0])) {
-                String commandName = args.length > 1 ? args[1] : null;
-                prog._run(context, commandName, commandArgs, runInstallFirst, npmInstallFlag, aiTools);
+                if (runOnWindows) {
+                    prog.runOnWindows(context, windowsMode);
+                } else {
+                    String commandName = args.length > 1 ? args[1] : null;
+                    prog._run(context, commandName, commandArgs, runInstallFirst, npmInstallFlag, aiTools);
+                }
             } else if ("debug".equals(args[0])) {
                 String commandName = args.length > 1 ? args[1] : null;
                 prog._debug(context, commandName, commandArgs, debugPort, debugSuspend, runInstallFirst, npmInstallFlag, aiTools);
