@@ -15,12 +15,14 @@ import java.util.List;
  */
 public class LinuxVerifier extends PlatformVerifier {
 
+    // Order matters: .profile is checked first as it's the primary target for PATH updates.
+    // The installer writes to .profile because it's sourced by login shells on most systems.
     private static final String[] SHELL_CONFIG_FILES = {
-            ".bashrc",
-            ".bash_profile",
             ".profile",
-            ".zshrc",
-            ".zprofile"
+            ".bash_profile",
+            ".zprofile",
+            ".bashrc",
+            ".zshrc"
     };
 
     @Override
