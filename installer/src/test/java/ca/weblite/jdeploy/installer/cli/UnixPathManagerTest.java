@@ -821,6 +821,13 @@ public class UnixPathManagerTest {
         // And .zshrc should be created
         File zshrc = new File(homeDir, ".zshrc");
         assertTrue(zshrc.exists(), ".zshrc should be created on Linux");
+
+        // And .profile should be created for login shells and non-interactive environments
+        File profile = new File(homeDir, ".profile");
+        assertTrue(profile.exists(), ".profile should be created on Linux for login shells");
+        String profileContent = IOUtil.readToString(new FileInputStream(profile));
+        assertTrue(profileContent.contains(binDir.getAbsolutePath()),
+                ".profile should contain the PATH export");
     }
 
     @Test
@@ -878,6 +885,13 @@ public class UnixPathManagerTest {
         String bashrcContent = IOUtil.readToString(new FileInputStream(bashrc));
         assertTrue(bashrcContent.contains(binDir.getAbsolutePath()),
                 ".bashrc should contain the PATH export");
+
+        // And .profile should be created/updated for login shells
+        File profile = new File(homeDir, ".profile");
+        assertTrue(profile.exists(), ".profile should be created on Linux");
+        String profileContent = IOUtil.readToString(new FileInputStream(profile));
+        assertTrue(profileContent.contains(binDir.getAbsolutePath()),
+                ".profile should contain the PATH export");
     }
 
     @Test
@@ -906,11 +920,16 @@ public class UnixPathManagerTest {
         assertFalse(bashProfile.exists(),
                 ".bash_profile should NOT be created on Linux to preserve .profile -> .bashrc chain");
 
-        // .profile should be unchanged
+        // .profile should be updated with PATH export (for non-bash login shells and
+        // non-interactive environments that don't source .bashrc)
         String profileAfter = IOUtil.readToString(new FileInputStream(profile));
-        assertEquals(profileContent, profileAfter, ".profile should not be modified");
+        assertTrue(profileAfter.contains(binDir.getAbsolutePath()),
+                ".profile should contain the PATH export for login shells");
+        // Original content should be preserved
+        assertTrue(profileAfter.contains("# ~/.profile: executed by login shells"),
+                "Original .profile content should be preserved");
 
-        // PATH should be added to .bashrc (which .profile sources)
+        // PATH should also be added to .bashrc
         File bashrc = new File(homeDir, ".bashrc");
         assertTrue(bashrc.exists(), ".bashrc should be created");
         String bashrcContent = IOUtil.readToString(new FileInputStream(bashrc));
@@ -1008,5 +1027,69 @@ public class UnixPathManagerTest {
 
         // .profile should NOT be created
         assertFalse(profile.exists(), ".profile should not be created");
+    }
+
+    @Test
+    public void testAddToPathOnLinuxCreatesProfileForNonInteractiveShells() throws IOException {
+        // Simulate Linux platform - .profile is needed for non-interactive shells,
+        // login shells, SSH sessions, cron jobs, etc.
+        Platform linuxPlatform = new Platform("Linux", "amd64");
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, linuxPlatform);
+
+        assertTrue(result);
+
+        // .profile should be created for login shells and non-interactive environments
+        File profile = new File(homeDir, ".profile");
+        assertTrue(profile.exists(), ".profile should be created on Linux");
+        String profileContent = IOUtil.readToString(new FileInputStream(profile));
+        assertTrue(profileContent.contains(binDir.getAbsolutePath()),
+                ".profile should contain the PATH export");
+        assertTrue(profileContent.contains("# Added by jDeploy installer"),
+                ".profile should contain the jDeploy comment");
+
+        // .bashrc should also be created for interactive bash shells
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists(), ".bashrc should also be created");
+
+        // .zshrc should also be created
+        File zshrc = new File(homeDir, ".zshrc");
+        assertTrue(zshrc.exists(), ".zshrc should also be created");
+
+        // .bash_profile should NOT be created
+        File bashProfile = new File(homeDir, ".bash_profile");
+        assertFalse(bashProfile.exists(),
+                ".bash_profile should NOT be created on Linux");
+    }
+
+    @Test
+    public void testAddToPathOnLinuxRespectsNoAutoPathInProfile() throws IOException {
+        // Simulate Linux platform where user has opted out in .profile
+        Platform linuxPlatform = new Platform("Linux", "amd64");
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+
+        // Create .profile with the no-auto-path marker
+        File profile = new File(homeDir, ".profile");
+        String originalProfileContent = "# My profile config\n" + UnixPathManager.NO_AUTO_PATH_MARKER + "\nexport MY_VAR=value\n";
+        Files.write(profile.toPath(), originalProfileContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean result = UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir, linuxPlatform);
+
+        assertTrue(result, "Should return true even when marker is present");
+
+        // .profile should not be modified
+        String profileAfter = IOUtil.readToString(new FileInputStream(profile));
+        assertEquals(originalProfileContent, profileAfter,
+                ".profile should not be modified when no-auto-path marker is present");
+
+        // .bashrc should still be updated (no marker there)
+        File bashrc = new File(homeDir, ".bashrc");
+        assertTrue(bashrc.exists(), ".bashrc should be created");
+        String bashrcContent = IOUtil.readToString(new FileInputStream(bashrc));
+        assertTrue(bashrcContent.contains(binDir.getAbsolutePath()),
+                ".bashrc should contain the PATH export");
     }
 }
