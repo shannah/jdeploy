@@ -525,6 +525,8 @@ public class JDeploy implements BundleConstants {
                 + "  install : Installs the app locally with native launchers, CLI commands, etc.\n"
                 + "  install --ai-tools=claude-code,cursor : Also configure MCP server for specified AI tools\n"
                 + "  install --npm : Use npm link instead of native installation (legacy behavior)\n"
+                + "  run : Launch the installed GUI application\n"
+                + "  run <command> [args...] : Run a CLI command with arguments\n"
                 + "  publish : Publishes to NPM\n"
                 + "  generate: Generates a new project\n"
                 + "  github init -n <repo-name>:  Initializes commits, and pushes to github\n",
@@ -532,8 +534,33 @@ public class JDeploy implements BundleConstants {
 
     }
     
-    private void _run() {
-        out.println("run not implemented yet");
+    private void _run(PackagingContext context, String[] args) {
+        try {
+            LocalRunService runService = DIContext.get(LocalRunService.class);
+
+            if (args.length == 0) {
+                // Run GUI app
+                runService.runApp(context, out);
+            } else {
+                // Run command with args
+                String commandName = args[0];
+                String[] commandArgs = new String[args.length - 1];
+                System.arraycopy(args, 1, commandArgs, 0, commandArgs.length);
+                int exitCode = runService.runCommand(context, commandName, commandArgs, out);
+                System.exit(exitCode);
+            }
+        } catch (ca.weblite.jdeploy.services.NotInstalledException e) {
+            err.println("Application is not installed locally.");
+            err.println("Run 'jdeploy install' first to install the application.");
+            System.exit(1);
+        } catch (ca.weblite.jdeploy.services.CommandNotFoundException e) {
+            err.println(e.getMessage());
+            System.exit(1);
+        } catch (Exception e) {
+            err.println("Failed to run: " + e.getMessage());
+            e.printStackTrace(err);
+            System.exit(1);
+        }
     }
 
     /**
@@ -733,7 +760,9 @@ public class JDeploy implements BundleConstants {
             } else if ("scan".equals(args[0])) {
                 prog.scan(context);
             } else if ("run".equals(args[0])) {
-                prog._run();
+                String[] runArgs = new String[args.length - 1];
+                System.arraycopy(args, 1, runArgs, 0, runArgs.length);
+                prog._run(context, runArgs);
             } else if ("help".equals(args[0])) {
                 prog.help(opts);
             } else {
