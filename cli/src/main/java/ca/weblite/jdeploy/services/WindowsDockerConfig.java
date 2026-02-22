@@ -27,7 +27,7 @@ public class WindowsDockerConfig {
     /**
      * Docker image to use for Windows testing.
      */
-    public static final String DOCKER_IMAGE = "dockur/windows";
+    public static final String DOCKER_IMAGE = "dockurr/windows";
 
     private Mode mode = Mode.HEADLESS;
     private String windowsVersion = "win11";

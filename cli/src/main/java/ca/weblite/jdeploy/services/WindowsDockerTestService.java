@@ -195,6 +195,9 @@ public class WindowsDockerTestService {
         cmd.add("run");
         cmd.add("--rm");
 
+        // Required for dockur/windows - needs privileged mode or device access
+        cmd.add("--privileged");
+
         // Mount shared folder
         cmd.add("-v");
         cmd.add(sharedDir.getAbsolutePath() + ":/shared");
@@ -203,10 +206,17 @@ public class WindowsDockerTestService {
         cmd.add("-e");
         cmd.add("VERSION=" + config.getWindowsVersion());
 
-        // For headless mode, set up startup script
-        if (config.getMode() == WindowsDockerConfig.Mode.HEADLESS) {
-            // dockur/windows runs scripts from /oem/runonce.ps1 or similar
-            // We'll detect startup via marker files instead
+        // RAM allocation (Windows needs at least 4GB)
+        cmd.add("-e");
+        cmd.add("RAM_SIZE=4G");
+
+        // Disable KVM on macOS (no /dev/kvm available)
+        // This makes it slower but allows running on macOS
+        String os = System.getProperty("os.name").toLowerCase();
+        if (os.contains("mac")) {
+            cmd.add("-e");
+            cmd.add("KVM=N");
+            out.println("Note: Running without KVM acceleration (macOS). Windows boot will be slower.");
         }
 
         // For RDP mode, expose port
@@ -218,8 +228,11 @@ public class WindowsDockerTestService {
         // Use the dockur/windows image
         cmd.add(WindowsDockerConfig.DOCKER_IMAGE);
 
+        out.println("Running: " + String.join(" ", cmd));
+
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(true);
+        pb.inheritIO();  // Show Docker output in real-time
 
         return pb.start();
     }
@@ -323,6 +336,34 @@ public class WindowsDockerTestService {
         out.println("Press Ctrl+C to stop the container...");
         out.println();
 
+        // Start a thread to wait for Windows to be ready and then open RDP
+        Thread rdpOpenerThread = new Thread(() -> {
+            try {
+                File readyMarker = new File(sharedDir, "windows-ready.marker");
+
+                // Wait up to 5 minutes for Windows to boot
+                long deadline = System.currentTimeMillis() + (5 * 60 * 1000L);
+                while (System.currentTimeMillis() < deadline && dockerProcess.isAlive()) {
+                    if (readyMarker.exists()) {
+                        out.println("Windows is ready! Opening RDP client...");
+                        openRdpClient(config.getRdpPort(), out);
+                        return;
+                    }
+                    Thread.sleep(5000);
+                }
+
+                // If marker never appeared but container still running, try opening anyway
+                if (dockerProcess.isAlive()) {
+                    out.println("Opening RDP client (Windows may still be booting)...");
+                    openRdpClient(config.getRdpPort(), out);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        rdpOpenerThread.setDaemon(true);
+        rdpOpenerThread.start();
+
         // Set up shutdown hook to handle Ctrl+C gracefully
         Thread currentThread = Thread.currentThread();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -395,6 +436,49 @@ public class WindowsDockerTestService {
             if (dockerProcess.isAlive()) {
                 dockerProcess.destroyForcibly();
             }
+        }
+    }
+
+    /**
+     * Opens the RDP client to connect to the Windows container.
+     */
+    private void openRdpClient(int port, PrintStream out) {
+        String os = System.getProperty("os.name").toLowerCase();
+
+        try {
+            if (os.contains("mac")) {
+                // macOS: Use open with rdp:// URL scheme (works with Microsoft Remote Desktop)
+                ProcessBuilder pb = new ProcessBuilder("open", "rdp://localhost:" + port);
+                pb.start();
+            } else if (os.contains("win")) {
+                // Windows: Use mstsc with connection string
+                ProcessBuilder pb = new ProcessBuilder("mstsc", "/v:localhost:" + port);
+                pb.start();
+            } else if (os.contains("linux")) {
+                // Linux: Try common RDP clients
+                String[] clients = {"xfreerdp", "rdesktop", "remmina"};
+                for (String client : clients) {
+                    try {
+                        ProcessBuilder pb;
+                        if ("xfreerdp".equals(client)) {
+                            pb = new ProcessBuilder(client, "/v:localhost:" + port, "/cert:ignore");
+                        } else if ("rdesktop".equals(client)) {
+                            pb = new ProcessBuilder(client, "localhost:" + port);
+                        } else {
+                            // remmina needs a connection file, skip for now
+                            continue;
+                        }
+                        pb.start();
+                        return;
+                    } catch (IOException e) {
+                        // Client not found, try next
+                    }
+                }
+                out.println("Note: No RDP client found. Install xfreerdp or rdesktop to auto-connect.");
+            }
+        } catch (IOException e) {
+            out.println("Could not open RDP client: " + e.getMessage());
+            out.println("Please connect manually using your RDP client to localhost:" + port);
         }
     }
 }
