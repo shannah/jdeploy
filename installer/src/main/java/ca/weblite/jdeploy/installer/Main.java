@@ -838,37 +838,11 @@ public class Main implements Runnable, Constants {
         timer.schedule(tt, 2000);
     }
 
-    private void buildUI() {
-        installationContext.applyContext(installationSettings);
-
-        // Check if app is already in the dock (macOS only)
-        if (Platform.getSystemPlatform().isMac() && appInfo() != null) {
-            String nameSuffix = "";
-            if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
-                nameSuffix = " " + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
-            }
-            String appName = appInfo().getTitle() + nameSuffix;
-            String appPath = System.getProperty("user.home") + "/Applications/" + appName + ".app";
-
-            // Only check if the app exists on disk - if it doesn't exist, it can't be in the dock
-            File appFile = new File(appPath);
-            if (appFile.exists()) {
-                installationSettings.setAlreadyAddedToDock(isAppInDock(appPath));
-            }
-        }
-
-        // Check for desktop environment on Linux
-        if (Platform.getSystemPlatform().isLinux()) {
-            installationSettings.setHasDesktopEnvironment(isDesktopEnvironmentAvailable());
-
-            // Set command line path if ~/.local/bin exists
-            File localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
-            String commandName = deriveCommandName();
-            File symlinkPath = new File(localBinDir, commandName);
-            installationSettings.setCommandLinePath(symlinkPath.getAbsolutePath());
-        }
-
-        // Configure CLI installation settings based on platform and available commands
+    /**
+     * Configures CLI installation settings based on platform and available commands.
+     * This method is called by both buildUI() (GUI mode) and runHeadlessInstall() (headless mode).
+     */
+    private void configureCliSettings() {
         // Rule 1: On Linux, always install CLI Launcher
         if (Platform.getSystemPlatform().isLinux()) {
             installationSettings.setInstallCliLauncher(true);
@@ -902,6 +876,40 @@ public class Main implements Runnable, Constants {
                 System.out.println("CLI launcher '" + launcherName + "' conflicts with a CLI command - preferring CLI command");
             }
         }
+    }
+
+    private void buildUI() {
+        installationContext.applyContext(installationSettings);
+
+        // Check if app is already in the dock (macOS only)
+        if (Platform.getSystemPlatform().isMac() && appInfo() != null) {
+            String nameSuffix = "";
+            if (appInfo().getNpmVersion().startsWith("0.0.0-")) {
+                nameSuffix = " " + appInfo().getNpmVersion().substring(appInfo().getNpmVersion().indexOf("-") + 1).trim();
+            }
+            String appName = appInfo().getTitle() + nameSuffix;
+            String appPath = System.getProperty("user.home") + "/Applications/" + appName + ".app";
+
+            // Only check if the app exists on disk - if it doesn't exist, it can't be in the dock
+            File appFile = new File(appPath);
+            if (appFile.exists()) {
+                installationSettings.setAlreadyAddedToDock(isAppInDock(appPath));
+            }
+        }
+
+        // Check for desktop environment on Linux
+        if (Platform.getSystemPlatform().isLinux()) {
+            installationSettings.setHasDesktopEnvironment(isDesktopEnvironmentAvailable());
+
+            // Set command line path if ~/.local/bin exists
+            File localBinDir = new File(System.getProperty("user.home"), ".local" + File.separator + "bin");
+            String commandName = deriveCommandName();
+            File symlinkPath = new File(localBinDir, commandName);
+            installationSettings.setCommandLinePath(symlinkPath.getAbsolutePath());
+        }
+
+        // Configure CLI installation settings based on platform and available commands
+        configureCliSettings();
 
         InstallationForm view = uiFactory.createInstallationForm(installationSettings);
         view.setEventDispatcher(new InstallationFormEventDispatcher(view));
@@ -1161,6 +1169,9 @@ public class Main implements Runnable, Constants {
         // Apply installation context to load AI config and other resources
         // This is also done in buildUI() for GUI mode, but headless mode skips buildUI()
         installationContext.applyContext(installationSettings);
+
+        // Configure CLI settings - also done in buildUI() for GUI mode
+        configureCliSettings();
 
         staticOriginalOut.println(
             "Installing " + appInfo().getTitle() + " " + npmPackageVersion().getVersion() + "..."
