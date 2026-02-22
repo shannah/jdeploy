@@ -99,6 +99,18 @@ public class AppDescription {
 
     private String packageSigningCertificateChainPath;
 
+    /**
+     * TCP port for JDWP debugger connections.
+     * When set, enables remote debugging of the launched Java application.
+     */
+    private Integer debugPort;
+
+    /**
+     * Whether the JVM should suspend and wait for debugger attachment.
+     * Only relevant when debugPort is set. If null, the launcher uses its default (true).
+     */
+    private Boolean debugSuspend;
+
     public AppDescription() {
 
         jars = new ArrayList<Jar>();
@@ -574,5 +586,44 @@ public class AppDescription {
 
     public void setCommands(List<CommandSpec> commands) {
         this.commands = commands != null ? Collections.unmodifiableList(new ArrayList<>(commands)) : Collections.emptyList();
+    }
+
+    public Integer getDebugPort() {
+        return debugPort;
+    }
+
+    public void setDebugPort(Integer debugPort) {
+        this.debugPort = debugPort;
+    }
+
+    public Boolean getDebugSuspend() {
+        return debugSuspend;
+    }
+
+    public void setDebugSuspend(Boolean debugSuspend) {
+        this.debugSuspend = debugSuspend;
+    }
+
+    /**
+     * Returns true if remote debugging is enabled (debug port is set and positive).
+     */
+    public boolean isDebugEnabled() {
+        return debugPort != null && debugPort > 0;
+    }
+
+    /**
+     * Adds debug-related attributes to the provided list if debugging is enabled.
+     * @param atts the list to add attributes to (name/value pairs)
+     */
+    public void addDebugAttributesTo(List<String> atts) {
+        if (isDebugEnabled()) {
+            atts.add("debug-port");
+            atts.add(String.valueOf(debugPort));
+
+            if (debugSuspend != null) {
+                atts.add("debug-suspend");
+                atts.add(String.valueOf(debugSuspend));
+            }
+        }
     }
 }

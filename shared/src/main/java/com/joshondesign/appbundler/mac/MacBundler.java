@@ -519,6 +519,9 @@ public class MacBundler {
             atts.add(app.getLocalBundle());
         }
 
+        // Debug attributes
+        app.addDebugAttributesTo(atts);
+
         return atts.toArray(new String[0]);
     }
 

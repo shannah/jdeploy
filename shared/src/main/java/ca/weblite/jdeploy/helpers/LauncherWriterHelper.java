@@ -86,6 +86,9 @@ public class LauncherWriterHelper {
                 atts.add(app.getLocalBundle());
             }
 
+            // Debug attributes
+            app.addDebugAttributesTo(atts);
+
             out.start("app", atts.toArray(new String[0])).end();
         } else {
             List<String> atts = new ArrayList<>();
@@ -103,6 +106,9 @@ public class LauncherWriterHelper {
                 atts.add("initial-app-version");
                 atts.add(app.getInitialAppVersion());
             }
+
+            // Debug attributes
+            app.addDebugAttributesTo(atts);
 
             out.start("app", atts.toArray(new String[0])).end();
         }
