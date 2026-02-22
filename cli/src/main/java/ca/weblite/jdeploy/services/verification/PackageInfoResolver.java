@@ -168,9 +168,9 @@ public class PackageInfoResolver {
             source = jdeploy.optString("source", null);
             winAppDir = jdeploy.optString("winAppDir", null);
 
-            // Parse commands
-            JSONArray commandsArray = jdeploy.optJSONArray("commands");
-            if (commandsArray != null) {
+            // Parse commands - can be array or object format
+            // Use JDeployProject which handles both formats
+            if (jdeploy.has("commands")) {
                 Path packageJsonPath = new File("package.json").toPath(); // dummy path
                 JDeployProject project = new JDeployProject(packageJsonPath, json);
                 commands = project.getCommandSpecs();
@@ -198,20 +198,28 @@ public class PackageInfoResolver {
 
         if (jdeploy != null) {
             winAppDir = jdeploy.optString("winAppDir", null);
-            // Note: Full command parsing would require more context
-            // For now, we'll extract basic command info
-            JSONArray commandsArray = jdeploy.optJSONArray("commands");
-            if (commandsArray != null) {
-                for (int i = 0; i < commandsArray.length(); i++) {
-                    Object cmd = commandsArray.get(i);
-                    if (cmd instanceof JSONObject) {
-                        JSONObject cmdObj = (JSONObject) cmd;
-                        String name = cmdObj.optString("name", null);
-                        if (name != null) {
-                            commands.add(new CommandSpec(name, null, null));
+            // Parse commands - can be array or object format
+            if (jdeploy.has("commands")) {
+                Object commandsObj = jdeploy.get("commands");
+                if (commandsObj instanceof JSONArray) {
+                    JSONArray commandsArray = (JSONArray) commandsObj;
+                    for (int i = 0; i < commandsArray.length(); i++) {
+                        Object cmd = commandsArray.get(i);
+                        if (cmd instanceof JSONObject) {
+                            JSONObject cmdObj = (JSONObject) cmd;
+                            String name = cmdObj.optString("name", null);
+                            if (name != null) {
+                                commands.add(new CommandSpec(name, null, null));
+                            }
+                        } else if (cmd instanceof String) {
+                            commands.add(new CommandSpec((String) cmd, null, null));
                         }
-                    } else if (cmd instanceof String) {
-                        commands.add(new CommandSpec((String) cmd, null, null));
+                    }
+                } else if (commandsObj instanceof JSONObject) {
+                    // Object format: {"cmd-name": {...}, ...}
+                    JSONObject commandsMap = (JSONObject) commandsObj;
+                    for (String cmdName : commandsMap.keySet()) {
+                        commands.add(new CommandSpec(cmdName, null, null));
                     }
                 }
             }
