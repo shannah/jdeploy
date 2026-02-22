@@ -8,7 +8,7 @@ SHARED_DIR="${1:-/config/shared}"
 RESULTS_DIR="$SHARED_DIR/results"
 BUNDLE_DIR="$SHARED_DIR/jdeploy-bundle"
 JDEPLOY_FILES_DIR="$SHARED_DIR/jdeploy-files"
-SCRIPTS_DIR="$SHARED_DIR/scripts"
+JDEPLOY_CLI_DIR="$SHARED_DIR/jdeploy-cli"
 
 # Create results directory
 mkdir -p "$RESULTS_DIR"
@@ -88,6 +88,15 @@ if [ ! -f "$APP_XML" ]; then
 fi
 log "Found app.xml: $APP_XML"
 
+# Extract package name from app.xml for verification
+PACKAGE_NAME=$(grep -oP '(?<=package=")[^"]+' "$APP_XML" 2>/dev/null || \
+               grep -oP "(?<=package=')[^']+" "$APP_XML" 2>/dev/null || \
+               echo "")
+if [ -z "$PACKAGE_NAME" ]; then
+    log "WARNING: Could not extract package name from app.xml"
+fi
+log "Package name: $PACKAGE_NAME"
+
 # Run the jDeploy installer in headless mode
 log "Running jDeploy installer..."
 
@@ -103,9 +112,63 @@ else
     # Don't fail here, let verification determine success
 fi
 
-# Run verification checks
-log "Running verification checks..."
-bash "$SCRIPTS_DIR/verification-checks.sh" "$SHARED_DIR" "$RESULTS_DIR"
+# Run verification using jdeploy CLI
+log "Running verification with jdeploy verify-installation..."
+
+if [ -z "$PACKAGE_NAME" ]; then
+    handle_error "Cannot verify installation: package name not found in app.xml"
+fi
+
+# Check if jdeploy CLI is available
+JDEPLOY_CMD="$JDEPLOY_CLI_DIR/jdeploy"
+if [ ! -x "$JDEPLOY_CMD" ]; then
+    handle_error "jdeploy CLI not found at $JDEPLOY_CMD"
+fi
+
+# Run verification
+VERIFY_OUTPUT=$("$JDEPLOY_CMD" verify-installation --package="$PACKAGE_NAME" --verbose 2>&1) || true
+VERIFY_EXIT_CODE=$?
+
+log "Verification output:"
+echo "$VERIFY_OUTPUT" | tee -a "$RESULTS_DIR/install.log"
+
+# Parse verification result and create JSON
+if [ $VERIFY_EXIT_CODE -eq 0 ]; then
+    ALL_PASSED="true"
+else
+    ALL_PASSED="false"
+fi
+
+# Extract check results from output
+# The output format is like: [OK] Check name or [FAIL] Check name
+CHECKS="[]"
+if command -v jq &> /dev/null; then
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^\[OK\]\ (.+)$ ]]; then
+            CHECK_NAME="${BASH_REMATCH[1]}"
+            CHECKS=$(echo "$CHECKS" | jq --arg n "$CHECK_NAME" '. + [{"Name": $n, "Status": "PASSED"}]')
+        elif [[ "$line" =~ ^\[FAIL\]\ (.+)$ ]]; then
+            CHECK_NAME="${BASH_REMATCH[1]}"
+            CHECKS=$(echo "$CHECKS" | jq --arg n "$CHECK_NAME" '. + [{"Name": $n, "Status": "FAILED"}]')
+        elif [[ "$line" =~ ^\[SKIP\]\ (.+)$ ]]; then
+            CHECK_NAME="${BASH_REMATCH[1]}"
+            CHECKS=$(echo "$CHECKS" | jq --arg n "$CHECK_NAME" '. + [{"Name": $n, "Status": "SKIPPED"}]')
+        fi
+    done <<< "$VERIFY_OUTPUT"
+fi
+
+# Write verification result
+cat > "$RESULTS_DIR/verification.json" << EOF
+{
+    "Timestamp": "$(date -Iseconds)",
+    "PackageName": "$PACKAGE_NAME",
+    "AllPassed": $ALL_PASSED,
+    "Checks": $CHECKS
+}
+EOF
+
+# Write exit code
+echo "$VERIFY_EXIT_CODE" > "$RESULTS_DIR/exit-code.txt"
 
 # Signal completion
 echo "$(date -Iseconds)" > "$SHARED_DIR/install-complete.marker"

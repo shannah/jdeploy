@@ -176,15 +176,16 @@ public class LinuxDockerTestService {
             FileUtils.copyDirectory(jdeployFilesDir, sharedJdeployFilesDir);
         }
 
+        // Copy jdeploy CLI for verification commands
+        copyJdeployCli(sharedDir, config);
+
         // Copy shell scripts from resources
         copyResourceScript("scripts/linux/install-and-verify.sh", sharedScriptsDir);
-        copyResourceScript("scripts/linux/verification-checks.sh", sharedScriptsDir);
         copyResourceScript("scripts/linux/install-and-launch.sh", sharedScriptsDir);
         copyResourceScript("scripts/linux/dev-install-and-launch.sh", sharedScriptsDir);
 
         // Make scripts executable
         new File(sharedScriptsDir, "install-and-verify.sh").setExecutable(true);
-        new File(sharedScriptsDir, "verification-checks.sh").setExecutable(true);
         new File(sharedScriptsDir, "install-and-launch.sh").setExecutable(true);
         new File(sharedScriptsDir, "dev-install-and-launch.sh").setExecutable(true);
 
@@ -254,6 +255,97 @@ public class LinuxDockerTestService {
             }
             FileUtils.copyInputStreamToFile(is, targetFile);
         }
+    }
+
+    /**
+     * Copies the jdeploy CLI JAR and dependencies to the shared folder.
+     * This allows the container to use jdeploy commands like verify-installation.
+     */
+    private void copyJdeployCli(File sharedDir, LinuxDockerConfig config) throws IOException {
+        File jdeployCliDir = new File(sharedDir, "jdeploy-cli");
+        jdeployCliDir.mkdirs();
+
+        // Find the jdeploy CLI JAR
+        File cliJar = findJdeployCliJar(config);
+        if (cliJar == null || !cliJar.exists()) {
+            throw new IOException("Could not find jdeploy CLI JAR. " +
+                    "Please ensure jdeploy is built (mvn clean install).");
+        }
+
+        // Copy the CLI JAR
+        File targetJar = new File(jdeployCliDir, "jdeploy-cli.jar");
+        FileUtils.copyFile(cliJar, targetJar);
+
+        // Copy the libs directory
+        File libsDir = new File(cliJar.getParentFile(), "libs");
+        if (libsDir.exists() && libsDir.isDirectory()) {
+            File targetLibsDir = new File(jdeployCliDir, "libs");
+            FileUtils.copyDirectory(libsDir, targetLibsDir);
+        }
+
+        // Create a wrapper script
+        String wrapperScript =
+                "#!/bin/bash\n" +
+                "# jdeploy CLI wrapper for Linux container\n" +
+                "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n" +
+                "java -jar \"$SCRIPT_DIR/jdeploy-cli.jar\" \"$@\"\n";
+
+        File wrapperFile = new File(jdeployCliDir, "jdeploy");
+        FileUtils.writeStringToFile(wrapperFile, wrapperScript, StandardCharsets.UTF_8);
+        wrapperFile.setExecutable(true);
+    }
+
+    /**
+     * Finds the jdeploy CLI JAR file.
+     * Checks in order:
+     * 1. JDEPLOY environment variable
+     * 2. Dev mode jdeployHome/cli/target/
+     * 3. Relative to the current JAR location
+     */
+    private File findJdeployCliJar(LinuxDockerConfig config) {
+        // Check JDEPLOY environment variable (set by bin/jdeploy)
+        String jdeployEnv = System.getenv("JDEPLOY");
+        if (jdeployEnv != null && !jdeployEnv.isEmpty()) {
+            File envJar = new File(jdeployEnv);
+            if (envJar.exists()) {
+                return envJar;
+            }
+        }
+
+        // Check dev mode jdeployHome
+        if (config.isDevMode() && config.getJdeployHome() != null) {
+            File devJar = new File(config.getJdeployHome(),
+                    "cli/target/jdeploy-cli-1.0-SNAPSHOT.jar");
+            if (devJar.exists()) {
+                return devJar;
+            }
+        }
+
+        // Try to find relative to current class location
+        try {
+            String classPath = LinuxDockerTestService.class.getProtectionDomain()
+                    .getCodeSource().getLocation().toURI().getPath();
+            File classFile = new File(classPath);
+
+            // If running from the CLI JAR itself
+            if (classFile.getName().startsWith("jdeploy-cli") && classFile.getName().endsWith(".jar")) {
+                return classFile;
+            }
+
+            // If running from classes directory (during development)
+            if (classFile.isDirectory() && classFile.getPath().contains("target/classes")) {
+                File targetDir = classFile.getParentFile();
+                File[] jars = targetDir.listFiles((dir, name) ->
+                        name.startsWith("jdeploy-cli") && name.endsWith(".jar") && !name.contains("sources"));
+                if (jars != null && jars.length > 0) {
+                    return jars[0];
+                }
+            }
+        } catch (Exception e) {
+            // Ignore and fall through
+        }
+
+        return null;
     }
 
     /**
