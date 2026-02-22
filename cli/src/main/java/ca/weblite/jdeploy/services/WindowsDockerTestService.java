@@ -174,6 +174,11 @@ public class WindowsDockerTestService {
         copyResourceScript("scripts/startup-wrapper.ps1", sharedScriptsDir);
         copyResourceScript("scripts/install-and-verify.ps1", sharedScriptsDir);
         copyResourceScript("scripts/verification-checks.ps1", sharedScriptsDir);
+
+        // Create OEM folder with autostart batch file for Windows Startup
+        File oemDir = new File(sharedDir, "oem");
+        oemDir.mkdirs();
+        copyResourceScript("scripts/windows/autostart-install.bat", oemDir);
     }
 
     /**
@@ -320,6 +325,13 @@ public class WindowsDockerTestService {
         // Mount shared folder
         cmd.add("-v");
         cmd.add(sharedDir.getAbsolutePath() + ":/shared");
+
+        // Mount OEM folder for autostart script (contents copied to C:\OEM on first boot)
+        File oemDir = new File(sharedDir, "oem");
+        if (oemDir.exists()) {
+            cmd.add("-v");
+            cmd.add(oemDir.getAbsolutePath() + ":/oem");
+        }
 
         // Mount storage volume (either golden for first install, or working for subsequent runs)
         cmd.add("-v");
@@ -470,8 +482,11 @@ public class WindowsDockerTestService {
         out.println("  C:\\shared\\jdeploy-bundle");
         out.println("  C:\\shared\\jdeploy-files");
         out.println();
-        out.println("To install, open PowerShell and run:");
-        out.println("  C:\\shared\\scripts\\install-and-verify.ps1");
+        out.println("To install manually, open Command Prompt and run:");
+        out.println("  C:\\OEM\\autostart-install.bat");
+        out.println();
+        out.println("To enable autostart for future runs, copy the batch file to Startup:");
+        out.println("  copy C:\\OEM\\autostart-install.bat \"%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"");
         out.println();
         out.println("Press Ctrl+C to stop the container...");
         out.println();
