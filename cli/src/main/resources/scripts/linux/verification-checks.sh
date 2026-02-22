@@ -52,29 +52,23 @@ add_check() {
 }
 
 # --- Check 1: App directory exists ---
-# jDeploy installs to ~/.local/share/jdeploy-apps/{packageName} or similar
+# jDeploy installs to ~/.jdeploy/apps/{packageName}
 APP_DIR=""
-POSSIBLE_DIRS=(
-    "$HOME/.local/share/jdeploy-apps/$PACKAGE_NAME"
-    "$HOME/.jdeploy-apps/$PACKAGE_NAME"
-    "$HOME/jdeploy-apps/$PACKAGE_NAME"
-)
+JDEPLOY_APPS_DIR="$HOME/.jdeploy/apps"
 
-for dir in "${POSSIBLE_DIRS[@]}"; do
-    if [ -d "$dir" ]; then
-        APP_DIR="$dir"
-        break
-    fi
-done
+# Check for exact package name match first
+if [ -d "$JDEPLOY_APPS_DIR/$PACKAGE_NAME" ]; then
+    APP_DIR="$JDEPLOY_APPS_DIR/$PACKAGE_NAME"
+fi
 
-# Also check for any jdeploy-apps subdirectories
-if [ -z "$APP_DIR" ]; then
-    JDEPLOY_APPS_DIR="$HOME/.local/share/jdeploy-apps"
-    if [ -d "$JDEPLOY_APPS_DIR" ]; then
-        FIRST_APP=$(find "$JDEPLOY_APPS_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)
-        if [ -n "$FIRST_APP" ]; then
-            APP_DIR="$FIRST_APP"
-        fi
+# If not found, check for any app directory (package name may differ from directory name)
+if [ -z "$APP_DIR" ] && [ -d "$JDEPLOY_APPS_DIR" ]; then
+    # Try partial match on package name
+    APP_DIR=$(find "$JDEPLOY_APPS_DIR" -maxdepth 1 -type d -name "*$PACKAGE_NAME*" 2>/dev/null | head -n 1)
+
+    # If still not found, just find any app directory
+    if [ -z "$APP_DIR" ]; then
+        APP_DIR=$(find "$JDEPLOY_APPS_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n 1)
     fi
 fi
 
@@ -133,21 +127,25 @@ else
 fi
 
 # --- Check 5: CLI commands (if any) ---
-BIN_DIR="$HOME/.local/share/jdeploy-packages"
+# CLI commands are installed in ~/.jdeploy/packages-{arch}/{package}/bin/
+# and symlinked from ~/.local/bin/
 CLI_FOUND=false
 
-if [ -d "$BIN_DIR" ]; then
-    for pkg_dir in "$BIN_DIR"/*/; do
-        if [ -d "${pkg_dir}bin" ]; then
-            CMD_COUNT=$(find "${pkg_dir}bin" -type f | wc -l)
-            if [ "$CMD_COUNT" -gt 0 ]; then
-                add_check "CLI commands installed" "PASSED" "$CMD_COUNT command(s) found"
-                CLI_FOUND=true
-                break
+# Check for packages directories
+for BIN_DIR in "$HOME/.jdeploy/packages"*; do
+    if [ -d "$BIN_DIR" ]; then
+        for pkg_dir in "$BIN_DIR"/*/; do
+            if [ -d "${pkg_dir}bin" ]; then
+                CMD_COUNT=$(find "${pkg_dir}bin" -type f 2>/dev/null | wc -l)
+                if [ "$CMD_COUNT" -gt 0 ]; then
+                    add_check "CLI commands installed" "PASSED" "$CMD_COUNT command(s) found in ${pkg_dir}bin"
+                    CLI_FOUND=true
+                    break 2
+                fi
             fi
-        fi
-    done
-fi
+        done
+    fi
+done
 
 if [ "$CLI_FOUND" = false ]; then
     add_check "CLI commands installed" "SKIPPED" "No CLI bin directory found (may not be configured)"
