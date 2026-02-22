@@ -526,9 +526,11 @@ public class JDeploy implements BundleConstants {
                 + "  install --ai-tools=claude-code,cursor : Also configure MCP server for specified AI tools\n"
                 + "  install --npm : Use npm link instead of native installation (legacy behavior)\n"
                 + "  run : Launch the installed GUI application\n"
-                + "  run <command> [args...] : Run a CLI command with arguments\n"
+                + "  run <command> -- [args...] : Run a CLI command with arguments\n"
+                + "  run --install : Install first, then launch\n"
                 + "  debug : Launch the installed GUI application with debugging enabled\n"
-                + "  debug <command> [args...] : Run a CLI command with debugging enabled\n"
+                + "  debug <command> -- [args...] : Run a CLI command with debugging enabled\n"
+                + "  debug --install : Install first, then debug\n"
                 + "  debug --port=5006 : Use custom debug port (default: 5005)\n"
                 + "  debug --no-suspend : Don't wait for debugger to attach\n"
                 + "  publish : Publishes to NPM\n"
@@ -538,24 +540,28 @@ public class JDeploy implements BundleConstants {
 
     }
     
-    private void _run(PackagingContext context, String[] args) {
+    private void _run(PackagingContext context, String commandName, String[] commandArgs,
+                       boolean installFirst, boolean npmInstallFlag,
+                       java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> aiTools) {
         try {
+            if (installFirst) {
+                out.println("Running install before run...");
+                install(context, npmInstallFlag, aiTools);
+            }
+
             LocalRunService runService = DIContext.get(LocalRunService.class);
 
-            if (args.length == 0) {
+            if (commandName == null) {
                 // Run GUI app
                 runService.runApp(context, out);
             } else {
                 // Run command with args
-                String commandName = args[0];
-                String[] commandArgs = new String[args.length - 1];
-                System.arraycopy(args, 1, commandArgs, 0, commandArgs.length);
                 int exitCode = runService.runCommand(context, commandName, commandArgs, out);
                 System.exit(exitCode);
             }
         } catch (ca.weblite.jdeploy.services.NotInstalledException e) {
             err.println("Application is not installed locally.");
-            err.println("Run 'jdeploy install' first to install the application.");
+            err.println("Run 'jdeploy install' first, or use --install flag.");
             System.exit(1);
         } catch (ca.weblite.jdeploy.services.CommandNotFoundException e) {
             err.println(e.getMessage());
@@ -567,24 +573,28 @@ public class JDeploy implements BundleConstants {
         }
     }
 
-    private void _debug(PackagingContext context, String[] args, int port, boolean suspend) {
+    private void _debug(PackagingContext context, String commandName, String[] commandArgs,
+                         int port, boolean suspend, boolean installFirst, boolean npmInstallFlag,
+                         java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> aiTools) {
         try {
+            if (installFirst) {
+                out.println("Running install before debug...");
+                install(context, npmInstallFlag, aiTools);
+            }
+
             LocalRunService runService = DIContext.get(LocalRunService.class);
 
-            if (args.length == 0) {
+            if (commandName == null) {
                 // Debug GUI app
                 runService.debugApp(context, port, suspend, out);
             } else {
                 // Debug command with args
-                String commandName = args[0];
-                String[] commandArgs = new String[args.length - 1];
-                System.arraycopy(args, 1, commandArgs, 0, commandArgs.length);
                 int exitCode = runService.debugCommand(context, commandName, commandArgs, port, suspend, out);
                 System.exit(exitCode);
             }
         } catch (ca.weblite.jdeploy.services.NotInstalledException e) {
             err.println("Application is not installed locally.");
-            err.println("Run 'jdeploy install' first to install the application.");
+            err.println("Run 'jdeploy install' first, or use --install flag.");
             System.exit(1);
         } catch (ca.weblite.jdeploy.services.CommandNotFoundException e) {
             err.println(e.getMessage());
@@ -639,14 +649,34 @@ public class JDeploy implements BundleConstants {
             opts.addOption("A", "ai-tools", true, "Comma-separated list of AI tools to configure for MCP server (e.g., claude-code,cursor,claude-desktop)");
             opts.addOption("p", "port", true, "Debug port for 'jdeploy debug' command (default: 5005)");
             opts.addOption("S", "no-suspend", false, "Don't wait for debugger to attach (default: wait)");
+            opts.addOption("I", "install", false, "Run 'jdeploy install' before run/debug command");
             boolean noPromptFlag = false;
             boolean noWorkflowFlag = false;
             boolean npmInstallFlag = false;
+            boolean runInstallFirst = false;
             String distTag = null;
             int debugPort = LocalRunService.getDefaultDebugPort();
             boolean debugSuspend = true;
             java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> aiTools = null;
+            // Pre-process args to extract portion after '--' delimiter
+            // This prevents Commons CLI from consuming the delimiter
+            String[] commandArgs = new String[0];
             if (args.length > 0 && !"jpackage".equals(args[0])) {
+                int delimiterIdx = -1;
+                for (int i = 0; i < args.length; i++) {
+                    if ("--".equals(args[i])) {
+                        delimiterIdx = i;
+                        break;
+                    }
+                }
+                if (delimiterIdx >= 0) {
+                    commandArgs = new String[args.length - delimiterIdx - 1];
+                    System.arraycopy(args, delimiterIdx + 1, commandArgs, 0, commandArgs.length);
+                    String[] optionArgs = new String[delimiterIdx];
+                    System.arraycopy(args, 0, optionArgs, 0, delimiterIdx);
+                    args = optionArgs;
+                }
+
                 CommandLineParser parser = new DefaultParser();
                 CommandLine line = parser.parse(opts, args);
                 args = line.getArgs();
@@ -668,6 +698,7 @@ public class JDeploy implements BundleConstants {
                     }
                 }
                 debugSuspend = !line.hasOption("no-suspend");
+                runInstallFirst = line.hasOption("install");
 
             }
             if (args.length == 0 || "gui".equals(args[0])) {
@@ -807,13 +838,11 @@ public class JDeploy implements BundleConstants {
             } else if ("scan".equals(args[0])) {
                 prog.scan(context);
             } else if ("run".equals(args[0])) {
-                String[] runArgs = new String[args.length - 1];
-                System.arraycopy(args, 1, runArgs, 0, runArgs.length);
-                prog._run(context, runArgs);
+                String commandName = args.length > 1 ? args[1] : null;
+                prog._run(context, commandName, commandArgs, runInstallFirst, npmInstallFlag, aiTools);
             } else if ("debug".equals(args[0])) {
-                String[] debugArgs = new String[args.length - 1];
-                System.arraycopy(args, 1, debugArgs, 0, debugArgs.length);
-                prog._debug(context, debugArgs, debugPort, debugSuspend);
+                String commandName = args.length > 1 ? args[1] : null;
+                prog._debug(context, commandName, commandArgs, debugPort, debugSuspend, runInstallFirst, npmInstallFlag, aiTools);
             } else if ("help".equals(args[0])) {
                 prog.help(opts);
             } else {
