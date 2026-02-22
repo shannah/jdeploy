@@ -571,6 +571,8 @@ public class JDeploy implements BundleConstants {
                 + "  run --install : Install first, then launch\n"
                 + "  run --windows : Test on Windows using Docker (headless mode)\n"
                 + "  run --windows=rdp : Test on Windows using Docker (interactive RDP mode)\n"
+                + "  run --linux : Test on Linux using Docker (headless mode)\n"
+                + "  run --linux=vnc : Test on Linux using Docker (interactive VNC mode via browser)\n"
                 + "  debug : Launch the installed GUI application with debugging enabled\n"
                 + "  debug <command> -- [args...] : Run a CLI command with debugging enabled\n"
                 + "  debug --install : Install first, then debug\n"
@@ -771,6 +773,38 @@ public class JDeploy implements BundleConstants {
     }
 
     /**
+     * Runs the application on Linux using Docker.
+     *
+     * @param context The packaging context
+     * @param linuxMode The Linux testing mode (headless or vnc)
+     */
+    private void runOnLinux(PackagingContext context, String linuxMode) {
+        try {
+            LinuxDockerConfig config = LinuxDockerConfig.fromOptionValue(linuxMode);
+
+            LinuxDockerTestService testService = new LinuxDockerTestService(
+                    DIContext.get(ca.weblite.jdeploy.packaging.PackageService.class),
+                    DIContext.get(LocalJDeployFilesGenerator.class)
+            );
+
+            LinuxTestResult result = testService.runTest(context, config, out);
+            result.print(out);
+            System.exit(result.getExitCode());
+        } catch (IllegalArgumentException e) {
+            err.println("Error: " + e.getMessage());
+            System.exit(1);
+        } catch (InterruptedException e) {
+            err.println("Linux test interrupted.");
+            Thread.currentThread().interrupt();
+            System.exit(1);
+        } catch (Exception e) {
+            err.println("Linux Docker test failed: " + e.getMessage());
+            e.printStackTrace(err);
+            System.exit(1);
+        }
+    }
+
+    /**
      * @param args the command line arguments
      */
     public static void main(String[] args) {
@@ -825,6 +859,12 @@ public class JDeploy implements BundleConstants {
                     .optionalArg(true)
                     .desc("Test on Windows via Docker (values: headless, rdp)")
                     .build());
+            opts.addOption(org.apache.commons.cli.Option.builder()
+                    .longOpt("linux")
+                    .hasArg()
+                    .optionalArg(true)
+                    .desc("Test on Linux via Docker (values: headless, vnc)")
+                    .build());
             boolean noPromptFlag = false;
             boolean noWorkflowFlag = false;
             boolean npmInstallFlag = false;
@@ -840,6 +880,8 @@ public class JDeploy implements BundleConstants {
             boolean verboseFlag = false;
             String windowsMode = null;
             boolean runOnWindows = false;
+            String linuxMode = null;
+            boolean runOnLinux = false;
             // Pre-process args to extract portion after '--' delimiter
             // This prevents Commons CLI from consuming the delimiter
             String[] commandArgs = new String[0];
@@ -888,6 +930,8 @@ public class JDeploy implements BundleConstants {
                 verboseFlag = line.hasOption("verbose");
                 runOnWindows = line.hasOption("windows");
                 windowsMode = line.getOptionValue("windows", "headless");
+                runOnLinux = line.hasOption("linux");
+                linuxMode = line.getOptionValue("linux", "headless");
 
             }
             if (args.length == 0 || "gui".equals(args[0])) {
@@ -1031,6 +1075,8 @@ public class JDeploy implements BundleConstants {
             } else if ("run".equals(args[0])) {
                 if (runOnWindows) {
                     prog.runOnWindows(context, windowsMode);
+                } else if (runOnLinux) {
+                    prog.runOnLinux(context, linuxMode);
                 } else {
                     String commandName = args.length > 1 ? args[1] : null;
                     prog._run(context, commandName, commandArgs, runInstallFirst, npmInstallFlag, aiTools);
