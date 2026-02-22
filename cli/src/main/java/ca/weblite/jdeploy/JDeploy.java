@@ -527,6 +527,10 @@ public class JDeploy implements BundleConstants {
                 + "  install --npm : Use npm link instead of native installation (legacy behavior)\n"
                 + "  run : Launch the installed GUI application\n"
                 + "  run <command> [args...] : Run a CLI command with arguments\n"
+                + "  debug : Launch the installed GUI application with debugging enabled\n"
+                + "  debug <command> [args...] : Run a CLI command with debugging enabled\n"
+                + "  debug --port=5006 : Use custom debug port (default: 5005)\n"
+                + "  debug --no-suspend : Don't wait for debugger to attach\n"
                 + "  publish : Publishes to NPM\n"
                 + "  generate: Generates a new project\n"
                 + "  github init -n <repo-name>:  Initializes commits, and pushes to github\n",
@@ -558,6 +562,35 @@ public class JDeploy implements BundleConstants {
             System.exit(1);
         } catch (Exception e) {
             err.println("Failed to run: " + e.getMessage());
+            e.printStackTrace(err);
+            System.exit(1);
+        }
+    }
+
+    private void _debug(PackagingContext context, String[] args, int port, boolean suspend) {
+        try {
+            LocalRunService runService = DIContext.get(LocalRunService.class);
+
+            if (args.length == 0) {
+                // Debug GUI app
+                runService.debugApp(context, port, suspend, out);
+            } else {
+                // Debug command with args
+                String commandName = args[0];
+                String[] commandArgs = new String[args.length - 1];
+                System.arraycopy(args, 1, commandArgs, 0, commandArgs.length);
+                int exitCode = runService.debugCommand(context, commandName, commandArgs, port, suspend, out);
+                System.exit(exitCode);
+            }
+        } catch (ca.weblite.jdeploy.services.NotInstalledException e) {
+            err.println("Application is not installed locally.");
+            err.println("Run 'jdeploy install' first to install the application.");
+            System.exit(1);
+        } catch (ca.weblite.jdeploy.services.CommandNotFoundException e) {
+            err.println(e.getMessage());
+            System.exit(1);
+        } catch (Exception e) {
+            err.println("Failed to debug: " + e.getMessage());
             e.printStackTrace(err);
             System.exit(1);
         }
@@ -604,10 +637,14 @@ public class JDeploy implements BundleConstants {
             opts.addOption("W", "no-workflow", false,"Indicates not to create a github workflow if true");
             opts.addOption("N", "npm", false, "Use npm link instead of native installation (legacy behavior)");
             opts.addOption("A", "ai-tools", true, "Comma-separated list of AI tools to configure for MCP server (e.g., claude-code,cursor,claude-desktop)");
+            opts.addOption("p", "port", true, "Debug port for 'jdeploy debug' command (default: 5005)");
+            opts.addOption("S", "no-suspend", false, "Don't wait for debugger to attach (default: wait)");
             boolean noPromptFlag = false;
             boolean noWorkflowFlag = false;
             boolean npmInstallFlag = false;
             String distTag = null;
+            int debugPort = LocalRunService.getDefaultDebugPort();
+            boolean debugSuspend = true;
             java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> aiTools = null;
             if (args.length > 0 && !"jpackage".equals(args[0])) {
                 CommandLineParser parser = new DefaultParser();
@@ -621,6 +658,16 @@ public class JDeploy implements BundleConstants {
                 if (aiToolsStr != null && !aiToolsStr.isEmpty()) {
                     aiTools = parseAiTools(aiToolsStr);
                 }
+                String portStr = line.getOptionValue("port", null);
+                if (portStr != null) {
+                    try {
+                        debugPort = Integer.parseInt(portStr);
+                    } catch (NumberFormatException e) {
+                        System.err.println("Invalid port number: " + portStr);
+                        System.exit(1);
+                    }
+                }
+                debugSuspend = !line.hasOption("no-suspend");
 
             }
             if (args.length == 0 || "gui".equals(args[0])) {
@@ -763,6 +810,10 @@ public class JDeploy implements BundleConstants {
                 String[] runArgs = new String[args.length - 1];
                 System.arraycopy(args, 1, runArgs, 0, runArgs.length);
                 prog._run(context, runArgs);
+            } else if ("debug".equals(args[0])) {
+                String[] debugArgs = new String[args.length - 1];
+                System.arraycopy(args, 1, debugArgs, 0, debugArgs.length);
+                prog._debug(context, debugArgs, debugPort, debugSuspend);
             } else if ("help".equals(args[0])) {
                 prog.help(opts);
             } else {
