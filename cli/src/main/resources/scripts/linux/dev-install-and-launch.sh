@@ -66,7 +66,15 @@ cd "$JDEPLOY_DIR"
 if [ -d "shared" ]; then
     log "Building shared module..."
     cd shared
-    mvn package -DskipTests -q 2>&1 | tee -a "$LOG_FILE" || true
+    mvn install -DskipTests -q 2>&1 | tee -a "$LOG_FILE" || true
+    cd ..
+fi
+
+# Build installer module (required by CLI)
+if [ -d "installer" ]; then
+    log "Building installer module..."
+    cd installer
+    mvn install -DskipTests -q 2>&1 | tee -a "$LOG_FILE" || true
     cd ..
 fi
 

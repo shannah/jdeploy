@@ -105,15 +105,16 @@ public class LocalInstallService {
         }
 
         try {
-            // Use the programmatic headless install method
-            Main.runHeadlessInstallProgrammatic(
+            // Use the programmatic local install method (enables all GUI integrations
+            // like dock, desktop shortcuts, start menu, and programs menu)
+            Main.runLocalInstallProgrammatic(
                 appXmlFile.getAbsolutePath(),
                 out,
                 System.err,
                 aiTools
             );
         } catch (Exception e) {
-            throw new IOException("Headless installer failed: " + e.getMessage(), e);
+            throw new IOException("Local installer failed: " + e.getMessage(), e);
         }
     }
 

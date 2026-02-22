@@ -1295,6 +1295,116 @@ public class Main implements Runnable, Constants {
         }
     }
 
+    /**
+     * Performs a local installation programmatically for developer testing.
+     *
+     * Unlike runHeadlessInstallProgrammatic (for headless server environments),
+     * this enables all GUI integrations (dock, desktop, start menu, programs menu)
+     * so developers can test the full installation experience.
+     *
+     * @param appXmlPath Path to the app.xml file
+     * @param out Output stream for user-facing messages
+     * @param err Error stream for error messages
+     * @throws Exception if installation fails
+     */
+    public static void runLocalInstallProgrammatic(
+            String appXmlPath,
+            PrintStream out,
+            PrintStream err
+    ) throws Exception {
+        runLocalInstallProgrammatic(appXmlPath, out, err, null);
+    }
+
+    /**
+     * Runs the local installer programmatically with optional AI tools configuration.
+     *
+     * Unlike runHeadlessInstallProgrammatic (for headless server environments),
+     * this enables all GUI integrations (dock, desktop, start menu, programs menu)
+     * so developers can test the full installation experience.
+     *
+     * @param appXmlPath Path to the app.xml file
+     * @param out Output stream for progress messages
+     * @param err Error stream for error messages
+     * @param aiTools Set of AI tools to configure for MCP server installation, or null to skip AI integrations
+     * @throws Exception if installation fails
+     */
+    public static void runLocalInstallProgrammatic(
+            String appXmlPath,
+            PrintStream out,
+            PrintStream err,
+            java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> aiTools
+    ) throws Exception {
+        // Set up static fields for headless mode (still runs without GUI dialogs)
+        headlessInstall = true;
+        staticOriginalOut = out;
+        staticOriginalErr = err;
+
+        // Set AWT headless mode
+        System.setProperty("java.awt.headless", "true");
+
+        // Set app.xml path
+        System.setProperty("client4j.appxml.path", appXmlPath);
+
+        // Set up output suppression (logs to file, user messages to provided streams)
+        staticLogFile = new File(
+            System.getProperty("user.home") + File.separator + ".jdeploy" +
+            File.separator + "log" + File.separator + "jdeploy-local-install.log"
+        );
+        staticLogFile.getParentFile().mkdirs();
+
+        try {
+            staticLogStream = new PrintStream(new FileOutputStream(staticLogFile));
+            // Don't redirect System.out/err - we want verbose logging to go to log file
+            // but keep original streams for user-facing messages
+            PrintStream logOnlyStream = staticLogStream;
+
+            // Suppress java.util.logging output
+            java.util.logging.Logger rootLogger = java.util.logging.Logger.getLogger("");
+            java.util.logging.Handler[] handlers = rootLogger.getHandlers();
+            for (java.util.logging.Handler handler : handlers) {
+                handler.setLevel(java.util.logging.Level.OFF);
+            }
+            rootLogger.setLevel(java.util.logging.Level.OFF);
+
+            // Redirect System.out/err to log file during installation
+            PrintStream savedOut = System.out;
+            PrintStream savedErr = System.err;
+            System.setOut(logOnlyStream);
+            System.setErr(logOnlyStream);
+
+            try {
+                // Create LOCAL installation settings (enables all GUI integrations)
+                LocalInstallationSettings settings = new LocalInstallationSettings();
+                if (aiTools != null && !aiTools.isEmpty()) {
+                    settings.setInstallAiIntegrations(true);
+                    settings.setSelectedAiTools(aiTools);
+                }
+
+                // Create and run installer
+                Main installer = new Main(settings);
+                installer.run();
+            } finally {
+                // Restore original streams
+                System.setOut(savedOut);
+                System.setErr(savedErr);
+            }
+
+        } finally {
+            // Clean up system properties
+            System.clearProperty("client4j.appxml.path");
+
+            // Reset static fields
+            headlessInstall = false;
+            staticOriginalOut = null;
+            staticOriginalErr = null;
+            staticLogFile = null;
+            if (staticLogStream != null) {
+                staticLogStream.close();
+                staticLogStream = null;
+            }
+        }
+    }
+
     private File installedApp;
 
     private void performUninstall() throws Exception {
