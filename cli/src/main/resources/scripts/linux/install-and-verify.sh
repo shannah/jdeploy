@@ -4,7 +4,7 @@
 
 set -e
 
-SHARED_DIR="${1:-/home/ubuntu/shared}"
+SHARED_DIR="${1:-/config/shared}"
 RESULTS_DIR="$SHARED_DIR/results"
 BUNDLE_DIR="$SHARED_DIR/jdeploy-bundle"
 JDEPLOY_FILES_DIR="$SHARED_DIR/jdeploy-files"

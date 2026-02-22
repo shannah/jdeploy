@@ -26,17 +26,46 @@ public class LinuxDockerConfig {
 
     /**
      * Docker image to use for Linux desktop testing.
-     * dorowu/ubuntu-desktop-lxde-vnc provides Ubuntu + LXDE + VNC + noVNC
+     * linuxserver/webtop provides various desktops with web access and ARM64 support.
      */
-    public static final String DOCKER_IMAGE = "dorowu/ubuntu-desktop-lxde-vnc";
+    public static final String DOCKER_IMAGE = "linuxserver/webtop:ubuntu-xfce";
 
     private Mode mode = Mode.HEADLESS;
-    private int vncPort = 5900;
-    private int noVncPort = 6080;
+    private int vncPort = 5901;  // Avoid 5900 which conflicts with macOS Screen Sharing
+    private int noVncPort = 3000;  // linuxserver/webtop uses port 3000
     private int timeoutMinutes = 10;
     private String resolution = "1280x720";
 
+    // Dev mode fields
+    private java.io.File jdeployHome;  // jDeploy project directory (for dev mode)
+    private String[] runArgs;  // Original run arguments to pass through
+
     public LinuxDockerConfig() {
+    }
+
+    /**
+     * Returns true if running in dev mode (jdeploy built from source).
+     */
+    public boolean isDevMode() {
+        return jdeployHome != null && jdeployHome.exists();
+    }
+
+    public java.io.File getJdeployHome() {
+        return jdeployHome;
+    }
+
+    public LinuxDockerConfig setJdeployHome(java.io.File jdeployHome) {
+        this.jdeployHome = jdeployHome;
+        return this;
+    }
+
+    public String[] getRunArgs() {
+        return runArgs;
+    }
+
+    public LinuxDockerConfig setRunArgs(String[] runArgs) {
+        this.runArgs = runArgs;
+        return this;
     }
 
     public Mode getMode() {

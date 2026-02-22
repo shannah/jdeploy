@@ -2,7 +2,7 @@
 # verification-checks.sh
 # Verifies Linux installation of jDeploy application.
 
-SHARED_DIR="${1:-/home/ubuntu/shared}"
+SHARED_DIR="${1:-/config/shared}"
 RESULTS_DIR="${2:-$SHARED_DIR/results}"
 
 # Read app info from app.xml to get expected values

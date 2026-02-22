@@ -777,10 +777,21 @@ public class JDeploy implements BundleConstants {
      *
      * @param context The packaging context
      * @param linuxMode The Linux testing mode (headless or vnc)
+     * @param commandArgs Additional command arguments to pass through
      */
-    private void runOnLinux(PackagingContext context, String linuxMode) {
+    private void runOnLinux(PackagingContext context, String linuxMode, String[] commandArgs) {
         try {
             LinuxDockerConfig config = LinuxDockerConfig.fromOptionValue(linuxMode);
+
+            // Detect if running from jdeploy dev environment
+            File jdeployHome = detectJdeployHome();
+            if (jdeployHome != null) {
+                out.println("Dev mode detected: " + jdeployHome.getAbsolutePath());
+                config.setJdeployHome(jdeployHome);
+            }
+
+            // Pass through the command arguments (minus --linux flag)
+            config.setRunArgs(commandArgs);
 
             LinuxDockerTestService testService = new LinuxDockerTestService(
                     DIContext.get(ca.weblite.jdeploy.packaging.PackageService.class),
@@ -802,6 +813,56 @@ public class JDeploy implements BundleConstants {
             e.printStackTrace(err);
             System.exit(1);
         }
+    }
+
+    /**
+     * Detects the jdeploy home directory if running from dev environment.
+     * Returns null if not running from dev.
+     */
+    private File detectJdeployHome() {
+        // Check JDEPLOY_HOME environment variable
+        String jdeployHomeEnv = System.getenv("JDEPLOY_HOME");
+        if (jdeployHomeEnv != null) {
+            File home = new File(jdeployHomeEnv);
+            if (isJdeployDevDirectory(home)) {
+                return home;
+            }
+        }
+
+        // Try to detect from class location
+        try {
+            String classPath = JDeploy.class.getProtectionDomain()
+                    .getCodeSource().getLocation().toURI().getPath();
+            File classFile = new File(classPath);
+
+            // If running from target/classes or a JAR in target/, look for parent jdeploy project
+            File current = classFile;
+            for (int i = 0; i < 5; i++) {  // Look up to 5 levels
+                current = current.getParentFile();
+                if (current == null) break;
+
+                if (isJdeployDevDirectory(current)) {
+                    return current;
+                }
+            }
+        } catch (Exception e) {
+            // Ignore - not running from dev
+        }
+
+        return null;
+    }
+
+    /**
+     * Checks if a directory is a jdeploy development directory.
+     */
+    private boolean isJdeployDevDirectory(File dir) {
+        if (!dir.isDirectory()) return false;
+
+        // Check for cli/pom.xml and bin/jdeploy (indicators of jdeploy project)
+        File cliPom = new File(dir, "cli/pom.xml");
+        File binJdeploy = new File(dir, "bin/jdeploy");
+
+        return cliPom.exists() && binJdeploy.exists();
     }
 
     /**
@@ -1076,7 +1137,7 @@ public class JDeploy implements BundleConstants {
                 if (runOnWindows) {
                     prog.runOnWindows(context, windowsMode);
                 } else if (runOnLinux) {
-                    prog.runOnLinux(context, linuxMode);
+                    prog.runOnLinux(context, linuxMode, commandArgs);
                 } else {
                     String commandName = args.length > 1 ? args[1] : null;
                     prog._run(context, commandName, commandArgs, runInstallFirst, npmInstallFlag, aiTools);

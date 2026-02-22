@@ -66,27 +66,36 @@ public class LinuxDockerTestService {
         }
 
         try {
-            // Step 1: Package the application
-            out.println("Packaging application...");
-            packageService.createJdeployBundle(context);
+            File jdeployFilesDir = null;
 
-            if (!bundleDir.exists() || !bundleDir.isDirectory()) {
-                return LinuxTestResult.failed(
-                        "jdeploy-bundle directory not found after packaging.");
+            if (config.isDevMode()) {
+                // Dev mode: skip packaging, we'll build jdeploy from source in the container
+                out.println("Dev mode: jdeploy will be built from source inside the container");
+                out.println("  jDeploy project: " + config.getJdeployHome().getAbsolutePath());
+                out.println("  App project: " + projectDir.getAbsolutePath());
+            } else {
+                // Step 1: Package the application
+                out.println("Packaging application...");
+                packageService.createJdeployBundle(context);
+
+                if (!bundleDir.exists() || !bundleDir.isDirectory()) {
+                    return LinuxTestResult.failed(
+                            "jdeploy-bundle directory not found after packaging.");
+                }
+
+                // Step 2: Generate jdeploy-files
+                out.println("Generating local jdeploy-files...");
+                jdeployDir.mkdirs();
+                jdeployFilesDir = jdeployFilesGenerator.generate(projectDir, bundleDir, jdeployDir);
             }
-
-            // Step 2: Generate jdeploy-files
-            out.println("Generating local jdeploy-files...");
-            jdeployDir.mkdirs();
-            File jdeployFilesDir = jdeployFilesGenerator.generate(projectDir, bundleDir, jdeployDir);
 
             // Step 3: Prepare shared folder
             out.println("Preparing shared folder for Linux container...");
-            prepareSharedFolder(sharedDir, bundleDir, jdeployFilesDir);
+            prepareSharedFolder(sharedDir, bundleDir, jdeployFilesDir, config);
 
             // Step 4: Start Docker container
             out.println("Starting Linux Docker container...");
-            Process dockerProcess = startDockerContainer(config, sharedDir, out);
+            Process dockerProcess = startDockerContainer(config, sharedDir, projectDir, out);
 
             try {
                 if (config.getMode() == LinuxDockerConfig.Mode.VNC) {
@@ -140,35 +149,93 @@ public class LinuxDockerTestService {
     /**
      * Prepares the shared folder structure for the Linux container.
      */
-    private void prepareSharedFolder(File sharedDir, File bundleDir, File jdeployFilesDir)
+    private void prepareSharedFolder(File sharedDir, File bundleDir, File jdeployFilesDir,
+                                      LinuxDockerConfig config)
             throws IOException {
 
         sharedDir.mkdirs();
 
         // Create subdirectories
-        File sharedBundleDir = new File(sharedDir, "jdeploy-bundle");
-        File sharedJdeployFilesDir = new File(sharedDir, "jdeploy-files");
         File sharedScriptsDir = new File(sharedDir, "scripts");
         File sharedResultsDir = new File(sharedDir, "results");
 
-        sharedBundleDir.mkdirs();
-        sharedJdeployFilesDir.mkdirs();
         sharedScriptsDir.mkdirs();
         sharedResultsDir.mkdirs();
 
-        // Copy jdeploy-bundle
-        FileUtils.copyDirectory(bundleDir, sharedBundleDir);
+        if (!config.isDevMode()) {
+            // Non-dev mode: copy bundle and jdeploy-files
+            File sharedBundleDir = new File(sharedDir, "jdeploy-bundle");
+            File sharedJdeployFilesDir = new File(sharedDir, "jdeploy-files");
+            sharedBundleDir.mkdirs();
+            sharedJdeployFilesDir.mkdirs();
 
-        // Copy jdeploy-files
-        FileUtils.copyDirectory(jdeployFilesDir, sharedJdeployFilesDir);
+            FileUtils.copyDirectory(bundleDir, sharedBundleDir);
+            FileUtils.copyDirectory(jdeployFilesDir, sharedJdeployFilesDir);
+        }
 
         // Copy shell scripts from resources
         copyResourceScript("scripts/linux/install-and-verify.sh", sharedScriptsDir);
         copyResourceScript("scripts/linux/verification-checks.sh", sharedScriptsDir);
+        copyResourceScript("scripts/linux/install-and-launch.sh", sharedScriptsDir);
+        copyResourceScript("scripts/linux/dev-install-and-launch.sh", sharedScriptsDir);
 
         // Make scripts executable
         new File(sharedScriptsDir, "install-and-verify.sh").setExecutable(true);
         new File(sharedScriptsDir, "verification-checks.sh").setExecutable(true);
+        new File(sharedScriptsDir, "install-and-launch.sh").setExecutable(true);
+        new File(sharedScriptsDir, "dev-install-and-launch.sh").setExecutable(true);
+
+        // Write run arguments to file for the container script
+        if (config.getRunArgs() != null && config.getRunArgs().length > 0) {
+            String runArgs = String.join(" ", config.getRunArgs());
+            FileUtils.writeStringToFile(
+                    new File(sharedDir, "run-args.txt"),
+                    runArgs,
+                    StandardCharsets.UTF_8
+            );
+        }
+
+        // Create autostart directory and entry for VNC mode
+        File autostartDir = new File(sharedDir, "autostart");
+        autostartDir.mkdirs();
+
+        // Choose the right script based on dev mode
+        String execScript = config.isDevMode()
+                ? "/config/shared/scripts/dev-install-and-launch.sh"
+                : "/config/shared/scripts/install-and-launch.sh";
+
+        // Create .desktop autostart entry
+        // Use xfce4-terminal explicitly for XFCE desktop with --hold to keep window open
+        String desktopEntry =
+                "[Desktop Entry]\n" +
+                "Type=Application\n" +
+                "Name=jDeploy Auto-Install\n" +
+                "Exec=xfce4-terminal --hold -e \"bash " + execScript + "\"\n" +
+                "Hidden=false\n" +
+                "NoDisplay=false\n" +
+                "X-GNOME-Autostart-enabled=true\n" +
+                "Terminal=false\n";  // We're handling terminal ourselves
+
+        File desktopFile = new File(autostartDir, "jdeploy-autostart.desktop");
+        FileUtils.writeStringToFile(desktopFile, desktopEntry, StandardCharsets.UTF_8);
+
+        // Create custom-cont-init.d script to set up autostart on container start
+        File initDir = new File(sharedDir, "custom-cont-init.d");
+        initDir.mkdirs();
+
+        String initScript =
+                "#!/bin/bash\n" +
+                "# Set up autostart for jDeploy app\n" +
+                "echo '[jdeploy-init] Setting up autostart...'\n" +
+                "mkdir -p /config/.config/autostart\n" +
+                "cp /config/shared/autostart/*.desktop /config/.config/autostart/\n" +
+                "chmod +x /config/.config/autostart/*.desktop\n" +
+                "echo '[jdeploy-init] Autostart setup complete:'\n" +
+                "ls -la /config/.config/autostart/\n";
+
+        File initScriptFile = new File(initDir, "01-setup-autostart");
+        FileUtils.writeStringToFile(initScriptFile, initScript, StandardCharsets.UTF_8);
+        initScriptFile.setExecutable(true);
     }
 
     /**
@@ -189,7 +256,8 @@ public class LinuxDockerTestService {
     /**
      * Starts the Docker container with Linux desktop.
      */
-    private Process startDockerContainer(LinuxDockerConfig config, File sharedDir, PrintStream out)
+    private Process startDockerContainer(LinuxDockerConfig config, File sharedDir,
+                                          File projectDir, PrintStream out)
             throws IOException {
 
         List<String> cmd = new ArrayList<>();
@@ -197,23 +265,56 @@ public class LinuxDockerTestService {
         cmd.add("run");
         cmd.add("--rm");
 
-        // Mount shared folder
+        // Mount shared folder to /config/shared (linuxserver/webtop uses /config as home)
         cmd.add("-v");
-        cmd.add(sharedDir.getAbsolutePath() + ":/home/ubuntu/shared");
+        cmd.add(sharedDir.getAbsolutePath() + ":/config/shared");
 
-        // Set resolution
+        // Mount custom-cont-init.d for autostart setup (runs on container init)
+        // Note: linuxserver images expect this at root level, not under /config
+        File initDir = new File(sharedDir, "custom-cont-init.d");
+        if (initDir.exists()) {
+            cmd.add("-v");
+            cmd.add(initDir.getAbsolutePath() + ":/custom-cont-init.d");
+        }
+
+        // Always mount app project directory
+        cmd.add("-v");
+        cmd.add(projectDir.getAbsolutePath() + ":/app");
+
+        // Dev mode: also mount jdeploy project
+        if (config.isDevMode()) {
+            cmd.add("-v");
+            cmd.add(config.getJdeployHome().getAbsolutePath() + ":/jdeploy");
+        }
+
+        // Set user/group IDs to match host user (avoids permission issues)
         cmd.add("-e");
-        cmd.add("RESOLUTION=" + config.getResolution());
+        cmd.add("PUID=1000");
+        cmd.add("-e");
+        cmd.add("PGID=1000");
+
+        // Set resolution via environment
+        String[] resParts = config.getResolution().split("x");
+        if (resParts.length == 2) {
+            cmd.add("-e");
+            cmd.add("SCREEN_WIDTH=" + resParts[0]);
+            cmd.add("-e");
+            cmd.add("SCREEN_HEIGHT=" + resParts[1]);
+        }
 
         // For VNC mode, expose ports
         if (config.getMode() == LinuxDockerConfig.Mode.VNC) {
-            // noVNC (browser) port
+            // Web interface port (linuxserver/webtop uses 3000)
             cmd.add("-p");
-            cmd.add(config.getNoVncPort() + ":80");
-            // VNC port
+            cmd.add(config.getNoVncPort() + ":3000");
+            // VNC port (3001 in linuxserver/webtop)
             cmd.add("-p");
-            cmd.add(config.getVncPort() + ":5900");
+            cmd.add(config.getVncPort() + ":3001");
         }
+
+        // Security option for GUI apps
+        cmd.add("--security-opt");
+        cmd.add("seccomp=unconfined");
 
         // Use the Linux desktop image
         cmd.add(LinuxDockerConfig.DOCKER_IMAGE);
@@ -254,7 +355,7 @@ public class LinuxDockerTestService {
         ProcessBuilder execPb = new ProcessBuilder(
                 "docker", "exec", "-i",
                 getContainerId(dockerProcess),
-                "/bin/bash", "/home/ubuntu/shared/scripts/install-and-verify.sh"
+                "/bin/bash", "/config/shared/scripts/install-and-verify.sh"
         );
         execPb.redirectErrorStream(true);
         execPb.inheritIO();
@@ -299,6 +400,9 @@ public class LinuxDockerTestService {
         out.println();
         out.println("========================================");
         out.println("Linux container started in VNC mode");
+        if (config.isDevMode()) {
+            out.println("(Dev mode: jdeploy will build from source)");
+        }
         out.println("========================================");
         out.println();
         out.println("Connect via browser (recommended):");
@@ -308,12 +412,23 @@ public class LinuxDockerTestService {
         out.println("  Host: localhost:" + config.getVncPort());
         out.println("  Password: (none)");
         out.println();
-        out.println("The jdeploy-bundle and jdeploy-files are available at:");
-        out.println("  /home/ubuntu/shared/jdeploy-bundle");
-        out.println("  /home/ubuntu/shared/jdeploy-files");
-        out.println();
-        out.println("To install, open a terminal and run:");
-        out.println("  bash /home/ubuntu/shared/scripts/install-and-verify.sh");
+
+        if (config.isDevMode()) {
+            out.println("Dev mode paths:");
+            out.println("  jDeploy project: /jdeploy");
+            out.println("  App project: /app");
+            out.println();
+            out.println("The app will be automatically built and launched.");
+            out.println("Watch the terminal window for build progress.");
+        } else {
+            out.println("The jdeploy-bundle and jdeploy-files are available at:");
+            out.println("  /config/shared/jdeploy-bundle");
+            out.println("  /config/shared/jdeploy-files");
+            out.println();
+            out.println("To install manually, open a terminal and run:");
+            out.println("  bash /config/shared/scripts/install-and-verify.sh");
+        }
+
         out.println();
         out.println("Press Ctrl+C to stop the container...");
         out.println();
@@ -321,11 +436,27 @@ public class LinuxDockerTestService {
         // Start a thread to wait for container ready and open browser
         Thread browserOpenerThread = new Thread(() -> {
             try {
-                // Wait a few seconds for the container to start
-                Thread.sleep(5000);
+                // Wait for container to pull image and start web service
+                // Poll for the web service to become available
+                out.println("Waiting for web interface to become available...");
+                long deadline = System.currentTimeMillis() + 120000; // 2 minute timeout
+                boolean ready = false;
 
-                if (dockerProcess.isAlive()) {
-                    out.println("Opening browser to noVNC interface...");
+                while (System.currentTimeMillis() < deadline && dockerProcess.isAlive()) {
+                    try {
+                        java.net.Socket socket = new java.net.Socket();
+                        socket.connect(new java.net.InetSocketAddress("localhost", config.getNoVncPort()), 1000);
+                        socket.close();
+                        ready = true;
+                        break;
+                    } catch (Exception e) {
+                        // Not ready yet, wait and retry
+                        Thread.sleep(2000);
+                    }
+                }
+
+                if (ready && dockerProcess.isAlive()) {
+                    out.println("Web interface ready! Opening browser...");
                     openBrowser("http://localhost:" + config.getNoVncPort(), out);
                 }
             } catch (InterruptedException e) {
