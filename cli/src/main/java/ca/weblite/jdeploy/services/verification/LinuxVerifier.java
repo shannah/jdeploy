@@ -212,11 +212,12 @@ public class LinuxVerifier extends PlatformVerifier {
 
     /**
      * Gets the expected .desktop file location.
+     * The installer uses the app title as the filename.
      */
     private File getDesktopFile(ResolvedPackageInfo pkg) {
-        String fqpn = computeFqpn(pkg);
+        String title = pkg.getTitle();
         File userHome = new File(System.getProperty("user.home"));
-        return new File(userHome, ".local/share/applications/" + fqpn + ".desktop");
+        return new File(userHome, ".local/share/applications/" + title + ".desktop");
     }
 
     /**
