@@ -223,12 +223,24 @@ public class LinuxVerifier extends PlatformVerifier {
      * Checks if a shell config file contains a PATH entry for the given directory.
      */
     private boolean containsPathEntry(File configFile, String binPath) {
+        // Shell configs may use $HOME instead of the absolute path
+        String userHome = System.getProperty("user.home");
+        String homeRelativePath = binPath.startsWith(userHome)
+                ? "$HOME" + binPath.substring(userHome.length())
+                : null;
+
         try (BufferedReader reader = new BufferedReader(new FileReader(configFile))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 // Look for PATH export/assignment that includes our bin directory
-                if (line.contains("PATH") && line.contains(binPath)) {
-                    return true;
+                // Check both absolute path and $HOME-relative path
+                if (line.contains("PATH")) {
+                    if (line.contains(binPath)) {
+                        return true;
+                    }
+                    if (homeRelativePath != null && line.contains(homeRelativePath)) {
+                        return true;
+                    }
                 }
             }
         } catch (IOException e) {
