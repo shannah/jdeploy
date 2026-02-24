@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.services.verification;
 
 import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
+import ca.weblite.jdeploy.installer.util.WindowsAppDirResolver;
 import ca.weblite.jdeploy.services.InstalledAppLocator;
 
 import javax.inject.Inject;
@@ -202,15 +203,8 @@ public class InstallationVerifier {
     }
 
     private InstalledAppLocator.InstalledApp locateWindowsApp(String title, String fqpn, String winAppDir) {
-        // Use WindowsAppDirResolver if available
-        File localAppData = new File(System.getenv("LOCALAPPDATA"));
-        File appDir;
-
-        if (winAppDir != null && !winAppDir.isEmpty()) {
-            appDir = new File(winAppDir);
-        } else {
-            appDir = new File(localAppData, fqpn);
-        }
+        // Use WindowsAppDirResolver for consistent path resolution
+        File appDir = WindowsAppDirResolver.resolveAppDir(winAppDir, fqpn);
 
         // Check for usePrivateJVM case (executable in bin subdirectory)
         File binDir = new File(appDir, "bin");
