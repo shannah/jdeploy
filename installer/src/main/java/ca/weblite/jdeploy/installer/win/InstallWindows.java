@@ -274,39 +274,50 @@ public class InstallWindows {
             if (logger != null && uninstallerDirCreated) {
                 logger.logDirectoryOperation(InstallationLogger.DirectoryOperation.CREATED, uninstallerPath.getParentFile().getAbsolutePath());
             }
-            File installerExePath = new File(System.getProperty("client4j.launcher.path"));
-            boolean uninstallerExisted = uninstallerPath.exists();
-            if (uninstallerExisted) {
-                if (!uninstallerPath.canWrite()) {
-                    uninstallerPath.setWritable(true, false);
+
+            // In local install mode (via jdeploy install command), there's no native
+            // launcher executable to copy as an uninstaller. Users can use 'jdeploy uninstall'
+            // to uninstall in this case. Only copy the uninstaller exe when we have one.
+            String launcherPathStr = System.getProperty("client4j.launcher.path");
+            if (launcherPathStr != null) {
+                File installerExePath = new File(launcherPathStr);
+                boolean uninstallerExisted = uninstallerPath.exists();
+                if (uninstallerExisted) {
+                    if (!uninstallerPath.canWrite()) {
+                        uninstallerPath.setWritable(true, false);
+                        try {
+                            // Give windows time to update its cache
+                            Thread.sleep(1000L);
+                        } catch (InterruptedException interruptedException) {
+                            // Ignore
+                        }
+                    }
+                    if (!uninstallerPath.delete()) {
+                        if (logger != null) {
+                            logger.logFileOperation(InstallationLogger.FileOperation.FAILED, uninstallerPath.getAbsolutePath(), "Failed to delete existing uninstaller");
+                        }
+                        throw new IOException("Failed to delete uninstaller: "+uninstallerPath);
+                    }
+                    if (logger != null) {
+                        logger.logFileOperation(InstallationLogger.FileOperation.DELETED, uninstallerPath.getAbsolutePath(), "Existing uninstaller");
+                    }
+
                     try {
-                        // Give windows time to update its cache
+                        // Give Windows time to update its cache
                         Thread.sleep(1000L);
                     } catch (InterruptedException interruptedException) {
                         // Ignore
                     }
                 }
-                if (!uninstallerPath.delete()) {
-                    if (logger != null) {
-                        logger.logFileOperation(InstallationLogger.FileOperation.FAILED, uninstallerPath.getAbsolutePath(), "Failed to delete existing uninstaller");
-                    }
-                    throw new IOException("Failed to delete uninstaller: "+uninstallerPath);
-                }
+                FileUtils.copyFile(installerExePath, uninstallerPath);
+                uninstallerPath.setExecutable(true, false);
                 if (logger != null) {
-                    logger.logFileOperation(InstallationLogger.FileOperation.DELETED, uninstallerPath.getAbsolutePath(), "Existing uninstaller");
+                    logger.logFileOperation(InstallationLogger.FileOperation.CREATED, uninstallerPath.getAbsolutePath(), "Uninstaller executable");
                 }
-
-                try {
-                    // Give Windows time to update its cache
-                    Thread.sleep(1000L);
-                } catch (InterruptedException interruptedException) {
-                    // Ignore
+            } else {
+                if (logger != null) {
+                    logger.logInfo("Skipping native uninstaller copy (local install mode - use 'jdeploy uninstall' to uninstall)");
                 }
-            }
-            FileUtils.copyFile(installerExePath, uninstallerPath);
-            uninstallerPath.setExecutable(true, false);
-            if (logger != null) {
-                logger.logFileOperation(InstallationLogger.FileOperation.CREATED, uninstallerPath.getAbsolutePath(), "Uninstaller executable");
             }
             File jdeployFilesDestDir = new File(uninstallerPath.getParentFile(), context.findInstallFilesDir().getName());
             FileUtils.copyDirectory(context.findInstallFilesDir(), jdeployFilesDestDir);
