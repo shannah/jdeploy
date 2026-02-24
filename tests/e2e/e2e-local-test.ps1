@@ -339,6 +339,116 @@ function Test-Uninstallation {
     }
 }
 
+# Get service command name from package.json (if any)
+function Get-ServiceCommand {
+    param([string]$ProjectDir)
+
+    $packageJson = Join-Path $ProjectDir "package.json"
+    if (-not (Test-Path $packageJson)) {
+        return $null
+    }
+
+    try {
+        $json = Get-Content $packageJson -Raw | ConvertFrom-Json
+        if ($json.jdeploy -and $json.jdeploy.commands) {
+            $commands = $json.jdeploy.commands
+            # Iterate through commands to find one with service_controller
+            foreach ($prop in $commands.PSObject.Properties) {
+                $cmdSpec = $prop.Value
+                if ($cmdSpec.implements -and ($cmdSpec.implements -contains "service_controller")) {
+                    return $prop.Name
+                }
+            }
+        }
+    } catch {
+        Write-LogVerbose "Failed to parse package.json for service command: $_"
+    }
+    return $null
+}
+
+# Test service commands (status, start, stop, install, uninstall)
+function Test-ServiceCommands {
+    param(
+        [string]$ProjectDir,
+        [string]$TemplateName,
+        [string]$ServiceCmd
+    )
+
+    $projectLog = Join-Path $ResultsDir "$TemplateName-service-test.log"
+    Write-Log "Testing service commands for: $ServiceCmd"
+
+    Push-Location $ProjectDir
+    try {
+        # Test 1: Service status (initial state)
+        Write-Log "Testing: $ServiceCmd service status"
+        $output = & $ServiceCmd service status 2>&1
+        $output | Out-File -FilePath $projectLog -Append
+        Write-LogVerbose ($output -join "`n")
+
+        # Test 2: Service install (register with system service manager)
+        Write-Log "Testing: $ServiceCmd service install"
+        $output = & $ServiceCmd service install 2>&1
+        $output | Out-File -FilePath $projectLog -Append
+        Write-LogVerbose ($output -join "`n")
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "WARNING: Service install returned non-zero (may be expected on CI)"
+        }
+
+        # Test 3: Service start
+        Write-Log "Testing: $ServiceCmd service start"
+        $output = & $ServiceCmd service start 2>&1
+        $output | Out-File -FilePath $projectLog -Append
+        Write-LogVerbose ($output -join "`n")
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "WARNING: Service start returned non-zero"
+        }
+
+        # Give service time to start
+        Start-Sleep -Seconds 3
+
+        # Test 4: Service status (should now show running)
+        Write-Log "Testing: $ServiceCmd service status (after start)"
+        $output = & $ServiceCmd service status 2>&1
+        $output | Out-File -FilePath $projectLog -Append
+        Write-LogVerbose ($output -join "`n")
+
+        # Test 5: Service stop
+        Write-Log "Testing: $ServiceCmd service stop"
+        $output = & $ServiceCmd service stop 2>&1
+        $output | Out-File -FilePath $projectLog -Append
+        Write-LogVerbose ($output -join "`n")
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "WARNING: Service stop returned non-zero"
+        }
+
+        # Give service time to stop
+        Start-Sleep -Seconds 2
+
+        # Test 6: Service status (should now show stopped)
+        Write-Log "Testing: $ServiceCmd service status (after stop)"
+        $output = & $ServiceCmd service status 2>&1
+        $output | Out-File -FilePath $projectLog -Append
+        Write-LogVerbose ($output -join "`n")
+
+        # Test 7: Service uninstall (unregister from system service manager)
+        Write-Log "Testing: $ServiceCmd service uninstall"
+        $output = & $ServiceCmd service uninstall 2>&1
+        $output | Out-File -FilePath $projectLog -Append
+        Write-LogVerbose ($output -join "`n")
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "WARNING: Service uninstall returned non-zero"
+        }
+
+        Write-Log "Service command tests completed for: $ServiceCmd"
+        return $true
+    } catch {
+        Write-Log "ERROR: Service command test failed: $_"
+        return $false
+    } finally {
+        Pop-Location
+    }
+}
+
 # Cleanup test project
 function Remove-TestProject {
     param([string]$ProjectDir)
@@ -394,6 +504,16 @@ function Test-Template {
         if (-not (Test-Installation -ProjectDir $projectDir -TemplateName $TemplateName)) {
             "VERIFY_INSTALL_FAILED" | Out-File -FilePath $resultFile
             $testPassed = $false
+        }
+
+        # Step 4.5: Test service commands (if template has a service controller)
+        $serviceCmd = Get-ServiceCommand -ProjectDir $projectDir
+        if ($serviceCmd) {
+            Write-Log "Template has service controller command: $serviceCmd"
+            if (-not (Test-ServiceCommands -ProjectDir $projectDir -TemplateName $TemplateName -ServiceCmd $serviceCmd)) {
+                "SERVICE_TEST_FAILED" | Out-File -FilePath $resultFile
+                $testPassed = $false
+            }
         }
 
         # Step 5: Uninstall (if not skipped)

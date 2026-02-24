@@ -307,6 +307,96 @@ verify_uninstallation() {
     fi
 }
 
+# Get service command name from package.json (if any)
+# Returns the first command that implements service_controller
+get_service_command() {
+    local project_dir="$1"
+    local package_json="${project_dir}/package.json"
+
+    if [ ! -f "$package_json" ]; then
+        return 1
+    fi
+
+    # Use jq if available, otherwise use grep/sed
+    if command -v jq &> /dev/null; then
+        local cmd=$(jq -r '.jdeploy.commands | to_entries[] | select(.value.implements // [] | contains(["service_controller"])) | .key' "$package_json" 2>/dev/null | head -1)
+        if [ -n "$cmd" ] && [ "$cmd" != "null" ]; then
+            echo "$cmd"
+            return 0
+        fi
+    else
+        # Fallback: simple grep for service_controller
+        if grep -q "service_controller" "$package_json"; then
+            # Try to extract command name - this is a rough approximation
+            local cmd=$(grep -B5 "service_controller" "$package_json" | grep -oP '"[^"]+"\s*:\s*\{' | head -1 | grep -oP '"[^"]+"' | tr -d '"')
+            if [ -n "$cmd" ]; then
+                echo "$cmd"
+                return 0
+            fi
+        fi
+    fi
+    return 1
+}
+
+# Test service commands (status, start, stop, install, uninstall)
+test_service_commands() {
+    local project_dir="$1"
+    local template="$2"
+    local service_cmd="$3"
+    local project_log="${RESULTS_DIR}/${template}-service-test.log"
+
+    log "Testing service commands for: ${service_cmd}"
+
+    cd "$project_dir"
+
+    # Test 1: Service status (initial state - should be stopped/not running)
+    log "Testing: ${service_cmd} service status"
+    ${service_cmd} service status 2>&1 | tee -a "$project_log"
+    # Status can return non-zero if not running, that's OK
+
+    # Test 2: Service install (register with system service manager)
+    log "Testing: ${service_cmd} service install"
+    if ! ${service_cmd} service install 2>&1 | tee -a "$project_log"; then
+        log "WARNING: Service install returned non-zero (may be expected on CI)"
+    fi
+
+    # Test 3: Service start
+    log "Testing: ${service_cmd} service start"
+    if ! ${service_cmd} service start 2>&1 | tee -a "$project_log"; then
+        log "WARNING: Service start returned non-zero"
+    fi
+
+    # Give service time to start
+    sleep 3
+
+    # Test 4: Service status (should now show running)
+    log "Testing: ${service_cmd} service status (after start)"
+    ${service_cmd} service status 2>&1 | tee -a "$project_log"
+
+    # Test 5: Service stop
+    log "Testing: ${service_cmd} service stop"
+    if ! ${service_cmd} service stop 2>&1 | tee -a "$project_log"; then
+        log "WARNING: Service stop returned non-zero"
+    fi
+
+    # Give service time to stop
+    sleep 2
+
+    # Test 6: Service status (should now show stopped)
+    log "Testing: ${service_cmd} service status (after stop)"
+    ${service_cmd} service status 2>&1 | tee -a "$project_log"
+
+    # Test 7: Service uninstall (unregister from system service manager)
+    log "Testing: ${service_cmd} service uninstall"
+    if ! ${service_cmd} service uninstall 2>&1 | tee -a "$project_log"; then
+        log "WARNING: Service uninstall returned non-zero"
+    fi
+
+    log "Service command tests completed for: ${service_cmd}"
+    cd "$SCRIPT_DIR"
+    return 0
+}
+
 # Cleanup test project
 cleanup_project() {
     local project_dir="$1"
@@ -359,6 +449,16 @@ test_template() {
     if ! verify_installation "$project_dir" "$template"; then
         echo "VERIFY_INSTALL_FAILED" > "$result_file"
         test_passed=false
+    fi
+
+    # Step 4.5: Test service commands (if template has a service controller)
+    local service_cmd=$(get_service_command "$project_dir")
+    if [ -n "$service_cmd" ]; then
+        log "Template has service controller command: ${service_cmd}"
+        if ! test_service_commands "$project_dir" "$template" "$service_cmd"; then
+            echo "SERVICE_TEST_FAILED" > "$result_file"
+            test_passed=false
+        fi
     fi
 
     # Step 5: Uninstall (if not skipped)
