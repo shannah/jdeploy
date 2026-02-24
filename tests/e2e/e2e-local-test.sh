@@ -213,6 +213,26 @@ install_project() {
         return 0
     else
         log "ERROR: Installation failed"
+
+        # Try to capture the jdeploy detailed log file
+        local jdeploy_log_dir="$HOME/.jdeploy/log"
+        local jdeploy_install_log="$jdeploy_log_dir/jdeploy-local-install.log"
+        if [ -f "$jdeploy_install_log" ]; then
+            log ""
+            log "=== jDeploy Installation Log ($jdeploy_install_log) ==="
+            cat "$jdeploy_install_log" | tee -a "$LOG_FILE"
+            log "=== End of jDeploy Installation Log ==="
+            # Copy to results directory for artifact upload
+            cp "$jdeploy_install_log" "${RESULTS_DIR}/${template}-jdeploy-install.log" 2>/dev/null || true
+        else
+            log "No jdeploy install log found at: $jdeploy_install_log"
+            # List any logs that do exist
+            if [ -d "$jdeploy_log_dir" ]; then
+                log "Available logs in $jdeploy_log_dir:"
+                ls -la "$jdeploy_log_dir" | tee -a "$LOG_FILE"
+            fi
+        fi
+
         cd "$SCRIPT_DIR"
         return 1
     fi

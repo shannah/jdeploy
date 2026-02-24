@@ -223,6 +223,25 @@ function Install-Project {
         } else {
             Write-Log "ERROR: Installation failed"
             $output | ForEach-Object { Write-Log $_ }
+
+            # Try to capture the jdeploy detailed log file
+            $jdeployLogDir = Join-Path $env:USERPROFILE ".jdeploy\log"
+            $jdeployInstallLog = Join-Path $jdeployLogDir "jdeploy-local-install.log"
+            if (Test-Path $jdeployInstallLog) {
+                Write-Log ""
+                Write-Log "=== jDeploy Installation Log ($jdeployInstallLog) ==="
+                Get-Content $jdeployInstallLog | ForEach-Object { Write-Log $_ }
+                Write-Log "=== End of jDeploy Installation Log ==="
+                # Copy to results directory for artifact upload
+                Copy-Item $jdeployInstallLog (Join-Path $ResultsDir "$TemplateName-jdeploy-install.log") -ErrorAction SilentlyContinue
+            } else {
+                Write-Log "No jdeploy install log found at: $jdeployInstallLog"
+                # List any logs that do exist
+                if (Test-Path $jdeployLogDir) {
+                    Write-Log "Available logs in $jdeployLogDir:"
+                    Get-ChildItem $jdeployLogDir | ForEach-Object { Write-Log "  - $($_.Name)" }
+                }
+            }
             return $false
         }
     } finally {
