@@ -592,6 +592,11 @@ public class UninstallService {
         if (Platform.getSystemPlatform().isMac()) {
             cleanupMacOSAppBundles(packageName, source, result);
         }
+
+        // Clean up Windows registry entries
+        if (Platform.getSystemPlatform().isWindows()) {
+            cleanupWindowsRegistry(packageName, source, result);
+        }
     }
 
     /**
@@ -686,6 +691,51 @@ public class UninstallService {
             LOGGER.fine("Failed to read app.xml from app bundle: " + appBundle.getName() + " - " + e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * Cleans up Windows registry entries for this package.
+     * Removes the uninstall registry key created by InstallWindowsRegistry.
+     */
+    private void cleanupWindowsRegistry(String packageName, String source, UninstallResult result) {
+        try {
+            // Compute the registry key name using the same format as InstallWindowsRegistry
+            // Format: jdeploy.[sourceHash.]packageName
+            String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName(packageName, source);
+            String registryKeyName = "jdeploy." + fqpn;
+            String uninstallKey = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\" + registryKeyName;
+
+            // Check if the key exists before trying to delete
+            if (registryOperations.keyExists(uninstallKey)) {
+                // Delete the registry key and all its values
+                deleteRegistryKeyRecursive(uninstallKey);
+                result.incrementSuccessCount();
+                LOGGER.info("Deleted Windows registry key: HKCU\\" + uninstallKey);
+            } else {
+                LOGGER.fine("Windows registry key does not exist: HKCU\\" + uninstallKey);
+            }
+        } catch (Exception e) {
+            String errorMsg = "Failed to delete Windows registry key for package: " + packageName +
+                            " - " + e.getMessage();
+            LOGGER.warning(errorMsg);
+            result.addError(errorMsg);
+            result.incrementFailureCount();
+        }
+    }
+
+    /**
+     * Recursively deletes a Windows registry key and all its subkeys.
+     */
+    private void deleteRegistryKeyRecursive(String keyPath) {
+        // First, delete all subkeys
+        java.util.Set<String> subkeys = registryOperations.getKeys(keyPath);
+        if (subkeys != null && !subkeys.isEmpty()) {
+            for (String subkey : subkeys) {
+                deleteRegistryKeyRecursive(keyPath + "\\" + subkey);
+            }
+        }
+        // Then delete the key itself
+        registryOperations.deleteKey(keyPath);
     }
 
     /**
