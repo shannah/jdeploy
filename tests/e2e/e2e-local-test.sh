@@ -145,23 +145,25 @@ generate_project() {
 
     log "Generating project from template '${template}'..."
 
-    local cmd="run_jdeploy generate"
-    cmd="$cmd --template=${template}"
-    cmd="$cmd --parent-directory=${TEST_PROJECTS_DIR}"
-    cmd="$cmd --project-name=${project_name}"
-    cmd="$cmd --app-title=\"Test App ${template}\""
-    cmd="$cmd --group-id=com.test.e2e"
-    cmd="$cmd --artifact-id=${project_name}"
-    cmd="$cmd --main-class-name=com.test.e2e.Main"
-    cmd="$cmd -y"
+    log_verbose "Running: java -jar $JDEPLOY_JAR generate -t ${template} -d ${TEST_PROJECTS_DIR} -n ${project_name} --appTitle \"Test App ${template}\" -g com.test.e2e -a ${project_name} --mainClassName com.test.e2e.Main -y"
 
-    log_verbose "Running: $cmd"
+    java -jar "$JDEPLOY_JAR" generate \
+        -t "${template}" \
+        -d "${TEST_PROJECTS_DIR}" \
+        -n "${project_name}" \
+        --appTitle "Test App ${template}" \
+        -g com.test.e2e \
+        -a "${project_name}" \
+        --mainClassName com.test.e2e.Main \
+        -y 2>&1 | tee -a "$project_log"
 
-    if eval "$cmd" 2>&1 | tee -a "$project_log"; then
+    local exit_code=${PIPESTATUS[0]}
+
+    if [ $exit_code -eq 0 ]; then
         log "Project generated successfully: ${project_name}"
         return 0
     else
-        log "ERROR: Failed to generate project from template '${template}'"
+        log "ERROR: Failed to generate project from template '${template}' (exit code: $exit_code)"
         return 1
     fi
 }

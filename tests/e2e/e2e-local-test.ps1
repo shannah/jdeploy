@@ -139,27 +139,28 @@ function New-Project {
     $projectLog = Join-Path $ResultsDir "$TemplateName-generate.log"
     Write-Log "Generating project from template '$TemplateName'..."
 
-    $args = @(
+    $genArgs = @(
         "generate",
-        "--template=$TemplateName",
-        "--parent-directory=$TestProjectsDir",
-        "--project-name=$ProjectName",
-        "--app-title=Test App $TemplateName",
-        "--group-id=com.test.e2e",
-        "--artifact-id=$ProjectName",
-        "--main-class-name=com.test.e2e.Main",
+        "-t", $TemplateName,
+        "-d", $TestProjectsDir,
+        "-n", $ProjectName,
+        "--appTitle", "Test App $TemplateName",
+        "-g", "com.test.e2e",
+        "-a", $ProjectName,
+        "--mainClassName", "com.test.e2e.Main",
         "-y"
     )
 
-    Write-LogVerbose "Running: java -jar $script:JdeployJar $($args -join ' ')"
-    $output = Invoke-Jdeploy -Arguments $args
+    Write-LogVerbose "Running: java -jar $script:JdeployJar $($genArgs -join ' ')"
+    $output = & java -jar $script:JdeployJar @genArgs 2>&1
+    $exitCode = $LASTEXITCODE
     $output | Out-File -FilePath $projectLog -Append
 
-    if ($LASTEXITCODE -eq 0) {
+    if ($exitCode -eq 0) {
         Write-Log "Project generated successfully: $ProjectName"
         return $true
     } else {
-        Write-Log "ERROR: Failed to generate project from template '$TemplateName'"
+        Write-Log "ERROR: Failed to generate project from template '$TemplateName' (exit code: $exitCode)"
         $output | ForEach-Object { Write-Log $_ }
         return $false
     }
