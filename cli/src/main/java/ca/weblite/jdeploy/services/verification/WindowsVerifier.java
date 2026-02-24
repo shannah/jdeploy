@@ -178,10 +178,12 @@ public class WindowsVerifier extends PlatformVerifier {
 
     /**
      * Check if the uninstall registry key exists or doesn't exist.
+     * The installer creates keys with "jdeploy." prefix (see InstallWindowsRegistry.getRegisteredAppName()).
      */
     private VerificationCheck checkUninstallRegistryKey(ResolvedPackageInfo pkg, boolean shouldExist) {
         String fqpn = computeFqpn(pkg);
-        String registryKey = UNINSTALL_REGISTRY_KEY + "\\" + fqpn;
+        // Registry key uses "jdeploy." prefix to match InstallWindowsRegistry naming convention
+        String registryKey = UNINSTALL_REGISTRY_KEY + "\\jdeploy." + fqpn;
 
         try {
             boolean exists = registryKeyExists(registryKey);
