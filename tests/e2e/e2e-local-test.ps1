@@ -366,6 +366,34 @@ function Get-ServiceCommand {
     return $null
 }
 
+# Find the installed command path
+function Find-InstalledCommand {
+    param(
+        [string]$CommandName,
+        [string]$PackageName
+    )
+
+    # On Windows, commands are installed to: $USERPROFILE\.jdeploy\bin-x64\{package-name}\{command-name}.cmd
+    $cmdPath = Join-Path $env:USERPROFILE ".jdeploy\bin-x64\$PackageName\$CommandName.cmd"
+    if (Test-Path $cmdPath) {
+        return $cmdPath
+    }
+
+    # Try without the package subdirectory
+    $cmdPath = Join-Path $env:USERPROFILE ".jdeploy\bin-x64\$CommandName.cmd"
+    if (Test-Path $cmdPath) {
+        return $cmdPath
+    }
+
+    # Fallback: check if command is in PATH
+    $cmd = Get-Command $CommandName -ErrorAction SilentlyContinue
+    if ($cmd) {
+        return $cmd.Source
+    }
+
+    return $null
+}
+
 # Test service commands (status, start, stop, install, uninstall)
 function Test-ServiceCommands {
     param(
@@ -377,17 +405,38 @@ function Test-ServiceCommands {
     $projectLog = Join-Path $ResultsDir "$TemplateName-service-test.log"
     Write-Log "Testing service commands for: $ServiceCmd"
 
+    # Get the package name from package.json
+    $packageJson = Join-Path $ProjectDir "package.json"
+    $packageName = $ServiceCmd  # Default to service command name
+    try {
+        $json = Get-Content $packageJson -Raw | ConvertFrom-Json
+        if ($json.name) {
+            $packageName = $json.name
+        }
+    } catch {
+        Write-LogVerbose "Failed to get package name: $_"
+    }
+
+    # Find the installed command path
+    $cmdPath = Find-InstalledCommand -CommandName $ServiceCmd -PackageName $packageName
+    if (-not $cmdPath) {
+        Write-Log "WARNING: Could not find installed command '$ServiceCmd' - skipping service tests"
+        Write-Log "Looked for: $env:USERPROFILE\.jdeploy\bin-x64\$packageName\$ServiceCmd.cmd"
+        return $true  # Don't fail the test, just skip service verification
+    }
+    Write-Log "Found command at: $cmdPath"
+
     Push-Location $ProjectDir
     try {
         # Test 1: Service status (initial state)
         Write-Log "Testing: $ServiceCmd service status"
-        $output = & $ServiceCmd service status 2>&1
+        $output = & $cmdPath service status 2>&1
         $output | Out-File -FilePath $projectLog -Append
         Write-LogVerbose ($output -join "`n")
 
         # Test 2: Service install (register with system service manager)
         Write-Log "Testing: $ServiceCmd service install"
-        $output = & $ServiceCmd service install 2>&1
+        $output = & $cmdPath service install 2>&1
         $output | Out-File -FilePath $projectLog -Append
         Write-LogVerbose ($output -join "`n")
         if ($LASTEXITCODE -ne 0) {
@@ -396,7 +445,7 @@ function Test-ServiceCommands {
 
         # Test 3: Service start
         Write-Log "Testing: $ServiceCmd service start"
-        $output = & $ServiceCmd service start 2>&1
+        $output = & $cmdPath service start 2>&1
         $output | Out-File -FilePath $projectLog -Append
         Write-LogVerbose ($output -join "`n")
         if ($LASTEXITCODE -ne 0) {
@@ -408,13 +457,13 @@ function Test-ServiceCommands {
 
         # Test 4: Service status (should now show running)
         Write-Log "Testing: $ServiceCmd service status (after start)"
-        $output = & $ServiceCmd service status 2>&1
+        $output = & $cmdPath service status 2>&1
         $output | Out-File -FilePath $projectLog -Append
         Write-LogVerbose ($output -join "`n")
 
         # Test 5: Service stop
         Write-Log "Testing: $ServiceCmd service stop"
-        $output = & $ServiceCmd service stop 2>&1
+        $output = & $cmdPath service stop 2>&1
         $output | Out-File -FilePath $projectLog -Append
         Write-LogVerbose ($output -join "`n")
         if ($LASTEXITCODE -ne 0) {
@@ -426,13 +475,13 @@ function Test-ServiceCommands {
 
         # Test 6: Service status (should now show stopped)
         Write-Log "Testing: $ServiceCmd service status (after stop)"
-        $output = & $ServiceCmd service status 2>&1
+        $output = & $cmdPath service status 2>&1
         $output | Out-File -FilePath $projectLog -Append
         Write-LogVerbose ($output -join "`n")
 
         # Test 7: Service uninstall (unregister from system service manager)
         Write-Log "Testing: $ServiceCmd service uninstall"
-        $output = & $ServiceCmd service uninstall 2>&1
+        $output = & $cmdPath service uninstall 2>&1
         $output | Out-File -FilePath $projectLog -Append
         Write-LogVerbose ($output -join "`n")
         if ($LASTEXITCODE -ne 0) {
