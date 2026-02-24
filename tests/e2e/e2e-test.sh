@@ -1,14 +1,14 @@
 #!/bin/bash
 # e2e-test.sh
-# End-to-end test script for jDeploy Linux installations.
-# This script is designed to run inside a clean Linux Docker container.
+# End-to-end test script for jDeploy installations on Linux and macOS.
+# Designed to run natively (no Docker required) in CI environments.
 #
 # Usage: ./e2e-test.sh [OPTIONS]
-#   --app=NAME       Test only the specified app (by package name)
-#   --skip-uninstall Skip uninstall testing
-#   --verbose        Show verbose output
-#   --jdeploy-url=URL Use custom jdeploy.com URL (default: www.jdeploy.com)
-#   --config=FILE    Use custom apps config file
+#   --app=NAME          Test only the specified app (by package name)
+#   --skip-uninstall    Skip uninstall testing
+#   --verbose           Show verbose output
+#   --jdeploy-url=URL   Use custom jdeploy.com URL (default: www.jdeploy.com)
+#   --config=FILE       Use custom apps config file
 #
 # Exit codes:
 #   0 - All tests passed
@@ -18,6 +18,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/apps.conf"
 JDEPLOY_URL="www.jdeploy.com"
 SKIP_UNINSTALL=false
@@ -47,11 +48,11 @@ for arg in "$@"; do
             ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
-            echo "  --app=NAME       Test only the specified app"
-            echo "  --skip-uninstall Skip uninstall testing"
-            echo "  --verbose        Show verbose output"
-            echo "  --jdeploy-url=URL Use custom jdeploy URL"
-            echo "  --config=FILE    Use custom apps config file"
+            echo "  --app=NAME          Test only the specified app"
+            echo "  --skip-uninstall    Skip uninstall testing"
+            echo "  --verbose           Show verbose output"
+            echo "  --jdeploy-url=URL   Use custom jdeploy URL"
+            echo "  --config=FILE       Use custom apps config file"
             exit 0
             ;;
         *)
@@ -76,6 +77,40 @@ log_verbose() {
     fi
 }
 
+# Detect platform
+detect_platform() {
+    case "$(uname -s)" in
+        Linux*)  echo "linux" ;;
+        Darwin*) echo "mac" ;;
+        *)       echo "unknown" ;;
+    esac
+}
+
+PLATFORM=$(detect_platform)
+log "Detected platform: $PLATFORM"
+
+# Setup jdeploy from source
+setup_jdeploy() {
+    log "Setting up jdeploy from source..."
+
+    JDEPLOY_JAR="$PROJECT_ROOT/cli/target/jdeploy-cli-1.0-SNAPSHOT.jar"
+
+    if [ ! -f "$JDEPLOY_JAR" ]; then
+        log "ERROR: jdeploy CLI JAR not found at $JDEPLOY_JAR"
+        log "Please run 'mvn clean install' from the project root first."
+        exit 2
+    fi
+
+    # Create a wrapper function for jdeploy
+    jdeploy() {
+        java -jar "$JDEPLOY_JAR" "$@"
+    }
+    export -f jdeploy
+    export JDEPLOY_JAR
+
+    log "jdeploy CLI ready: $JDEPLOY_JAR"
+}
+
 # Check prerequisites
 check_prerequisites() {
     log "Checking prerequisites..."
@@ -86,30 +121,19 @@ check_prerequisites() {
         return 1
     fi
 
-    # Check for jq (optional but helpful)
+    # Check for Java
+    if ! command -v java &> /dev/null; then
+        log "ERROR: Java is not installed"
+        return 1
+    fi
+
+    # Check for jq (optional)
     if ! command -v jq &> /dev/null; then
         log "WARNING: jq not installed, some features may be limited"
     fi
 
-    # Check for Java (for verify commands)
-    if ! command -v java &> /dev/null; then
-        log "WARNING: Java not installed, will rely on bundled JRE"
-    fi
-
     log "Prerequisites check passed"
     return 0
-}
-
-# Verify jdeploy CLI is available
-check_jdeploy_cli() {
-    if command -v jdeploy &> /dev/null; then
-        local version=$(jdeploy --version 2>/dev/null || echo "unknown")
-        log "jdeploy CLI available: $version"
-        return 0
-    else
-        log "ERROR: jdeploy CLI not found. Install with: npm install -g jdeploy"
-        return 1
-    fi
 }
 
 # Download and run installer for an app
@@ -125,15 +149,11 @@ install_app() {
     cd "$temp_dir"
 
     # Construct install script URL
-    # Format: https://{jdeploy_url}/gh/{owner}/{repo}/install.sh?headless=true
-    # Or: https://{jdeploy_url}/~{package}/install.sh?headless=true
     local install_url
     if [[ "$source_url" == https://github.com/* ]]; then
-        # Extract owner/repo from GitHub URL
         local gh_path="${source_url#https://github.com/}"
         install_url="https://${JDEPLOY_URL}/gh/${gh_path}/install.sh?headless=true"
     else
-        # Use package name format
         install_url="https://${JDEPLOY_URL}/~${package_name}/install.sh?headless=true"
     fi
 
@@ -183,12 +203,7 @@ verify_installation() {
 
     log "Verifying installation for ${package_name}..."
 
-    if ! command -v jdeploy &> /dev/null; then
-        log "ERROR: jdeploy CLI not available for verification"
-        return 1
-    fi
-
-    local cmd="jdeploy verify-installation --package=${package_name} --verbose"
+    local cmd="java -jar \"$JDEPLOY_JAR\" verify-installation --package=${package_name} --verbose"
     if [ -n "$source_url" ]; then
         cmd="$cmd --source=${source_url}"
     fi
@@ -214,13 +229,7 @@ uninstall_app() {
 
     log "Uninstalling ${package_name}..."
 
-    if ! command -v jdeploy &> /dev/null; then
-        log "ERROR: jdeploy CLI not available for uninstall"
-        return 1
-    fi
-
-    # Build uninstall command
-    local cmd="jdeploy uninstall --package=${package_name}"
+    local cmd="java -jar \"$JDEPLOY_JAR\" uninstall --package=${package_name}"
     if [ -n "$source_url" ]; then
         cmd="$cmd --source=${source_url}"
     fi
@@ -246,12 +255,7 @@ verify_uninstallation() {
 
     log "Verifying uninstallation for ${package_name}..."
 
-    if ! command -v jdeploy &> /dev/null; then
-        log "ERROR: jdeploy CLI not available for verification"
-        return 1
-    fi
-
-    local cmd="jdeploy verify-uninstallation --package=${package_name} --verbose"
+    local cmd="java -jar \"$JDEPLOY_JAR\" verify-uninstallation --package=${package_name} --verbose"
     if [ -n "$source_url" ]; then
         cmd="$cmd --source=${source_url}"
     fi
@@ -277,7 +281,7 @@ test_app() {
 
     log "=========================================="
     log "Testing: ${package_name}"
-    log "Source: ${source_url}"
+    log "Source: ${source_url:-npm}"
     log "Description: ${description}"
     log "=========================================="
 
@@ -323,8 +327,9 @@ test_app() {
 # Main execution
 main() {
     log "=========================================="
-    log "jDeploy E2E Linux Installation Tests"
+    log "jDeploy E2E Installation Tests"
     log "=========================================="
+    log "Platform: $PLATFORM"
     log "Timestamp: $TIMESTAMP"
     log "Config: $CONFIG_FILE"
     log "jDeploy URL: $JDEPLOY_URL"
@@ -337,11 +342,8 @@ main() {
         exit 2
     fi
 
-    # Verify jdeploy CLI is available (required for verification)
-    if ! check_jdeploy_cli; then
-        log "ERROR: jdeploy CLI is required for verification"
-        exit 2
-    fi
+    # Setup jdeploy from source
+    setup_jdeploy
 
     # Check config file
     if [ ! -f "$CONFIG_FILE" ]; then
@@ -399,6 +401,7 @@ main() {
     cat > "${RESULTS_DIR}/summary.json" << EOF
 {
     "timestamp": "$TIMESTAMP",
+    "platform": "$PLATFORM",
     "totalApps": $total_apps,
     "passed": $passed_apps,
     "failed": $failed_apps,

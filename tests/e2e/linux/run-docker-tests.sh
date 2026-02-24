@@ -84,10 +84,13 @@ mkdir -p "$RESULTS_DIR"
 echo "Starting Docker container..."
 echo ""
 
+# E2E directory (parent of linux/)
+E2E_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 docker run \
     --name "$CONTAINER_NAME" \
     --rm=$( [ "$KEEP_CONTAINER" = false ] && echo "true" || echo "false" ) \
-    -v "${SCRIPT_DIR}:/tests:ro" \
+    -v "${E2E_DIR}:/e2e:ro" \
     -v "${JDEPLOY_ROOT}:/jdeploy-src:ro" \
     -v "${RESULTS_DIR}:/results" \
     -e DISPLAY=:99 \
@@ -143,8 +146,9 @@ docker run \
         jdeploy --version || echo '(version check failed)'
 
         # Copy test files to writable location
-        cp -r /tests /tmp/e2e-tests
+        cp -r /e2e /tmp/e2e-tests
         chmod +x /tmp/e2e-tests/*.sh
+        chmod +x /tmp/e2e-tests/linux/*.sh 2>/dev/null || true
 
         # Update results directory in script
         mkdir -p /tmp/e2e-tests/results
@@ -155,7 +159,7 @@ docker run \
         echo ''
 
         cd /tmp/e2e-tests
-        ./e2e-test.sh --config=/tests/apps.conf $TEST_ARGS || TEST_EXIT=\$?
+        ./e2e-test.sh $TEST_ARGS || TEST_EXIT=\$?
 
         # Copy results back to mounted volume
         cp -r /tmp/e2e-tests/results/* /results/ 2>/dev/null || true
