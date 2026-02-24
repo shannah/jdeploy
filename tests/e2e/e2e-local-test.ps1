@@ -144,10 +144,10 @@ function New-Project {
         "-t", $TemplateName,
         "-d", $TestProjectsDir,
         "-n", $ProjectName,
-        "--appTitle", "Test App $TemplateName",
+        "--appTitle=Test App $TemplateName",
         "-g", "com.test.e2e",
         "-a", $ProjectName,
-        "--mainClassName", "com.test.e2e.Main"
+        "--mainClassName=Main"
     )
 
     Write-LogVerbose "Running: java -jar `"$script:JdeployJar`" $($genArgs -join ' ')"
