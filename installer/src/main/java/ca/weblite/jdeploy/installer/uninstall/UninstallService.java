@@ -587,6 +587,86 @@ public class UninstallService {
             result.addError(errorMsg);
             result.incrementFailureCount();
         }
+
+        // Clean up macOS app bundles in ~/Applications/
+        if (Platform.getSystemPlatform().isMac()) {
+            cleanupMacOSAppBundles(packageName, source, result);
+        }
+    }
+
+    /**
+     * Cleans up macOS .app bundles in ~/Applications/ that belong to this package.
+     * Scans for .app bundles containing .jdeploy-cli.json metadata that matches the package.
+     */
+    private void cleanupMacOSAppBundles(String packageName, String source, UninstallResult result) {
+        File userHome = new File(System.getProperty("user.home"));
+        File applicationsDir = new File(userHome, "Applications");
+
+        if (!applicationsDir.exists() || !applicationsDir.isDirectory()) {
+            LOGGER.fine("macOS Applications directory does not exist: " + applicationsDir.getAbsolutePath());
+            return;
+        }
+
+        File[] appBundles = applicationsDir.listFiles((dir, name) -> name.endsWith(".app"));
+        if (appBundles == null || appBundles.length == 0) {
+            LOGGER.fine("No .app bundles found in: " + applicationsDir.getAbsolutePath());
+            return;
+        }
+
+        for (File appBundle : appBundles) {
+            if (isAppBundleForPackage(appBundle, packageName, source)) {
+                try {
+                    FileUtils.deleteDirectory(appBundle);
+                    result.incrementSuccessCount();
+                    LOGGER.info("Deleted macOS app bundle: " + appBundle.getAbsolutePath());
+                } catch (IOException e) {
+                    String errorMsg = "Failed to delete macOS app bundle: " + appBundle.getAbsolutePath() +
+                                    " - " + e.getMessage();
+                    LOGGER.warning(errorMsg);
+                    result.addError(errorMsg);
+                    result.incrementFailureCount();
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks if a macOS .app bundle belongs to the specified package by reading its metadata file.
+     */
+    private boolean isAppBundleForPackage(File appBundle, String packageName, String source) {
+        // Check for .jdeploy-cli.json in Contents/MacOS/
+        File metadataFile = new File(appBundle, "Contents" + File.separator + "MacOS" + File.separator + ".jdeploy-cli.json");
+
+        if (!metadataFile.exists()) {
+            LOGGER.fine("No metadata file in app bundle: " + appBundle.getName());
+            return false;
+        }
+
+        try {
+            String content = new String(Files.readAllBytes(metadataFile.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+            org.json.JSONObject metadata = new org.json.JSONObject(content);
+
+            String bundlePackageName = metadata.optString("packageName", null);
+            String bundleSource = metadata.optString("source", null);
+
+            // Match package name
+            if (!packageName.equals(bundlePackageName)) {
+                return false;
+            }
+
+            // Match source (both null for NPM packages, or equal for GitHub packages)
+            if (source == null && bundleSource == null) {
+                return true;
+            }
+            if (source != null && source.equals(bundleSource)) {
+                return true;
+            }
+
+            return false;
+        } catch (Exception e) {
+            LOGGER.fine("Failed to read metadata from app bundle: " + appBundle.getName() + " - " + e.getMessage());
+            return false;
+        }
     }
 
     /**
