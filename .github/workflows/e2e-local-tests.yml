@@ -100,12 +100,14 @@ jobs:
         env:
           TEST_TEMPLATE: ${{ github.event.inputs.template || '' }}
         shell: pwsh
+        # Note: -SkipInstallation is used because Windows CI runners don't allow
+        # registry access which is required for jdeploy install on Windows
         run: |
           cd tests/e2e
           if ($env:TEST_TEMPLATE) {
-            .\e2e-local-test.ps1 -Template $env:TEST_TEMPLATE -Verbose
+            .\e2e-local-test.ps1 -Template $env:TEST_TEMPLATE -SkipInstallation -Verbose
           } else {
-            .\e2e-local-test.ps1 -Verbose
+            .\e2e-local-test.ps1 -SkipInstallation -Verbose
           }
 
       - name: Upload test results

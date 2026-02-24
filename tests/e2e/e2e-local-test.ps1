@@ -33,6 +33,7 @@
 
 param(
     [string]$Template = "",
+    [switch]$SkipInstallation,
     [switch]$SkipUninstall,
     [string]$ConfigFile = "",
     [switch]$KeepProjects,
@@ -362,31 +363,35 @@ function Test-Template {
         return $false
     }
 
-    # Step 3: Install project
-    if (-not (Install-Project -ProjectDir $projectDir -TemplateName $TemplateName)) {
-        "INSTALL_FAILED" | Out-File -FilePath $resultFile
-        Remove-TestProject -ProjectDir $projectDir
-        return $false
-    }
+    # Step 3: Install project (if not skipped)
+    if (-not $SkipInstallation) {
+        if (-not (Install-Project -ProjectDir $projectDir -TemplateName $TemplateName)) {
+            "INSTALL_FAILED" | Out-File -FilePath $resultFile
+            Remove-TestProject -ProjectDir $projectDir
+            return $false
+        }
 
-    # Step 4: Verify installation
-    if (-not (Test-Installation -ProjectDir $projectDir -TemplateName $TemplateName)) {
-        "VERIFY_INSTALL_FAILED" | Out-File -FilePath $resultFile
-        $testPassed = $false
-    }
-
-    # Step 5: Uninstall (if not skipped)
-    if (-not $SkipUninstall) {
-        if (-not (Uninstall-Project -ProjectDir $projectDir -TemplateName $TemplateName)) {
-            "UNINSTALL_FAILED" | Out-File -FilePath $resultFile
+        # Step 4: Verify installation
+        if (-not (Test-Installation -ProjectDir $projectDir -TemplateName $TemplateName)) {
+            "VERIFY_INSTALL_FAILED" | Out-File -FilePath $resultFile
             $testPassed = $false
         }
 
-        # Step 6: Verify uninstallation
-        if (-not (Test-Uninstallation -ProjectDir $projectDir -TemplateName $TemplateName)) {
-            "VERIFY_UNINSTALL_FAILED" | Out-File -FilePath $resultFile
-            $testPassed = $false
+        # Step 5: Uninstall (if not skipped)
+        if (-not $SkipUninstall) {
+            if (-not (Uninstall-Project -ProjectDir $projectDir -TemplateName $TemplateName)) {
+                "UNINSTALL_FAILED" | Out-File -FilePath $resultFile
+                $testPassed = $false
+            }
+
+            # Step 6: Verify uninstallation
+            if (-not (Test-Uninstallation -ProjectDir $projectDir -TemplateName $TemplateName)) {
+                "VERIFY_UNINSTALL_FAILED" | Out-File -FilePath $resultFile
+                $testPassed = $false
+            }
         }
+    } else {
+        Write-Log "Skipping installation steps (--SkipInstallation flag set)"
     }
 
     # Cleanup
@@ -410,6 +415,7 @@ function Main {
     Write-Log "Platform: Windows"
     Write-Log "Timestamp: $Timestamp"
     Write-Log "Config: $ConfigFile"
+    Write-Log "Skip Installation: $SkipInstallation"
     Write-Log "Skip Uninstall: $SkipUninstall"
     Write-Log "Keep Projects: $KeepProjects"
     Write-Log ""
