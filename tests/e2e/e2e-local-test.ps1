@@ -147,11 +147,10 @@ function New-Project {
         "--appTitle", "Test App $TemplateName",
         "-g", "com.test.e2e",
         "-a", $ProjectName,
-        "--mainClassName", "com.test.e2e.Main",
-        "-y"
+        "--mainClassName", "com.test.e2e.Main"
     )
 
-    Write-LogVerbose "Running: java -jar $script:JdeployJar $($genArgs -join ' ')"
+    Write-LogVerbose "Running: java -jar `"$script:JdeployJar`" $($genArgs -join ' ')"
     $output = & java -jar $script:JdeployJar @genArgs 2>&1
     $exitCode = $LASTEXITCODE
     $output | Out-File -FilePath $projectLog -Append

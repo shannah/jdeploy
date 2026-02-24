@@ -145,7 +145,7 @@ generate_project() {
 
     log "Generating project from template '${template}'..."
 
-    log_verbose "Running: java -jar $JDEPLOY_JAR generate -t ${template} -d ${TEST_PROJECTS_DIR} -n ${project_name} --appTitle \"Test App ${template}\" -g com.test.e2e -a ${project_name} --mainClassName com.test.e2e.Main -y"
+    log_verbose "Running: java -jar $JDEPLOY_JAR generate -t ${template} -d ${TEST_PROJECTS_DIR} -n ${project_name} --appTitle \"Test App ${template}\" -g com.test.e2e -a ${project_name} --mainClassName com.test.e2e.Main"
 
     java -jar "$JDEPLOY_JAR" generate \
         -t "${template}" \
@@ -154,8 +154,7 @@ generate_project() {
         --appTitle "Test App ${template}" \
         -g com.test.e2e \
         -a "${project_name}" \
-        --mainClassName com.test.e2e.Main \
-        -y 2>&1 | tee -a "$project_log"
+        --mainClassName com.test.e2e.Main 2>&1 | tee -a "$project_log"
 
     local exit_code=${PIPESTATUS[0]}
 
