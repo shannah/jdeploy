@@ -102,6 +102,15 @@ function Test-Prerequisites {
         return $false
     }
 
+    # Check for bash (Git Bash)
+    try {
+        $bashVersion = & bash --version 2>&1 | Select-Object -First 1
+        Write-Log "Bash found: $bashVersion"
+    } catch {
+        Write-Log "ERROR: Bash is not installed (Git Bash required for Windows)"
+        return $false
+    }
+
     Write-Log "Prerequisites check passed"
     return $true
 }
@@ -121,18 +130,18 @@ function Install-App {
     New-Item -ItemType Directory -Path $tempDir | Out-Null
 
     try {
-        # Construct install script URL
+        # Construct install script URL (use install.sh for all platforms)
         if ($SourceUrl -match "^https://github.com/") {
             $ghPath = $SourceUrl -replace "^https://github.com/", ""
-            $installUrl = "https://$JdeployUrl/gh/$ghPath/install.ps1?headless=true"
+            $installUrl = "https://$JdeployUrl/gh/$ghPath/install.sh?headless=true"
         } else {
-            $installUrl = "https://$JdeployUrl/~$PackageName/install.ps1?headless=true"
+            $installUrl = "https://$JdeployUrl/~$PackageName/install.sh?headless=true"
         }
 
         Write-LogVerbose "Install URL: $installUrl"
 
         # Download install script
-        $installScript = Join-Path $tempDir "install.ps1"
+        $installScript = Join-Path $tempDir "install.sh"
         try {
             Invoke-WebRequest -Uri $installUrl -OutFile $installScript -UseBasicParsing
         } catch {
@@ -141,9 +150,9 @@ function Install-App {
             return $false
         }
 
-        # Run installer
+        # Run installer with bash (Git Bash on Windows)
         Write-Log "Running headless installer for $PackageName..."
-        $output = & powershell -ExecutionPolicy Bypass -File $installScript 2>&1
+        $output = & bash $installScript 2>&1
         $output | Out-File -FilePath $appLog -Append
 
         if ($LASTEXITCODE -ne 0) {
