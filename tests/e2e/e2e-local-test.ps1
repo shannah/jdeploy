@@ -238,7 +238,7 @@ function Install-Project {
                 Write-Log "No jdeploy install log found at: $jdeployInstallLog"
                 # List any logs that do exist
                 if (Test-Path $jdeployLogDir) {
-                    Write-Log "Available logs in $jdeployLogDir:"
+                    Write-Log "Available logs in ${jdeployLogDir}:"
                     Get-ChildItem $jdeployLogDir | ForEach-Object { Write-Log "  - $($_.Name)" }
                 }
             }
