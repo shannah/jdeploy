@@ -631,25 +631,44 @@ public class UninstallService {
     }
 
     /**
-     * Checks if a macOS .app bundle belongs to the specified package by reading its metadata file.
+     * Checks if a macOS .app bundle belongs to the specified package by reading its app.xml file.
+     * The app.xml file is located at Contents/app.xml and contains package info as XML attributes.
      */
     private boolean isAppBundleForPackage(File appBundle, String packageName, String source) {
-        // Check for .jdeploy-cli.json in Contents/MacOS/
-        File metadataFile = new File(appBundle, "Contents" + File.separator + "MacOS" + File.separator + ".jdeploy-cli.json");
+        // Check for app.xml in Contents/
+        File appXmlFile = new File(appBundle, "Contents" + File.separator + "app.xml");
 
-        if (!metadataFile.exists()) {
-            LOGGER.fine("No metadata file in app bundle: " + appBundle.getName());
+        if (!appXmlFile.exists()) {
+            LOGGER.fine("No app.xml in app bundle: " + appBundle.getName());
             return false;
         }
 
         try {
-            String content = new String(Files.readAllBytes(metadataFile.toPath()), java.nio.charset.StandardCharsets.UTF_8);
-            org.json.JSONObject metadata = new org.json.JSONObject(content);
+            // Parse the XML file to extract package and source attributes
+            javax.xml.parsers.DocumentBuilderFactory factory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+            javax.xml.parsers.DocumentBuilder builder = factory.newDocumentBuilder();
+            org.w3c.dom.Document doc = builder.parse(appXmlFile);
 
-            String bundlePackageName = metadata.optString("packageName", null);
-            String bundleSource = metadata.optString("source", null);
+            org.w3c.dom.Element root = doc.getDocumentElement();
+            if (root == null || !"app".equals(root.getTagName())) {
+                LOGGER.fine("Invalid app.xml format in: " + appBundle.getName());
+                return false;
+            }
+
+            String bundlePackageName = root.getAttribute("package");
+            String bundleSource = root.getAttribute("source");
+
+            // Treat empty string as null for source
+            if (bundleSource != null && bundleSource.isEmpty()) {
+                bundleSource = null;
+            }
 
             // Match package name
+            if (bundlePackageName == null || bundlePackageName.isEmpty()) {
+                LOGGER.fine("No package attribute in app.xml: " + appBundle.getName());
+                return false;
+            }
+
             if (!packageName.equals(bundlePackageName)) {
                 return false;
             }
@@ -664,7 +683,7 @@ public class UninstallService {
 
             return false;
         } catch (Exception e) {
-            LOGGER.fine("Failed to read metadata from app bundle: " + appBundle.getName() + " - " + e.getMessage());
+            LOGGER.fine("Failed to read app.xml from app bundle: " + appBundle.getName() + " - " + e.getMessage());
             return false;
         }
     }
