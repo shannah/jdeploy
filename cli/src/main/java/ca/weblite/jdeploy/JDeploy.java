@@ -505,7 +505,8 @@ public class JDeploy implements BundleConstants {
                 + "  install : Installs the app locally (links to PATH)\n"
                 + "  publish : Publishes to NPM\n"
                 + "  generate: Generates a new project\n"
-                + "  github init -n <repo-name>:  Initializes commits, and pushes to github\n",
+                + "  github init -n <repo-name>:  Initializes commits, and pushes to github\n"
+                + "  github create-repo -n <repo-name> [-p]:  Creates a new private GitHub repository\n",
                 opts);
 
     }
@@ -546,6 +547,12 @@ public class JDeploy implements BundleConstants {
                 String[] githubInitArgs = new String[args.length-2];
                 System.arraycopy(args, 2, githubInitArgs, 0, githubInitArgs.length);
                 prog.githubInit(packageJSON, githubInitArgs, true);
+                return;
+            }
+            if (args.length > 1 && "github".equals(args[0]) && "create-repo".equals(args[1])) {
+                String[] createRepoArgs = new String[args.length - 2];
+                System.arraycopy(args, 2, createRepoArgs, 0, createRepoArgs.length);
+                prog.githubCreateRepo(packageJSON, createRepoArgs, true);
                 return;
             }
 
@@ -742,6 +749,17 @@ public class JDeploy implements BundleConstants {
         controller.run();
         if (controller.getExitCode() != 0) {
             fail("Failed to initialize github repository", controller.getExitCode(), exitOnFail);
+        }
+    }
+
+    private void githubCreateRepo(File packageJsonFile, String[] args, boolean exitOnFail) {
+        CreateGitHubRepositoryCLIController controller = new CreateGitHubRepositoryCLIController(
+                packageJsonFile,
+                args
+        );
+        controller.run();
+        if (controller.getExitCode() != 0) {
+            fail("Failed to create github repository", controller.getExitCode(), exitOnFail);
         }
     }
 
