@@ -1870,19 +1870,18 @@ public class Main implements Runnable, Constants {
             }
         }
 
-        // Install or update Helper application for command management
+        // Install or update Helper application for service management
         // Skip for branch installations - Helper is only for production installs
         if (!installationSettings.isBranchInstallation()) {
-            boolean commandsExist = allCommands != null && !allCommands.isEmpty();
+            boolean servicesExist = newServiceCommands != null && !newServiceCommands.isEmpty();
             if (isUpdate) {
-                // For updates: use HelperUpdateService which handles install/update
-                // Always pass true to keep Helper installed (removal only happens during uninstall)
-                updateHelperApplication(installedApp, true);
-            } else if (commandsExist) {
-                // For fresh installs with commands: install Helper
+                // For updates: use HelperUpdateService which handles install/update/removal
+                updateHelperApplication(installedApp, servicesExist);
+            } else if (servicesExist) {
+                // For fresh installs with services: install Helper
                 installHelperApplication(installedApp);
             }
-            // For fresh installs without commands: do nothing
+            // For fresh installs without services: do nothing
         }
 
         // Install AI integrations if enabled
