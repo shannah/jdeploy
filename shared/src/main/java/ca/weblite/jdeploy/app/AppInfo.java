@@ -58,6 +58,19 @@ public class AppInfo  {
     private boolean fork;
 
     /**
+     * Path to the local package.json file for local development mode.
+     * When set, the installer will load package.json from this path instead of
+     * downloading from npm or GitHub.
+     */
+    private String localPackageJson;
+
+    /**
+     * Path to the local jdeploy-bundle directory for local development mode.
+     * When set, the installer will use this bundle instead of downloading.
+     */
+    private String localBundle;
+
+    /**
      * The version of the launcher/installer that created this bundle.
      * This is only set when running as the installer, not during CLI packaging.
      */
@@ -499,6 +512,48 @@ public class AppInfo  {
 
     public void setFork(boolean fork) {
         this.fork = fork;
+    }
+
+    /**
+     * Gets the path to the local package.json file for local development mode.
+     * @return the local package.json path, or null if not in local mode
+     */
+    public String getLocalPackageJson() {
+        return localPackageJson;
+    }
+
+    /**
+     * Sets the path to the local package.json file for local development mode.
+     * @param localPackageJson the absolute path to the local package.json file
+     */
+    public void setLocalPackageJson(String localPackageJson) {
+        this.localPackageJson = localPackageJson;
+    }
+
+    /**
+     * Gets the path to the local jdeploy-bundle directory for local development mode.
+     * @return the local bundle path, or null if not in local mode
+     */
+    public String getLocalBundle() {
+        return localBundle;
+    }
+
+    /**
+     * Sets the path to the local jdeploy-bundle directory for local development mode.
+     * @param localBundle the absolute path to the local jdeploy-bundle directory
+     */
+    public void setLocalBundle(String localBundle) {
+        this.localBundle = localBundle;
+    }
+
+    /**
+     * Checks if this app is configured for local development mode.
+     * Local mode is active when both localPackageJson and localBundle are set.
+     * @return true if in local development mode
+     */
+    public boolean isLocalMode() {
+        return localPackageJson != null && !localPackageJson.isEmpty()
+                && localBundle != null && !localBundle.isEmpty();
     }
 
     public List<Certificate> getTrustedCertificates() {

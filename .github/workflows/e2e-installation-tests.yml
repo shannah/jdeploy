@@ -1,0 +1,123 @@
+name: E2E Installation Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'Specific app to test (leave empty for all)'
+        required: false
+        default: ''
+      jdeploy_url:
+        description: 'jDeploy URL (default: www.jdeploy.com)'
+        required: false
+        default: 'www.jdeploy.com'
+
+jobs:
+  e2e-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build jdeploy
+        run: mvn clean install -DskipTests -q
+
+      - name: Run E2E tests
+        env:
+          JDEPLOY_URL: ${{ github.event.inputs.jdeploy_url || 'www.jdeploy.com' }}
+          TEST_APP: ${{ github.event.inputs.app || '' }}
+        run: |
+          chmod +x tests/e2e/e2e-test.sh
+          cd tests/e2e
+          if [ -n "$TEST_APP" ]; then
+            ./e2e-test.sh --app="$TEST_APP" --jdeploy-url="$JDEPLOY_URL" --verbose
+          else
+            ./e2e-test.sh --jdeploy-url="$JDEPLOY_URL" --verbose
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results-linux
+          path: tests/e2e/results/
+
+  e2e-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build jdeploy
+        run: mvn clean install -DskipTests -q
+
+      - name: Run E2E tests
+        env:
+          JDEPLOY_URL: ${{ github.event.inputs.jdeploy_url || 'www.jdeploy.com' }}
+          TEST_APP: ${{ github.event.inputs.app || '' }}
+        run: |
+          chmod +x tests/e2e/e2e-test.sh
+          cd tests/e2e
+          if [ -n "$TEST_APP" ]; then
+            ./e2e-test.sh --app="$TEST_APP" --jdeploy-url="$JDEPLOY_URL" --verbose
+          else
+            ./e2e-test.sh --jdeploy-url="$JDEPLOY_URL" --verbose
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results-macos
+          path: tests/e2e/results/
+
+  e2e-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build jdeploy
+        run: mvn clean install -DskipTests -q
+
+      - name: Run E2E tests
+        env:
+          JDEPLOY_URL: ${{ github.event.inputs.jdeploy_url || 'www.jdeploy.com' }}
+          TEST_APP: ${{ github.event.inputs.app || '' }}
+        shell: pwsh
+        run: |
+          cd tests/e2e
+          if ($env:TEST_APP) {
+            .\e2e-test.ps1 -App $env:TEST_APP -JdeployUrl $env:JDEPLOY_URL -Verbose
+          } else {
+            .\e2e-test.ps1 -JdeployUrl $env:JDEPLOY_URL -Verbose
+          }
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results-windows
+          path: tests/e2e/results/

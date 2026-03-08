@@ -78,6 +78,17 @@ public class LauncherWriterHelper {
                 atts.add(app.getInitialAppVersion());
             }
 
+            // Local development mode attributes
+            if (app.isLocalMode()) {
+                atts.add("local-package-json");
+                atts.add(app.getLocalPackageJson());
+                atts.add("local-bundle");
+                atts.add(app.getLocalBundle());
+            }
+
+            // Debug attributes
+            app.addDebugAttributesTo(atts);
+
             out.start("app", atts.toArray(new String[0])).end();
         } else {
             List<String> atts = new ArrayList<>();
@@ -95,6 +106,9 @@ public class LauncherWriterHelper {
                 atts.add("initial-app-version");
                 atts.add(app.getInitialAppVersion());
             }
+
+            // Debug attributes
+            app.addDebugAttributesTo(atts);
 
             out.start("app", atts.toArray(new String[0])).end();
         }

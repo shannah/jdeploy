@@ -24,6 +24,16 @@ public class AppDescription {
     private String npmSource = "";
     private boolean npmPrerelease;
     private boolean fork;
+
+    /**
+     * Path to local package.json for local development mode.
+     */
+    private String localPackageJson;
+
+    /**
+     * Path to local jdeploy-bundle for local development mode.
+     */
+    private String localBundle;
     private String url;
     private List<Jar> jars;
     private String name;
@@ -88,6 +98,18 @@ public class AppDescription {
     private List<Certificate> trustedCertificates;
 
     private String packageSigningCertificateChainPath;
+
+    /**
+     * TCP port for JDWP debugger connections.
+     * When set, enables remote debugging of the launched Java application.
+     */
+    private Integer debugPort;
+
+    /**
+     * Whether the JVM should suspend and wait for debugger attachment.
+     * Only relevant when debugPort is set. If null, the launcher uses its default (true).
+     */
+    private Boolean debugSuspend;
 
     public AppDescription() {
 
@@ -398,6 +420,47 @@ public class AppDescription {
         this.npmSource = npmSource;
     }
 
+    /**
+     * Gets the path to local package.json for local development mode.
+     * @return the local package.json path, or null if not in local mode
+     */
+    public String getLocalPackageJson() {
+        return localPackageJson;
+    }
+
+    /**
+     * Sets the path to local package.json for local development mode.
+     * @param localPackageJson the absolute path to the local package.json
+     */
+    public void setLocalPackageJson(String localPackageJson) {
+        this.localPackageJson = localPackageJson;
+    }
+
+    /**
+     * Gets the path to local jdeploy-bundle for local development mode.
+     * @return the local bundle path, or null if not in local mode
+     */
+    public String getLocalBundle() {
+        return localBundle;
+    }
+
+    /**
+     * Sets the path to local jdeploy-bundle for local development mode.
+     * @param localBundle the absolute path to the local jdeploy-bundle
+     */
+    public void setLocalBundle(String localBundle) {
+        this.localBundle = localBundle;
+    }
+
+    /**
+     * Checks if this app is configured for local development mode.
+     * @return true if both localPackageJson and localBundle are set
+     */
+    public boolean isLocalMode() {
+        return localPackageJson != null && !localPackageJson.isEmpty()
+                && localBundle != null && !localBundle.isEmpty();
+    }
+
     public String getNpmVersion() {
         return npmVersion;
     }
@@ -523,5 +586,44 @@ public class AppDescription {
 
     public void setCommands(List<CommandSpec> commands) {
         this.commands = commands != null ? Collections.unmodifiableList(new ArrayList<>(commands)) : Collections.emptyList();
+    }
+
+    public Integer getDebugPort() {
+        return debugPort;
+    }
+
+    public void setDebugPort(Integer debugPort) {
+        this.debugPort = debugPort;
+    }
+
+    public Boolean getDebugSuspend() {
+        return debugSuspend;
+    }
+
+    public void setDebugSuspend(Boolean debugSuspend) {
+        this.debugSuspend = debugSuspend;
+    }
+
+    /**
+     * Returns true if remote debugging is enabled (debug port is set and positive).
+     */
+    public boolean isDebugEnabled() {
+        return debugPort != null && debugPort > 0;
+    }
+
+    /**
+     * Adds debug-related attributes to the provided list if debugging is enabled.
+     * @param atts the list to add attributes to (name/value pairs)
+     */
+    public void addDebugAttributesTo(List<String> atts) {
+        if (isDebugEnabled()) {
+            atts.add("debug-port");
+            atts.add(String.valueOf(debugPort));
+
+            if (debugSuspend != null) {
+                atts.add("debug-suspend");
+                atts.add(String.valueOf(debugSuspend));
+            }
+        }
     }
 }

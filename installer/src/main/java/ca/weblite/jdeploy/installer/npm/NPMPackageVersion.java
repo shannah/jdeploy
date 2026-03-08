@@ -32,6 +32,20 @@ public class NPMPackageVersion {
         this.packageJson = packageJson;
     }
 
+    /**
+     * Creates an NPMPackageVersion from a local package.json file.
+     *
+     * This is used for local development mode where the package.json
+     * is read directly from the filesystem rather than from npm registry.
+     *
+     * @param packageJson The local package.json content
+     * @return An NPMPackageVersion instance
+     */
+    public static NPMPackageVersion fromLocalPackageJson(JSONObject packageJson) {
+        String version = packageJson.optString("version", "0.0.0-local");
+        return new NPMPackageVersion(null, version, packageJson);
+    }
+
 
     public NPMApplication toNPMApplication() {
         return NPMApplicationHelper.createFromPackageJSON(packageJson);

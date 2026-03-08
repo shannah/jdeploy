@@ -1,0 +1,116 @@
+name: E2E Local Project Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      template:
+        description: 'Specific template to test (leave empty for all)'
+        required: false
+        default: ''
+
+jobs:
+  e2e-local-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build jdeploy
+        run: mvn clean install -DskipTests -q
+
+      - name: Run E2E local project tests
+        env:
+          TEST_TEMPLATE: ${{ github.event.inputs.template || '' }}
+        run: |
+          chmod +x tests/e2e/e2e-local-test.sh
+          cd tests/e2e
+          if [ -n "$TEST_TEMPLATE" ]; then
+            ./e2e-local-test.sh --template="$TEST_TEMPLATE" --verbose
+          else
+            ./e2e-local-test.sh --verbose
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-local-results-linux
+          path: tests/e2e/results-local/
+
+  e2e-local-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build jdeploy
+        run: mvn clean install -DskipTests -q
+
+      - name: Run E2E local project tests
+        env:
+          TEST_TEMPLATE: ${{ github.event.inputs.template || '' }}
+        run: |
+          chmod +x tests/e2e/e2e-local-test.sh
+          cd tests/e2e
+          if [ -n "$TEST_TEMPLATE" ]; then
+            ./e2e-local-test.sh --template="$TEST_TEMPLATE" --verbose
+          else
+            ./e2e-local-test.sh --verbose
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-local-results-macos
+          path: tests/e2e/results-local/
+
+  e2e-local-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build jdeploy
+        run: mvn clean install -DskipTests -q
+
+      - name: Run E2E local project tests
+        env:
+          TEST_TEMPLATE: ${{ github.event.inputs.template || '' }}
+        shell: pwsh
+        run: |
+          cd tests/e2e
+          if ($env:TEST_TEMPLATE) {
+            .\e2e-local-test.ps1 -Template $env:TEST_TEMPLATE -Verbose
+          } else {
+            .\e2e-local-test.ps1 -Verbose
+          }
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-local-results-windows
+          path: tests/e2e/results-local/

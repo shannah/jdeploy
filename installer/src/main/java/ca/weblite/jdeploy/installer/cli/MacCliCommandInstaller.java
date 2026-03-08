@@ -111,38 +111,49 @@ public class MacCliCommandInstaller extends AbstractUnixCliCommandInstaller {
             } else {
                 String commandName = deriveCommandName(settings);
                 File symlinkPath = new File(launcherBinDir, commandName);
-                DebugLogger.log("Creating symlink for primary command: " + commandName + " at " + symlinkPath);
 
-                if (symlinkPath.exists()) {
-                    symlinkPath.delete();
-                }
+                // Check if a command script with the same path was already created
+                // to avoid duplicate entries in the uninstall manifest
+                boolean alreadyCreated = createdFiles.stream()
+                        .anyMatch(f -> f.getAbsolutePath().equals(symlinkPath.getAbsolutePath()));
 
-                try {
-                    Files.createSymbolicLink(symlinkPath.toPath(), launcherPath.toPath());
-                    System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
-                    DebugLogger.log("Symlink created successfully: " + symlinkPath);
-                    if (installationLogger != null) {
-                        installationLogger.logShortcut(InstallationLogger.FileOperation.CREATED,
-                                symlinkPath.getAbsolutePath(), launcherPath.getAbsolutePath());
-                    }
+                if (alreadyCreated) {
+                    DebugLogger.log("Skipping symlink creation - command script already exists at: " + symlinkPath);
                     settings.setCommandLineSymlinkCreated(true);
-                    createdFiles.add(symlinkPath);
-                    anyCreated = true;
+                } else {
+                    DebugLogger.log("Creating symlink for primary command: " + commandName + " at " + symlinkPath);
 
-                    // Add to PATH if not already added for commands
-                    if (commandsBinDir == null) {
-                        DebugLogger.log("Calling addToPath() for: " + launcherBinDir);
-                        addToPath(launcherBinDir);
-                        if (installationLogger != null) {
-                            installationLogger.logPathChange(true, launcherBinDir.getAbsolutePath(), "macOS CLI launcher");
-                        }
+                    if (symlinkPath.exists()) {
+                        symlinkPath.delete();
                     }
-                } catch (Exception e) {
-                    System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
-                    DebugLogger.log("Failed to create symlink: " + e.getMessage());
-                    if (installationLogger != null) {
-                        installationLogger.logShortcut(InstallationLogger.FileOperation.FAILED,
-                                symlinkPath.getAbsolutePath(), e.getMessage());
+
+                    try {
+                        Files.createSymbolicLink(symlinkPath.toPath(), launcherPath.toPath());
+                        System.out.println("Created command-line symlink: " + symlinkPath.getAbsolutePath());
+                        DebugLogger.log("Symlink created successfully: " + symlinkPath);
+                        if (installationLogger != null) {
+                            installationLogger.logShortcut(InstallationLogger.FileOperation.CREATED,
+                                    symlinkPath.getAbsolutePath(), launcherPath.getAbsolutePath());
+                        }
+                        settings.setCommandLineSymlinkCreated(true);
+                        createdFiles.add(symlinkPath);
+                        anyCreated = true;
+
+                        // Add to PATH if not already added for commands
+                        if (commandsBinDir == null) {
+                            DebugLogger.log("Calling addToPath() for: " + launcherBinDir);
+                            addToPath(launcherBinDir);
+                            if (installationLogger != null) {
+                                installationLogger.logPathChange(true, launcherBinDir.getAbsolutePath(), "macOS CLI launcher");
+                            }
+                        }
+                    } catch (Exception e) {
+                        System.err.println("Warning: Failed to create command-line symlink: " + e.getMessage());
+                        DebugLogger.log("Failed to create symlink: " + e.getMessage());
+                        if (installationLogger != null) {
+                            installationLogger.logShortcut(InstallationLogger.FileOperation.FAILED,
+                                    symlinkPath.getAbsolutePath(), e.getMessage());
+                        }
                     }
                 }
             }

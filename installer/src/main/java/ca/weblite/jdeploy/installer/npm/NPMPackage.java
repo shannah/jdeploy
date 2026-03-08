@@ -10,7 +10,12 @@ public class NPMPackage {
 
     private JSONObject packageInfo;
 
-    NPMPackage(JSONObject packageInfo) {
+    /**
+     * Creates an NPMPackage from a JSON object representing package.json content.
+     *
+     * @param packageInfo The package.json content as a JSONObject
+     */
+    public NPMPackage(JSONObject packageInfo) {
         this.packageInfo = packageInfo;
     }
 

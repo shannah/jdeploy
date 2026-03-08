@@ -587,6 +587,155 @@ public class UninstallService {
             result.addError(errorMsg);
             result.incrementFailureCount();
         }
+
+        // Clean up macOS app bundles in ~/Applications/
+        if (Platform.getSystemPlatform().isMac()) {
+            cleanupMacOSAppBundles(packageName, source, result);
+        }
+
+        // Clean up Windows registry entries
+        if (Platform.getSystemPlatform().isWindows()) {
+            cleanupWindowsRegistry(packageName, source, result);
+        }
+    }
+
+    /**
+     * Cleans up macOS .app bundles in ~/Applications/ that belong to this package.
+     * Scans for .app bundles containing .jdeploy-cli.json metadata that matches the package.
+     */
+    private void cleanupMacOSAppBundles(String packageName, String source, UninstallResult result) {
+        File userHome = new File(System.getProperty("user.home"));
+        File applicationsDir = new File(userHome, "Applications");
+
+        if (!applicationsDir.exists() || !applicationsDir.isDirectory()) {
+            LOGGER.fine("macOS Applications directory does not exist: " + applicationsDir.getAbsolutePath());
+            return;
+        }
+
+        File[] appBundles = applicationsDir.listFiles((dir, name) -> name.endsWith(".app"));
+        if (appBundles == null || appBundles.length == 0) {
+            LOGGER.fine("No .app bundles found in: " + applicationsDir.getAbsolutePath());
+            return;
+        }
+
+        for (File appBundle : appBundles) {
+            if (isAppBundleForPackage(appBundle, packageName, source)) {
+                try {
+                    FileUtils.deleteDirectory(appBundle);
+                    result.incrementSuccessCount();
+                    LOGGER.info("Deleted macOS app bundle: " + appBundle.getAbsolutePath());
+                } catch (IOException e) {
+                    String errorMsg = "Failed to delete macOS app bundle: " + appBundle.getAbsolutePath() +
+                                    " - " + e.getMessage();
+                    LOGGER.warning(errorMsg);
+                    result.addError(errorMsg);
+                    result.incrementFailureCount();
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks if a macOS .app bundle belongs to the specified package by reading its app.xml file.
+     * The app.xml file is located at Contents/app.xml and contains package info as XML attributes.
+     */
+    private boolean isAppBundleForPackage(File appBundle, String packageName, String source) {
+        // Check for app.xml in Contents/
+        File appXmlFile = new File(appBundle, "Contents" + File.separator + "app.xml");
+
+        if (!appXmlFile.exists()) {
+            LOGGER.fine("No app.xml in app bundle: " + appBundle.getName());
+            return false;
+        }
+
+        try {
+            // Parse the XML file to extract package and source attributes
+            javax.xml.parsers.DocumentBuilderFactory factory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+            javax.xml.parsers.DocumentBuilder builder = factory.newDocumentBuilder();
+            org.w3c.dom.Document doc = builder.parse(appXmlFile);
+
+            org.w3c.dom.Element root = doc.getDocumentElement();
+            if (root == null || !"app".equals(root.getTagName())) {
+                LOGGER.fine("Invalid app.xml format in: " + appBundle.getName());
+                return false;
+            }
+
+            String bundlePackageName = root.getAttribute("package");
+            String bundleSource = root.getAttribute("source");
+
+            // Treat empty string as null for source
+            if (bundleSource != null && bundleSource.isEmpty()) {
+                bundleSource = null;
+            }
+
+            // Match package name
+            if (bundlePackageName == null || bundlePackageName.isEmpty()) {
+                LOGGER.fine("No package attribute in app.xml: " + appBundle.getName());
+                return false;
+            }
+
+            if (!packageName.equals(bundlePackageName)) {
+                return false;
+            }
+
+            // Match source (both null for NPM packages, or equal for GitHub packages)
+            if (source == null && bundleSource == null) {
+                return true;
+            }
+            if (source != null && source.equals(bundleSource)) {
+                return true;
+            }
+
+            return false;
+        } catch (Exception e) {
+            LOGGER.fine("Failed to read app.xml from app bundle: " + appBundle.getName() + " - " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Cleans up Windows registry entries for this package.
+     * Removes the uninstall registry key created by InstallWindowsRegistry.
+     */
+    private void cleanupWindowsRegistry(String packageName, String source, UninstallResult result) {
+        try {
+            // Compute the registry key name using the same format as InstallWindowsRegistry
+            // Format: jdeploy.[sourceHash.]packageName
+            String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName(packageName, source);
+            String registryKeyName = "jdeploy." + fqpn;
+            String uninstallKey = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\" + registryKeyName;
+
+            // Check if the key exists before trying to delete
+            if (registryOperations.keyExists(uninstallKey)) {
+                // Delete the registry key and all its values
+                deleteRegistryKeyRecursive(uninstallKey);
+                result.incrementSuccessCount();
+                LOGGER.info("Deleted Windows registry key: HKCU\\" + uninstallKey);
+            } else {
+                LOGGER.fine("Windows registry key does not exist: HKCU\\" + uninstallKey);
+            }
+        } catch (Exception e) {
+            String errorMsg = "Failed to delete Windows registry key for package: " + packageName +
+                            " - " + e.getMessage();
+            LOGGER.warning(errorMsg);
+            result.addError(errorMsg);
+            result.incrementFailureCount();
+        }
+    }
+
+    /**
+     * Recursively deletes a Windows registry key and all its subkeys.
+     */
+    private void deleteRegistryKeyRecursive(String keyPath) {
+        // First, delete all subkeys
+        java.util.Set<String> subkeys = registryOperations.getKeys(keyPath);
+        if (subkeys != null && !subkeys.isEmpty()) {
+            for (String subkey : subkeys) {
+                deleteRegistryKeyRecursive(keyPath + "\\" + subkey);
+            }
+        }
+        // Then delete the key itself
+        registryOperations.deleteKey(keyPath);
     }
 
     /**

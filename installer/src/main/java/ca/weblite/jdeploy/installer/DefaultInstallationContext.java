@@ -120,6 +120,16 @@ public class DefaultInstallationContext implements InstallationContext {
     private File cachedInstallFilesDir;
     public File findInstallFilesDir() {
         if (cachedInstallFilesDir != null && cachedInstallFilesDir.exists()) return cachedInstallFilesDir;
+
+        // Check if app.xml path is set directly (used by headless install)
+        if (System.getProperty("client4j.appxml.path") != null) {
+            File appXmlFile = new File(System.getProperty("client4j.appxml.path"));
+            cachedInstallFilesDir = findInstallFilesDir(appXmlFile.getParentFile());
+            if (cachedInstallFilesDir != null) {
+                return cachedInstallFilesDir;
+            }
+        }
+
         if (System.getProperty("client4j.launcher.path") != null) {
             String launcherPath = System.getProperty("client4j.launcher.path");
             String launcherFileName = launcherPath;
@@ -147,11 +157,7 @@ public class DefaultInstallationContext implements InstallationContext {
             }
 
             System.out.println("Found client4.launcher.path property: "+launcherPath);
-            if (System.getProperty("client4j.appxml.path") != null) {
-                cachedInstallFilesDir = findInstallFilesDir(new File(System.getProperty("client4j.appxml.path")).getParentFile());
-            } else {
-                cachedInstallFilesDir = findInstallFilesDir(new File(launcherPath));
-            }
+            cachedInstallFilesDir = findInstallFilesDir(new File(launcherPath));
 
             return cachedInstallFilesDir;
         } else {
@@ -611,6 +617,10 @@ public class DefaultInstallationContext implements InstallationContext {
 
     private File findInstallFilesDir(File startDir) {
         if (startDir == null) return null;
+        // Check if startDir itself is the .jdeploy-files directory
+        if (".jdeploy-files".equals(startDir.getName()) && startDir.isDirectory()) {
+            return startDir;
+        }
         if (Platform.getSystemPlatform().isMac() && "AppTranslocation".equals(startDir.getName())) {
             System.out.println("Detected that we are running inside Gatekeeper so we can't retrieve bundle info");
             System.out.println("Attempting to download bundle info from network");

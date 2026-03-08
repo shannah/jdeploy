@@ -32,7 +32,7 @@ public class CliCommandBinDirResolver {
             throw new IllegalArgumentException("packageName cannot be null or empty");
         }
 
-        if (source == null) {
+        if (source == null || source.trim().isEmpty()) {
             // NPM package: use packageName as-is
             return packageName;
         }
