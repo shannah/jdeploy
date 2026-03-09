@@ -287,6 +287,13 @@
             <artifactId>bcpkix-jdk15on</artifactId>
             <version>1.70</version>
         </dependency>
+
+        <!-- Windows Authenticode signing -->
+        <dependency>
+            <groupId>net.jsign</groupId>
+            <artifactId>jsign-core</artifactId>
+            <version>7.0</version>
+        </dependency>
         <dependency>
             <groupId>ca.weblite.jdeploy</groupId>
             <artifactId>image4j</artifactId>
