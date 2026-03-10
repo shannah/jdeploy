@@ -1940,24 +1940,7 @@ public class Main implements Runnable, Constants {
         // Configure JCEF frameworks if using JBR with JCEF variant
         JCEFConfigurer.configureJCEF(bundlerSettings, npmPackageVersion());
 
-        // Try to use pre-built bundle artifacts if available
-        boolean usedPreBuiltBundle = false;
-        if (PreBuiltBundleDownloader.isAvailable(npmPackageVersion())) {
-            System.out.println("Pre-built bundle available for " + PreBuiltBundleDownloader.getCurrentPlatformKey() + ", downloading...");
-            File preBuiltOutputDir = new File(tmpBundles, target);
-            PreBuiltBundleDownloader.Result result = PreBuiltBundleDownloader.download(npmPackageVersion(), preBuiltOutputDir);
-            if (result.isSuccess()) {
-                System.out.println("Pre-built bundle downloaded and verified successfully.");
-                usedPreBuiltBundle = true;
-            } else {
-                System.err.println("Pre-built bundle download failed: " + result.getErrorMessage());
-                System.out.println("Falling back to local bundle generation...");
-            }
-        }
-
-        if (!usedPreBuiltBundle) {
-            Bundler.runit(bundlerSettings, appInfo(), findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
-        }
+        Bundler.runit(bundlerSettings, appInfo(), findAppXmlFile().toURI().toURL().toString(), target, tmpBundles.getAbsolutePath(), tmpReleases.getAbsolutePath());
 
         if (Platform.getSystemPlatform().isWindows()) {
             installedApp = new InstallWindows().install(
