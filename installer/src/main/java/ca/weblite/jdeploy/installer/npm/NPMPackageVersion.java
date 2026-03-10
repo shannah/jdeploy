@@ -299,4 +299,30 @@ public class NPMPackageVersion {
     public AiIntegrationConfig getAiIntegrationConfig(File bundleDir) {
         return AiIntegrationConfig.fromBundle(packageJson, bundleDir);
     }
+
+    /**
+     * Gets the pre-built bundle artifacts from jdeploy.artifacts in package.json.
+     *
+     * @return the artifacts JSONObject, or null if not present
+     */
+    public JSONObject getArtifacts() {
+        if (jdeploy().has("artifacts")) {
+            return jdeploy().getJSONObject("artifacts");
+        }
+        return null;
+    }
+
+    /**
+     * Gets the artifact info for a specific platform key (e.g., "mac-arm64", "win-x64").
+     *
+     * @param platformKey the platform key
+     * @return the artifact JSONObject with url, sha256, and optional cli sub-object, or null
+     */
+    public JSONObject getArtifact(String platformKey) {
+        JSONObject artifacts = getArtifacts();
+        if (artifacts != null && artifacts.has(platformKey)) {
+            return artifacts.getJSONObject(platformKey);
+        }
+        return null;
+    }
 }

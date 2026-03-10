@@ -115,8 +115,9 @@ public class PublishBundleService {
                         context.out.println("  Created: " + guiArtifact.getFilename());
                     }
 
-                    // Build CLI bundle if commands exist
-                    if (hasCliCommands) {
+                    // Build CLI bundle if commands exist (Windows only -
+                    // macOS includes CLI binary inside the .app bundle)
+                    if (hasCliCommands && "win".equals(platformName)) {
                         BundlerResult cliResult = buildBundle(context, bundleTarget, source, true);
                         if (cliResult != null && cliResult.getOutputFile() != null) {
                             BundleArtifact cliArtifact = wrapInJar(
