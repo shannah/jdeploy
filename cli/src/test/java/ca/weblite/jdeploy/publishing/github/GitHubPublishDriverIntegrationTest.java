@@ -164,7 +164,10 @@ public class GitHubPublishDriverIntegrationTest {
             defaultBundleService,
             projectFactory,
             githubDriverEnvironment,
-            mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class)
+            mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class),
+            mock(ca.weblite.jdeploy.services.PublishBundleService.class),
+            mock(ca.weblite.jdeploy.publishing.BundleUploadRouter.class),
+            mock(ca.weblite.jdeploy.publishing.BundleChecksumWriter.class)
         );
         
         // Setup test target
