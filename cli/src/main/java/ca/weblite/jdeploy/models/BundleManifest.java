@@ -30,7 +30,7 @@ public class BundleManifest {
     }
 
     /**
-     * Builds the jdeploy.bundles JSONObject for package.json.
+     * Builds the jdeploy.publishedBundles JSONObject for package.json.
      * Each key is {platform}-{arch}. Values contain url, sha256, and optional cli sub-object.
      */
     public JSONObject toPackageJsonBundles() {

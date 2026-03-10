@@ -40,7 +40,7 @@ public class BundleChecksumWriter {
             packageJson.put("jdeploy", jdeployObj);
         }
 
-        jdeployObj.put("bundles", manifest.toPackageJsonBundles());
+        jdeployObj.put("publishedBundles", manifest.toPackageJsonBundles());
 
         FileUtils.writeStringToFile(publishPackageJson, packageJson.toString(), "UTF-8");
     }
