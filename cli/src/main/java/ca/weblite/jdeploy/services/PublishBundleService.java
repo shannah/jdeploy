@@ -4,9 +4,6 @@ import ca.weblite.jdeploy.appbundler.BundlerResult;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.app.AppInfo;
-import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
-import ca.weblite.jdeploy.downloadPage.DownloadPageSettings.BundlePlatform;
-import ca.weblite.jdeploy.downloadPage.DownloadPageSettingsService;
 import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.jdeploy.models.BundleArtifact;
 import ca.weblite.jdeploy.models.BundleManifest;
@@ -19,7 +16,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.io.*;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
@@ -31,48 +27,44 @@ import static ca.weblite.jdeploy.BundleConstants.*;
 /**
  * Builds platform-specific native bundles at publish time and wraps them
  * in JAR files for distribution as downloadable artifacts.
+ *
+ * <p>Platforms to build are declared via {@code jdeploy.artifacts} in package.json.
+ * Each key is a platform key (e.g. "mac-arm64", "win-x64") with at minimum
+ * {@code "enabled": true}. At publish time, this service builds bundles for
+ * each enabled platform and the url/sha256 fields are added alongside the
+ * existing entry.</p>
  */
 @Singleton
 public class PublishBundleService {
 
-    private final DownloadPageSettingsService downloadPageSettingsService;
-    private final BundleCodeService bundleCodeService;
-
     @Inject
-    public PublishBundleService(
-            DownloadPageSettingsService downloadPageSettingsService,
-            BundleCodeService bundleCodeService
-    ) {
-        this.downloadPageSettingsService = downloadPageSettingsService;
-        this.bundleCodeService = bundleCodeService;
+    public PublishBundleService() {
     }
 
     /**
-     * Checks if publish bundles are enabled in package.json.
+     * Checks if any artifact platforms are enabled in package.json.
+     * Looks for jdeploy.artifacts entries with "enabled": true.
      */
     public boolean isEnabled(PackagingContext context) {
-        return context.getBoolean("publishBundles", false);
+        return !getEnabledPlatformKeys(context).isEmpty();
     }
 
     /**
-     * Builds native bundles for all configured platforms and wraps them in JARs.
+     * Builds native bundles for all enabled artifact platforms and wraps them in JARs.
      *
      * @param context the packaging context
      * @param source  the source URL (GitHub repo URL) or null for NPM
      * @return BundleManifest containing all built artifacts
      */
     public BundleManifest buildBundles(PackagingContext context, String source) throws IOException {
-        if (!isEnabled(context)) {
+        List<String> platformKeys = getEnabledPlatformKeys(context);
+        if (platformKeys.isEmpty()) {
             return new BundleManifest(Collections.emptyList());
         }
 
         String version = VersionCleaner.cleanVersion(context.getVersion());
         String packageName = context.getName();
         String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName(packageName, source);
-
-        // Determine which platforms to build
-        DownloadPageSettings downloadPageSettings = downloadPageSettingsService.read(context.packageJsonFile);
-        Set<BundlePlatform> platforms = downloadPageSettings.getResolvedPlatforms();
 
         // Check if CLI commands exist
         boolean hasCliCommands = hasCliCommands(context);
@@ -89,19 +81,17 @@ public class PublishBundleService {
         List<BundleArtifact> artifacts = new ArrayList<>();
 
         try {
-            for (BundlePlatform platform : platforms) {
-                String bundleTarget = toBundleTarget(platform);
-                if (bundleTarget == null) {
+            for (String platformKey : platformKeys) {
+                String platformName = parsePlatformName(platformKey);
+                String arch = parseArch(platformKey);
+                String bundleTarget = toBundleTarget(platformName, arch);
+
+                if (platformName == null || arch == null || bundleTarget == null) {
+                    context.err.println("Warning: Skipping unknown artifact platform key: " + platformKey);
                     continue;
                 }
 
-                String platformName = toPlatformName(platform);
-                String arch = toArch(platform);
-                if (platformName == null || arch == null) {
-                    continue;
-                }
-
-                context.out.println("Building bundle for " + platformName + "-" + arch + "...");
+                context.out.println("Building bundle for " + platformKey + "...");
 
                 try {
                     // Build GUI bundle
@@ -129,11 +119,10 @@ public class PublishBundleService {
                         }
                     }
                 } catch (Exception e) {
-                    context.err.println("Warning: Failed to build bundle for " + platformName + "-" + arch + ": " + e.getMessage());
+                    context.err.println("Warning: Failed to build bundle for " + platformKey + ": " + e.getMessage());
                 }
             }
         } catch (Exception e) {
-            // Clean up temp dir on failure, but keep jar output dir since JARs may already be referenced
             throw new IOException("Failed to build publish bundles", e);
         } finally {
             // Clean up intermediate bundle/release dirs (not the JARs)
@@ -143,6 +132,35 @@ public class PublishBundleService {
 
         context.out.println("Built " + artifacts.size() + " bundle artifact(s)");
         return new BundleManifest(artifacts);
+    }
+
+    /**
+     * Returns the list of platform keys (e.g. "mac-arm64", "win-x64") that have
+     * "enabled": true in jdeploy.artifacts.
+     */
+    private List<String> getEnabledPlatformKeys(PackagingContext context) {
+        List<String> keys = new ArrayList<>();
+        Map jdeploy = context.mj();
+        if (jdeploy == null || !jdeploy.containsKey("artifacts")) {
+            return keys;
+        }
+
+        Object artifactsObj = jdeploy.get("artifacts");
+        if (!(artifactsObj instanceof Map)) {
+            return keys;
+        }
+
+        Map<String, Object> artifacts = (Map<String, Object>) artifactsObj;
+        for (Map.Entry<String, Object> entry : artifacts.entrySet()) {
+            Object value = entry.getValue();
+            if (value instanceof Map) {
+                Object enabled = ((Map) value).get("enabled");
+                if (Boolean.TRUE.equals(enabled)) {
+                    keys.add(entry.getKey());
+                }
+            }
+        }
+        return keys;
     }
 
     private BundlerResult buildBundle(
@@ -307,46 +325,37 @@ public class PublishBundleService {
         return false;
     }
 
-    private String toBundleTarget(BundlePlatform platform) {
-        switch (platform) {
-            case MacX64: return BUNDLE_MAC_X64;
-            case MacArm64: return BUNDLE_MAC_ARM64;
-            case WindowsX64: return BUNDLE_WIN_X64;
-            case WindowsArm64: return BUNDLE_WIN_ARM64;
-            case LinuxX64: return BUNDLE_LINUX_X64;
-            case LinuxArm64: return BUNDLE_LINUX_ARM64;
+    /**
+     * Parses the platform name from a platform key like "mac-arm64" -> "mac".
+     */
+    private String parsePlatformName(String platformKey) {
+        int dash = platformKey.lastIndexOf('-');
+        if (dash <= 0) return null;
+        return platformKey.substring(0, dash);
+    }
+
+    /**
+     * Parses the architecture from a platform key like "mac-arm64" -> "arm64".
+     */
+    private String parseArch(String platformKey) {
+        int dash = platformKey.lastIndexOf('-');
+        if (dash <= 0 || dash >= platformKey.length() - 1) return null;
+        return platformKey.substring(dash + 1);
+    }
+
+    /**
+     * Maps platform name + arch to a bundle target constant.
+     */
+    private String toBundleTarget(String platformName, String arch) {
+        if (platformName == null || arch == null) return null;
+        switch (platformName + "-" + arch) {
+            case "mac-x64": return BUNDLE_MAC_X64;
+            case "mac-arm64": return BUNDLE_MAC_ARM64;
+            case "win-x64": return BUNDLE_WIN_X64;
+            case "win-arm64": return BUNDLE_WIN_ARM64;
+            case "linux-x64": return BUNDLE_LINUX_X64;
+            case "linux-arm64": return BUNDLE_LINUX_ARM64;
             default: return null;
-        }
-    }
-
-    private String toPlatformName(BundlePlatform platform) {
-        switch (platform) {
-            case MacX64:
-            case MacArm64:
-                return "mac";
-            case WindowsX64:
-            case WindowsArm64:
-                return "win";
-            case LinuxX64:
-            case LinuxArm64:
-                return "linux";
-            default:
-                return null;
-        }
-    }
-
-    private String toArch(BundlePlatform platform) {
-        switch (platform) {
-            case MacX64:
-            case WindowsX64:
-            case LinuxX64:
-                return "x64";
-            case MacArm64:
-            case WindowsArm64:
-            case LinuxArm64:
-                return "arm64";
-            default:
-                return null;
         }
     }
 }

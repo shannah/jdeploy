@@ -257,7 +257,7 @@ public class NPMPublishDriver implements PublishDriverInterface {
 
     /**
      * Builds pre-built native bundles, uploads them to S3, and writes checksums to package.json
-     * if publishBundles is enabled. For NPM targets, S3 is required since NPM doesn't host
+     * if any artifact platforms are enabled in jdeploy.artifacts. For NPM targets, S3 is required since NPM doesn't host
      * arbitrary binary assets.
      */
     private void maybePublishBundles(PublishingContext context, PublishTargetInterface target) {

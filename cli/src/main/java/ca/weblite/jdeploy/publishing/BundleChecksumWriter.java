@@ -40,7 +40,26 @@ public class BundleChecksumWriter {
             packageJson.put("jdeploy", jdeployObj);
         }
 
-        jdeployObj.put("artifacts", manifest.toPackageJsonBundles());
+        // Merge built artifact data (url, sha256, cli) into existing entries
+        // which may already have "enabled": true and other user-defined fields
+        JSONObject existingArtifacts = jdeployObj.optJSONObject("artifacts");
+        if (existingArtifacts == null) {
+            existingArtifacts = new JSONObject();
+        }
+        JSONObject builtArtifacts = manifest.toPackageJsonBundles();
+        for (String key : builtArtifacts.keySet()) {
+            JSONObject builtEntry = builtArtifacts.getJSONObject(key);
+            JSONObject existingEntry = existingArtifacts.optJSONObject(key);
+            if (existingEntry == null) {
+                existingEntry = new JSONObject();
+            }
+            // Copy all built fields into the existing entry
+            for (String field : builtEntry.keySet()) {
+                existingEntry.put(field, builtEntry.get(field));
+            }
+            existingArtifacts.put(key, existingEntry);
+        }
+        jdeployObj.put("artifacts", existingArtifacts);
 
         FileUtils.writeStringToFile(publishPackageJson, packageJson.toString(), "UTF-8");
     }

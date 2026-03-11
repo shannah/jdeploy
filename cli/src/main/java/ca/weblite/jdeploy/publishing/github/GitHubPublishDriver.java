@@ -680,7 +680,7 @@ public class GitHubPublishDriver implements PublishDriverInterface {
 
     /**
      * Builds pre-built native bundles, uploads them, and writes checksums to package.json
-     * if publishBundles is enabled in the jdeploy config.
+     * if any artifact platforms are enabled in jdeploy.artifacts.
      */
     private void maybePublishBundles(PublishingContext context, PublishTargetInterface target) {
         if (!publishBundleService.isEnabled(context.packagingContext)) {
