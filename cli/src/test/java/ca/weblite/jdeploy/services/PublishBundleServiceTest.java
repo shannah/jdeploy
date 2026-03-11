@@ -14,8 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedStatic;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -52,6 +51,10 @@ class PublishBundleServiceTest {
     }
 
     private PackagingContext createContext(Map<String, Object> packageJsonMap) {
+        // Use null streams to avoid corrupting Surefire's forked JVM communication
+        PrintStream nullOut = new PrintStream(new OutputStream() {
+            public void write(int b) {}
+        });
         return new PackagingContext(
                 tempDir,
                 packageJsonMap,
@@ -62,9 +65,9 @@ class PublishBundleServiceTest {
                 null,   // installersOverride
                 null,   // keyProvider
                 null,   // packageSigningService
-                System.out,
-                System.err,
-                System.in,
+                nullOut,
+                nullOut,
+                new ByteArrayInputStream(new byte[0]),
                 false,  // exitOnFail
                 false   // isBuildRequired
         );
