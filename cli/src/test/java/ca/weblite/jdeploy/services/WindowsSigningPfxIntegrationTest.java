@@ -136,79 +136,128 @@ class WindowsSigningPfxIntegrationTest {
     }
 
     /**
-     * Creates a minimal valid PE (Portable Executable) file.
+     * Creates a minimal valid PE (Portable Executable) file that jsign can sign.
      *
-     * <p>This creates the smallest valid PE that jsign can sign: a DOS header
-     * pointing to a PE signature, followed by a minimal COFF header and
-     * optional header. The executable doesn't need to actually run — it just
-     * needs valid PE structure for Authenticode signing.</p>
+     * <p>Uses a real minimal EXE from test resources if available, otherwise
+     * falls back to copying a known-good PE from the jdeploy installer templates.
+     * If neither is available, builds a PE from scratch with proper data directory
+     * entries including the certificate table (index 4), which jsign requires.</p>
      */
     static void createMinimalPeExe(File exeFile) throws IOException {
-        // Minimal PE: DOS stub + PE header + optional header + one section
-        byte[] pe = new byte[512];
+        // Try to use a real EXE from the installer templates
+        InputStream templateStream = WindowsSigningPfxIntegrationTest.class.getResourceAsStream(
+                "/test-unsigned.exe"
+        );
+        if (templateStream != null) {
+            Files.copy(templateStream, exeFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            templateStream.close();
+            return;
+        }
 
-        // DOS Header
+        // Build a minimal PE from scratch with proper structure.
+        // PE layout:
+        //   0x000: DOS header (64 bytes, e_lfanew points to 0x80)
+        //   0x080: PE signature (4 bytes)
+        //   0x084: COFF header (20 bytes)
+        //   0x098: Optional header PE32 (224 bytes = 96 standard/windows + 128 data dirs)
+        //     - Data directories: 16 entries x 8 bytes = 128 bytes (0x0F8..0x177)
+        //     - Certificate table is entry #4 at offset 0x118
+        //   0x178: Section header (.text, 40 bytes)
+        //   0x200: Section data (file-aligned to 512)
+
+        int fileSize = 1024; // Two sectors: headers + minimal section data
+        byte[] pe = new byte[fileSize];
+
+        // --- DOS Header ---
         pe[0] = 'M';
         pe[1] = 'Z';
-        // e_lfanew: offset to PE signature at byte 60-63 (little-endian)
-        pe[60] = (byte) 0x80; // PE header starts at offset 128
+        // e_lfanew at offset 60
+        writeLE32(pe, 60, 0x80);
 
-        // PE Signature at offset 0x80
+        // --- PE Signature at 0x80 ---
         pe[0x80] = 'P';
         pe[0x81] = 'E';
-        pe[0x82] = 0;
-        pe[0x83] = 0;
 
-        // COFF Header (20 bytes starting at 0x84)
-        pe[0x84] = 0x4C; // Machine: i386 (0x014C)
-        pe[0x85] = 0x01;
-        pe[0x86] = 0x01; // NumberOfSections: 1
-        pe[0x87] = 0x00;
-        // TimeDateStamp (4 bytes) - leave zero
-        // PointerToSymbolTable (4 bytes) - leave zero
-        // NumberOfSymbols (4 bytes) - leave zero
-        pe[0x94] = (byte) 0xE0; // SizeOfOptionalHeader: 224 (0x00E0) for PE32
-        pe[0x95] = 0x00;
-        pe[0x96] = 0x02; // Characteristics: EXECUTABLE_IMAGE
-        pe[0x97] = 0x00;
+        // --- COFF Header at 0x84 (20 bytes) ---
+        writeLE16(pe, 0x84, 0x014C); // Machine: i386
+        writeLE16(pe, 0x86, 1);       // NumberOfSections: 1
+        writeLE16(pe, 0x94, 0xE0);    // SizeOfOptionalHeader: 224
+        writeLE16(pe, 0x96, 0x0002);  // Characteristics: EXECUTABLE_IMAGE
 
-        // Optional Header (starts at 0x98)
-        pe[0x98] = 0x0B; // Magic: PE32 (0x010B)
-        pe[0x99] = 0x01;
+        // --- Optional Header at 0x98 (PE32, 224 bytes) ---
+        writeLE16(pe, 0x98, 0x010B);  // Magic: PE32
 
-        // SectionAlignment at offset 0x98+32 = 0xB8
-        pe[0xB8] = 0x00;
-        pe[0xB9] = 0x10; // 0x1000
-        pe[0xBA] = 0x00;
-        pe[0xBB] = 0x00;
+        // Standard fields
+        pe[0x98 + 2] = 1;  // MajorLinkerVersion
+        writeLE32(pe, 0x98 + 16, 0x1000); // AddressOfEntryPoint
+        writeLE32(pe, 0x98 + 28, 0x400000); // ImageBase
 
-        // FileAlignment at offset 0x98+36 = 0xBC
-        pe[0xBC] = 0x00;
-        pe[0xBD] = 0x02; // 0x200 = 512
-        pe[0xBE] = 0x00;
-        pe[0xBF] = 0x00;
+        // SectionAlignment
+        writeLE32(pe, 0x98 + 32, 0x1000);
+        // FileAlignment
+        writeLE32(pe, 0x98 + 36, 0x200);
 
-        // SizeOfHeaders at offset 0x98+60 = 0xD4
-        pe[0xD4] = 0x00;
-        pe[0xD5] = 0x02; // 0x200 = 512
-        pe[0xD6] = 0x00;
-        pe[0xD7] = 0x00;
+        // OS version
+        writeLE16(pe, 0x98 + 40, 4); // MajorOperatingSystemVersion
+        // Image version
+        writeLE16(pe, 0x98 + 44, 1); // MajorImageVersion
 
-        // NumberOfRvaAndSizes at offset 0x98+116 = 0x10C
-        pe[0x10C] = 0x10; // 16
-        pe[0x10D] = 0x00;
-        pe[0x10E] = 0x00;
-        pe[0x10F] = 0x00;
+        // Subsystem version
+        writeLE16(pe, 0x98 + 48, 4); // MajorSubsystemVersion
 
-        // Section header starts at 0x98 + 224 = 0x178
-        // Name: ".text"
-        pe[0x178] = '.';
-        pe[0x179] = 't';
-        pe[0x17A] = 'e';
-        pe[0x17B] = 'x';
-        pe[0x17C] = 't';
+        // SizeOfImage (must be multiple of SectionAlignment)
+        writeLE32(pe, 0x98 + 56, 0x3000);
+        // SizeOfHeaders (must be multiple of FileAlignment)
+        writeLE32(pe, 0x98 + 60, 0x200);
+
+        // Subsystem: WINDOWS_CUI (3)
+        writeLE16(pe, 0x98 + 68, 3);
+
+        // SizeOfStackReserve, Commit, HeapReserve, Commit
+        writeLE32(pe, 0x98 + 72, 0x100000);
+        writeLE32(pe, 0x98 + 76, 0x1000);
+        writeLE32(pe, 0x98 + 80, 0x100000);
+        writeLE32(pe, 0x98 + 84, 0x1000);
+
+        // NumberOfRvaAndSizes: 16
+        writeLE32(pe, 0x98 + 92, 16);
+
+        // Data directories start at 0x98 + 96 = 0x0F8
+        // Each entry is 8 bytes (RVA + Size)
+        // Entry #4 (Certificate Table) at 0x0F8 + 4*8 = 0x118
+        // Leave certificate table RVA and Size as 0 — jsign will populate them.
+        // The key is that NumberOfRvaAndSizes >= 5 so the entry is recognized.
+
+        // --- Section Header at 0x178 (40 bytes) ---
+        int sectionHeaderOffset = 0x98 + 224; // 0x178
+        pe[sectionHeaderOffset] = '.';
+        pe[sectionHeaderOffset + 1] = 't';
+        pe[sectionHeaderOffset + 2] = 'e';
+        pe[sectionHeaderOffset + 3] = 'x';
+        pe[sectionHeaderOffset + 4] = 't';
+
+        writeLE32(pe, sectionHeaderOffset + 8, 0x100);  // VirtualSize
+        writeLE32(pe, sectionHeaderOffset + 12, 0x1000); // VirtualAddress
+        writeLE32(pe, sectionHeaderOffset + 16, 0x200);  // SizeOfRawData
+        writeLE32(pe, sectionHeaderOffset + 20, 0x200);  // PointerToRawData
+        writeLE32(pe, sectionHeaderOffset + 36, 0x60000020); // Characteristics: CODE|EXECUTE|READ
+
+        // Write a minimal section at offset 0x200
+        pe[0x200] = (byte) 0xC3; // RET instruction
 
         Files.write(exeFile.toPath(), pe);
+    }
+
+    private static void writeLE16(byte[] buf, int offset, int value) {
+        buf[offset] = (byte) (value & 0xFF);
+        buf[offset + 1] = (byte) ((value >> 8) & 0xFF);
+    }
+
+    private static void writeLE32(byte[] buf, int offset, int value) {
+        buf[offset] = (byte) (value & 0xFF);
+        buf[offset + 1] = (byte) ((value >> 8) & 0xFF);
+        buf[offset + 2] = (byte) ((value >> 16) & 0xFF);
+        buf[offset + 3] = (byte) ((value >> 24) & 0xFF);
     }
 
     private static boolean isKeytoolAvailable() {
