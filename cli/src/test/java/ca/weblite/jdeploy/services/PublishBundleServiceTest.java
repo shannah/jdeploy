@@ -330,9 +330,9 @@ class PublishBundleServiceTest {
             assertEquals(2, manifest.getArtifacts().size(), "Should have GUI + CLI for Windows");
 
             BundleArtifact gui = manifest.getArtifacts().stream()
-                    .filter(a -> !a.isCli()).findFirst().orElseThrow();
+                    .filter(a -> !a.isCli()).findFirst().orElseThrow(() -> new RuntimeException("GUI artifact not found"));
             BundleArtifact cli = manifest.getArtifacts().stream()
-                    .filter(BundleArtifact::isCli).findFirst().orElseThrow();
+                    .filter(BundleArtifact::isCli).findFirst().orElseThrow(() -> new RuntimeException("CLI artifact not found"));
 
             assertTrue(gui.getFilename().contains("-win-x64-1.0.0.jar"),
                     "GUI filename should contain platform-arch-version: " + gui.getFilename());
