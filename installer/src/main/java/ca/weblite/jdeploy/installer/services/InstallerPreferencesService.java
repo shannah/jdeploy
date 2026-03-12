@@ -14,7 +14,7 @@ public class InstallerPreferencesService {
     private static final String PREFERENCES_DIR = ".jdeploy" + File.separator + "preferences";
     private static final String PREFERENCES_FILE = "preferences.properties";
 
-    private static final String KEY_AUTO_UPDATE = "autoUpdate";
+    private static final String KEY_VERSION = "version";
     private static final String KEY_PRERELEASE = "prerelease";
 
     private final File preferencesFile;
@@ -27,10 +27,16 @@ public class InstallerPreferencesService {
         this.preferencesFile = new File(dir, PREFERENCES_FILE);
     }
 
-    public void save(InstallationSettings settings) {
+    /**
+     * Saves the version and prerelease values as they would appear in app.xml.
+     *
+     * @param version the computed version string (e.g., "latest", "^1", "~1.2", "1.2.3")
+     * @param prerelease the prerelease flag
+     */
+    public void save(String version, boolean prerelease) {
         Properties props = new Properties();
-        props.setProperty(KEY_AUTO_UPDATE, settings.getAutoUpdate().name());
-        props.setProperty(KEY_PRERELEASE, String.valueOf(settings.isPrerelease()));
+        props.setProperty(KEY_VERSION, version);
+        props.setProperty(KEY_PRERELEASE, String.valueOf(prerelease));
 
         preferencesFile.getParentFile().mkdirs();
         try (FileOutputStream out = new FileOutputStream(preferencesFile)) {
@@ -40,6 +46,16 @@ public class InstallerPreferencesService {
         }
     }
 
+    /**
+     * Loads saved preferences and applies them to the installation settings.
+     * Maps the stored version string back to an AutoUpdateSettings enum value:
+     * <ul>
+     *   <li>"latest" → Stable</li>
+     *   <li>"^..." → MinorOnly</li>
+     *   <li>"~..." → PatchesOnly</li>
+     *   <li>exact version → Off</li>
+     * </ul>
+     */
     public void applyTo(InstallationSettings settings) {
         if (!preferencesFile.exists()) {
             return;
@@ -53,13 +69,9 @@ public class InstallerPreferencesService {
             return;
         }
 
-        String autoUpdate = props.getProperty(KEY_AUTO_UPDATE);
-        if (autoUpdate != null) {
-            try {
-                settings.setAutoUpdate(AutoUpdateSettings.valueOf(autoUpdate));
-            } catch (IllegalArgumentException e) {
-                // Invalid value, keep default
-            }
+        String version = props.getProperty(KEY_VERSION);
+        if (version != null) {
+            settings.setAutoUpdate(versionToAutoUpdateSettings(version));
         }
 
         String prerelease = props.getProperty(KEY_PRERELEASE);
@@ -83,5 +95,17 @@ public class InstallerPreferencesService {
 
     public boolean exists() {
         return preferencesFile.exists();
+    }
+
+    private static AutoUpdateSettings versionToAutoUpdateSettings(String version) {
+        if ("latest".equals(version)) {
+            return AutoUpdateSettings.Stable;
+        } else if (version.startsWith("^")) {
+            return AutoUpdateSettings.MinorOnly;
+        } else if (version.startsWith("~")) {
+            return AutoUpdateSettings.PatchesOnly;
+        } else {
+            return AutoUpdateSettings.Off;
+        }
     }
 }

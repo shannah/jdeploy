@@ -2282,7 +2282,7 @@ public class Main implements Runnable, Constants {
         // Save installer preferences for future installs
         try {
             new InstallerPreferencesService(fullyQualifiedPackageName)
-                    .save(installationSettings);
+                    .save(appInfo().getNpmVersion(), appInfo().isNpmAllowPrerelease());
         } catch (Exception e) {
             System.err.println("Warning: Failed to save installer preferences: " + e.getMessage());
         }
