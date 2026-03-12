@@ -105,12 +105,36 @@ jobs:
       - name: Load WireMock jDeploy stubs
         run: |
           for f in test-infra/wiremock/jdeploy/mappings/*.json; do
-            curl -s -X POST http://localhost:8081/__admin/mappings \
+            echo "Loading stub: $f"
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8081/__admin/mappings \
               -H 'Content-Type: application/json' \
-              -d @"$f"
+              -d @"$f")
+            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | head -n -1)
+            echo "  Response ($HTTP_CODE): $BODY"
           done
           echo "Loaded jDeploy WireMock stubs:"
-          curl -s http://localhost:8081/__admin/mappings | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin)['meta'], indent=2))"
+          curl -s http://localhost:8081/__admin/mappings | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Total: {d[\"meta\"][\"total\"]}'); [print(f'  {m[\"request\"][\"method\"]} {m[\"request\"].get(\"urlPathPattern\", m[\"request\"].get(\"url\", \"?\"))}') for m in d.get('mappings', [])]"
+
+      - name: Verify WireMock jDeploy publish stub with Apache-style Content-Type
+        run: |
+          echo "Testing POST to publish.php with standard Content-Type..."
+          curl -v -X POST http://localhost:8081/publish.php \
+            -H 'Content-Type: application/json' \
+            -d '{"test": true}' 2>&1
+          echo ""
+          echo "Testing POST to publish.php with Apache HttpClient-style Content-Type (single-quoted charset)..."
+          curl -v -X POST http://localhost:8081/publish.php \
+            -H "Content-Type: application/json; charset='utf-8'" \
+            -d '{"test": true}' 2>&1
+          echo ""
+          echo "Checking request journal..."
+          curl -s http://localhost:8081/__admin/requests | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for r in data.get('requests', []):
+            print(f\"{r['request']['method']} {r['request']['url']} -> {r.get('responseDefinition', {}).get('status', '?')}\")
+          " || echo "Could not fetch"
 
       - name: Build shared library
         run: cd shared && mvn clean install -DskipTests -q

@@ -51,6 +51,16 @@ import static org.mockito.Mockito.mock;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
 
+    /**
+     * Dynamically register the publish.php stub via WireMock admin API.
+     * This ensures the stub is present regardless of whether file-based loading succeeded.
+     */
+    private void ensurePublishStubRegistered() throws IOException {
+        JSONObject responseBody = new JSONObject();
+        responseBody.put("code", 200);
+        jdeployWireMock.stubPostUrlMatching("/publish\\.php.*", 200, responseBody, 5);
+    }
+
     // ========================================================================
     // Connectivity tests
     // ========================================================================
@@ -131,12 +141,66 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
     }
 
     @Test
+    @Order(14)
+    @DisplayName("jDeploy publish endpoint accepts POST via HttpURLConnection")
+    void jdeployPublishEndpointAcceptsPostViaUrlConnection() throws Exception {
+        // Ensure the publish.php stub is registered dynamically (belt and suspenders)
+        ensurePublishStubRegistered();
+
+        // First test with plain HttpURLConnection (same as register.php uses)
+        String url = getJdeployRegistry() + "publish.php";
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        conn.setRequestMethod("POST");
+        conn.setDoOutput(true);
+        conn.setConnectTimeout(5000);
+        conn.setReadTimeout(5000);
+        conn.setRequestProperty("Content-Type", "application/json");
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write("{\"test\": true}".getBytes(StandardCharsets.UTF_8));
+        }
+        int statusCode = conn.getResponseCode();
+        String body = "";
+        try (InputStream is = statusCode >= 200 && statusCode < 300 ? conn.getInputStream() : conn.getErrorStream()) {
+            if (is != null) {
+                byte[] bytes = new byte[4096];
+                int len = is.read(bytes);
+                if (len > 0) body = new String(bytes, 0, len, StandardCharsets.UTF_8);
+            }
+        }
+        System.out.println("[TEST-DIAG] HttpURLConnection POST to " + url +
+                " -> " + statusCode + " " + conn.getResponseMessage() + ": " + body);
+        assertEquals(200, statusCode,
+                "publish.php via HttpURLConnection should return 200. Got " + statusCode +
+                " (" + conn.getResponseMessage() + "): " + body);
+
+        jdeployWireMock.verifyRequestMade("POST", "/publish\\.php.*");
+    }
+
+    @Test
     @Order(15)
     @DisplayName("jDeploy publish endpoint accepts POST via Apache HttpClient")
     void jdeployPublishEndpointAcceptsPost() throws Exception {
-        // Test that WireMock's publish.php stub works with Apache HttpClient
-        // (same HTTP client used by ResourceUploader)
+        // Ensure the publish.php stub is registered dynamically
+        ensurePublishStubRegistered();
+
+        // Test with Apache HttpClient (same HTTP client used by ResourceUploader)
         String url = getJdeployRegistry() + "publish.php";
+        System.out.println("[TEST-DIAG] POSTing to: " + url);
+
+        // List all current stubs
+        HttpURLConnection adminConn = (HttpURLConnection)
+                new URL(getJdeployRegistryBaseUrl() + "/__admin/mappings").openConnection();
+        adminConn.setConnectTimeout(5000);
+        adminConn.setReadTimeout(5000);
+        try (InputStream is = adminConn.getInputStream()) {
+            byte[] bytes = new byte[8192];
+            int len = is.read(bytes);
+            if (len > 0) {
+                System.out.println("[TEST-DIAG] Current jDeploy WireMock stubs: " +
+                        new String(bytes, 0, len, StandardCharsets.UTF_8));
+            }
+        }
+
         CloseableHttpClient client = HttpClientBuilder.create().build();
         HttpPost httpPost = new HttpPost(url);
         httpPost.setHeader("Content-Type", "application/json; charset='utf-8'");
@@ -145,6 +209,8 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
         try (CloseableHttpResponse response = client.execute(httpPost)) {
             int statusCode = response.getStatusLine().getStatusCode();
             String body = EntityUtils.toString(response.getEntity());
+            System.out.println("[TEST-DIAG] Apache HttpClient POST -> " + statusCode +
+                    " " + response.getStatusLine().getReasonPhrase() + ": " + body);
             assertEquals(200, statusCode,
                     "publish.php should return 200. Got " + statusCode +
                     " (" + response.getStatusLine().getReasonPhrase() + "): " + body);
@@ -157,6 +223,9 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
     @Order(20)
     @DisplayName("GitHub publish: resource upload to mock jDeploy registry")
     void githubPublishResourceUpload() throws Exception {
+        // Ensure publish.php stub is registered
+        ensurePublishStubRegistered();
+
         File projectDir = new File(tempDir, "resource-upload-project");
         projectDir.mkdirs();
 
@@ -263,6 +332,8 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
     @Order(50)
     @DisplayName("End-to-end: GitHub prepare + publish + jDeploy resource upload")
     void endToEndGithubPublishWithResourceUpload() throws Exception {
+        // Ensure publish.php stub is registered
+        ensurePublishStubRegistered();
         File projectDir = scaffoldProject(
                 "e2e-project", "e2e-test-app", "2.0.0",
                 "myapp-2.0.0.jar", "com.example.MyApp"
