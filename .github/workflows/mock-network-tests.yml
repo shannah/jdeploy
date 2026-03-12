@@ -1,0 +1,114 @@
+name: Mock Network Publishing Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  mock-network-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      verdaccio:
+        image: verdaccio/verdaccio:5
+        ports:
+          - 4873:4873
+        options: >-
+          --health-cmd "wget --spider -q http://localhost:4873/-/ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      wiremock-github:
+        image: wiremock/wiremock:3x
+        ports:
+          - 8080:8080
+        options: >-
+          --health-cmd "wget --spider -q http://localhost:8080/__admin/mappings"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      wiremock-jdeploy:
+        image: wiremock/wiremock:3x
+        ports:
+          - 8081:8080
+        options: >-
+          --health-cmd "wget --spider -q http://localhost:8080/__admin/mappings"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Load WireMock GitHub stubs
+        run: |
+          for f in test-infra/wiremock/github/mappings/*.json; do
+            curl -s -X POST http://localhost:8080/__admin/mappings \
+              -H 'Content-Type: application/json' \
+              -d @"$f"
+          done
+          echo "Loaded GitHub WireMock stubs:"
+          curl -s http://localhost:8080/__admin/mappings | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin)['meta'], indent=2))"
+
+      - name: Load WireMock jDeploy stubs
+        run: |
+          for f in test-infra/wiremock/jdeploy/mappings/*.json; do
+            curl -s -X POST http://localhost:8081/__admin/mappings \
+              -H 'Content-Type: application/json' \
+              -d @"$f"
+          done
+          echo "Loaded jDeploy WireMock stubs:"
+          curl -s http://localhost:8081/__admin/mappings | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin)['meta'], indent=2))"
+
+      - name: Build shared library
+        run: cd shared && mvn clean install -DskipTests -q
+
+      - name: Run mock network publishing tests
+        env:
+          NPM_CONFIG_REGISTRY: http://localhost:4873
+          GITHUB_API_BASE_URL: http://localhost:8080
+          GITHUB_BASE_URL: http://localhost:8080/
+          JDEPLOY_REGISTRY_URL: http://localhost:8081/
+          GITHUB_TOKEN: mock-github-token-for-testing
+        run: |
+          cd cli && mvn test \
+            -Dtest=ca.weblite.jdeploy.publishing.MockNetworkPublishingTest \
+            -Dfailsafe.useFile=false
+
+      - name: Print WireMock GitHub request log
+        if: always()
+        run: |
+          echo "=== GitHub WireMock Requests ==="
+          curl -s http://localhost:8080/__admin/requests | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for r in data.get('requests', []):
+            print(f\"{r['request']['method']} {r['request']['url']} -> {r['responseDefinition'].get('status', '?')}\")
+          " || echo "Could not fetch request log"
+
+      - name: Print WireMock jDeploy request log
+        if: always()
+        run: |
+          echo "=== jDeploy WireMock Requests ==="
+          curl -s http://localhost:8081/__admin/requests | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for r in data.get('requests', []):
+            print(f\"{r['request']['method']} {r['request']['url']} -> {r['responseDefinition'].get('status', '?')}\")
+          " || echo "Could not fetch request log"
