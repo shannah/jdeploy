@@ -15,7 +15,7 @@ services:
       retries: 5
 
   wiremock-github:
-    image: wiremock/wiremock:3x
+    image: wiremock/wiremock:latest
     ports:
       - "8080:8080"
     volumes:
@@ -31,7 +31,7 @@ services:
       retries: 5
 
   wiremock-jdeploy:
-    image: wiremock/wiremock:3x
+    image: wiremock/wiremock:latest
     ports:
       - "8081:8080"
     volumes:

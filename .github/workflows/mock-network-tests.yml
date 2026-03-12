@@ -17,14 +17,14 @@ jobs:
           - 4873:4873
 
       wiremock-github:
-        image: wiremock/wiremock:3x
+        image: wiremock/wiremock:latest
         ports:
           - 8080:8080
         env:
           WIREMOCK_OPTIONS: "--global-response-templating --verbose"
 
       wiremock-jdeploy:
-        image: wiremock/wiremock:3x
+        image: wiremock/wiremock:latest
         ports:
           - 8081:8080
         env:
@@ -80,6 +80,18 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Configure npm for Verdaccio
+        run: |
+          # Register a test user with Verdaccio for npm publish tests
+          TOKEN=$(curl -s -X PUT http://localhost:4873/-/user/org.couchdb.user:testuser \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"testuser","password":"testpass123","email":"test@test.com"}' \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))")
+          echo "Verdaccio user registered, token: ${TOKEN:0:10}..."
+          # Configure npm to use this token for the local registry
+          npm config set //localhost:4873/:_authToken "$TOKEN"
+          npm config set registry http://localhost:4873
+
       - name: Load WireMock GitHub stubs
         run: |
           for f in test-infra/wiremock/github/mappings/*.json; do
@@ -114,6 +126,12 @@ jobs:
           cd cli && mvn test \
             -Dtest="ca.weblite.jdeploy.publishing.*MockNetwork*,ca.weblite.jdeploy.publishing.*MockPublish*" \
             -Dfailsafe.useFile=false
+
+      - name: Print test results on failure
+        if: failure()
+        run: |
+          echo "=== Maven Surefire Reports ==="
+          find cli/target/surefire-reports -name "*.txt" -exec echo "--- {} ---" \; -exec cat {} \; 2>/dev/null || echo "No surefire reports found"
 
       - name: Print WireMock GitHub request log
         if: always()
