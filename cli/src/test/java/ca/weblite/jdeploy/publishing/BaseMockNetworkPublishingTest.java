@@ -224,12 +224,8 @@ public abstract class BaseMockNetworkPublishingTest {
         PackageNameService packageNameService = mock(PackageNameService.class);
         when(packageNameService.getFullPackageName(any(), any())).thenAnswer(
                 invocation -> {
-                    // Return the name from the package.json
-                    PackagingContext ctx = invocation.getArgument(0);
-                    JSONObject pj = new JSONObject(
-                            FileUtils.readFileToString(ctx.packageJsonFile, StandardCharsets.UTF_8)
-                    );
-                    return pj.getString("name");
+                    // arg 0 is PublishTargetInterface, arg 1 is the package name string
+                    return invocation.getArgument(1);
                 }
         );
 
