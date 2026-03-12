@@ -20,11 +20,15 @@ jobs:
         image: wiremock/wiremock:3x
         ports:
           - 8080:8080
+        env:
+          WIREMOCK_OPTIONS: "--global-response-templating --verbose"
 
       wiremock-jdeploy:
         image: wiremock/wiremock:3x
         ports:
           - 8081:8080
+        env:
+          WIREMOCK_OPTIONS: "--global-response-templating --verbose"
 
     steps:
       - uses: actions/checkout@v4
