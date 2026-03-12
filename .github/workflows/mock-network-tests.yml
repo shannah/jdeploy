@@ -88,7 +88,7 @@ jobs:
           GITHUB_TOKEN: mock-github-token-for-testing
         run: |
           cd cli && mvn test \
-            -Dtest=ca.weblite.jdeploy.publishing.MockNetworkPublishingTest \
+            -Dtest="ca.weblite.jdeploy.publishing.*MockNetwork*,ca.weblite.jdeploy.publishing.*MockPublish*" \
             -Dfailsafe.useFile=false
 
       - name: Print WireMock GitHub request log
