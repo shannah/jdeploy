@@ -8,8 +8,7 @@
     "headers": {
       "Content-Type": "application/json"
     },
-    "jsonBody": {
-      "code": "mock-bundle-code-12345"
-    }
+    "body": "{\"code\": \"{{randomValue length=5 type='ALPHANUMERIC' lowercase=true}}\"}",
+    "transformers": ["response-template"]
   }
 }
