@@ -11,7 +11,7 @@
     "jsonBody": {
       "id": 1,
       "name": "{{request.query.name}}",
-      "url": "http://wiremock-github:8080/api/assets/1",
+      "url": "{{request.baseUrl}}/api/assets/1",
       "state": "uploaded",
       "size": 1024
     },
