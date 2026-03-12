@@ -125,7 +125,18 @@ jobs:
         run: |
           cd cli && mvn test \
             -Dtest="ca.weblite.jdeploy.publishing.*MockNetwork*,ca.weblite.jdeploy.publishing.*MockPublish*" \
-            -Dfailsafe.useFile=false
+            -Dsurefire.useFile=false \
+            -Dsurefire.printSummary=true \
+            -e
+
+      - name: Print surefire test reports
+        if: failure()
+        run: |
+          echo "=== Surefire Reports ==="
+          find cli/target/surefire-reports -name "*.txt" -exec echo "--- {} ---" \; -exec cat {} \; 2>/dev/null || echo "No surefire reports found"
+          echo ""
+          echo "=== Surefire XML Reports ==="
+          find cli/target/surefire-reports -name "*.xml" -exec echo "--- {} ---" \; -exec cat {} \; 2>/dev/null || echo "No XML reports found"
 
       - name: Write test diagnostics to job summary
         if: failure()
