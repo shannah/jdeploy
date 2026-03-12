@@ -96,7 +96,11 @@ public abstract class BaseMockNetworkPublishingTest {
     // ========================================================================
 
     protected String getNpmRegistry() {
-        return System.getenv(ENV_NPM_REGISTRY);
+        String url = System.getenv(ENV_NPM_REGISTRY);
+        if (url != null && !url.endsWith("/")) {
+            url += "/";
+        }
+        return url;
     }
 
     protected String getGithubApiBaseUrl() {

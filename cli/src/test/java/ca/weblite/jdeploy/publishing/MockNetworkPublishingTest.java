@@ -52,7 +52,9 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
     @Order(1)
     @DisplayName("Verdaccio npm registry is reachable")
     void verdaccioIsReachable() throws Exception {
-        HttpURLConnection conn = (HttpURLConnection) new URL(getNpmRegistry() + "/-/ping").openConnection();
+        String registryUrl = getNpmRegistry();
+        String pingUrl = registryUrl.endsWith("/") ? registryUrl + "-/ping" : registryUrl + "/-/ping";
+        HttpURLConnection conn = (HttpURLConnection) new URL(pingUrl).openConnection();
         conn.setConnectTimeout(5000);
         conn.setReadTimeout(5000);
         assertEquals(200, conn.getResponseCode());
@@ -252,8 +254,11 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
         );
         assertTrue(packageInfo.getJSONObject("versions").has("2.0.0"),
                 "package-info.json should have version 2.0.0");
-        assertEquals("2.0.0", packageInfo.optString("latestVersion"),
-                "latestVersion should be 2.0.0");
+        assertEquals("2.0.0",
+                packageInfo.optJSONObject("dist-tags") != null
+                        ? packageInfo.getJSONObject("dist-tags").optString("latest")
+                        : "",
+                "dist-tags.latest should be 2.0.0");
 
         // --- Step 2: Publish ---
         githubDriver.publish(publishingContext, target, null);
