@@ -28,37 +28,65 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.*;
 
 /**
  * Integration tests that run against mock network services (Verdaccio, WireMock).
- *
- * These tests verify the full publishing flow end-to-end by:
- * 1. Creating a real project structure with a JAR file
- * 2. Running the actual publish drivers (GitHubPublishDriver, NPMPublishDriver)
- * 3. Making real HTTP calls to mock services (WireMock for GitHub/jDeploy, Verdaccio for npm)
- * 4. Verifying the calls succeeded and correct artifacts were produced
- *
- * To run locally:
- *   cd test-infra && ./run-mock-network-tests.sh --up
- *   cd test-infra && ./run-mock-network-tests.sh --local
- *
- * Or run entirely in Docker:
- *   cd test-infra && ./run-mock-network-tests.sh
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
 
     /**
      * Dynamically register the publish.php stub via WireMock admin API.
-     * This ensures the stub is present regardless of whether file-based loading succeeded.
      */
     private void ensurePublishStubRegistered() throws IOException {
         JSONObject responseBody = new JSONObject();
         responseBody.put("code", 200);
         jdeployWireMock.stubPostUrlMatching("/publish\\.php.*", 200, responseBody, 5);
+    }
+
+    /**
+     * Create a PublishingContext with custom output streams for capturing ResourceUploader output.
+     */
+    private PublishingContext createPublishingContextWithStreams(
+            File projectDir, PrintStream out, PrintStream err) throws Exception {
+        PackagingContext packagingContext = new PackagingContext.Builder()
+                .directory(projectDir)
+                .packageJsonFile(new File(projectDir, "package.json"))
+                .out(out)
+                .err(err)
+                .exitOnFail(false)
+                .build();
+
+        NPM npm = mock(NPM.class);
+        doNothing().when(npm).pack(any(File.class), any(File.class), anyBoolean());
+
+        return new PublishingContext(
+                packagingContext, false, npm,
+                getGithubToken(), null, null, null, null
+        );
+    }
+
+    /**
+     * Dump all requests recorded in the jDeploy WireMock for diagnostics.
+     */
+    private void dumpJdeployWireMockRequests() {
+        try {
+            int total = jdeployWireMock.getTotalRequestCount();
+            System.out.println("[TEST-DIAG] jDeploy WireMock total requests: " + total);
+            List<JSONObject> allRequests = jdeployWireMock.findRequestsMatching("POST", ".*");
+            System.out.println("[TEST-DIAG] jDeploy WireMock POST requests: " + allRequests.size());
+            for (JSONObject req : allRequests) {
+                System.out.println("[TEST-DIAG]   POST " + req.optJSONObject("request"));
+            }
+        } catch (IOException e) {
+            System.out.println("[TEST-DIAG] Failed to dump WireMock requests: " + e.getMessage());
+        }
     }
 
     // ========================================================================
@@ -144,11 +172,10 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
     @Order(14)
     @DisplayName("jDeploy publish endpoint accepts POST via HttpURLConnection")
     void jdeployPublishEndpointAcceptsPostViaUrlConnection() throws Exception {
-        // Ensure the publish.php stub is registered dynamically (belt and suspenders)
         ensurePublishStubRegistered();
 
-        // First test with plain HttpURLConnection (same as register.php uses)
         String url = getJdeployRegistry() + "publish.php";
+        System.out.println("[TEST-DIAG] HttpURLConnection POST to: " + url);
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setRequestMethod("POST");
         conn.setDoOutput(true);
@@ -167,8 +194,8 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
                 if (len > 0) body = new String(bytes, 0, len, StandardCharsets.UTF_8);
             }
         }
-        System.out.println("[TEST-DIAG] HttpURLConnection POST to " + url +
-                " -> " + statusCode + " " + conn.getResponseMessage() + ": " + body);
+        System.out.println("[TEST-DIAG] HttpURLConnection POST -> " + statusCode +
+                " " + conn.getResponseMessage() + ": " + body);
         assertEquals(200, statusCode,
                 "publish.php via HttpURLConnection should return 200. Got " + statusCode +
                 " (" + conn.getResponseMessage() + "): " + body);
@@ -180,26 +207,10 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
     @Order(15)
     @DisplayName("jDeploy publish endpoint accepts POST via Apache HttpClient")
     void jdeployPublishEndpointAcceptsPost() throws Exception {
-        // Ensure the publish.php stub is registered dynamically
         ensurePublishStubRegistered();
 
-        // Test with Apache HttpClient (same HTTP client used by ResourceUploader)
         String url = getJdeployRegistry() + "publish.php";
-        System.out.println("[TEST-DIAG] POSTing to: " + url);
-
-        // List all current stubs
-        HttpURLConnection adminConn = (HttpURLConnection)
-                new URL(getJdeployRegistryBaseUrl() + "/__admin/mappings").openConnection();
-        adminConn.setConnectTimeout(5000);
-        adminConn.setReadTimeout(5000);
-        try (InputStream is = adminConn.getInputStream()) {
-            byte[] bytes = new byte[8192];
-            int len = is.read(bytes);
-            if (len > 0) {
-                System.out.println("[TEST-DIAG] Current jDeploy WireMock stubs: " +
-                        new String(bytes, 0, len, StandardCharsets.UTF_8));
-            }
-        }
+        System.out.println("[TEST-DIAG] Apache HttpClient POST to: " + url);
 
         CloseableHttpClient client = HttpClientBuilder.create().build();
         HttpPost httpPost = new HttpPost(url);
@@ -223,7 +234,6 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
     @Order(20)
     @DisplayName("GitHub publish: resource upload to mock jDeploy registry")
     void githubPublishResourceUpload() throws Exception {
-        // Ensure publish.php stub is registered
         ensurePublishStubRegistered();
 
         File projectDir = new File(tempDir, "resource-upload-project");
@@ -247,9 +257,26 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
         PackagingConfig packagingConfig = new PackagingConfig(config);
         ResourceUploader uploader = new ResourceUploader(packagingConfig);
 
-        PublishingContext publishingContext = createPublishingContext(projectDir);
+        // Log the URL that ResourceUploader will use
+        String expectedUrl = packagingConfig.getJdeployRegistry() + "publish.php";
+        System.out.println("[TEST-DIAG] ResourceUploader will POST to: " + expectedUrl);
+
+        // Capture stderr to see ResourceUploader's error output
+        ByteArrayOutputStream capturedErr = new ByteArrayOutputStream();
+        PrintStream errStream = new PrintStream(capturedErr);
+        PublishingContext publishingContext = createPublishingContextWithStreams(
+                projectDir, System.out, errStream);
 
         uploader.uploadResources(publishingContext);
+
+        // Print any captured errors
+        String errOutput = capturedErr.toString("UTF-8");
+        if (!errOutput.isEmpty()) {
+            System.out.println("[TEST-DIAG] ResourceUploader stderr output:\n" + errOutput);
+        }
+
+        // Dump all WireMock requests for diagnostics
+        dumpJdeployWireMockRequests();
 
         // Verify the upload hit the mock jDeploy registry
         jdeployWireMock.verifyRequestMade("POST", "/publish\\.php.*");
@@ -332,8 +359,8 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
     @Order(50)
     @DisplayName("End-to-end: GitHub prepare + publish + jDeploy resource upload")
     void endToEndGithubPublishWithResourceUpload() throws Exception {
-        // Ensure publish.php stub is registered
         ensurePublishStubRegistered();
+
         File projectDir = scaffoldProject(
                 "e2e-project", "e2e-test-app", "2.0.0",
                 "myapp-2.0.0.jar", "com.example.MyApp"
@@ -368,7 +395,39 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
         Config config = createMockConfig();
         PackagingConfig packagingConfig = new PackagingConfig(config);
         ResourceUploader resourceUploader = new ResourceUploader(packagingConfig);
-        resourceUploader.uploadResources(publishingContext);
+
+        String expectedUrl = packagingConfig.getJdeployRegistry() + "publish.php";
+        System.out.println("[TEST-DIAG] E2E ResourceUploader will POST to: " + expectedUrl);
+
+        // Capture stderr for diagnostics
+        ByteArrayOutputStream capturedErr = new ByteArrayOutputStream();
+        PrintStream errStream = new PrintStream(capturedErr);
+
+        // Create a fresh context with captured stderr for the upload step
+        PublishingContext uploadContext = createPublishingContextWithStreams(
+                projectDir, System.out, errStream);
+
+        // Copy the prepare/publish artifacts to the upload context's expected locations
+        File uploadPublishDir = uploadContext.getPublishDir();
+        if (!uploadPublishDir.exists()) {
+            uploadPublishDir.mkdirs();
+        }
+        File publishPackageJson = uploadContext.getPublishPackageJsonFile();
+        if (!publishPackageJson.exists()) {
+            FileUtils.copyFile(
+                    publishingContext.getPublishPackageJsonFile(),
+                    publishPackageJson
+            );
+        }
+
+        resourceUploader.uploadResources(uploadContext);
+
+        String errOutput = capturedErr.toString("UTF-8");
+        if (!errOutput.isEmpty()) {
+            System.out.println("[TEST-DIAG] E2E ResourceUploader stderr:\n" + errOutput);
+        }
+
+        dumpJdeployWireMockRequests();
 
         // --- Verify WireMock received expected requests ---
         githubWireMock.verifyRequestMade("POST", "/repos/e2euser/e2erepo/releases");
