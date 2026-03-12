@@ -12,6 +12,7 @@ import ca.weblite.jdeploy.installer.linux.MimeTypeHelper;
 import ca.weblite.jdeploy.installer.logging.InstallationLogger;
 import ca.weblite.jdeploy.installer.mac.MacAdminLauncherGenerator;
 import ca.weblite.jdeploy.installer.services.InstallationDetectionService;
+import ca.weblite.jdeploy.installer.services.InstallerPreferencesService;
 import ca.weblite.jdeploy.installer.uninstall.FileUninstallManifestRepository;
 import ca.weblite.jdeploy.installer.uninstall.UninstallManifestBuilder;
 import ca.weblite.jdeploy.installer.uninstall.UninstallManifestWriter;
@@ -23,6 +24,7 @@ import ca.weblite.jdeploy.installer.npm.NPMPackage;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.installer.npm.NPMRegistry;
 import ca.weblite.jdeploy.installer.npm.RunAsAdministratorSettings;
+import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.jdeploy.installer.util.JarClassLoader;
 import ca.weblite.jdeploy.installer.util.ResourceUtil;
 import ca.weblite.jdeploy.installer.views.DefaultUIFactory;
@@ -881,6 +883,15 @@ public class Main implements Runnable, Constants {
     private void buildUI() {
         installationContext.applyContext(installationSettings);
 
+        // Load previously saved preferences to pre-populate form
+        try {
+            String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName(
+                    appInfo().getNpmPackage(), appInfo().getNpmSource());
+            new InstallerPreferencesService(fqpn).applyTo(installationSettings);
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to load installer preferences: " + e.getMessage());
+        }
+
         // Check if app is already in the dock (macOS only)
         if (Platform.getSystemPlatform().isMac() && appInfo() != null) {
             String nameSuffix = "";
@@ -1170,6 +1181,15 @@ public class Main implements Runnable, Constants {
         // This is also done in buildUI() for GUI mode, but headless mode skips buildUI()
         installationContext.applyContext(installationSettings);
 
+        // Load previously saved preferences
+        try {
+            String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName(
+                    appInfo().getNpmPackage(), appInfo().getNpmSource());
+            new InstallerPreferencesService(fqpn).applyTo(installationSettings);
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to load installer preferences: " + e.getMessage());
+        }
+
         // Configure CLI settings - also done in buildUI() for GUI mode
         configureCliSettings();
 
@@ -1413,6 +1433,14 @@ public class Main implements Runnable, Constants {
 
         // Stop and uninstall services before removing files
         stopAndUninstallServices(packageName, source);
+
+        // Delete saved installer preferences
+        try {
+            String fqpn = CliCommandBinDirResolver.computeFullyQualifiedPackageName(packageName, source);
+            new InstallerPreferencesService(fqpn).delete();
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to delete installer preferences: " + e.getMessage());
+        }
 
         UninstallService uninstallService = createUninstallService();
         UninstallService.UninstallResult result = uninstallService.uninstall(packageName, source);
@@ -2249,6 +2277,14 @@ public class Main implements Runnable, Constants {
                 e.printStackTrace(System.err);
                 // Continue - AI integrations are optional
             }
+        }
+
+        // Save installer preferences for future installs
+        try {
+            new InstallerPreferencesService(fullyQualifiedPackageName)
+                    .save(appInfo().getNpmVersion(), appInfo().isNpmAllowPrerelease());
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to save installer preferences: " + e.getMessage());
         }
 
         File tmpPlatformBundles = new File(tmpBundles, target);
