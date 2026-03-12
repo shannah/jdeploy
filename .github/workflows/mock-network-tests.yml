@@ -15,34 +15,54 @@ jobs:
         image: verdaccio/verdaccio:5
         ports:
           - 4873:4873
-        options: >-
-          --health-cmd "wget --spider -q http://localhost:4873/-/ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 5
 
       wiremock-github:
         image: wiremock/wiremock:3x
         ports:
           - 8080:8080
-        options: >-
-          --health-cmd "wget --spider -q http://localhost:8080/__admin/mappings"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 5
 
       wiremock-jdeploy:
         image: wiremock/wiremock:3x
         ports:
           - 8081:8080
-        options: >-
-          --health-cmd "wget --spider -q http://localhost:8080/__admin/mappings"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for Verdaccio..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4873/-/ping > /dev/null 2>&1; then
+              echo "Verdaccio is ready"
+              break
+            fi
+            echo "  attempt $i/30..."
+            sleep 2
+          done
+          curl -sf http://localhost:4873/-/ping > /dev/null || { echo "Verdaccio failed to start"; exit 1; }
+
+          echo "Waiting for WireMock GitHub..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/__admin/mappings > /dev/null 2>&1; then
+              echo "WireMock GitHub is ready"
+              break
+            fi
+            echo "  attempt $i/30..."
+            sleep 2
+          done
+          curl -sf http://localhost:8080/__admin/mappings > /dev/null || { echo "WireMock GitHub failed to start"; exit 1; }
+
+          echo "Waiting for WireMock jDeploy..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8081/__admin/mappings > /dev/null 2>&1; then
+              echo "WireMock jDeploy is ready"
+              break
+            fi
+            echo "  attempt $i/30..."
+            sleep 2
+          done
+          curl -sf http://localhost:8081/__admin/mappings > /dev/null || { echo "WireMock jDeploy failed to start"; exit 1; }
 
       - name: Set up JDK 8
         uses: actions/setup-java@v4
