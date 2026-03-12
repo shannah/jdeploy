@@ -33,7 +33,9 @@ import java.util.Map;
 @Singleton
 public class NPMPublishDriver implements PublishDriverInterface {
 
-    private static final String REGISTRY_URL="https://registry.npmjs.org/";
+    private static final String DEFAULT_REGISTRY_URL="https://registry.npmjs.org/";
+
+    private String registryUrl = DEFAULT_REGISTRY_URL;
 
     private final PublishDriverInterface basePublishDriver;
     private final PlatformBundleGenerator platformBundleGenerator;
@@ -51,6 +53,10 @@ public class NPMPublishDriver implements PublishDriverInterface {
         this.platformBundleGenerator = platformBundleGenerator;
         this.defaultBundleService = defaultBundleService;
         this.projectFactory = projectFactory;
+    }
+
+    public void setRegistryUrl(String registryUrl) {
+        this.registryUrl = registryUrl;
     }
 
     @Override
@@ -260,7 +266,7 @@ public class NPMPublishDriver implements PublishDriverInterface {
     }
 
     private String getPackageUrl(String packageName, PublishTargetInterface target) throws UnsupportedEncodingException {
-        return REGISTRY_URL+ URLEncoder.encode(packageName, "UTF-8");
+        return registryUrl + URLEncoder.encode(packageName, "UTF-8");
     }
 
     private String getPackageSigningVersionString(PublishingContext context) {

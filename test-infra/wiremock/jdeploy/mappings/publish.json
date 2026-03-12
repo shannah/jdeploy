@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/publish.php"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "code": 200
+    }
+  }
+}

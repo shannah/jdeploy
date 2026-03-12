@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPathPattern": "/repos/[^/]+/[^/]+/releases"
+  },
+  "response": {
+    "status": 201,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "id": "{{randomValue type='UUID'}}",
+      "tag_name": "{{jsonPath request.body '$.tag_name'}}",
+      "name": "{{jsonPath request.body '$.name'}}",
+      "body": "{{jsonPath request.body '$.body'}}",
+      "upload_url": "http://wiremock-github:8080/uploads/repos/release-assets{?name,label}",
+      "assets": []
+    },
+    "transformers": ["response-template"]
+  }
+}

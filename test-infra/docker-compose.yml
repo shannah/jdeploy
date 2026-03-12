@@ -1,0 +1,71 @@
+version: "3.8"
+
+services:
+  verdaccio:
+    image: verdaccio/verdaccio:5
+    ports:
+      - "4873:4873"
+    volumes:
+      - ./verdaccio/config.yaml:/verdaccio/conf/config.yaml
+      - verdaccio-storage:/verdaccio/storage
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4873/-/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  wiremock-github:
+    image: wiremock/wiremock:3x
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./wiremock/github/mappings:/home/wiremock/mappings
+      - ./wiremock/github/__files:/home/wiremock/__files
+    command: >
+      --verbose
+      --global-response-templating
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/__admin/mappings"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  wiremock-jdeploy:
+    image: wiremock/wiremock:3x
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./wiremock/jdeploy/mappings:/home/wiremock/mappings
+      - ./wiremock/jdeploy/__files:/home/wiremock/__files
+    command: >
+      --verbose
+      --global-response-templating
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/__admin/mappings"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  test-runner:
+    build:
+      context: ..
+      dockerfile: test-infra/test-runner/Dockerfile
+    depends_on:
+      verdaccio:
+        condition: service_healthy
+      wiremock-github:
+        condition: service_healthy
+      wiremock-jdeploy:
+        condition: service_healthy
+    environment:
+      NPM_CONFIG_REGISTRY: http://verdaccio:4873
+      GITHUB_API_BASE_URL: http://wiremock-github:8080
+      GITHUB_BASE_URL: http://wiremock-github:8080
+      JDEPLOY_REGISTRY_URL: http://wiremock-jdeploy:8080/
+      GITHUB_TOKEN: mock-github-token-for-testing
+    volumes:
+      - maven-cache:/root/.m2
+
+volumes:
+  verdaccio-storage:
+  maven-cache:

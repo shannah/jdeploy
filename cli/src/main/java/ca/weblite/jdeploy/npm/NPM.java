@@ -18,7 +18,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class NPM {
-    private static final String REGISTRY_URL="https://registry.npmjs.org/";
+    private static final String DEFAULT_REGISTRY_URL="https://registry.npmjs.org/";
     private static final String GITHUB_URL = "https://github.com/";
 
     private Process pendingLoginProcess;
@@ -31,6 +31,8 @@ public class NPM {
     private final boolean useManagedNode;
 
     private String npmToken;
+
+    private String registryUrl = DEFAULT_REGISTRY_URL;
 
     private NPMManager npmManager;
     public NPM(PrintStream out, PrintStream err) {
@@ -52,6 +54,14 @@ public class NPM {
 
     public String getNpmToken() {
         return npmToken;
+    }
+
+    public void setRegistryUrl(String registryUrl) {
+        this.registryUrl = registryUrl;
+    }
+
+    public String getRegistryUrl() {
+        return registryUrl;
     }
 
     public boolean isUseManagedNode() {
@@ -402,7 +412,7 @@ public class NPM {
         if (source.startsWith(GITHUB_URL)) {
             return source + "/releases/download/jdeploy/package-info.json";
         } else {
-            return REGISTRY_URL+ URLEncoder.encode(packageName, "UTF-8");
+            return registryUrl + URLEncoder.encode(packageName, "UTF-8");
         }
     }
 
@@ -413,6 +423,9 @@ public class NPM {
             if (!Platform.getSystemPlatform().isWindows()) {
                 env.put("npm_config_//registry.npmjs.org/:_authToken", npmToken);
             }
+        }
+        if (!DEFAULT_REGISTRY_URL.equals(registryUrl)) {
+            env.put("npm_config_registry", registryUrl);
         }
 
         return env;

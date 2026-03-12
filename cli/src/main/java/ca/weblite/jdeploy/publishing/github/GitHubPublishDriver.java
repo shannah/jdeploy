@@ -48,7 +48,9 @@ import static ca.weblite.jdeploy.BundleConstants.*;
 @Singleton
 public class GitHubPublishDriver implements PublishDriverInterface {
 
-    private static final String GITHUB_URL = "https://github.com/";
+    private static final String DEFAULT_GITHUB_URL = "https://github.com/";
+
+    private String githubUrl = DEFAULT_GITHUB_URL;
 
     private final PublishDriverInterface baseDriver;
 
@@ -97,6 +99,10 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         this.projectFactory = projectFactory;
         this.environment = environment;
         this.jdeployFilesZipGenerator = jdeployFilesZipGenerator;
+    }
+
+    public void setGithubUrl(String githubUrl) {
+        this.githubUrl = githubUrl;
     }
 
     @Override
@@ -359,9 +365,9 @@ public class GitHubPublishDriver implements PublishDriverInterface {
     }
 
     private String getPackageUrl(PublishTargetInterface target) {
-        if (!target.getUrl().startsWith(GITHUB_URL)) {
+        if (!target.getUrl().startsWith(githubUrl)) {
             throw new IllegalArgumentException(
-                    "GitHub driver only supports target URLs starting with " + GITHUB_URL + " but received " +
+                    "GitHub driver only supports target URLs starting with " + githubUrl + " but received " +
                             target.getUrl() + " instead."
             );
         }
@@ -581,7 +587,7 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             return context.githubRepository;
         }
 
-        return target.getUrl().replace(GITHUB_URL, "");
+        return target.getUrl().replace(githubUrl, "");
     }
 
     private String getRefName(PublishingContext context, PublishTargetInterface target) {

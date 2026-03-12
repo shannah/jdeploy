@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/[^/]+/[^/]+/releases/tags/.*"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "Content-Type": "text/html"
+    },
+    "body": "Not Found"
+  },
+  "priority": 20
+}

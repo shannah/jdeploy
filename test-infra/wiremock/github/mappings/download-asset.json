@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/api/assets/.*"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/octet-stream",
+      "ETag": "\"mock-etag-12345\""
+    },
+    "body": "mock-asset-content"
+  }
+}
