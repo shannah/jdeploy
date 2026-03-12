@@ -24,7 +24,7 @@ jobs:
           WIREMOCK_OPTIONS: "--global-response-templating --verbose"
 
       wiremock-jdeploy:
-        image: wiremock/wiremock:3.3.1
+        image: wiremock/wiremock:2.35.1-1
         ports:
           - 8081:8080
         env:

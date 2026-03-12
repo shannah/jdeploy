@@ -8,7 +8,7 @@
     "headers": {
       "Content-Type": "application/json"
     },
-    "body": "{\"code\": \"{{randomValue length=5 type='ALPHANUMERIC' lowercase=true}}\"}",
+    "body": "{\"code\": \"{{randomValue length=5 type='ALPHANUMERIC'}}\"}",
     "transformers": ["response-template"]
   }
 }
