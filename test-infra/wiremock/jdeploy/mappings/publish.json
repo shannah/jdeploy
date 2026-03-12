@@ -1,15 +1,13 @@
 {
   "request": {
     "method": "POST",
-    "url": "/publish.php"
+    "urlPathPattern": "/publish\\.php"
   },
   "response": {
     "status": 200,
     "headers": {
       "Content-Type": "application/json"
     },
-    "jsonBody": {
-      "code": 200
-    }
+    "body": "{\"code\": 200}"
   }
 }

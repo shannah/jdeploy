@@ -17,14 +17,14 @@ jobs:
           - 4873:4873
 
       wiremock-github:
-        image: wiremock/wiremock:latest
+        image: wiremock/wiremock:3.3.1
         ports:
           - 8080:8080
         env:
           WIREMOCK_OPTIONS: "--global-response-templating --verbose"
 
       wiremock-jdeploy:
-        image: wiremock/wiremock:latest
+        image: wiremock/wiremock:3.3.1
         ports:
           - 8081:8080
         env:
@@ -186,3 +186,13 @@ jobs:
           for r in data.get('requests', []):
             print(f\"{r['request']['method']} {r['request']['url']} -> {r['responseDefinition'].get('status', '?')}\")
           " || echo "Could not fetch request log"
+
+      - name: Print WireMock near-misses
+        if: failure()
+        run: |
+          echo "=== GitHub WireMock Near-Misses ==="
+          curl -s http://localhost:8080/__admin/requests/unmatched/near-misses | python3 -m json.tool 2>/dev/null || echo "None"
+          echo "=== jDeploy WireMock Near-Misses ==="
+          curl -s http://localhost:8081/__admin/requests/unmatched/near-misses | python3 -m json.tool 2>/dev/null || echo "None"
+          echo "=== jDeploy WireMock Unmatched Requests ==="
+          curl -s http://localhost:8081/__admin/requests/unmatched | python3 -m json.tool 2>/dev/null || echo "None"

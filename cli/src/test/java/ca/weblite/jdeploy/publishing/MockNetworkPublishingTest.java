@@ -17,6 +17,13 @@ import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.junit.jupiter.api.*;
 
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.util.EntityUtils;
+
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -121,6 +128,29 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
         // --- Verify WireMock received expected requests ---
         githubWireMock.verifyRequestMade("POST", "/repos/.*/releases");
         jdeployWireMock.verifyRequestMade("GET", "/register\\.php.*");
+    }
+
+    @Test
+    @Order(15)
+    @DisplayName("jDeploy publish endpoint accepts POST via Apache HttpClient")
+    void jdeployPublishEndpointAcceptsPost() throws Exception {
+        // Test that WireMock's publish.php stub works with Apache HttpClient
+        // (same HTTP client used by ResourceUploader)
+        String url = getJdeployRegistry() + "publish.php";
+        CloseableHttpClient client = HttpClientBuilder.create().build();
+        HttpPost httpPost = new HttpPost(url);
+        httpPost.setHeader("Content-Type", "application/json; charset='utf-8'");
+        httpPost.setEntity(new StringEntity("{\"test\": true}"));
+
+        try (CloseableHttpResponse response = client.execute(httpPost)) {
+            int statusCode = response.getStatusLine().getStatusCode();
+            String body = EntityUtils.toString(response.getEntity());
+            assertEquals(200, statusCode,
+                    "publish.php should return 200. Got " + statusCode +
+                    " (" + response.getStatusLine().getReasonPhrase() + "): " + body);
+        }
+
+        jdeployWireMock.verifyRequestMade("POST", "/publish\\.php.*");
     }
 
     @Test
