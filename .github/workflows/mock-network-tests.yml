@@ -127,25 +127,32 @@ jobs:
             -Dtest="ca.weblite.jdeploy.publishing.*MockNetwork*,ca.weblite.jdeploy.publishing.*MockPublish*" \
             -Dfailsafe.useFile=false
 
-      - name: Collect diagnostic info on failure
+      - name: Write test diagnostics to job summary
         if: failure()
         run: |
-          mkdir -p /tmp/test-diagnostics
-          echo "=== Maven Surefire Reports ===" > /tmp/test-diagnostics/surefire-output.txt
-          find cli/target/surefire-reports -name "*.txt" -exec echo "--- {} ---" \; -exec cat {} \; >> /tmp/test-diagnostics/surefire-output.txt 2>&1 || echo "No surefire reports found" >> /tmp/test-diagnostics/surefire-output.txt
-          cp -r cli/target/surefire-reports /tmp/test-diagnostics/ 2>/dev/null || true
-          echo "=== GitHub WireMock Requests ===" > /tmp/test-diagnostics/wiremock-github.txt
-          curl -s http://localhost:8080/__admin/requests >> /tmp/test-diagnostics/wiremock-github.txt 2>&1 || true
-          echo "=== jDeploy WireMock Requests ===" > /tmp/test-diagnostics/wiremock-jdeploy.txt
-          curl -s http://localhost:8081/__admin/requests >> /tmp/test-diagnostics/wiremock-jdeploy.txt 2>&1 || true
-
-      - name: Upload test diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-diagnostics
-          path: /tmp/test-diagnostics/
-          retention-days: 5
+          echo '## Test Failure Diagnostics' >> $GITHUB_STEP_SUMMARY
+          echo '### Surefire Reports' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          find cli/target/surefire-reports -name "*.txt" -exec echo "--- {} ---" \; -exec cat {} \; 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "No surefire reports found" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '### WireMock GitHub Requests' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          curl -s http://localhost:8080/__admin/requests | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for r in data.get('requests', []):
+            print(f\"{r['request']['method']} {r['request']['url']} -> {r['responseDefinition'].get('status', '?')}\")
+          " >> $GITHUB_STEP_SUMMARY 2>&1 || echo "Could not fetch" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '### WireMock jDeploy Requests' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          curl -s http://localhost:8081/__admin/requests | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for r in data.get('requests', []):
+            print(f\"{r['request']['method']} {r['request']['url']} -> {r['responseDefinition'].get('status', '?')}\")
+          " >> $GITHUB_STEP_SUMMARY 2>&1 || echo "Could not fetch" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Print WireMock GitHub request log
         if: always()
