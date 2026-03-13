@@ -31,7 +31,7 @@ case "${1:-}" in
         echo "  export GITHUB_BASE_URL=http://localhost:8080"
         echo "  export JDEPLOY_REGISTRY_URL=http://localhost:8081/"
         echo "  export GITHUB_TOKEN=mock-github-token-for-testing"
-        echo "  cd cli && mvn test -Dtest=ca.weblite.jdeploy.publishing.MockNetworkPublishingTest"
+        echo "  cd cli && mvn test -Dtest='ca.weblite.jdeploy.publishing.*MockNetwork*,ca.weblite.jdeploy.publishing.*MockPublish*'"
         ;;
 
     --down)
@@ -50,7 +50,7 @@ case "${1:-}" in
         export GITHUB_BASE_URL="${GITHUB_BASE_URL:-http://localhost:8080}"
         export JDEPLOY_REGISTRY_URL="${JDEPLOY_REGISTRY_URL:-http://localhost:8081/}"
         export GITHUB_TOKEN="${GITHUB_TOKEN:-mock-github-token-for-testing}"
-        cd cli && mvn test -Dtest=ca.weblite.jdeploy.publishing.MockNetworkPublishingTest
+        cd cli && mvn test -Dtest="ca.weblite.jdeploy.publishing.*MockNetwork*,ca.weblite.jdeploy.publishing.*MockPublish*"
         ;;
 
     *)
