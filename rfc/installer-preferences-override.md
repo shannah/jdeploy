@@ -1,7 +1,7 @@
 # Installer Preferences Override
 
 ## Status
-Implemented (installer side) — Launcher integration pending
+Implemented (installer + launcher)
 
 ## Overview
 
