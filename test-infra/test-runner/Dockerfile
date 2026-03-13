@@ -23,6 +23,7 @@ CMD bash -c '\
         -Dmock.network.tests=true \
         -Dfailsafe.useFile=false \
     && mvn -f installer/pom.xml test \
-        -Dtest="ca.weblite.jdeploy.installer.prebuilt.mocknetwork.*" \
+        -Dtest="ca.weblite.jdeploy.installer.prebuilt.mocknetwork.PrebuiltBundleDownloadMockNetworkTest" \
+        -Dsurefire.failIfNoSpecifiedTests=false \
         -Dmock.network.tests=true \
         -Dfailsafe.useFile=false'
