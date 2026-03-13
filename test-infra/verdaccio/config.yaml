@@ -1,0 +1,17 @@
+storage: /verdaccio/storage/data
+auth:
+  htpasswd:
+    file: /verdaccio/storage/htpasswd
+    max_users: 100
+uplinks: {}
+packages:
+  '**':
+    access: $all
+    publish: $all
+    unpublish: $all
+server:
+  keepAliveTimeout: 60
+middlewares:
+  audit:
+    enabled: true
+log: { type: stdout, format: pretty, level: warn }

@@ -1,0 +1,222 @@
+name: Mock Network Publishing Tests
+
+on:
+  push:
+    branches: [ master, 'claude/**' ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  mock-network-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      verdaccio:
+        image: verdaccio/verdaccio:5
+        ports:
+          - 4873:4873
+
+      wiremock-github:
+        image: wiremock/wiremock:3.3.1
+        ports:
+          - 8080:8080
+        env:
+          WIREMOCK_OPTIONS: "--global-response-templating --verbose"
+
+      wiremock-jdeploy:
+        image: wiremock/wiremock:2.35.1-1
+        ports:
+          - 8081:8080
+        env:
+          WIREMOCK_OPTIONS: "--global-response-templating --verbose"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for Verdaccio..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4873/-/ping > /dev/null 2>&1; then
+              echo "Verdaccio is ready"
+              break
+            fi
+            echo "  attempt $i/30..."
+            sleep 2
+          done
+          curl -sf http://localhost:4873/-/ping > /dev/null || { echo "Verdaccio failed to start"; exit 1; }
+
+          echo "Waiting for WireMock GitHub..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/__admin/mappings > /dev/null 2>&1; then
+              echo "WireMock GitHub is ready"
+              break
+            fi
+            echo "  attempt $i/30..."
+            sleep 2
+          done
+          curl -sf http://localhost:8080/__admin/mappings > /dev/null || { echo "WireMock GitHub failed to start"; exit 1; }
+
+          echo "Waiting for WireMock jDeploy..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8081/__admin/mappings > /dev/null 2>&1; then
+              echo "WireMock jDeploy is ready"
+              break
+            fi
+            echo "  attempt $i/30..."
+            sleep 2
+          done
+          curl -sf http://localhost:8081/__admin/mappings > /dev/null || { echo "WireMock jDeploy failed to start"; exit 1; }
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configure npm for Verdaccio
+        run: |
+          # Register a test user with Verdaccio for npm publish tests
+          TOKEN=$(curl -s -X PUT http://localhost:4873/-/user/org.couchdb.user:testuser \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"testuser","password":"testpass123","email":"test@test.com"}' \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))")
+          echo "Verdaccio user registered, token: ${TOKEN:0:10}..."
+          # Configure npm to use this token for the local registry
+          npm config set //localhost:4873/:_authToken "$TOKEN"
+          npm config set registry http://localhost:4873
+
+      - name: Load WireMock GitHub stubs
+        run: |
+          for f in test-infra/wiremock/github/mappings/*.json; do
+            curl -s -X POST http://localhost:8080/__admin/mappings \
+              -H 'Content-Type: application/json' \
+              -d @"$f"
+          done
+          echo "Loaded GitHub WireMock stubs:"
+          curl -s http://localhost:8080/__admin/mappings | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin)['meta'], indent=2))"
+
+      - name: Load WireMock jDeploy stubs
+        run: |
+          for f in test-infra/wiremock/jdeploy/mappings/*.json; do
+            echo "Loading stub: $f"
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8081/__admin/mappings \
+              -H 'Content-Type: application/json' \
+              -d @"$f")
+            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | head -n -1)
+            echo "  Response ($HTTP_CODE): $BODY"
+          done
+          echo "Loaded jDeploy WireMock stubs:"
+          curl -s http://localhost:8081/__admin/mappings | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Total: {d[\"meta\"][\"total\"]}'); [print(f'  {m[\"request\"][\"method\"]} {m[\"request\"].get(\"urlPathPattern\", m[\"request\"].get(\"url\", \"?\"))}') for m in d.get('mappings', [])]"
+
+      - name: Verify WireMock jDeploy publish stub with Apache-style Content-Type
+        run: |
+          echo "Testing POST to publish.php with standard Content-Type..."
+          curl -v -X POST http://localhost:8081/publish.php \
+            -H 'Content-Type: application/json' \
+            -d '{"test": true}' 2>&1
+          echo ""
+          echo "Testing POST to publish.php with Apache HttpClient-style Content-Type (single-quoted charset)..."
+          curl -v -X POST http://localhost:8081/publish.php \
+            -H "Content-Type: application/json; charset='utf-8'" \
+            -d '{"test": true}' 2>&1
+          echo ""
+          echo "Checking request journal..."
+          curl -s http://localhost:8081/__admin/requests | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for r in data.get('requests', []):
+            print(f\"{r['request']['method']} {r['request']['url']} -> {r.get('responseDefinition', {}).get('status', '?')}\")
+          " || echo "Could not fetch"
+
+      - name: Build shared library
+        run: cd shared && mvn clean install -DskipTests -q
+
+      - name: Run mock network publishing tests
+        env:
+          NPM_CONFIG_REGISTRY: http://localhost:4873
+          GITHUB_API_BASE_URL: http://localhost:8080
+          GITHUB_BASE_URL: http://localhost:8080/
+          JDEPLOY_REGISTRY_URL: http://localhost:8081/
+          GITHUB_TOKEN: mock-github-token-for-testing
+        run: |
+          cd cli && mvn test \
+            -Dtest="ca.weblite.jdeploy.publishing.*MockNetwork*,ca.weblite.jdeploy.publishing.*MockPublish*" \
+            -Dsurefire.useFile=false \
+            -Dsurefire.printSummary=true \
+            -e
+
+      - name: Print surefire test reports
+        if: failure()
+        run: |
+          echo "=== Surefire Reports ==="
+          find cli/target/surefire-reports -name "*.txt" -exec echo "--- {} ---" \; -exec cat {} \; 2>/dev/null || echo "No surefire reports found"
+          echo ""
+          echo "=== Surefire XML Reports ==="
+          find cli/target/surefire-reports -name "*.xml" -exec echo "--- {} ---" \; -exec cat {} \; 2>/dev/null || echo "No XML reports found"
+
+      - name: Write test diagnostics to job summary
+        if: failure()
+        run: |
+          echo '## Test Failure Diagnostics' >> $GITHUB_STEP_SUMMARY
+          echo '### Surefire Reports' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          find cli/target/surefire-reports -name "*.txt" -exec echo "--- {} ---" \; -exec cat {} \; 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "No surefire reports found" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '### WireMock GitHub Requests' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          curl -s http://localhost:8080/__admin/requests | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for r in data.get('requests', []):
+            print(f\"{r['request']['method']} {r['request']['url']} -> {r['responseDefinition'].get('status', '?')}\")
+          " >> $GITHUB_STEP_SUMMARY 2>&1 || echo "Could not fetch" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '### WireMock jDeploy Requests' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          curl -s http://localhost:8081/__admin/requests | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for r in data.get('requests', []):
+            print(f\"{r['request']['method']} {r['request']['url']} -> {r['responseDefinition'].get('status', '?')}\")
+          " >> $GITHUB_STEP_SUMMARY 2>&1 || echo "Could not fetch" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Print WireMock GitHub request log
+        if: always()
+        run: |
+          echo "=== GitHub WireMock Requests ==="
+          curl -s http://localhost:8080/__admin/requests | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for r in data.get('requests', []):
+            print(f\"{r['request']['method']} {r['request']['url']} -> {r['responseDefinition'].get('status', '?')}\")
+          " || echo "Could not fetch request log"
+
+      - name: Print WireMock jDeploy request log
+        if: always()
+        run: |
+          echo "=== jDeploy WireMock Requests ==="
+          curl -s http://localhost:8081/__admin/requests | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for r in data.get('requests', []):
+            print(f\"{r['request']['method']} {r['request']['url']} -> {r['responseDefinition'].get('status', '?')}\")
+          " || echo "Could not fetch request log"
+
+      - name: Print WireMock near-misses
+        if: failure()
+        run: |
+          echo "=== GitHub WireMock Near-Misses ==="
+          curl -s http://localhost:8080/__admin/requests/unmatched/near-misses | python3 -m json.tool 2>/dev/null || echo "None"
+          echo "=== jDeploy WireMock Near-Misses ==="
+          curl -s http://localhost:8081/__admin/requests/unmatched/near-misses | python3 -m json.tool 2>/dev/null || echo "None"
+          echo "=== jDeploy WireMock Unmatched Requests ==="
+          curl -s http://localhost:8081/__admin/requests/unmatched | python3 -m json.tool 2>/dev/null || echo "None"
