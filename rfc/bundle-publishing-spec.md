@@ -162,21 +162,76 @@ a1b2c3d4.my-app-mac-x64-2.1.0.jar
 
 ## Bundle JAR Contents
 
-Each bundle JAR contains a single native app bundle as its sole entry:
+Each bundle JAR is a standard Java JAR file containing a single native application bundle. The internal structure varies by platform.
 
-| Platform | JAR Contents |
-|----------|-------------|
-| macOS | `AppName.app/` directory tree (preserved structure) |
-| Windows | `AppName.exe` |
-| Linux | `app-name` (binary executable) |
+### macOS Bundle JAR
 
-CLI variant JARs (Windows only):
+The JAR contains the full `.app` directory tree as recursive JAR entries, preserving the standard macOS application bundle structure:
 
-| Platform | JAR Contents |
-|----------|-------------|
-| Windows | `AppName-cli.exe` |
+```
+AppName.app/
+└── Contents/
+    ├── MacOS/
+    │   ├── Client4JLauncher          # Native launcher executable (x64 or ARM64)
+    │   └── Client4JLauncher-cli      # CLI launcher (present when CLI commands are configured)
+    ├── Resources/
+    │   └── icon.icns                 # Application icon (ICNS format)
+    ├── Library/
+    │   └── LaunchAgents/             # (optional) macOS service plists
+    │       └── commandName.plist     # One per service_controller command
+    ├── Info.plist                     # macOS application configuration plist
+    ├── PkgInfo                       # macOS package type identifier
+    └── app.xml                       # jDeploy app manifest (name, package, version, icon data URI, etc.)
+```
 
-Note: macOS CLI binaries are included inside the `.app` bundle directory, so a separate CLI JAR is not produced for macOS. CLI JARs are only built for Windows when CLI commands are configured in `jdeploy.commands`.
+The macOS CLI binary (`Client4JLauncher-cli`) is included **inside** the `.app` bundle when CLI commands are configured, so no separate CLI JAR is produced for macOS.
+
+### Windows Bundle JAR
+
+The JAR contains a single `.exe` file entry:
+
+```
+AppName.exe                           # Native launcher executable (x64 or ARM64 PE binary)
+```
+
+The `.exe` is a self-contained native Windows PE executable. The jDeploy app manifest (`app.xml`) is embedded at the end of the binary using a byte-inversion encoding scheme with a 32-byte trailer for detection.
+
+When CLI commands are configured, a separate CLI variant JAR is also produced:
+
+```
+AppName-cli.exe                       # CLI-mode launcher executable
+```
+
+CLI variant JARs are **only** built for Windows.
+
+### Linux Bundle JAR
+
+The JAR contains a single binary executable entry:
+
+```
+app-name                              # Native launcher executable (x64 or ARM64 ELF binary)
+```
+
+Like Windows, the Linux binary is a self-contained native ELF executable with the jDeploy app manifest (`app.xml`) embedded at the end of the binary using the same byte-inversion encoding scheme.
+
+### Embedded App Manifest (app.xml)
+
+All platform bundles include an `app.xml` manifest containing application metadata used by the native launcher at runtime:
+
+- Application name and display title
+- NPM package name and version
+- NPM source (GitHub repository URL, if applicable)
+- Application icon (embedded as a base64 data URI)
+- Splash screen configuration (if configured)
+- CLI command definitions (if configured)
+
+For macOS, `app.xml` is a standalone file inside `Contents/`. For Windows and Linux, it is appended to the end of the native executable binary.
+
+### What Bundles Do NOT Include
+
+- **JVM runtime**: Bundles do not include an embedded JVM. The native launcher downloads an appropriate JVM on first run.
+- **Application JARs**: The application's own JAR files are not included. The launcher fetches them from the NPM registry or GitHub at runtime.
+- **JCEF/Chromium frameworks**: Not included in publish-time bundles by default.
 
 ## Upload Destinations
 
