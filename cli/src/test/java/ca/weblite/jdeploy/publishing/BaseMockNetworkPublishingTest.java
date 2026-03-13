@@ -15,6 +15,8 @@ import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import ca.weblite.jdeploy.publishing.github.GitHubPublishDriver;
 import ca.weblite.jdeploy.publishing.github.GitHubReleaseCreator;
+import ca.weblite.jdeploy.publishing.BundleChecksumWriter;
+import ca.weblite.jdeploy.publishing.BundleUploadRouter;
 import ca.weblite.jdeploy.services.*;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
@@ -264,11 +266,16 @@ public abstract class BaseMockNetworkPublishingTest {
             return null;
         }).when(baseDriver).prepare(any(), any(), any());
 
+        PublishBundleService publishBundleService = mock(PublishBundleService.class);
+        BundleUploadRouter bundleUploadRouter = mock(BundleUploadRouter.class);
+        BundleChecksumWriter bundleChecksumWriter = mock(BundleChecksumWriter.class);
+
         GitHubPublishDriver githubDriver = new GitHubPublishDriver(
                 baseDriver, bundleCodeService, packageNameService,
                 cheerpjServiceFactory, releaseCreator, downloadPageSettingsService,
                 platformBundleGenerator, defaultBundleService, projectFactory,
-                environment, jdeployFilesZipGenerator
+                environment, jdeployFilesZipGenerator,
+                publishBundleService, bundleUploadRouter, bundleChecksumWriter
         );
         githubDriver.setGithubUrl(getGithubBaseUrl());
 

@@ -78,7 +78,15 @@ class NPMPublishDriverPlatformBundlesTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        driver = new NPMPublishDriver(baseDriver, platformBundleGenerator, defaultBundleService, projectFactory);
+        driver = new NPMPublishDriver(
+                baseDriver,
+                platformBundleGenerator,
+                defaultBundleService,
+                projectFactory,
+                mock(ca.weblite.jdeploy.services.PublishBundleService.class),
+                mock(ca.weblite.jdeploy.publishing.BundleUploadRouter.class),
+                mock(ca.weblite.jdeploy.publishing.BundleChecksumWriter.class)
+        );
 
         // Set up test directories and files
         packageJsonFile = new File(tempDir, "package.json");
