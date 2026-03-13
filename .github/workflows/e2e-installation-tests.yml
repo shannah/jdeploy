@@ -16,6 +16,10 @@ on:
         required: false
         default: 'www.jdeploy.com'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   e2e-linux:
     runs-on: ubuntu-latest
