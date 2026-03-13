@@ -61,6 +61,7 @@ import ca.weblite.jdeploy.installer.helpers.HelperUpdateService;
 import ca.weblite.jdeploy.installer.ai.models.AiIntegrationInstallResult;
 import ca.weblite.jdeploy.installer.ai.models.AiIntegrationManifestEntry;
 import ca.weblite.jdeploy.installer.ai.services.AiIntegrationInstaller;
+import ca.weblite.jdeploy.installer.prebuilt.PrebuiltBundleDownloader;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
@@ -2226,6 +2227,24 @@ public class Main implements Runnable, Constants {
                 if (linuxInstallLogger != null) {
                     linuxInstallLogger.close();
                 }
+            }
+        }
+
+        // Attempt to replace the installed bundle with a pre-built (signed/notarized) version
+        if (npmPackageVersion() != null && installedApp != null) {
+            try {
+                PrebuiltBundleDownloader prebuiltDownloader = new PrebuiltBundleDownloader();
+                boolean replaced = prebuiltDownloader.downloadAndReplace(
+                        npmPackageVersion(),
+                        target,
+                        installedApp,
+                        installationForm
+                );
+                if (replaced) {
+                    System.out.println("Installed pre-built bundle for " + target);
+                }
+            } catch (Exception e) {
+                System.err.println("Warning: Pre-built bundle check failed: " + e.getMessage());
             }
         }
 

@@ -137,7 +137,10 @@ jobs:
       - name: Build shared library
         run: cd shared && mvn clean install -DskipTests -q
 
-      - name: Run mock network publishing tests
+      - name: Build installer module
+        run: cd installer && mvn clean package -DskipTests -q
+
+      - name: Run mock network publishing tests (CLI)
         env:
           NPM_CONFIG_REGISTRY: http://localhost:4873
           GITHUB_API_BASE_URL: http://localhost:8080
@@ -151,11 +154,25 @@ jobs:
             -Dsurefire.printSummary=true \
             -e
 
+      - name: Run mock network pre-built bundle tests (Installer)
+        env:
+          GITHUB_BASE_URL: http://localhost:8080
+        run: |
+          cd installer && mvn test \
+            -Dtest="ca.weblite.jdeploy.installer.prebuilt.mocknetwork.PrebuiltBundleDownloadMockNetworkTest" \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dsurefire.useFile=false \
+            -Dsurefire.printSummary=true \
+            -e
+
       - name: Print surefire test reports
         if: failure()
         run: |
-          echo "=== Surefire Reports ==="
+          echo "=== CLI Surefire Reports ==="
           find cli/target/surefire-reports -name "*.txt" -exec echo "--- {} ---" \; -exec cat {} \; 2>/dev/null || echo "No surefire reports found"
+          echo ""
+          echo "=== Installer Surefire Reports ==="
+          find installer/target/surefire-reports -name "*.txt" -exec echo "--- {} ---" \; -exec cat {} \; 2>/dev/null || echo "No surefire reports found"
           echo ""
           echo "=== Surefire XML Reports ==="
           find cli/target/surefire-reports -name "*.xml" -exec echo "--- {} ---" \; -exec cat {} \; 2>/dev/null || echo "No XML reports found"

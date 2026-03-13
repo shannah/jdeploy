@@ -11,12 +11,19 @@ WORKDIR /workspace
 # Copy the full project
 COPY . .
 
-# Build shared library first, then CLI (skip tests during build)
+# Build shared library first, then CLI and installer (skip tests during build)
 RUN cd shared && mvn clean install -DskipTests -q \
-    && cd ../cli && mvn clean package -DskipTests -q
+    && cd ../cli && mvn clean package -DskipTests -q \
+    && cd ../installer && mvn clean package -DskipTests -q
 
-# Default command: run the mock-network integration tests
-CMD ["mvn", "-f", "cli/pom.xml", "test", \
-     "-Dtest=ca.weblite.jdeploy.publishing.MockNetworkPublishingTest", \
-     "-Dmock.network.tests=true", \
-     "-Dfailsafe.useFile=false"]
+# Default command: run all mock-network integration tests (CLI + installer)
+CMD bash -c '\
+    mvn -f cli/pom.xml test \
+        -Dtest="ca.weblite.jdeploy.publishing.MockNetworkPublishingTest" \
+        -Dmock.network.tests=true \
+        -Dfailsafe.useFile=false \
+    && mvn -f installer/pom.xml test \
+        -Dtest="ca.weblite.jdeploy.installer.prebuilt.mocknetwork.PrebuiltBundleDownloadMockNetworkTest" \
+        -Dsurefire.failIfNoSpecifiedTests=false \
+        -Dmock.network.tests=true \
+        -Dfailsafe.useFile=false'

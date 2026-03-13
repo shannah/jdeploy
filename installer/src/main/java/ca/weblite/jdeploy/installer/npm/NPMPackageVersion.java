@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.installer.npm;
 
 import ca.weblite.jdeploy.ai.models.AiIntegrationConfig;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
+import ca.weblite.jdeploy.installer.prebuilt.PrebuiltArtifactInfo;
 import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.jdeploy.models.CommandSpecParser;
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
@@ -298,5 +299,18 @@ public class NPMPackageVersion {
      */
     public AiIntegrationConfig getAiIntegrationConfig(File bundleDir) {
         return AiIntegrationConfig.fromBundle(packageJson, bundleDir);
+    }
+
+    /**
+     * Gets pre-built artifact info for the given platform key (e.g. "mac-arm64", "win-x64").
+     * Returns null if no artifacts are defined or no artifact exists for the given platform.
+     */
+    public PrebuiltArtifactInfo getPrebuiltArtifact(String platformKey) {
+        JSONObject artifacts = jdeploy().optJSONObject("artifacts");
+        if (artifacts == null) {
+            return null;
+        }
+        JSONObject platformArtifact = artifacts.optJSONObject(platformKey);
+        return PrebuiltArtifactInfo.fromJson(platformArtifact);
     }
 }
