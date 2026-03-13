@@ -1,8 +1,6 @@
 name: E2E Installation Tests
 
 on:
-  push:
-    branches: [ master ]
   pull_request:
     branches: [ master ]
   workflow_dispatch:
@@ -15,10 +13,6 @@ on:
         description: 'jDeploy URL (default: www.jdeploy.com)'
         required: false
         default: 'www.jdeploy.com'
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 jobs:
   e2e-linux:

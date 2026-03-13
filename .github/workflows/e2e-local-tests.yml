@@ -1,8 +1,6 @@
 name: E2E Local Project Tests
 
 on:
-  push:
-    branches: [ master ]
   pull_request:
     branches: [ master ]
   workflow_dispatch:
@@ -11,10 +9,6 @@ on:
         description: 'Specific template to test (leave empty for all)'
         required: false
         default: ''
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 jobs:
   e2e-local-linux:
