@@ -1,8 +1,6 @@
 name: Mock Network Publishing Tests
 
 on:
-  push:
-    branches: [ master, 'claude/**' ]
   pull_request:
     branches: [ master ]
 
