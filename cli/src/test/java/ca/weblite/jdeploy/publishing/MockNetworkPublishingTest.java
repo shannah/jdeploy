@@ -11,8 +11,11 @@ import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import ca.weblite.jdeploy.publishing.github.GitHubPublishDriver;
 import ca.weblite.jdeploy.publishing.npm.NPMPublishDriver;
 import ca.weblite.jdeploy.factories.JDeployProjectFactory;
+import ca.weblite.jdeploy.publishing.BundleChecksumWriter;
+import ca.weblite.jdeploy.publishing.BundleUploadRouter;
 import ca.weblite.jdeploy.services.DefaultBundleService;
 import ca.weblite.jdeploy.services.PlatformBundleGenerator;
+import ca.weblite.jdeploy.services.PublishBundleService;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.junit.jupiter.api.*;
@@ -340,8 +343,13 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
         DefaultBundleService defaultBundleService = mock(DefaultBundleService.class);
         JDeployProjectFactory projectFactory = mock(JDeployProjectFactory.class);
 
+        PublishBundleService publishBundleService = mock(PublishBundleService.class);
+        BundleUploadRouter bundleUploadRouter = mock(BundleUploadRouter.class);
+        BundleChecksumWriter bundleChecksumWriter = mock(BundleChecksumWriter.class);
+
         NPMPublishDriver npmDriver = new NPMPublishDriver(
-                baseDriver, platformBundleGenerator, defaultBundleService, projectFactory
+                baseDriver, platformBundleGenerator, defaultBundleService, projectFactory,
+                publishBundleService, bundleUploadRouter, bundleChecksumWriter
         );
         npmDriver.setRegistryUrl(getNpmRegistry());
 
