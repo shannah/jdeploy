@@ -214,7 +214,7 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
 
         CloseableHttpClient client = HttpClientBuilder.create().build();
         HttpPost httpPost = new HttpPost(url);
-        httpPost.setHeader("Content-Type", "application/json; charset='utf-8'");
+        httpPost.setHeader("Content-Type", "application/json; charset=utf-8");
         httpPost.setEntity(new StringEntity("{\"test\": true}"));
 
         try (CloseableHttpResponse response = client.execute(httpPost)) {
