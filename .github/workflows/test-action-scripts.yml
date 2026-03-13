@@ -1,12 +1,6 @@
 name: Test Action Scripts
 
 on:
-  push:
-    branches: [ master, develop, 'feature/**' ]
-    paths:
-      - '.github/scripts/**'
-      - '.github/workflows/test-action-scripts.yml'
-      - 'action.yml'
   pull_request:
     branches: [ master, develop ]
     paths:

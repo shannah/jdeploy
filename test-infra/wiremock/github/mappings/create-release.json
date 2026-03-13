@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPathPattern": "/repos/[^/]+/[^/]+/releases"
+  },
+  "response": {
+    "status": 201,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\"id\":{{math 1 '+' (randomValue type='INTEGER' min=1 max=99999)}},\"tag_name\":\"{{jsonPath request.body '$.tag_name'}}\",\"name\":\"{{jsonPath request.body '$.name'}}\",\"body\":\"{{jsonPath request.body '$.body'}}\",\"upload_url\":\"{{request.baseUrl}}/uploads/repos/release-assets{?name,label}\",\"assets\":[]}",
+    "transformers": ["response-template"]
+  }
+}

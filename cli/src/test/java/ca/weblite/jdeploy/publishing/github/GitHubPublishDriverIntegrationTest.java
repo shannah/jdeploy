@@ -17,6 +17,8 @@ import ca.weblite.jdeploy.services.PackageNameService;
 import ca.weblite.jdeploy.services.CheerpjService;
 import ca.weblite.jdeploy.environment.Environment;
 import ca.weblite.jdeploy.services.ProjectBuilderService;
+import ca.weblite.jdeploy.services.WindowsSigningService;
+import ca.weblite.jdeploy.services.WindowsSigningConfigFactory;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.junit.After;
@@ -94,6 +96,9 @@ public class GitHubPublishDriverIntegrationTest {
         when(packagingConfig.getJdeployRegistry()).thenReturn("https://npm.jdeploy.com");
         when(compressionService.compress(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
         
+        WindowsSigningService windowsSigningService = mock(WindowsSigningService.class);
+        WindowsSigningConfigFactory windowsSigningConfigFactory = mock(WindowsSigningConfigFactory.class);
+
         packageService = new PackageService(
             environment,
             jarFinder,
@@ -103,7 +108,9 @@ public class GitHubPublishDriverIntegrationTest {
             copyJarRuleBuilder,
             projectBuilderService,
             packagingConfig,
-            permissionRequestService
+            permissionRequestService,
+            windowsSigningService,
+            windowsSigningConfigFactory
         );
         
         // Create BasePublishDriver that uses our real PackageService
@@ -157,7 +164,10 @@ public class GitHubPublishDriverIntegrationTest {
             defaultBundleService,
             projectFactory,
             githubDriverEnvironment,
-            mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class)
+            mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class),
+            mock(ca.weblite.jdeploy.services.PublishBundleService.class),
+            mock(ca.weblite.jdeploy.publishing.BundleUploadRouter.class),
+            mock(ca.weblite.jdeploy.publishing.BundleChecksumWriter.class)
         );
         
         // Setup test target

@@ -14,6 +14,10 @@ import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.services.BundleCodeService;
 import ca.weblite.jdeploy.services.ProjectBuilderService;
 import ca.weblite.jdeploy.services.VersionCleaner;
+import ca.weblite.jdeploy.services.WindowsSigningConfig;
+import ca.weblite.jdeploy.services.WindowsSigningConfigFactory;
+import ca.weblite.jdeploy.services.WindowsSigningService;
+import ca.weblite.jdeploy.appbundler.Util;
 import ca.weblite.tools.io.ArchiveUtil;
 import ca.weblite.tools.io.XMLUtil;
 import ca.weblite.tools.platform.Platform;
@@ -59,6 +63,10 @@ public class PackageService implements BundleConstants {
 
     private final PermissionRequestService permissionRequestService;
 
+    private final WindowsSigningService windowsSigningService;
+
+    private final WindowsSigningConfigFactory windowsSigningConfigFactory;
+
     @Inject
     public PackageService(
             Environment environment,
@@ -69,7 +77,9 @@ public class PackageService implements BundleConstants {
             CopyJarRuleBuilder copyJarRuleBuilder,
             ProjectBuilderService projectBuilderService,
             PackagingConfig packagingConfig,
-            PermissionRequestService permissionRequestService
+            PermissionRequestService permissionRequestService,
+            WindowsSigningService windowsSigningService,
+            WindowsSigningConfigFactory windowsSigningConfigFactory
     ) {
         this.environment = environment;
         this.jarFinder = jarFinder;
@@ -80,6 +90,8 @@ public class PackageService implements BundleConstants {
         this.projectBuilderService = projectBuilderService;
         this.packagingConfig = packagingConfig;
         this.permissionRequestService = permissionRequestService;
+        this.windowsSigningService = windowsSigningService;
+        this.windowsSigningConfigFactory = windowsSigningConfigFactory;
     }
 
     public void createJdeployBundle(
@@ -767,11 +779,36 @@ public class PackageService implements BundleConstants {
     }
 
     private BundlerResult windowsX64Bundle(PackagingContext context, BundlerSettings bundlerSettings) throws Exception {
-        return bundle(context, "win", bundlerSettings);
+        BundlerResult result = bundle(context, "win", bundlerSettings);
+        signWindowsExeIfConfigured(result);
+        return result;
     }
     private BundlerResult windowsArm64Bundle(PackagingContext context, BundlerSettings bundlerSettings) throws Exception {
-        return bundle(context, "win-arm64", bundlerSettings);
+        BundlerResult result = bundle(context, "win-arm64", bundlerSettings);
+        signWindowsExeIfConfigured(result);
+        return result;
     }
+    private void signWindowsExeIfConfigured(BundlerResult result) throws Exception {
+        WindowsSigningConfig config = windowsSigningConfigFactory.createFromEnvironment();
+        if (config == null) {
+            return;
+        }
+
+        File exeFile = result.getOutputFile();
+        if (exeFile == null || !exeFile.exists() || !exeFile.getName().endsWith(".exe")) {
+            return;
+        }
+
+        windowsSigningService.sign(exeFile, config);
+
+        // Re-create the release ZIP since the EXE was signed in-place
+        for (File releaseFile : result.releaseFiles) {
+            if (releaseFile.getName().endsWith(".zip")) {
+                Util.compressAsZip(releaseFile, exeFile);
+            }
+        }
+    }
+
     private BundlerResult linuxX64Bundle(PackagingContext context, BundlerSettings bundlerSettings) throws Exception {
         return bundle(context, "linux", bundlerSettings);
     }

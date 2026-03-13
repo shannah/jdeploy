@@ -8,9 +8,12 @@ import ca.weblite.jdeploy.factories.CheerpjServiceFactory;
 import ca.weblite.jdeploy.helpers.GithubReleaseNotesMutator;
 import ca.weblite.jdeploy.helpers.PackageInfoBuilder;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
+import ca.weblite.jdeploy.models.BundleManifest;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetType;
 import ca.weblite.jdeploy.publishing.BasePublishDriver;
+import ca.weblite.jdeploy.publishing.BundleChecksumWriter;
+import ca.weblite.jdeploy.publishing.BundleUploadRouter;
 import ca.weblite.jdeploy.publishing.OneTimePasswordProviderInterface;
 import ca.weblite.jdeploy.publishing.PublishDriverInterface;
 import ca.weblite.jdeploy.publishing.PublishingContext;
@@ -19,6 +22,7 @@ import ca.weblite.jdeploy.services.CheerpjService;
 import ca.weblite.jdeploy.services.PackageNameService;
 import ca.weblite.jdeploy.services.PackageSigningService;
 import ca.weblite.jdeploy.services.PlatformBundleGenerator;
+import ca.weblite.jdeploy.services.PublishBundleService;
 import ca.weblite.jdeploy.services.DefaultBundleService;
 import ca.weblite.jdeploy.services.VersionCleaner;
 import ca.weblite.jdeploy.models.JDeployProject;
@@ -48,7 +52,9 @@ import static ca.weblite.jdeploy.BundleConstants.*;
 @Singleton
 public class GitHubPublishDriver implements PublishDriverInterface {
 
-    private static final String GITHUB_URL = "https://github.com/";
+    private static final String DEFAULT_GITHUB_URL = "https://github.com/";
+
+    private String githubUrl = DEFAULT_GITHUB_URL;
 
     private final PublishDriverInterface baseDriver;
 
@@ -72,6 +78,12 @@ public class GitHubPublishDriver implements PublishDriverInterface {
 
     private final ca.weblite.jdeploy.services.JDeployFilesZipGenerator jdeployFilesZipGenerator;
 
+    private final PublishBundleService publishBundleService;
+
+    private final BundleUploadRouter bundleUploadRouter;
+
+    private final BundleChecksumWriter bundleChecksumWriter;
+
     @Inject
     public GitHubPublishDriver(
             BasePublishDriver baseDriver,
@@ -84,7 +96,10 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             DefaultBundleService defaultBundleService,
             JDeployProjectFactory projectFactory,
             Environment environment,
-            ca.weblite.jdeploy.services.JDeployFilesZipGenerator jdeployFilesZipGenerator
+            ca.weblite.jdeploy.services.JDeployFilesZipGenerator jdeployFilesZipGenerator,
+            PublishBundleService publishBundleService,
+            BundleUploadRouter bundleUploadRouter,
+            BundleChecksumWriter bundleChecksumWriter
     ) {
         this.baseDriver = baseDriver;
         this.bundleCodeService = bundleCodeService;
@@ -97,6 +112,13 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         this.projectFactory = projectFactory;
         this.environment = environment;
         this.jdeployFilesZipGenerator = jdeployFilesZipGenerator;
+        this.publishBundleService = publishBundleService;
+        this.bundleUploadRouter = bundleUploadRouter;
+        this.bundleChecksumWriter = bundleChecksumWriter;
+    }
+
+    public void setGithubUrl(String githubUrl) {
+        this.githubUrl = githubUrl;
     }
 
     @Override
@@ -257,6 +279,9 @@ public class GitHubPublishDriver implements PublishDriverInterface {
 
         saveGithubReleaseFiles(context, target);
 
+        // Build and upload pre-built bundles if enabled
+        maybePublishBundles(context, target);
+
         // Generate jdeploy-files.zip for GitHub releases
         jdeployFilesZipGenerator.generate(context, target);
 
@@ -359,9 +384,9 @@ public class GitHubPublishDriver implements PublishDriverInterface {
     }
 
     private String getPackageUrl(PublishTargetInterface target) {
-        if (!target.getUrl().startsWith(GITHUB_URL)) {
+        if (!target.getUrl().startsWith(githubUrl)) {
             throw new IllegalArgumentException(
-                    "GitHub driver only supports target URLs starting with " + GITHUB_URL + " but received " +
+                    "GitHub driver only supports target URLs starting with " + githubUrl + " but received " +
                             target.getUrl() + " instead."
             );
         }
@@ -581,7 +606,7 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             return context.githubRepository;
         }
 
-        return target.getUrl().replace(GITHUB_URL, "");
+        return target.getUrl().replace(githubUrl, "");
     }
 
     private String getRefName(PublishingContext context, PublishTargetInterface target) {
@@ -651,6 +676,50 @@ public class GitHubPublishDriver implements PublishDriverInterface {
         }
 
         return installers.toArray(new String[0]);
+    }
+
+    /**
+     * Builds pre-built native bundles, uploads them, and writes checksums to package.json
+     * if any artifact platforms are enabled in jdeploy.artifacts.
+     */
+    private void maybePublishBundles(PublishingContext context, PublishTargetInterface target) {
+        if (!publishBundleService.isEnabled(context.packagingContext)) {
+            return;
+        }
+
+        try {
+            context.out().println("Building pre-built bundles for publishing...");
+
+            BundleManifest manifest = publishBundleService.buildBundles(
+                    context.packagingContext, target.getUrl()
+            );
+
+            if (manifest.isEmpty()) {
+                context.out().println("No bundles were built.");
+                return;
+            }
+
+            // Upload bundles (to S3 or GitHub release files dir)
+            String version = context.packagingContext.getVersion();
+            bundleUploadRouter.uploadBundles(
+                    manifest, target, context.getGithubReleaseFilesDir(), version, context.out()
+            );
+
+            // Write bundle URLs and checksums to the publish package.json
+            bundleChecksumWriter.writeBundles(context.getPublishPackageJsonFile(), manifest);
+
+            // Also update the package.json in the release files dir
+            File releasePackageJson = new File(context.getGithubReleaseFilesDir(), "package.json");
+            if (releasePackageJson.exists()) {
+                bundleChecksumWriter.writeBundles(releasePackageJson, manifest);
+            }
+
+            context.out().println("Pre-built bundles published successfully.");
+        } catch (Exception e) {
+            context.err().println("Warning: Failed to build/upload pre-built bundles: " + e.getMessage());
+            context.err().println("The publish will continue without pre-built bundles.");
+            e.printStackTrace(context.err());
+        }
     }
 
     /**

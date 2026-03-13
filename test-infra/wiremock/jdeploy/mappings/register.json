@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/register\\.php"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\"code\": \"{{randomValue length=5 type='ALPHANUMERIC'}}\"}",
+    "transformers": ["response-template"]
+  }
+}

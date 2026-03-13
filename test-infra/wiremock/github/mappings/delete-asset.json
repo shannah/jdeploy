@@ -1,0 +1,9 @@
+{
+  "request": {
+    "method": "DELETE",
+    "urlPathPattern": "/api/assets/.*"
+  },
+  "response": {
+    "status": 204
+  }
+}

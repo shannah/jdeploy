@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPathPattern": "/uploads/repos/release-assets"
+  },
+  "response": {
+    "status": 201,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "id": 1,
+      "name": "{{request.query.name}}",
+      "url": "{{request.baseUrl}}/api/assets/1",
+      "state": "uploaded",
+      "size": 1024
+    },
+    "transformers": ["response-template"]
+  }
+}

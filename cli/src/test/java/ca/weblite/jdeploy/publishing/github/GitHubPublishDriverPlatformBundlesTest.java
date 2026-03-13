@@ -108,7 +108,10 @@ class GitHubPublishDriverPlatformBundlesTest {
                 defaultBundleService,
                 projectFactory,
                 environment,
-                mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class)
+                mock(ca.weblite.jdeploy.services.JDeployFilesZipGenerator.class),
+                mock(ca.weblite.jdeploy.services.PublishBundleService.class),
+                mock(ca.weblite.jdeploy.publishing.BundleUploadRouter.class),
+                mock(ca.weblite.jdeploy.publishing.BundleChecksumWriter.class)
         );
 
         packageJsonFile = new File(tempDir, "package.json");

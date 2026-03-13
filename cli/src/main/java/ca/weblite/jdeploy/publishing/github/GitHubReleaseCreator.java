@@ -16,9 +16,23 @@ import javax.inject.Inject;
 @Singleton
 public class GitHubReleaseCreator {
 
+    private static final String DEFAULT_GITHUB_URL = "https://github.com/";
+    private static final String DEFAULT_GITHUB_API_URL = "https://api.github.com/repos/";
+
+    private String githubUrl = DEFAULT_GITHUB_URL;
+    private String githubApiUrl = DEFAULT_GITHUB_API_URL;
+
     @Inject
     public GitHubReleaseCreator() {
         // Default constructor for dependency injection
+    }
+
+    public void setGithubUrl(String githubUrl) {
+        this.githubUrl = githubUrl;
+    }
+
+    public void setGithubApiUrl(String githubApiUrl) {
+        this.githubApiUrl = githubApiUrl;
     }
 
     public void createRelease(
@@ -290,11 +304,11 @@ public class GitHubReleaseCreator {
         }
     }
 
-    private static String getApiUrl(String repositoryUrl) {
-        if (!repositoryUrl.startsWith("https://github.com/")) {
+    private String getApiUrl(String repositoryUrl) {
+        if (!repositoryUrl.startsWith(githubUrl)) {
             throw new IllegalArgumentException("Invalid GitHub repository URL");
         }
-        return repositoryUrl.replace("https://github.com/", "https://api.github.com/repos/");
+        return repositoryUrl.replace(githubUrl, githubApiUrl);
     }
 
     private static String escapeJson(String input) {

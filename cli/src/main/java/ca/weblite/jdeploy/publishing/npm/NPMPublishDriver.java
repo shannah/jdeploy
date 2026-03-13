@@ -1,9 +1,12 @@
 package ca.weblite.jdeploy.publishing.npm;
 
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
+import ca.weblite.jdeploy.models.BundleManifest;
 import ca.weblite.jdeploy.npm.OneTimePasswordRequestedException;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishing.BasePublishDriver;
+import ca.weblite.jdeploy.publishing.BundleChecksumWriter;
+import ca.weblite.jdeploy.publishing.BundleUploadRouter;
 import ca.weblite.jdeploy.publishing.OneTimePasswordProviderInterface;
 import ca.weblite.jdeploy.publishing.PublishDriverInterface;
 import ca.weblite.jdeploy.publishing.PublishingContext;
@@ -11,6 +14,7 @@ import ca.weblite.jdeploy.models.JDeployProject;
 import ca.weblite.jdeploy.models.Platform;
 import ca.weblite.jdeploy.services.PackageSigningService;
 import ca.weblite.jdeploy.services.PlatformBundleGenerator;
+import ca.weblite.jdeploy.services.PublishBundleService;
 import ca.weblite.jdeploy.services.DefaultBundleService;
 import ca.weblite.jdeploy.services.VersionCleaner;
 import ca.weblite.jdeploy.factories.JDeployProjectFactory;
@@ -33,24 +37,39 @@ import java.util.Map;
 @Singleton
 public class NPMPublishDriver implements PublishDriverInterface {
 
-    private static final String REGISTRY_URL="https://registry.npmjs.org/";
+    private static final String DEFAULT_REGISTRY_URL="https://registry.npmjs.org/";
+
+    private String registryUrl = DEFAULT_REGISTRY_URL;
 
     private final PublishDriverInterface basePublishDriver;
     private final PlatformBundleGenerator platformBundleGenerator;
     private final DefaultBundleService defaultBundleService;
     private final JDeployProjectFactory projectFactory;
+    private final PublishBundleService publishBundleService;
+    private final BundleUploadRouter bundleUploadRouter;
+    private final BundleChecksumWriter bundleChecksumWriter;
 
     @Inject
     public NPMPublishDriver(
             BasePublishDriver basePublishDriver,
             PlatformBundleGenerator platformBundleGenerator,
             DefaultBundleService defaultBundleService,
-            JDeployProjectFactory projectFactory
+            JDeployProjectFactory projectFactory,
+            PublishBundleService publishBundleService,
+            BundleUploadRouter bundleUploadRouter,
+            BundleChecksumWriter bundleChecksumWriter
     ) {
         this.basePublishDriver = basePublishDriver;
         this.platformBundleGenerator = platformBundleGenerator;
         this.defaultBundleService = defaultBundleService;
         this.projectFactory = projectFactory;
+        this.publishBundleService = publishBundleService;
+        this.bundleUploadRouter = bundleUploadRouter;
+        this.bundleChecksumWriter = bundleChecksumWriter;
+    }
+
+    public void setRegistryUrl(String registryUrl) {
+        this.registryUrl = registryUrl;
     }
 
     @Override
@@ -231,6 +250,54 @@ public class NPMPublishDriver implements PublishDriverInterface {
     @Override
     public void prepare(PublishingContext context, PublishTargetInterface target, BundlerSettings bundlerSettings) throws IOException {
         basePublishDriver.prepare(context, target, bundlerSettings);
+
+        // Build and upload pre-built bundles if enabled
+        maybePublishBundles(context, target);
+    }
+
+    /**
+     * Builds pre-built native bundles, uploads them to S3, and writes checksums to package.json
+     * if any artifact platforms are enabled in jdeploy.artifacts. For NPM targets, S3 is required since NPM doesn't host
+     * arbitrary binary assets.
+     */
+    private void maybePublishBundles(PublishingContext context, PublishTargetInterface target) {
+        if (!publishBundleService.isEnabled(context.packagingContext)) {
+            return;
+        }
+
+        try {
+            context.out().println("Building pre-built bundles for publishing...");
+
+            // For NPM targets, source may come from package.json
+            String source = null;
+            if (context.packagingContext.m().containsKey("source")) {
+                source = (String) context.packagingContext.m().get("source");
+            }
+
+            BundleManifest manifest = publishBundleService.buildBundles(
+                    context.packagingContext, source
+            );
+
+            if (manifest.isEmpty()) {
+                context.out().println("No bundles were built.");
+                return;
+            }
+
+            // Upload bundles (S3 only for NPM targets)
+            String version = context.packagingContext.getVersion();
+            bundleUploadRouter.uploadBundles(
+                    manifest, target, null, version, context.out()
+            );
+
+            // Write bundle URLs and checksums to the publish package.json
+            bundleChecksumWriter.writeBundles(context.getPublishPackageJsonFile(), manifest);
+
+            context.out().println("Pre-built bundles published successfully.");
+        } catch (Exception e) {
+            context.err().println("Warning: Failed to build/upload pre-built bundles: " + e.getMessage());
+            context.err().println("The publish will continue without pre-built bundles.");
+            e.printStackTrace(context.err());
+        }
     }
 
     @Override
@@ -260,7 +327,7 @@ public class NPMPublishDriver implements PublishDriverInterface {
     }
 
     private String getPackageUrl(String packageName, PublishTargetInterface target) throws UnsupportedEncodingException {
-        return REGISTRY_URL+ URLEncoder.encode(packageName, "UTF-8");
+        return registryUrl + URLEncoder.encode(packageName, "UTF-8");
     }
 
     private String getPackageSigningVersionString(PublishingContext context) {

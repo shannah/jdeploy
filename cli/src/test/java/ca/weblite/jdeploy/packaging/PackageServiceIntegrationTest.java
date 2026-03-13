@@ -7,6 +7,8 @@ import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.environment.Environment;
 import ca.weblite.jdeploy.services.BundleCodeService;
 import ca.weblite.jdeploy.services.ProjectBuilderService;
+import ca.weblite.jdeploy.services.WindowsSigningService;
+import ca.weblite.jdeploy.services.WindowsSigningConfigFactory;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.junit.After;
@@ -76,6 +78,9 @@ public class PackageServiceIntegrationTest {
         when(packagingConfig.getJdeployRegistry()).thenReturn("https://npm.jdeploy.com");
         when(compressionService.compress(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
         
+        WindowsSigningService windowsSigningService = mock(WindowsSigningService.class);
+        WindowsSigningConfigFactory windowsSigningConfigFactory = mock(WindowsSigningConfigFactory.class);
+
         packageService = new PackageService(
             environment,
             jarFinder,
@@ -85,7 +90,9 @@ public class PackageServiceIntegrationTest {
             copyJarRuleBuilder,
             projectBuilderService,
             packagingConfig,
-            permissionRequestService
+            permissionRequestService,
+            windowsSigningService,
+            windowsSigningConfigFactory
         );
     }
     

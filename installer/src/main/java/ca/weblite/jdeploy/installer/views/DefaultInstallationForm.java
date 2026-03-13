@@ -323,7 +323,7 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
 
         JComboBox<AutoUpdateSettings> autoUpdateSettingsJComboBox = new JComboBox<>(AutoUpdateSettings.values());
-        autoUpdateSettingsJComboBox.setSelectedIndex(0);
+        autoUpdateSettingsJComboBox.setSelectedItem(installationSettings.getAutoUpdate());
         autoUpdateSettingsJComboBox.addItemListener(evt->{
             if (evt.getStateChange() == ItemEvent.SELECTED) {
                 installationSettings.setAutoUpdate((AutoUpdateSettings) evt.getItem());
