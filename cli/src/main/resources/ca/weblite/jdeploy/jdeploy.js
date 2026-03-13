@@ -32,16 +32,6 @@ function njreWrap() {
     const yauzl = require('yauzl')
     const tar = require('tar')
 
-    function cleanupDir (dir) {
-      try {
-        if (fs.existsSync(dir)) {
-          fs.rmSync(dir, { recursive: true, force: true })
-        }
-      } catch (e) {
-        // Ignore cleanup errors
-      }
-    }
-
     function createDir (dir) {
       return new Promise((resolve, reject) => {
         fs.access(dir, err => {
@@ -288,7 +278,7 @@ function njreWrap() {
 
       Object.keys(options).forEach(key => { url += key + '=' + options[key] + '&' })
 
-      const tmpdir = path.join(os.tmpdir(), 'njre-' + process.pid)
+      const tmpdir = path.join(os.tmpdir(), 'njre')
 
       return fetch(url)
         .then(response => response.json())
@@ -296,7 +286,6 @@ function njreWrap() {
         .then(verify)
         .then(move)
         .then(extract)
-        .finally(() => cleanupDir(tmpdir))
     }
 
     function installZulu(version = 11, options = {}, arch) {
@@ -338,7 +327,7 @@ function njreWrap() {
         let url = zuluBaseURL;
         Object.keys(q).forEach(key => { url += key + '=' + q[key] + '&' });
 
-        const tmpdir = path.join(os.tmpdir(), 'njre-' + process.pid);
+        const tmpdir = path.join(os.tmpdir(), 'njre');
 
         // Function to handle the download and extraction
         const attemptDownload = (url) => {
@@ -353,8 +342,7 @@ function njreWrap() {
                 console.error("Download failed: ", err);
                 // Exit with non-zero status code to signal failure to CI/CD systems
                 process.exit(1);
-            })
-            .finally(() => cleanupDir(tmpdir));
+            });
     }
 
 
