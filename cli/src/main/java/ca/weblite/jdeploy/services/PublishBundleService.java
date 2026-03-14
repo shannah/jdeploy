@@ -25,8 +25,6 @@ import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
-import java.util.jar.JarEntry;
-import java.util.jar.JarOutputStream;
 
 import static ca.weblite.jdeploy.BundleConstants.*;
 
@@ -272,31 +270,9 @@ public class PublishBundleService {
     }
 
     /**
-     * Wraps a bundle in the appropriate archive format:
-     * - Mac/Linux: tar.gz (preserves POSIX file permissions including executable bit)
-     * - Windows: JAR (permissions don't matter on Windows)
+     * Wraps a bundle in tar.gz format, preserving POSIX file permissions.
      */
     private BundleArtifact wrapBundle(
-            File bundleFile,
-            File outputDir,
-            String fqpn,
-            String platform,
-            String arch,
-            String version,
-            boolean isCli
-    ) throws IOException {
-        if ("mac".equals(platform) || "linux".equals(platform)) {
-            return wrapInTarGz(bundleFile, outputDir, fqpn, platform, arch, version, isCli);
-        } else {
-            return wrapInJar(bundleFile, outputDir, fqpn, platform, arch, version, isCli);
-        }
-    }
-
-    /**
-     * Wraps a bundle in tar.gz format, preserving POSIX file permissions.
-     * Used for Mac and Linux bundles where executable permissions must be preserved.
-     */
-    private BundleArtifact wrapInTarGz(
             File bundleFile,
             File outputDir,
             String fqpn,
@@ -340,61 +316,6 @@ public class PublishBundleService {
                 for (File child : children) {
                     addToTarGz(taos, child, entryName);
                 }
-            }
-        }
-    }
-
-    /**
-     * Wraps a bundle output file (or directory like .app) into a JAR.
-     * Used for Windows bundles where POSIX permissions are not relevant.
-     */
-    private BundleArtifact wrapInJar(
-            File bundleFile,
-            File jarOutputDir,
-            String fqpn,
-            String platform,
-            String arch,
-            String version,
-            boolean isCli
-    ) throws IOException {
-        String cliSuffix = isCli ? "-cli" : "";
-        String jarFilename = fqpn + "-" + platform + "-" + arch + "-" + version + cliSuffix + ".jar";
-        File jarFile = new File(jarOutputDir, jarFilename);
-
-        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(jarFile))) {
-            if (bundleFile.isDirectory()) {
-                // For .app bundles, add the entire directory tree
-                addDirectoryToJar(jos, bundleFile, bundleFile.getName());
-            } else {
-                // For .exe and Linux binaries, add single file
-                JarEntry entry = new JarEntry(bundleFile.getName());
-                jos.putNextEntry(entry);
-                Files.copy(bundleFile.toPath(), jos);
-                jos.closeEntry();
-            }
-        }
-
-        String sha256 = computeSha256(jarFile);
-
-        return new BundleArtifact(jarFile, platform, arch, version, isCli, sha256, jarFilename);
-    }
-
-    private void addDirectoryToJar(JarOutputStream jos, File dir, String basePath) throws IOException {
-        File[] files = dir.listFiles();
-        if (files == null) return;
-
-        for (File file : files) {
-            String entryName = basePath + "/" + file.getName();
-            if (file.isDirectory()) {
-                JarEntry dirEntry = new JarEntry(entryName + "/");
-                jos.putNextEntry(dirEntry);
-                jos.closeEntry();
-                addDirectoryToJar(jos, file, entryName);
-            } else {
-                JarEntry entry = new JarEntry(entryName);
-                jos.putNextEntry(entry);
-                Files.copy(file.toPath(), jos);
-                jos.closeEntry();
             }
         }
     }

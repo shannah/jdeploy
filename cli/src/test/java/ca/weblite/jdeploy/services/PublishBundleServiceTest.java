@@ -383,9 +383,9 @@ class PublishBundleServiceTest {
     }
 
     @Test
-    @DisplayName("Windows artifact filenames use .jar extension")
-    void buildBundles_windowsArtifactFilenames_useJar() throws IOException {
-        Map<String, Object> packageJson = createPackageJson(true, "win-x64");
+    @DisplayName("All artifact filenames use .tar.gz extension")
+    void buildBundles_artifactFilenames_useTarGz() throws IOException {
+        Map<String, Object> packageJson = createPackageJson(true, "win-x64", "mac-arm64", "linux-x64");
         writePackageJson(packageJson);
         PackagingContext context = createContext(packageJson);
 
@@ -394,53 +394,28 @@ class PublishBundleServiceTest {
 
             BundleManifest manifest = publishBundleService.buildBundles(context, null);
 
-            assertEquals(2, manifest.getArtifacts().size(), "Should have GUI + CLI for Windows");
+            // Windows produces GUI + CLI; Mac and Linux produce GUI only
+            assertEquals(4, manifest.getArtifacts().size(),
+                    "Should have win GUI + win CLI + mac GUI + linux GUI");
 
-            BundleArtifact gui = manifest.getArtifacts().stream()
-                    .filter(a -> !a.isCli()).findFirst().orElseThrow(() -> new RuntimeException("GUI artifact not found"));
-            BundleArtifact cli = manifest.getArtifacts().stream()
-                    .filter(BundleArtifact::isCli).findFirst().orElseThrow(() -> new RuntimeException("CLI artifact not found"));
+            for (BundleArtifact artifact : manifest.getArtifacts()) {
+                assertTrue(artifact.getFilename().endsWith(".tar.gz"),
+                        "All bundle filenames should use .tar.gz: " + artifact.getFilename());
+                assertNotNull(artifact.getSha256());
+                assertEquals(64, artifact.getSha256().length(), "SHA-256 should be 64 hex chars");
+            }
 
-            assertTrue(gui.getFilename().contains("-win-x64-1.0.0.jar"),
-                    "Windows GUI filename should use .jar: " + gui.getFilename());
-            assertTrue(cli.getFilename().contains("-win-x64-1.0.0-cli.jar"),
-                    "Windows CLI filename should use .jar: " + cli.getFilename());
+            BundleArtifact winGui = manifest.getArtifacts().stream()
+                    .filter(a -> "win".equals(a.getPlatform()) && !a.isCli()).findFirst()
+                    .orElseThrow(() -> new RuntimeException("Windows GUI artifact not found"));
+            BundleArtifact winCli = manifest.getArtifacts().stream()
+                    .filter(a -> "win".equals(a.getPlatform()) && a.isCli()).findFirst()
+                    .orElseThrow(() -> new RuntimeException("Windows CLI artifact not found"));
 
-            assertNotNull(gui.getSha256());
-            assertEquals(64, gui.getSha256().length(), "SHA-256 should be 64 hex chars");
-            assertNotNull(cli.getSha256());
-            assertEquals(64, cli.getSha256().length(), "SHA-256 should be 64 hex chars");
-        }
-    }
-
-    @Test
-    @DisplayName("Mac and Linux artifact filenames use .tar.gz extension")
-    void buildBundles_macLinuxArtifactFilenames_useTarGz() throws IOException {
-        Map<String, Object> packageJson = createPackageJson(false, "mac-arm64", "linux-x64");
-        writePackageJson(packageJson);
-        PackagingContext context = createContext(packageJson);
-
-        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
-            mockBundlerRunit(bundlerMock, null);
-
-            BundleManifest manifest = publishBundleService.buildBundles(context, null);
-
-            assertEquals(2, manifest.getArtifacts().size());
-
-            BundleArtifact macArtifact = manifest.getArtifacts().stream()
-                    .filter(a -> "mac".equals(a.getPlatform())).findFirst()
-                    .orElseThrow(() -> new RuntimeException("Mac artifact not found"));
-            BundleArtifact linuxArtifact = manifest.getArtifacts().stream()
-                    .filter(a -> "linux".equals(a.getPlatform())).findFirst()
-                    .orElseThrow(() -> new RuntimeException("Linux artifact not found"));
-
-            assertTrue(macArtifact.getFilename().endsWith(".tar.gz"),
-                    "Mac filename should use .tar.gz: " + macArtifact.getFilename());
-            assertTrue(linuxArtifact.getFilename().endsWith(".tar.gz"),
-                    "Linux filename should use .tar.gz: " + linuxArtifact.getFilename());
-
-            assertNotNull(macArtifact.getSha256());
-            assertEquals(64, macArtifact.getSha256().length(), "SHA-256 should be 64 hex chars");
+            assertTrue(winGui.getFilename().contains("-win-x64-1.0.0.tar.gz"),
+                    "Windows GUI filename: " + winGui.getFilename());
+            assertTrue(winCli.getFilename().contains("-win-x64-1.0.0-cli.tar.gz"),
+                    "Windows CLI filename: " + winCli.getFilename());
         }
     }
 
