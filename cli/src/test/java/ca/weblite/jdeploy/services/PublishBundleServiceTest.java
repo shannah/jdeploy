@@ -443,6 +443,118 @@ class PublishBundleServiceTest {
         assertEquals("def456", resultWin.getString("sha256"));
     }
 
+    // -- App URL resolution tests (icon.png co-location) --
+
+    @Test
+    @DisplayName("buildBundles uses jdeploy-bundle jar when it exists (for icon resolution)")
+    void buildBundles_usesJdeployBundleJar_whenAvailable() throws IOException {
+        // Simulate a project where jar is in target/ subdirectory
+        File targetDir = new File(tempDir, "target");
+        targetDir.mkdirs();
+        File targetJar = new File(targetDir, "myapp.jar");
+        targetJar.createNewFile();
+
+        // Create jdeploy-bundle with the jar AND icon.png (as PackageService.bundleIcon does)
+        File jdeployBundleDir = new File(tempDir, "jdeploy-bundle");
+        jdeployBundleDir.mkdirs();
+        File bundledJar = new File(jdeployBundleDir, "myapp.jar");
+        bundledJar.createNewFile();
+        File bundledIcon = new File(jdeployBundleDir, "icon.png");
+        bundledIcon.createNewFile();
+
+        // Create package.json with jar pointing to target/myapp.jar
+        Map<String, Object> packageJson = new HashMap<>();
+        packageJson.put("name", "test-app");
+        packageJson.put("version", "1.0.0");
+        Map<String, Object> jdeploy = new HashMap<>();
+        jdeploy.put("jar", "target/myapp.jar");
+        jdeploy.put("title", "Test App");
+        Map<String, Object> artifacts = new LinkedHashMap<>();
+        Map<String, Object> entry = new HashMap<>();
+        entry.put("enabled", true);
+        artifacts.put("linux-x64", entry);
+        jdeploy.put("artifacts", artifacts);
+        packageJson.put("jdeploy", jdeploy);
+
+        File pjFile = new File(tempDir, "package.json");
+        FileUtils.writeStringToFile(pjFile, new JSONObject(packageJson).toString(2), "UTF-8");
+        PackagingContext context = createContext(packageJson);
+
+        // Capture the AppInfo URL passed to Bundler.runit
+        List<String> capturedUrls = new ArrayList<>();
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            bundlerMock.when(() -> Bundler.runit(
+                    any(), any(), anyString(), anyString(), anyString(), anyString()
+            )).thenAnswer(invocation -> {
+                String url = invocation.getArgument(2);
+                capturedUrls.add(url);
+
+                BundlerResult result = new BundlerResult(invocation.getArgument(3));
+                String destDir = invocation.getArgument(4);
+                File outputFile = new File(destDir, "fake-bundle.bin");
+                outputFile.getParentFile().mkdirs();
+                outputFile.createNewFile();
+                result.setOutputFile(outputFile);
+                return result;
+            });
+
+            publishBundleService.buildBundles(context, null);
+
+            // Verify the app URL points to the jdeploy-bundle jar, not target/myapp.jar
+            assertFalse(capturedUrls.isEmpty(), "Bundler.runit should have been called");
+            String appUrl = capturedUrls.get(0);
+            assertTrue(appUrl.contains("jdeploy-bundle"),
+                    "App URL should point to jdeploy-bundle dir for icon resolution, was: " + appUrl);
+            assertFalse(appUrl.contains("/target/"),
+                    "App URL should NOT point to target/ dir, was: " + appUrl);
+        }
+    }
+
+    @Test
+    @DisplayName("buildBundles copies icon.png next to jar when jdeploy-bundle doesn't exist")
+    void buildBundles_copiesIcon_whenNoJdeployBundle() throws IOException {
+        // Simulate a project where jar is in target/ subdirectory
+        File targetDir = new File(tempDir, "target");
+        targetDir.mkdirs();
+        File targetJar = new File(targetDir, "myapp.jar");
+        targetJar.createNewFile();
+
+        // Put icon.png in project root only (NOT next to the jar)
+        File projectIcon = new File(tempDir, "icon.png");
+        FileUtils.writeStringToFile(projectIcon, "fake-icon-data", "UTF-8");
+
+        // Do NOT create jdeploy-bundle directory
+
+        Map<String, Object> packageJson = new HashMap<>();
+        packageJson.put("name", "test-app");
+        packageJson.put("version", "1.0.0");
+        Map<String, Object> jdeploy = new HashMap<>();
+        jdeploy.put("jar", "target/myapp.jar");
+        jdeploy.put("title", "Test App");
+        Map<String, Object> artifacts = new LinkedHashMap<>();
+        Map<String, Object> entry = new HashMap<>();
+        entry.put("enabled", true);
+        artifacts.put("linux-x64", entry);
+        jdeploy.put("artifacts", artifacts);
+        packageJson.put("jdeploy", jdeploy);
+
+        File pjFile = new File(tempDir, "package.json");
+        FileUtils.writeStringToFile(pjFile, new JSONObject(packageJson).toString(2), "UTF-8");
+        PackagingContext context = createContext(packageJson);
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            mockBundlerRunit(bundlerMock, null);
+
+            publishBundleService.buildBundles(context, null);
+
+            // Verify icon.png was copied next to the jar
+            File copiedIcon = new File(targetDir, "icon.png");
+            assertTrue(copiedIcon.exists(),
+                    "icon.png should be copied to target/ dir when jdeploy-bundle doesn't exist");
+        }
+    }
+
     /**
      * Helper class to record Bundler.runit() calls for assertion.
      */

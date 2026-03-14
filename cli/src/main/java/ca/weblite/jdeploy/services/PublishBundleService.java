@@ -228,10 +228,30 @@ public class PublishBundleService {
         appInfo.setCommands(CommandSpecParser.parseCommands(jdeployJson));
 
         String jarPath = context.getString("jar", null);
-        if (jarPath != null) {
-            appInfo.setAppURL(new File(jarPath).toURI().toURL());
-        } else {
+        if (jarPath == null) {
             throw new IOException("Cannot load app info: no jar configured");
+        }
+
+        // Use the jar from the jdeploy-bundle directory, which contains icon.png
+        // alongside it (placed there by PackageService.bundleIcon during makePackage).
+        // The Bundler resolves icon.png relative to the app URL, so using the
+        // jdeploy-bundle jar ensures the icon is found.
+        File jdeployBundleDir = context.getJdeployBundleDir();
+        String jarFilename = new File(jarPath).getName();
+        File bundledJar = new File(jdeployBundleDir, jarFilename);
+        if (bundledJar.exists()) {
+            appInfo.setAppURL(bundledJar.toURI().toURL());
+        } else {
+            // Fallback: use the original jar path but ensure icon.png exists next to it
+            File jarFile = new File(context.directory, jarPath);
+            File iconFile = new File(jarFile.getAbsoluteFile().getParentFile(), "icon.png");
+            if (!iconFile.exists()) {
+                File projectIcon = new File(context.directory, "icon.png");
+                if (projectIcon.exists()) {
+                    FileUtils.copyFile(projectIcon, iconFile);
+                }
+            }
+            appInfo.setAppURL(jarFile.toURI().toURL());
         }
     }
 
