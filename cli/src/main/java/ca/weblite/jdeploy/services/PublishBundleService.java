@@ -7,6 +7,7 @@ import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.jdeploy.models.BundleArtifact;
 import ca.weblite.jdeploy.models.BundleManifest;
+import ca.weblite.jdeploy.packaging.PackagingConfig;
 import ca.weblite.jdeploy.packaging.PackagingContext;
 import ca.weblite.jdeploy.models.CommandSpecParser;
 import org.apache.commons.io.FileUtils;
@@ -37,8 +38,11 @@ import static ca.weblite.jdeploy.BundleConstants.*;
 @Singleton
 public class PublishBundleService {
 
+    private final PackagingConfig packagingConfig;
+
     @Inject
-    public PublishBundleService() {
+    public PublishBundleService(PackagingConfig packagingConfig) {
+        this.packagingConfig = packagingConfig;
     }
 
     /**
@@ -222,6 +226,13 @@ public class PublishBundleService {
                         context.getString("title", appInfo.getNpmPackage())
                 )
         );
+
+        // Set jDeploy registry URL (used in app.xml embedded in native launchers)
+        if (context.mj().containsKey("jdeployRegistryUrl")) {
+            appInfo.setJdeployRegistryUrl((String) context.mj().get("jdeployRegistryUrl"));
+        } else {
+            appInfo.setJdeployRegistryUrl(packagingConfig.getJdeployRegistry());
+        }
 
         // Parse CLI commands
         JSONObject jdeployJson = new JSONObject(context.mj());

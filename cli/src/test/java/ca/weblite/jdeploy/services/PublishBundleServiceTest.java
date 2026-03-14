@@ -4,6 +4,8 @@ import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.appbundler.BundlerResult;
 import ca.weblite.jdeploy.models.BundleArtifact;
 import ca.weblite.jdeploy.models.BundleManifest;
+import ca.weblite.jdeploy.config.Config;
+import ca.weblite.jdeploy.packaging.PackagingConfig;
 import ca.weblite.jdeploy.packaging.PackagingContext;
 import ca.weblite.jdeploy.publishing.BundleChecksumWriter;
 import com.codename1.io.JSONParser;
@@ -42,7 +44,7 @@ class PublishBundleServiceTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        publishBundleService = new PublishBundleService();
+        publishBundleService = new PublishBundleService(new PackagingConfig(new Config()));
 
         // Create a fake JAR file so the bundler has something to reference
         jarFile = new File(tempDir, "app.jar");
@@ -644,6 +646,92 @@ class PublishBundleServiceTest {
             File copiedIcon = new File(targetDir, "icon.png");
             assertTrue(copiedIcon.exists(),
                     "icon.png should be copied to target/ dir when jdeploy-bundle doesn't exist");
+        }
+    }
+
+    @Test
+    @DisplayName("buildBundles sets default registry URL on AppInfo for app.xml generation")
+    void buildBundles_setsDefaultRegistryUrl() throws IOException {
+        Map<String, Object> packageJson = createPackageJson(false, "linux-x64");
+        writePackageJson(packageJson);
+        PackagingContext context = createContext(packageJson);
+
+        // Create jdeploy-bundle with the jar so loadAppInfo succeeds
+        File jdeployBundleDir = new File(tempDir, "jdeploy-bundle");
+        jdeployBundleDir.mkdirs();
+        File bundledJar = new File(jdeployBundleDir, jarFile.getName());
+        bundledJar.createNewFile();
+
+        List<ca.weblite.jdeploy.app.AppInfo> capturedAppInfos = new ArrayList<>();
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            bundlerMock.when(() -> Bundler.runit(
+                    any(), any(), anyString(), anyString(), anyString(), anyString()
+            )).thenAnswer(invocation -> {
+                ca.weblite.jdeploy.app.AppInfo appInfo = invocation.getArgument(1);
+                capturedAppInfos.add(appInfo);
+
+                BundlerResult result = new BundlerResult(invocation.getArgument(3));
+                String destDir = invocation.getArgument(4);
+                File outputFile = new File(destDir, "fake-bundle.bin");
+                outputFile.getParentFile().mkdirs();
+                outputFile.createNewFile();
+                result.setOutputFile(outputFile);
+                return result;
+            });
+
+            publishBundleService.buildBundles(context, null);
+
+            assertFalse(capturedAppInfos.isEmpty(), "Bundler.runit should have been called");
+            String registryUrl = capturedAppInfos.get(0).getJdeployRegistryUrl();
+            assertNotNull(registryUrl,
+                    "AppInfo.jdeployRegistryUrl must not be null (causes registry-url='null' in app.xml)");
+            assertEquals("https://www.jdeploy.com/", registryUrl,
+                    "Default registry URL should be https://www.jdeploy.com/");
+        }
+    }
+
+    @Test
+    @DisplayName("buildBundles uses custom registry URL from package.json when specified")
+    void buildBundles_usesCustomRegistryUrl() throws IOException {
+        Map<String, Object> packageJson = createPackageJson(false, "linux-x64");
+        // Add custom jdeployRegistryUrl inside the jdeploy section
+        // (mirrors how PackageService reads it from context.mj())
+        @SuppressWarnings("unchecked")
+        Map<String, Object> jdeploySection = (Map<String, Object>) packageJson.get("jdeploy");
+        jdeploySection.put("jdeployRegistryUrl", "https://custom.registry.example.com/");
+        writePackageJson(packageJson);
+        PackagingContext context = createContext(packageJson);
+
+        File jdeployBundleDir = new File(tempDir, "jdeploy-bundle");
+        jdeployBundleDir.mkdirs();
+        File bundledJar = new File(jdeployBundleDir, jarFile.getName());
+        bundledJar.createNewFile();
+
+        List<ca.weblite.jdeploy.app.AppInfo> capturedAppInfos = new ArrayList<>();
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            bundlerMock.when(() -> Bundler.runit(
+                    any(), any(), anyString(), anyString(), anyString(), anyString()
+            )).thenAnswer(invocation -> {
+                ca.weblite.jdeploy.app.AppInfo appInfo = invocation.getArgument(1);
+                capturedAppInfos.add(appInfo);
+
+                BundlerResult result = new BundlerResult(invocation.getArgument(3));
+                String destDir = invocation.getArgument(4);
+                File outputFile = new File(destDir, "fake-bundle.bin");
+                outputFile.getParentFile().mkdirs();
+                outputFile.createNewFile();
+                result.setOutputFile(outputFile);
+                return result;
+            });
+
+            publishBundleService.buildBundles(context, null);
+
+            assertFalse(capturedAppInfos.isEmpty(), "Bundler.runit should have been called");
+            assertEquals("https://custom.registry.example.com/",
+                    capturedAppInfos.get(0).getJdeployRegistryUrl(),
+                    "Should use custom registry URL from package.json");
         }
     }
 
