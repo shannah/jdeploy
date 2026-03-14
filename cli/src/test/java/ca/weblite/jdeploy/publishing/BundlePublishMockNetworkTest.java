@@ -327,12 +327,82 @@ class BundlePublishMockNetworkTest extends BaseMockNetworkPublishingTest {
         assertTrue(winX64Cli.has("url"), "win-x64 cli should have url");
         assertTrue(winX64Cli.has("sha256"), "win-x64 cli should have sha256");
 
-        // Verify URLs point to the correct repo
-        String baseUrl = getGithubBaseUrl() + "checksumuser/checksumrepo";
-        assertTrue(macArm64.getString("url").startsWith(baseUrl),
-                "mac-arm64 URL should point to the correct repo");
-        assertTrue(winX64.getString("url").startsWith(baseUrl),
-                "win-x64 URL should point to the correct repo");
+        // Verify URLs point to the correct repo and use the version in the download path
+        // When no githubRefName is set, URLs should fall back to the package.json version
+        String expectedUrlPrefix = getGithubBaseUrl() + "checksumuser/checksumrepo"
+                + "/releases/download/" + version + "/";
+        assertTrue(macArm64.getString("url").startsWith(expectedUrlPrefix),
+                "mac-arm64 URL should use version '" + version + "' in download path: "
+                        + macArm64.getString("url"));
+        assertTrue(winX64.getString("url").startsWith(expectedUrlPrefix),
+                "win-x64 URL should use version '" + version + "' in download path: "
+                        + winX64.getString("url"));
+    }
+
+    @Test
+    @Order(25)
+    @DisplayName("Bundle publish: URLs use git tag (v-prefix) when githubRefName is set")
+    void bundleUrlsUseGitTagWhenRefNameSet() throws Exception {
+        String version = "1.0.0";
+        String gitTag = "v1.0.0";
+        BundleManifest manifest = createTestManifest(version);
+
+        File projectDir = new File(tempDir, "bundle-vtag-project");
+        projectDir.mkdirs();
+        File jarFile = createTestJar(projectDir, "app-1.0.0.jar", "com.example.App");
+        createPackageJsonWithArtifacts(projectDir, "vtag-test-app", version, "app-1.0.0.jar");
+        createIcon(projectDir);
+        createJdeployBundle(projectDir, jarFile);
+
+        GitHubPublishDriver driver = createDriverWithBundleSupport(manifest);
+        // Set githubRefName to simulate GitHub Actions context where tag has v prefix
+        PublishingContext ctx = createPublishingContext(projectDir, false, gitTag);
+        PublishTargetInterface target = createGitHubTarget("vtaguser", "vtagrepo");
+
+        driver.prepare(ctx, target, new BundlerSettings());
+
+        // Read the publish package.json and verify URLs use the git tag, not bare version
+        File publishPackageJson = ctx.getPublishPackageJsonFile();
+        String content = FileUtils.readFileToString(publishPackageJson, StandardCharsets.UTF_8);
+        JSONObject packageJson = new JSONObject(content);
+        JSONObject artifacts = packageJson.getJSONObject("jdeploy").getJSONObject("artifacts");
+
+        String expectedUrlPrefix = getGithubBaseUrl() + "vtaguser/vtagrepo"
+                + "/releases/download/" + gitTag + "/";
+        String wrongUrlPrefix = getGithubBaseUrl() + "vtaguser/vtagrepo"
+                + "/releases/download/" + version + "/";
+
+        // Verify mac-arm64 URL uses the git tag
+        JSONObject macArm64 = artifacts.getJSONObject("mac-arm64");
+        assertTrue(macArm64.getString("url").startsWith(expectedUrlPrefix),
+                "mac-arm64 URL should use git tag '" + gitTag + "' not bare version '" + version
+                        + "': " + macArm64.getString("url"));
+        assertFalse(macArm64.getString("url").startsWith(wrongUrlPrefix),
+                "mac-arm64 URL must NOT use bare version without v prefix: "
+                        + macArm64.getString("url"));
+
+        // Verify win-x64 URL uses the git tag
+        JSONObject winX64 = artifacts.getJSONObject("win-x64");
+        assertTrue(winX64.getString("url").startsWith(expectedUrlPrefix),
+                "win-x64 URL should use git tag '" + gitTag + "': " + winX64.getString("url"));
+
+        // Verify win-x64 CLI URL also uses the git tag
+        JSONObject winX64Cli = winX64.getJSONObject("cli");
+        assertTrue(winX64Cli.getString("url").startsWith(expectedUrlPrefix),
+                "win-x64 CLI URL should use git tag '" + gitTag + "': "
+                        + winX64Cli.getString("url"));
+
+        // Also verify the release dir package.json has the same correct URLs
+        File releasePackageJson = new File(ctx.getGithubReleaseFilesDir(), "package.json");
+        if (releasePackageJson.exists()) {
+            String releaseContent = FileUtils.readFileToString(releasePackageJson, StandardCharsets.UTF_8);
+            JSONObject releasePj = new JSONObject(releaseContent);
+            JSONObject releaseArtifacts = releasePj.getJSONObject("jdeploy").getJSONObject("artifacts");
+
+            assertTrue(releaseArtifacts.getJSONObject("mac-arm64").getString("url")
+                            .startsWith(expectedUrlPrefix),
+                    "Release dir mac-arm64 URL should also use git tag");
+        }
     }
 
     @Test

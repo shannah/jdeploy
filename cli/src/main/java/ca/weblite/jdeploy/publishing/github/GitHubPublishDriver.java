@@ -700,9 +700,12 @@ public class GitHubPublishDriver implements PublishDriverInterface {
             }
 
             // Upload bundles (to S3 or GitHub release files dir)
-            String version = context.packagingContext.getVersion();
+            // Use getRefName() to get the actual release tag (e.g. "v1.0.4") rather than
+            // the bare version (e.g. "1.0.4"), so that bundle download URLs match the
+            // GitHub release tag where assets are uploaded.
+            String releaseTag = getRefName(context, target);
             bundleUploadRouter.uploadBundles(
-                    manifest, target, context.getGithubReleaseFilesDir(), version, context.out()
+                    manifest, target, context.getGithubReleaseFilesDir(), releaseTag, context.out()
             );
 
             // Write bundle URLs and checksums to the publish package.json

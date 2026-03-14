@@ -290,6 +290,12 @@ public abstract class BaseMockNetworkPublishingTest {
     }
 
     protected PublishingContext createPublishingContext(File projectDir, boolean dryRun) throws Exception {
+        return createPublishingContext(projectDir, dryRun, null);
+    }
+
+    protected PublishingContext createPublishingContext(
+            File projectDir, boolean dryRun, String githubRefName
+    ) throws Exception {
         PackagingContext packagingContext = new PackagingContext.Builder()
                 .directory(projectDir)
                 .packageJsonFile(new File(projectDir, "package.json"))
@@ -303,7 +309,7 @@ public abstract class BaseMockNetworkPublishingTest {
 
         return new PublishingContext(
                 packagingContext, dryRun, npm,
-                getGithubToken(), null, null, null, null
+                getGithubToken(), null, githubRefName, null, null
         );
     }
 
