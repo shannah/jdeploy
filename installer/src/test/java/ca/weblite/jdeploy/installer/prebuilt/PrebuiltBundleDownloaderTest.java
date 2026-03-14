@@ -1,6 +1,10 @@
 package ca.weblite.jdeploy.installer.prebuilt;
 
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
+import ca.weblite.tools.io.FileUtil;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -8,7 +12,9 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.security.MessageDigest;
+import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
@@ -218,6 +224,88 @@ class PrebuiltBundleDownloaderTest {
 
         // Missing platform
         assertNull(version.getPrebuiltArtifact("linux-x64"));
+    }
+
+    @Test
+    void testExtractBundleTarGz_directoryStructure() throws Exception {
+        PrebuiltBundleDownloader downloader = new PrebuiltBundleDownloader();
+
+        // Create a tar.gz mimicking a macOS .app bundle with executable launcher
+        File tarGzFile = tempDir.resolve("bundle.tar.gz").toFile();
+
+        // First create the source files with proper permissions
+        File srcDir = tempDir.resolve("src").toFile();
+        File appDir = new File(srcDir, "MyApp.app");
+        File contentsDir = new File(appDir, "Contents");
+        File macosDir = new File(contentsDir, "MacOS");
+        macosDir.mkdirs();
+
+        File launcher = new File(macosDir, "Client4JLauncher");
+        Files.write(launcher.toPath(), "#!/bin/bash\necho hello".getBytes("UTF-8"));
+        launcher.setExecutable(true, false);
+
+        File plist = new File(contentsDir, "Info.plist");
+        Files.write(plist.toPath(), "<plist></plist>".getBytes("UTF-8"));
+
+        // Create tar.gz with permissions preserved
+        try (TarArchiveOutputStream taos = new TarArchiveOutputStream(
+                new GzipCompressorOutputStream(new FileOutputStream(tarGzFile)))) {
+            taos.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);
+            addFileToTar(taos, launcher, "./MyApp.app/Contents/MacOS/Client4JLauncher", 0755);
+            addFileToTar(taos, plist, "./MyApp.app/Contents/Info.plist", 0644);
+        }
+
+        File extractDir = tempDir.resolve("extract").toFile();
+        extractDir.mkdirs();
+
+        downloader.extractBundleTarGz(tarGzFile, extractDir);
+
+        File extractedLauncher = new File(extractDir, "MyApp.app/Contents/MacOS/Client4JLauncher");
+        assertTrue(extractedLauncher.exists(), "Launcher should be extracted");
+        assertTrue(new File(extractDir, "MyApp.app/Contents/Info.plist").exists(), "Info.plist should be extracted");
+
+        // Verify executable permission is preserved on POSIX systems
+        if (FileUtil.isPosix()) {
+            Set<PosixFilePermission> perms = Files.getPosixFilePermissions(extractedLauncher.toPath());
+            assertTrue(perms.contains(PosixFilePermission.OWNER_EXECUTE),
+                    "Launcher should have owner execute permission");
+            assertTrue(perms.contains(PosixFilePermission.GROUP_EXECUTE),
+                    "Launcher should have group execute permission");
+            assertTrue(perms.contains(PosixFilePermission.OTHERS_EXECUTE),
+                    "Launcher should have others execute permission");
+        }
+    }
+
+    @Test
+    void testExtractBundleTarGz_tarSlipPrevention() throws Exception {
+        PrebuiltBundleDownloader downloader = new PrebuiltBundleDownloader();
+
+        File tarGzFile = tempDir.resolve("evil.tar.gz").toFile();
+
+        try (TarArchiveOutputStream taos = new TarArchiveOutputStream(
+                new GzipCompressorOutputStream(new FileOutputStream(tarGzFile)))) {
+            // Create entry with path traversal
+            TarArchiveEntry entry = new TarArchiveEntry("../../etc/passwd");
+            byte[] content = "malicious".getBytes("UTF-8");
+            entry.setSize(content.length);
+            taos.putArchiveEntry(entry);
+            taos.write(content);
+            taos.closeArchiveEntry();
+        }
+
+        File extractDir = tempDir.resolve("extract").toFile();
+        extractDir.mkdirs();
+
+        assertThrows(IOException.class, () -> downloader.extractBundleTarGz(tarGzFile, extractDir),
+                "Should reject path traversal in tar entries");
+    }
+
+    private void addFileToTar(TarArchiveOutputStream taos, File file, String entryName, int mode) throws IOException {
+        TarArchiveEntry entry = new TarArchiveEntry(file, entryName);
+        entry.setMode(mode);
+        taos.putArchiveEntry(entry);
+        Files.copy(file.toPath(), taos);
+        taos.closeArchiveEntry();
     }
 
     private static String bytesToHex(byte[] bytes) {

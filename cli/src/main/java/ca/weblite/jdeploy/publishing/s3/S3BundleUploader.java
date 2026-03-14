@@ -46,7 +46,7 @@ public class S3BundleUploader {
 
         for (BundleArtifact artifact : artifacts) {
             String key = config.getKey(artifact.getFilename());
-            uploadFile(artifact.getJarFile(), key, out);
+            uploadFile(artifact.getFile(), key, out);
             String publicUrl = config.getPublicUrl(artifact.getFilename());
             artifact.setUrl(publicUrl);
             out.println("  Uploaded: " + artifact.getFilename() + " -> " + publicUrl);

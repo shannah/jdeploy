@@ -2,15 +2,22 @@ package ca.weblite.jdeploy.installer.prebuilt;
 
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.installer.views.InstallationForm;
+import ca.weblite.tools.io.FileUtil;
 import ca.weblite.tools.platform.Platform;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
+import java.nio.file.attribute.PosixFilePermission;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
@@ -96,8 +103,12 @@ public class PrebuiltBundleDownloader {
         try {
             updateProgress(form, progressMessage);
 
+            // Determine archive format from URL
+            boolean isTarGz = url.endsWith(".tar.gz") || url.endsWith(".tgz");
+            String suffix = isTarGz ? ".tar.gz" : ".jar";
+
             // Download to temp file
-            tempJar = File.createTempFile("jdeploy-prebuilt-", ".jar");
+            tempJar = File.createTempFile("jdeploy-prebuilt-", suffix);
             tempJar.deleteOnExit();
             downloadFile(url, tempJar, form);
 
@@ -110,11 +121,15 @@ public class PrebuiltBundleDownloader {
                 return false;
             }
 
-            // Extract JAR contents
+            // Extract archive contents
             updateProgress(form, "Extracting pre-built bundle...");
             tempExtractDir = Files.createTempDirectory("jdeploy-prebuilt-extract-").toFile();
             tempExtractDir.deleteOnExit();
-            extractBundleJar(tempJar, tempExtractDir);
+            if (isTarGz) {
+                extractBundleTarGz(tempJar, tempExtractDir);
+            } else {
+                extractBundleJar(tempJar, tempExtractDir);
+            }
 
             // Find the extracted bundle entry
             File extractedBundle = findExtractedBundle(tempExtractDir);
@@ -270,6 +285,47 @@ public class PrebuiltBundleDownloader {
                     }
                 }
                 jis.closeEntry();
+            }
+        }
+    }
+
+    void extractBundleTarGz(File tarGzFile, File destDir) throws IOException {
+        try (TarArchiveInputStream tis = new TarArchiveInputStream(
+                new GzipCompressorInputStream(
+                        new BufferedInputStream(new FileInputStream(tarGzFile))))) {
+            TarArchiveEntry entry;
+            while ((entry = tis.getNextTarEntry()) != null) {
+                String name = entry.getName();
+                // Strip leading "./" prefix if present (matches addToTarGz basePath convention)
+                if (name.startsWith("./")) {
+                    name = name.substring(2);
+                }
+                if (name.isEmpty()) {
+                    continue;
+                }
+
+                File outFile = new File(destDir, name);
+
+                // Guard against zip slip
+                String canonicalDest = destDir.getCanonicalPath();
+                String canonicalOut = outFile.getCanonicalPath();
+                if (!canonicalOut.startsWith(canonicalDest + File.separator) && !canonicalOut.equals(canonicalDest)) {
+                    throw new IOException("Tar slip detected: " + entry.getName());
+                }
+
+                if (entry.isDirectory()) {
+                    outFile.mkdirs();
+                } else {
+                    outFile.getParentFile().mkdirs();
+                    try (FileOutputStream fos = new FileOutputStream(outFile)) {
+                        IOUtils.copy(tis, fos);
+                    }
+                    // Restore POSIX file permissions (including executable bit)
+                    if (FileUtil.isPosix()) {
+                        Set<PosixFilePermission> perms = FileUtil.getPosixFilePermissions(entry.getMode());
+                        Files.setPosixFilePermissions(outFile.toPath(), perms);
+                    }
+                }
             }
         }
     }

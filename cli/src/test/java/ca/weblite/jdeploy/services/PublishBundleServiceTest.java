@@ -383,8 +383,8 @@ class PublishBundleServiceTest {
     }
 
     @Test
-    @DisplayName("Artifact filenames follow expected convention")
-    void buildBundles_artifactFilenames_followConvention() throws IOException {
+    @DisplayName("Windows artifact filenames use .jar extension")
+    void buildBundles_windowsArtifactFilenames_useJar() throws IOException {
         Map<String, Object> packageJson = createPackageJson(true, "win-x64");
         writePackageJson(packageJson);
         PackagingContext context = createContext(packageJson);
@@ -402,14 +402,45 @@ class PublishBundleServiceTest {
                     .filter(BundleArtifact::isCli).findFirst().orElseThrow(() -> new RuntimeException("CLI artifact not found"));
 
             assertTrue(gui.getFilename().contains("-win-x64-1.0.0.jar"),
-                    "GUI filename should contain platform-arch-version: " + gui.getFilename());
+                    "Windows GUI filename should use .jar: " + gui.getFilename());
             assertTrue(cli.getFilename().contains("-win-x64-1.0.0-cli.jar"),
-                    "CLI filename should contain platform-arch-version-cli: " + cli.getFilename());
+                    "Windows CLI filename should use .jar: " + cli.getFilename());
 
             assertNotNull(gui.getSha256());
             assertEquals(64, gui.getSha256().length(), "SHA-256 should be 64 hex chars");
             assertNotNull(cli.getSha256());
             assertEquals(64, cli.getSha256().length(), "SHA-256 should be 64 hex chars");
+        }
+    }
+
+    @Test
+    @DisplayName("Mac and Linux artifact filenames use .tar.gz extension")
+    void buildBundles_macLinuxArtifactFilenames_useTarGz() throws IOException {
+        Map<String, Object> packageJson = createPackageJson(false, "mac-arm64", "linux-x64");
+        writePackageJson(packageJson);
+        PackagingContext context = createContext(packageJson);
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            mockBundlerRunit(bundlerMock, null);
+
+            BundleManifest manifest = publishBundleService.buildBundles(context, null);
+
+            assertEquals(2, manifest.getArtifacts().size());
+
+            BundleArtifact macArtifact = manifest.getArtifacts().stream()
+                    .filter(a -> "mac".equals(a.getPlatform())).findFirst()
+                    .orElseThrow(() -> new RuntimeException("Mac artifact not found"));
+            BundleArtifact linuxArtifact = manifest.getArtifacts().stream()
+                    .filter(a -> "linux".equals(a.getPlatform())).findFirst()
+                    .orElseThrow(() -> new RuntimeException("Linux artifact not found"));
+
+            assertTrue(macArtifact.getFilename().endsWith(".tar.gz"),
+                    "Mac filename should use .tar.gz: " + macArtifact.getFilename());
+            assertTrue(linuxArtifact.getFilename().endsWith(".tar.gz"),
+                    "Linux filename should use .tar.gz: " + linuxArtifact.getFilename());
+
+            assertNotNull(macArtifact.getSha256());
+            assertEquals(64, macArtifact.getSha256().length(), "SHA-256 should be 64 hex chars");
         }
     }
 

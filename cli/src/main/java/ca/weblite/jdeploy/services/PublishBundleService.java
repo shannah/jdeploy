@@ -10,7 +10,12 @@ import ca.weblite.jdeploy.models.BundleManifest;
 import ca.weblite.jdeploy.packaging.PackagingConfig;
 import ca.weblite.jdeploy.packaging.PackagingContext;
 import ca.weblite.jdeploy.models.CommandSpecParser;
+import ca.weblite.tools.io.FileUtil;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.json.JSONObject;
 
 import javax.inject.Inject;
@@ -101,7 +106,7 @@ public class PublishBundleService {
                     // Build GUI bundle
                     BundlerResult result = buildBundle(context, bundleTarget, source, false);
                     if (result != null && result.getOutputFile() != null) {
-                        BundleArtifact guiArtifact = wrapInJar(
+                        BundleArtifact guiArtifact = wrapBundle(
                                 result.getOutputFile(), jarOutputDir, fqpn,
                                 platformName, arch, version, false
                         );
@@ -114,7 +119,7 @@ public class PublishBundleService {
                     if (hasCliCommands && "win".equals(platformName)) {
                         BundlerResult cliResult = buildBundle(context, bundleTarget, source, true);
                         if (cliResult != null && cliResult.getOutputFile() != null) {
-                            BundleArtifact cliArtifact = wrapInJar(
+                            BundleArtifact cliArtifact = wrapBundle(
                                     cliResult.getOutputFile(), jarOutputDir, fqpn,
                                     platformName, arch, version, true
                             );
@@ -267,7 +272,81 @@ public class PublishBundleService {
     }
 
     /**
+     * Wraps a bundle in the appropriate archive format:
+     * - Mac/Linux: tar.gz (preserves POSIX file permissions including executable bit)
+     * - Windows: JAR (permissions don't matter on Windows)
+     */
+    private BundleArtifact wrapBundle(
+            File bundleFile,
+            File outputDir,
+            String fqpn,
+            String platform,
+            String arch,
+            String version,
+            boolean isCli
+    ) throws IOException {
+        if ("mac".equals(platform) || "linux".equals(platform)) {
+            return wrapInTarGz(bundleFile, outputDir, fqpn, platform, arch, version, isCli);
+        } else {
+            return wrapInJar(bundleFile, outputDir, fqpn, platform, arch, version, isCli);
+        }
+    }
+
+    /**
+     * Wraps a bundle in tar.gz format, preserving POSIX file permissions.
+     * Used for Mac and Linux bundles where executable permissions must be preserved.
+     */
+    private BundleArtifact wrapInTarGz(
+            File bundleFile,
+            File outputDir,
+            String fqpn,
+            String platform,
+            String arch,
+            String version,
+            boolean isCli
+    ) throws IOException {
+        String cliSuffix = isCli ? "-cli" : "";
+        String filename = fqpn + "-" + platform + "-" + arch + "-" + version + cliSuffix + ".tar.gz";
+        File tarGzFile = new File(outputDir, filename);
+
+        try (TarArchiveOutputStream taos = new TarArchiveOutputStream(
+                new GzipCompressorOutputStream(new FileOutputStream(tarGzFile)))) {
+            taos.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_STAR);
+            taos.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);
+            taos.setAddPaxHeadersForNonAsciiNames(true);
+
+            addToTarGz(taos, bundleFile, ".");
+        }
+
+        String sha256 = computeSha256(tarGzFile);
+        return new BundleArtifact(tarGzFile, platform, arch, version, isCli, sha256, filename);
+    }
+
+    private void addToTarGz(TarArchiveOutputStream taos, File file, String basePath) throws IOException {
+        String entryName = basePath + "/" + file.getName();
+        if (file.isFile()) {
+            TarArchiveEntry entry = new TarArchiveEntry(file, entryName);
+            if (FileUtil.isPosix()) {
+                entry.setMode(FileUtil.getPosixFilePermissions(file));
+            }
+            taos.putArchiveEntry(entry);
+            try (FileInputStream fis = new FileInputStream(file)) {
+                IOUtils.copy(fis, taos);
+            }
+            taos.closeArchiveEntry();
+        } else if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    addToTarGz(taos, child, entryName);
+                }
+            }
+        }
+    }
+
+    /**
      * Wraps a bundle output file (or directory like .app) into a JAR.
+     * Used for Windows bundles where POSIX permissions are not relevant.
      */
     private BundleArtifact wrapInJar(
             File bundleFile,
