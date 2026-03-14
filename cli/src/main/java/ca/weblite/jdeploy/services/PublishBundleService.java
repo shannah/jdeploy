@@ -155,7 +155,7 @@ public class PublishBundleService {
             Object value = entry.getValue();
             if (value instanceof Map) {
                 Object enabled = ((Map) value).get("enabled");
-                if (Boolean.TRUE.equals(enabled)) {
+                if (Boolean.TRUE.equals(enabled) || "true".equals(String.valueOf(enabled))) {
                     keys.add(entry.getKey());
                 }
             }

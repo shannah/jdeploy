@@ -181,6 +181,46 @@ class PublishBundleServiceTest {
         assertTrue(publishBundleService.isEnabled(context));
     }
 
+    @Test
+    @DisplayName("isEnabled handles String 'true' from JSONParser (default boolean parsing)")
+    void isEnabled_returnsTrue_whenEnabledIsStringTrue() {
+        Map<String, Object> packageJson = new HashMap<>();
+        packageJson.put("name", "test-app");
+        packageJson.put("version", "1.0.0");
+        Map<String, Object> jdeploy = new HashMap<>();
+        jdeploy.put("jar", jarFile.getAbsolutePath());
+        Map<String, Object> artifacts = new HashMap<>();
+        Map<String, Object> entry = new HashMap<>();
+        // JSONParser parses JSON true as String "true" by default
+        entry.put("enabled", "true");
+        artifacts.put("mac-arm64", entry);
+        jdeploy.put("artifacts", artifacts);
+        packageJson.put("jdeploy", jdeploy);
+
+        PackagingContext context = createContext(packageJson);
+        assertTrue(publishBundleService.isEnabled(context),
+                "isEnabled should handle String 'true' from JSONParser");
+    }
+
+    @Test
+    @DisplayName("isEnabled returns false when enabled is String 'false'")
+    void isEnabled_returnsFalse_whenEnabledIsStringFalse() {
+        Map<String, Object> packageJson = new HashMap<>();
+        packageJson.put("name", "test-app");
+        packageJson.put("version", "1.0.0");
+        Map<String, Object> jdeploy = new HashMap<>();
+        jdeploy.put("jar", jarFile.getAbsolutePath());
+        Map<String, Object> artifacts = new HashMap<>();
+        Map<String, Object> entry = new HashMap<>();
+        entry.put("enabled", "false");
+        artifacts.put("mac-arm64", entry);
+        jdeploy.put("artifacts", artifacts);
+        packageJson.put("jdeploy", jdeploy);
+
+        PackagingContext context = createContext(packageJson);
+        assertFalse(publishBundleService.isEnabled(context));
+    }
+
     // -- buildBundles tests --
 
     @Test
@@ -346,6 +386,36 @@ class PublishBundleServiceTest {
             assertEquals(64, gui.getSha256().length(), "SHA-256 should be 64 hex chars");
             assertNotNull(cli.getSha256());
             assertEquals(64, cli.getSha256().length(), "SHA-256 should be 64 hex chars");
+        }
+    }
+
+    @Test
+    @DisplayName("buildBundles works with String 'true' enabled values (as parsed by JSONParser)")
+    void buildBundles_worksWithStringEnabled() throws IOException {
+        Map<String, Object> packageJson = new HashMap<>();
+        packageJson.put("name", "test-app");
+        packageJson.put("version", "1.0.0");
+        Map<String, Object> jdeploy = new HashMap<>();
+        jdeploy.put("jar", jarFile.getAbsolutePath());
+        jdeploy.put("title", "Test App");
+        Map<String, Object> artifacts = new LinkedHashMap<>();
+        Map<String, Object> entry = new HashMap<>();
+        entry.put("enabled", "true");  // String, not Boolean
+        artifacts.put("linux-x64", entry);
+        jdeploy.put("artifacts", artifacts);
+        packageJson.put("jdeploy", jdeploy);
+
+        writePackageJson(packageJson);
+        PackagingContext context = createContext(packageJson);
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            mockBundlerRunit(bundlerMock, null);
+
+            BundleManifest manifest = publishBundleService.buildBundles(context, null);
+
+            assertEquals(1, manifest.getArtifacts().size(),
+                    "Should build bundles even when enabled is String 'true'");
+            assertEquals("linux-x64", manifest.getArtifacts().get(0).getPlatformKey());
         }
     }
 
