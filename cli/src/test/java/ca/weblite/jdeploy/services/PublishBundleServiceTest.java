@@ -6,6 +6,7 @@ import ca.weblite.jdeploy.models.BundleArtifact;
 import ca.weblite.jdeploy.models.BundleManifest;
 import ca.weblite.jdeploy.packaging.PackagingContext;
 import ca.weblite.jdeploy.publishing.BundleChecksumWriter;
+import com.codename1.io.JSONParser;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
@@ -179,6 +180,27 @@ class PublishBundleServiceTest {
         Map<String, Object> packageJson = createPackageJson(false, "mac-arm64");
         PackagingContext context = createContext(packageJson);
         assertTrue(publishBundleService.isEnabled(context));
+    }
+
+    @Test
+    @DisplayName("JSONParser parses JSON boolean true as String 'true' by default")
+    void jsonParser_parsesBooleanTrueAsString() throws IOException {
+        String json = "{\"artifacts\":{\"mac-arm64\":{\"enabled\":true}}}";
+        JSONParser parser = new JSONParser();
+        Map<String, Object> parsed = parser.parseJSON(new StringReader(json));
+
+        Map<String, Object> artifacts = (Map<String, Object>) parsed.get("artifacts");
+        Map<String, Object> macEntry = (Map<String, Object>) artifacts.get("mac-arm64");
+        Object enabled = macEntry.get("enabled");
+
+        // This is the root cause of the bundle publishing bug:
+        // JSONParser returns String "true", not Boolean.TRUE
+        assertEquals(String.class, enabled.getClass(),
+                "JSONParser should parse JSON true as String by default (not Boolean)");
+        assertEquals("true", enabled,
+                "JSONParser should parse JSON true as the String \"true\"");
+        assertFalse(Boolean.TRUE.equals(enabled),
+                "Boolean.TRUE.equals(String \"true\") must be false — this was the bug");
     }
 
     @Test
