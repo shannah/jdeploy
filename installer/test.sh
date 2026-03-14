@@ -6,9 +6,9 @@ function test_shellmarks() {
   bash test_install_single_project.sh shellmarks --build --smoke --uninstall --uninstall-smoke
 }
 
-function test_snapcodejava() {
+function test_snapcharts() {
   cd $SCRIPTPATH
-  bash test_install_single_project.sh snapcodejava --smoke --uninstall --uninstall-smoke
+  bash test_install_single_project.sh snapcharts --smoke --uninstall --uninstall-smoke
 }
 
 function test_hello_commands() {
@@ -22,5 +22,5 @@ fi
 export JDEPLOY_IS_PIPELINE=true
 echo "Running jDeploy installer tests with JDEPLOY_PROJECT_PATH=$JDEPLOY_PROJECT_PATH"
 test_shellmarks
-test_snapcodejava
+test_snapcharts
 test_hello_commands

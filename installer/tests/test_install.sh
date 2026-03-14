@@ -1,7 +1,7 @@
 #!/bin/bash
 # Tests installing a jDeploy application.
 # This script should be run from inside a specific project's test directory.  E.g.
-# cd ~/jdeploy/installer/tests/snapcodejava && test_install.sh
+# cd ~/jdeploy/installer/tests/snapcharts && test_install.sh
 # For more information, see the README.md file.
 
 set -e
@@ -41,7 +41,7 @@ if [ ! -d "$CWD/.jdeploy-files" ]; then
   echo "Error: The .jdeploy-files directory does not exist in the current working directory."
   echo "Please create this directory and add the app.xml file to it."
   echo "This script should be run from inside a specific project's test directory.  E.g."
-  echo "cd ~/jdeploy/installer/tests/snapcodejava && test_install.sh"
+  echo "cd ~/jdeploy/installer/tests/snapcharts && test_install.sh"
   echo "For more information, see the README.md file."
   exit 1
 fi

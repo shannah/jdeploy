@@ -4,7 +4,7 @@ This directory contains a "mock" launcher for jDeploy that is used for the purpo
 
 == Usage
 
-Copy the correct launcher into the project directory (see samples in the installer/tests/shellmarks and installer/tests/snapcodejava directories).
+Copy the correct launcher into the project directory (see samples in the installer/tests/shellmarks and installer/tests/snapcharts directories).
 
 Then run the launcher with either the "install" or "uninstall" CLI arguments.
 
