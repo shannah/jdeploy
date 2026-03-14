@@ -14,7 +14,17 @@ The `jdeploy-test-app` repo is a disposable scratchpad. It is safe to delete all
 
 Ask the user these questions before proceeding:
 
-**Question 1: Special requirements**
+**Question 1: jDeploy version to test**
+
+Ask: "Which version of jDeploy do you want to test? (e.g., `4.0.50`, `latest`, or a branch name like `master`)"
+
+This is important because this skill is typically used to test development or pre-release versions of jDeploy itself. The version determines:
+- The GitHub Action tag: `shannah/jdeploy@<version>` (e.g., `shannah/jdeploy@4.0.50`)
+- The npx invocation: `npx jdeploy@<version>` (e.g., `npx jdeploy@4.0.50`)
+
+Store this as `$JDEPLOY_VERSION` for use in subsequent steps.
+
+**Question 2: Special requirements**
 
 Ask: "Do you have any special requirements for the test app? For example: specific package.json properties, JavaFX, commands/services, MCP server config, platform bundles, specific JVM args, etc. Or should I create a basic Swing GUI app?"
 
@@ -27,7 +37,7 @@ Let the user describe any features they want to test. This might include:
 
 If the user has no special requirements, default to a simple Swing GUI "Hello World" app.
 
-**Question 2: Publish target**
+**Question 3: Publish target**
 
 Ask: "Where should I publish: npm or GitHub?"
 
@@ -175,7 +185,7 @@ Create `package.json` with the appropriate jDeploy configuration:
 
 Modify this template based on user requirements (add commands, javafx, platformBundlesEnabled, ai.mcp, etc.).
 
-### Step 6: Build the Project
+### Step 6: Build and Package the Project
 
 ```bash
 mvn clean package -DskipTests
@@ -188,9 +198,19 @@ ls -la target/jdeploy-test-app-*.jar
 
 If the build fails, diagnose and fix the issue before proceeding.
 
+Then use the specific jDeploy version to generate the `jdeploy-bundle`:
+
+```bash
+npx jdeploy@$JDEPLOY_VERSION package
+```
+
+**Important:** Always use `npx jdeploy@$JDEPLOY_VERSION` for any jDeploy CLI commands (e.g., `package`, `publish`, `init`). Never rely on a globally installed `jdeploy` — the whole point of this skill is to test a specific version.
+
 ### Step 7: Set Up GitHub Workflow (if publishing to GitHub)
 
 If the publish target is GitHub, create `.github/workflows/jdeploy.yml` following the template from the jdeploy-claude CLAUDE.md "github-workflows" section. Make sure to adjust the Java version and build tool to match the project.
+
+**Important:** In the workflow, reference the specific jDeploy version being tested — do NOT use `@master`. Use `shannah/jdeploy@$JDEPLOY_VERSION` (e.g., `shannah/jdeploy@4.0.50`). This ensures the GitHub Action runs the exact version under test.
 
 ### Step 8: Commit and Push
 
@@ -204,14 +224,18 @@ git push origin main
 
 #### npm Publishing
 
+Use `npx` with the specific jDeploy version to publish:
+
 ```bash
-npm publish
+npx jdeploy@$JDEPLOY_VERSION publish
 ```
+
+This ensures the exact version of jDeploy under test is used for publishing, rather than whatever version is globally installed.
 
 If this fails with an authentication error (ENEEDAUTH, 403, etc.):
 1. Tell the user: "npm publish failed due to authentication. Please run `npm login` in your terminal to authenticate, then tell me to retry."
 2. Wait for the user to confirm they've logged in.
-3. Retry `npm publish`.
+3. Retry `npx jdeploy@$JDEPLOY_VERSION publish`.
 
 For scoped packages, use `npm publish --access public`.
 
