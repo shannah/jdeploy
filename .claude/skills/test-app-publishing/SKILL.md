@@ -19,8 +19,8 @@ Ask the user these questions before proceeding:
 Ask: "Which version of jDeploy do you want to test? (e.g., `4.0.50`, `latest`, or a branch name like `master`)"
 
 This is important because this skill is typically used to test development or pre-release versions of jDeploy itself. The version determines:
-- The GitHub Action tag: `shannah/jdeploy@<version>` (e.g., `shannah/jdeploy@4.0.50`)
-- The npx invocation: `npx jdeploy@<version>` (e.g., `npx jdeploy@4.0.50`)
+- The GitHub Action tag: `shannah/jdeploy@v<version>` (e.g., `shannah/jdeploy@v4.0.50`) — note the `v` prefix for git tags
+- The npx invocation: `npx jdeploy@<version>` (e.g., `npx jdeploy@4.0.50`) — no `v` prefix for npm
 
 Store this as `$JDEPLOY_VERSION` for use in subsequent steps.
 
@@ -208,9 +208,45 @@ npx jdeploy@$JDEPLOY_VERSION package
 
 ### Step 7: Set Up GitHub Workflow (if publishing to GitHub)
 
-If the publish target is GitHub, create `.github/workflows/jdeploy.yml` following the template from the jdeploy-claude CLAUDE.md "github-workflows" section. Make sure to adjust the Java version and build tool to match the project.
+If the publish target is GitHub, create `.github/workflows/jdeploy.yml` with the following template:
 
-**Important:** In the workflow, reference the specific jDeploy version being tested — do NOT use `@master`. Use `shannah/jdeploy@$JDEPLOY_VERSION` (e.g., `shannah/jdeploy@4.0.50`). This ensures the GitHub Action runs the exact version under test.
+```yaml
+name: jDeploy CI
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  jdeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      - name: Build and Deploy Installers
+        uses: shannah/jdeploy@v$JDEPLOY_VERSION
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          jdeploy_version: $JDEPLOY_VERSION
+```
+
+**Important notes:**
+- The `permissions: contents: write` block is **required** for the action to upload release assets.
+- Use `shannah/jdeploy@v$JDEPLOY_VERSION` (e.g., `shannah/jdeploy@v4.0.50`). Note the `v` prefix — GitHub Action tags use git tags which are prefixed with `v`.
+- The `jdeploy_version` input tells the action which version of jDeploy CLI to use (e.g., `6.1.0-dev.4`). This does **NOT** have the `v` prefix. Without this, the action uses its default jDeploy version.
+- Adjust the Java version and build tool to match the project requirements.
 
 ### Step 8: Commit and Push
 
