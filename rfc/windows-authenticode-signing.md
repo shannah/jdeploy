@@ -91,7 +91,7 @@ export JDEPLOY_WIN_KEYSTORE_PASSWORD="token-pin"
 jdeploy publish
 ```
 
-### GitHub Actions
+### GitHub Actions (manual environment setup)
 
 ```yaml
 - name: Publish with code signing
@@ -102,6 +102,98 @@ jdeploy publish
     echo "${{ secrets.WIN_SIGNING_CERT_BASE64 }}" | base64 -d > ${{ runner.temp }}/certificate.pfx
     npx jdeploy publish
 ```
+
+## GitHub Action Integration
+
+The jDeploy GitHub Action (`action.yml`) has built-in support for Windows Authenticode signing. The action handles certificate decoding, environment variable setup, and certificate cleanup automatically.
+
+### Action Inputs
+
+| Input | Required | Description |
+|---|---|---|
+| `win_signing_certificate` | No | Base64-encoded PFX/PKCS12 certificate. The action decodes this to a temp file and sets `JDEPLOY_WIN_KEYSTORE_PATH` automatically. |
+| `win_signing_password` | No | Password/PIN for the keystore or PKCS#11 token. Maps to `JDEPLOY_WIN_KEYSTORE_PASSWORD`. |
+| `win_signing_keystore_type` | No | Keystore type: `PKCS12` (default), `JKS`, or `PKCS11`. Maps to `JDEPLOY_WIN_KEYSTORE_TYPE`. |
+| `win_signing_pkcs11_config` | No | Path to a PKCS#11 provider config file on the runner (for HSM signing). Maps to `JDEPLOY_WIN_PKCS11_CONFIG`. |
+| `win_signing_key_alias` | No | Alias of the signing key. Maps to `JDEPLOY_WIN_KEY_ALIAS`. |
+| `win_signing_key_password` | No | Private key password (if different from keystore password). Maps to `JDEPLOY_WIN_KEY_PASSWORD`. |
+| `win_signing_timestamp_url` | No | RFC 3161 timestamp server URL. Maps to `JDEPLOY_WIN_TIMESTAMP_URL`. |
+| `win_signing_hash_algorithm` | No | Hash algorithm (e.g. `SHA-256`). Maps to `JDEPLOY_WIN_HASH_ALGORITHM`. |
+| `win_signing_description` | No | Description embedded in the signature. Maps to `JDEPLOY_WIN_SIGN_DESCRIPTION`. |
+| `win_signing_url` | No | URL embedded in the signature. Maps to `JDEPLOY_WIN_SIGN_URL`. |
+
+Signing is activated when either `win_signing_certificate` or `win_signing_pkcs11_config` is provided. If neither is set, signing is skipped and executables are left unsigned.
+
+### Local PFX certificate
+
+Store the base64-encoded certificate and its password as repository secrets, then pass them as action inputs:
+
+```yaml
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shannah/jdeploy@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          win_signing_certificate: ${{ secrets.WIN_SIGNING_CERT_BASE64 }}
+          win_signing_password: ${{ secrets.WIN_SIGNING_PASSWORD }}
+```
+
+To create the base64 secret from a `.pfx` file:
+
+```bash
+base64 -w 0 certificate.pfx | pbcopy   # macOS
+base64 -w 0 certificate.pfx | xclip    # Linux
+```
+
+### Local PFX with optional parameters
+
+```yaml
+      - uses: shannah/jdeploy@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          win_signing_certificate: ${{ secrets.WIN_SIGNING_CERT_BASE64 }}
+          win_signing_password: ${{ secrets.WIN_SIGNING_PASSWORD }}
+          win_signing_key_alias: my-cert-alias
+          win_signing_description: "My Application"
+          win_signing_url: "https://example.com"
+```
+
+### PKCS#11 / HSM signing
+
+For hardware security module signing (SafeNet, YubiKey, etc.), use a self-hosted runner with the HSM client and PKCS#11 provider library installed:
+
+```yaml
+jobs:
+  publish:
+    runs-on: self-hosted   # Runner with HSM client/driver installed
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shannah/jdeploy@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          win_signing_keystore_type: PKCS11
+          win_signing_pkcs11_config: /opt/safenet/pkcs11.cfg
+          win_signing_password: ${{ secrets.HSM_TOKEN_PIN }}
+          win_signing_key_alias: my-signing-key
+```
+
+The `win_signing_pkcs11_config` input must point to a PKCS#11 provider configuration file on the runner. A typical config file looks like:
+
+```
+name = SafeNet
+library = /opt/safenet/lib/libCryptoki2_64.so
+```
+
+### Security notes
+
+- Store certificates and passwords as [encrypted secrets](https://docs.github.com/en/actions/security-guides/encrypted-secrets). Never commit them to the repository.
+- The action automatically cleans up the decoded certificate file after the workflow completes (including on failure).
+- The certificate file is written to `${{ runner.temp }}`, which is ephemeral to the workflow run.
 
 ## Validation
 
