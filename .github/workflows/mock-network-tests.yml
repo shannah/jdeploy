@@ -134,6 +134,9 @@ jobs:
             print(f\"{r['request']['method']} {r['request']['url']} -> {r.get('responseDefinition', {}).get('status', '?')}\")
           " || echo "Could not fetch"
 
+      - name: Install parent POM
+        run: mvn -N install -q
+
       - name: Build shared library
         run: cd shared && mvn clean install -DskipTests -q
 
