@@ -34,6 +34,30 @@ inputs:
       This prevents accidental data loss by ensuring package-info.json exists before updating.
     required: false
     default: 'false'
+  win_signing_certificate:
+    description: Base64-encoded PFX/PKCS12 certificate for Windows Authenticode signing.
+    required: false
+  win_signing_password:
+    description: Password for the Windows signing keystore.
+    required: false
+  win_signing_key_alias:
+    description: Alias of the signing key within the keystore. Defaults to first alias.
+    required: false
+  win_signing_key_password:
+    description: Password for the private key (if different from keystore password).
+    required: false
+  win_signing_timestamp_url:
+    description: RFC 3161 timestamp server URL.
+    required: false
+  win_signing_hash_algorithm:
+    description: Hash algorithm for the signature (e.g. SHA-256).
+    required: false
+  win_signing_description:
+    description: Description embedded in the Authenticode signature.
+    required: false
+  win_signing_url:
+    description: URL embedded in the Authenticode signature.
+    required: false
 
 runs:
   using: composite
@@ -97,6 +121,34 @@ runs:
       shell: bash
       run: |
         echo "JDEPLOY_REGISTRY_URL=${{ inputs.jdeploy_registry_url }}" >> $GITHUB_ENV
+
+    - name: Set Up Windows Authenticode Signing
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.win_signing_certificate != '' }}
+      shell: bash
+      run: |
+        CERT_PATH="${{ runner.temp }}/jdeploy-win-certificate.pfx"
+        echo "${{ inputs.win_signing_certificate }}" | base64 -d > "$CERT_PATH"
+        echo "JDEPLOY_WIN_KEYSTORE_PATH=$CERT_PATH" >> $GITHUB_ENV
+        echo "JDEPLOY_WIN_KEYSTORE_PASSWORD=${{ inputs.win_signing_password }}" >> $GITHUB_ENV
+        if [ -n "${{ inputs.win_signing_key_alias }}" ]; then
+          echo "JDEPLOY_WIN_KEY_ALIAS=${{ inputs.win_signing_key_alias }}" >> $GITHUB_ENV
+        fi
+        if [ -n "${{ inputs.win_signing_key_password }}" ]; then
+          echo "JDEPLOY_WIN_KEY_PASSWORD=${{ inputs.win_signing_key_password }}" >> $GITHUB_ENV
+        fi
+        if [ -n "${{ inputs.win_signing_timestamp_url }}" ]; then
+          echo "JDEPLOY_WIN_TIMESTAMP_URL=${{ inputs.win_signing_timestamp_url }}" >> $GITHUB_ENV
+        fi
+        if [ -n "${{ inputs.win_signing_hash_algorithm }}" ]; then
+          echo "JDEPLOY_WIN_HASH_ALGORITHM=${{ inputs.win_signing_hash_algorithm }}" >> $GITHUB_ENV
+        fi
+        if [ -n "${{ inputs.win_signing_description }}" ]; then
+          echo "JDEPLOY_WIN_SIGN_DESCRIPTION=${{ inputs.win_signing_description }}" >> $GITHUB_ENV
+        fi
+        if [ -n "${{ inputs.win_signing_url }}" ]; then
+          echo "JDEPLOY_WIN_SIGN_URL=${{ inputs.win_signing_url }}" >> $GITHUB_ENV
+        fi
+        echo "Windows Authenticode signing configured."
 
     - name: Save Original JAVA_HOME
       if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && env.JAVA_HOME }}
@@ -347,3 +399,10 @@ runs:
         fi
         npm pkg set jdeploy.commitHash="$GITHUB_SHA"
         $jdeploy_exec publish
+
+    - name: Clean Up Windows Signing Certificate
+      if: ${{ always() && env.JDEPLOY_WIN_KEYSTORE_PATH != '' }}
+      shell: bash
+      run: |
+        rm -f "$JDEPLOY_WIN_KEYSTORE_PATH"
+        echo "Cleaned up signing certificate."
