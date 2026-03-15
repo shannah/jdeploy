@@ -1,5 +1,7 @@
 package ca.weblite.jdeploy.publishing;
 
+import ca.weblite.jdeploy.appbundler.Bundler;
+import ca.weblite.jdeploy.appbundler.BundlerResult;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.config.Config;
 import ca.weblite.jdeploy.downloadPage.DownloadPageSettings;
@@ -21,6 +23,7 @@ import ca.weblite.jdeploy.services.*;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -30,7 +33,7 @@ import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -630,5 +633,229 @@ class BundlePublishMockNetworkTest extends BaseMockNetworkPublishingTest {
         JSONObject winX64 = artifacts.getJSONObject("win-x64");
         assertTrue(winX64.optBoolean("enabled", false),
                 "enabled flag should be preserved in win-x64 artifact");
+    }
+
+    // ========================================================================
+    // Windows Authenticode signing integration tests
+    // ========================================================================
+
+    /**
+     * Creates a GitHubPublishDriver with a REAL PublishBundleService (not mocked)
+     * that uses mocked signing services. Bundler.runit() must be statically mocked
+     * by the caller since it requires native toolchains.
+     */
+    private GitHubPublishDriver createDriverWithRealBundleService(
+            WindowsSigningService signingService,
+            WindowsSigningConfigFactory signingConfigFactory
+    ) throws Exception {
+        Config config = createMockConfig();
+        PackagingConfig packagingConfig = new PackagingConfig(config);
+        BundleCodeService bundleCodeService = new BundleCodeService(packagingConfig);
+
+        GitHubReleaseCreator releaseCreator = new GitHubReleaseCreator();
+        releaseCreator.setGithubUrl(getGithubBaseUrl());
+        releaseCreator.setGithubApiUrl(getGithubApiBaseUrl() + "/repos/");
+
+        PackageNameService packageNameService = mock(PackageNameService.class);
+        when(packageNameService.getFullPackageName(any(), any())).thenAnswer(
+                invocation -> invocation.getArgument(1)
+        );
+
+        CheerpjServiceFactory cheerpjServiceFactory = mock(CheerpjServiceFactory.class);
+        CheerpjService cheerpjService = mock(CheerpjService.class);
+        when(cheerpjServiceFactory.create(any())).thenReturn(cheerpjService);
+        when(cheerpjService.isEnabled()).thenReturn(false);
+
+        DownloadPageSettingsService downloadPageSettingsService = mock(DownloadPageSettingsService.class);
+        DownloadPageSettings settings = new DownloadPageSettings();
+        settings.setEnabledPlatforms(new HashSet<>(Collections.singletonList(
+                DownloadPageSettings.BundlePlatform.LinuxX64
+        )));
+        when(downloadPageSettingsService.read(any(File.class))).thenReturn(settings);
+
+        PlatformBundleGenerator platformBundleGenerator = mock(PlatformBundleGenerator.class);
+        DefaultBundleService defaultBundleService = mock(DefaultBundleService.class);
+        JDeployProjectFactory projectFactory = mock(JDeployProjectFactory.class);
+        Environment environment = mock(Environment.class);
+        JDeployFilesZipGenerator jdeployFilesZipGenerator = mock(JDeployFilesZipGenerator.class);
+
+        BasePublishDriver baseDriver = mock(BasePublishDriver.class);
+        doAnswer(invocation -> {
+            PublishingContext ctx = invocation.getArgument(0);
+            File publishDir = ctx.getPublishDir();
+            publishDir.mkdirs();
+            FileUtils.copyDirectory(
+                    new File(ctx.directory(), "jdeploy-bundle"),
+                    new File(publishDir, "jdeploy-bundle")
+            );
+            FileUtils.copyFile(ctx.packagingContext.packageJsonFile, ctx.getPublishPackageJsonFile());
+            return null;
+        }).when(baseDriver).prepare(any(), any(), any());
+
+        // Use REAL PublishBundleService with mocked signing
+        PublishBundleService publishBundleService = new PublishBundleService(
+                packagingConfig, signingService, signingConfigFactory
+        );
+
+        // Use REAL BundleUploadRouter (with S3 disabled)
+        S3Config s3Config = mock(S3Config.class);
+        when(s3Config.isConfigured()).thenReturn(false);
+        S3BundleUploader s3Uploader = new S3BundleUploader(s3Config);
+        BundleUploadRouter bundleUploadRouter = new BundleUploadRouter(s3Config, s3Uploader);
+
+        BundleChecksumWriter bundleChecksumWriter = new BundleChecksumWriter();
+
+        GitHubPublishDriver githubDriver = new GitHubPublishDriver(
+                baseDriver, bundleCodeService, packageNameService,
+                cheerpjServiceFactory, releaseCreator, downloadPageSettingsService,
+                platformBundleGenerator, defaultBundleService, projectFactory,
+                environment, jdeployFilesZipGenerator,
+                publishBundleService, bundleUploadRouter, bundleChecksumWriter
+        );
+        githubDriver.setGithubUrl(getGithubBaseUrl());
+
+        return githubDriver;
+    }
+
+    @Test
+    @Order(80)
+    @DisplayName("Bundle publish: full prepare flow signs Windows exe in pre-built bundles")
+    void fullPrepareFlowSignsWindowsExeInPrebuiltBundles() throws Exception {
+        String version = "1.0.0";
+
+        // Set up mocked signing
+        WindowsSigningService mockSigningService = mock(WindowsSigningService.class);
+        WindowsSigningConfigFactory mockConfigFactory = mock(WindowsSigningConfigFactory.class);
+        WindowsSigningConfig signingConfig = new WindowsSigningConfig();
+        signingConfig.setKeystorePath("/fake/cert.pfx");
+        signingConfig.setKeystorePassword("password");
+        when(mockConfigFactory.createFromEnvironment()).thenReturn(signingConfig);
+
+        List<File> signedFiles = new ArrayList<>();
+        doAnswer(invocation -> {
+            signedFiles.add(invocation.getArgument(0));
+            return null;
+        }).when(mockSigningService).sign(any(File.class), any(WindowsSigningConfig.class));
+
+        // Set up project with win-x64 artifacts enabled
+        File projectDir = new File(tempDir, "signing-e2e-project");
+        projectDir.mkdirs();
+        File jarFile = createTestJar(projectDir, "app-1.0.0.jar", "com.example.App");
+        createPackageJsonWithArtifacts(projectDir, "signing-test-app", version, "app-1.0.0.jar");
+        createIcon(projectDir);
+        createJdeployBundle(projectDir, jarFile);
+
+        // Also create jdeploy-bundle jar so loadAppInfo finds it
+        File jdeployBundleDir = new File(projectDir, "jdeploy-bundle");
+        File bundledIcon = new File(jdeployBundleDir, "icon.png");
+        FileUtils.copyFile(new File(projectDir, "icon.png"), bundledIcon);
+
+        GitHubPublishDriver driver = createDriverWithRealBundleService(
+                mockSigningService, mockConfigFactory
+        );
+        PublishingContext ctx = createPublishingContext(projectDir);
+        PublishTargetInterface target = createGitHubTarget("signinguser", "signingrepo");
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            // Mock Bundler.runit to produce fake .exe files for Windows bundles
+            bundlerMock.when(() -> Bundler.runit(
+                    any(), any(), anyString(), anyString(), anyString(), anyString()
+            )).thenAnswer(invocation -> {
+                String bundleTarget = invocation.getArgument(3);
+                ca.weblite.jdeploy.appbundler.BundlerSettings settings = invocation.getArgument(0);
+                boolean isCli = settings.isCliCommandsEnabled();
+
+                BundlerResult result = new BundlerResult(bundleTarget);
+                String destDir = invocation.getArgument(4);
+                String suffix = bundleTarget.startsWith("win") ? ".exe" : ".bin";
+                File outputFile = new File(destDir, "fake-bundle" + (isCli ? "-cli" : "") + suffix);
+                outputFile.getParentFile().mkdirs();
+                // Write some content so tar.gz wrapping has something to compress
+                FileUtils.writeStringToFile(outputFile, "fake-exe-content-" + bundleTarget,
+                        StandardCharsets.UTF_8);
+                result.setOutputFile(outputFile);
+                return result;
+            });
+
+            // Run the full prepare flow
+            driver.prepare(ctx, target, new BundlerSettings());
+        }
+
+        // Verify signing was called for Windows exe files
+        assertFalse(signedFiles.isEmpty(),
+                "Signing service should have been called for Windows exe bundles");
+        assertTrue(signedFiles.stream().allMatch(f -> f.getName().endsWith(".exe")),
+                "All signed files should be .exe files");
+
+        // Verify the release files directory has the bundle tar.gz files
+        File releaseFilesDir = ctx.getGithubReleaseFilesDir();
+        assertTrue(releaseFilesDir.exists(), "Release files directory should exist");
+
+        // Verify bundle artifacts were uploaded with checksums
+        File publishPackageJson = ctx.getPublishPackageJsonFile();
+        String content = FileUtils.readFileToString(publishPackageJson, StandardCharsets.UTF_8);
+        JSONObject packageJson = new JSONObject(content);
+        JSONObject jdeploy = packageJson.getJSONObject("jdeploy");
+        assertTrue(jdeploy.has("artifacts"), "Should have artifacts with bundle checksums");
+        JSONObject artifacts = jdeploy.getJSONObject("artifacts");
+        assertTrue(artifacts.has("win-x64"), "Should have win-x64 artifact with checksum");
+        assertTrue(artifacts.getJSONObject("win-x64").has("sha256"),
+                "win-x64 artifact should have SHA-256 checksum");
+    }
+
+    @Test
+    @Order(85)
+    @DisplayName("Bundle publish: full prepare flow does not sign when signing is not configured")
+    void fullPrepareFlowSkipsSigningWhenNotConfigured() throws Exception {
+        String version = "1.0.0";
+
+        // Signing NOT configured (factory returns null)
+        WindowsSigningService mockSigningService = mock(WindowsSigningService.class);
+        WindowsSigningConfigFactory mockConfigFactory = mock(WindowsSigningConfigFactory.class);
+        when(mockConfigFactory.createFromEnvironment()).thenReturn(null);
+
+        File projectDir = new File(tempDir, "nosign-e2e-project");
+        projectDir.mkdirs();
+        File jarFile = createTestJar(projectDir, "app-1.0.0.jar", "com.example.App");
+        createPackageJsonWithArtifacts(projectDir, "nosign-test-app", version, "app-1.0.0.jar");
+        createIcon(projectDir);
+        createJdeployBundle(projectDir, jarFile);
+
+        File jdeployBundleDir = new File(projectDir, "jdeploy-bundle");
+        FileUtils.copyFile(new File(projectDir, "icon.png"), new File(jdeployBundleDir, "icon.png"));
+
+        GitHubPublishDriver driver = createDriverWithRealBundleService(
+                mockSigningService, mockConfigFactory
+        );
+        PublishingContext ctx = createPublishingContext(projectDir);
+        PublishTargetInterface target = createGitHubTarget("nosignuser", "nosignrepo");
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            bundlerMock.when(() -> Bundler.runit(
+                    any(), any(), anyString(), anyString(), anyString(), anyString()
+            )).thenAnswer(invocation -> {
+                String bundleTarget = invocation.getArgument(3);
+                BundlerResult result = new BundlerResult(bundleTarget);
+                String destDir = invocation.getArgument(4);
+                String suffix = bundleTarget.startsWith("win") ? ".exe" : ".bin";
+                File outputFile = new File(destDir, "fake-bundle" + suffix);
+                outputFile.getParentFile().mkdirs();
+                FileUtils.writeStringToFile(outputFile, "fake-content", StandardCharsets.UTF_8);
+                result.setOutputFile(outputFile);
+                return result;
+            });
+
+            driver.prepare(ctx, target, new BundlerSettings());
+        }
+
+        // Signing should never have been called
+        verify(mockSigningService, never()).sign(any(File.class), any(WindowsSigningConfig.class));
+
+        // But bundles should still be built and uploaded
+        File publishPackageJson = ctx.getPublishPackageJsonFile();
+        String content = FileUtils.readFileToString(publishPackageJson, StandardCharsets.UTF_8);
+        JSONObject packageJson = new JSONObject(content);
+        JSONObject artifacts = packageJson.getJSONObject("jdeploy").getJSONObject("artifacts");
+        assertTrue(artifacts.has("win-x64"), "win-x64 bundle should still be built unsigned");
     }
 }
