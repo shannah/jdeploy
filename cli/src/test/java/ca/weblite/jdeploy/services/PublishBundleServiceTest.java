@@ -771,8 +771,8 @@ class PublishBundleServiceTest {
             mockBundlerRunit(bundlerMock, null);
             service.buildBundles(context, null);
 
-            // win-x64 GUI + win-x64 CLI + win-arm64 GUI = 3 signing calls
-            verify(mockSigningService, times(3)).sign(
+            // win-x64 GUI + win-x64 CLI + win-arm64 GUI + win-arm64 CLI = 4 signing calls
+            verify(mockSigningService, times(4)).sign(
                     argThat(file -> file.getName().endsWith(".exe")),
                     eq(signingConfig)
             );
