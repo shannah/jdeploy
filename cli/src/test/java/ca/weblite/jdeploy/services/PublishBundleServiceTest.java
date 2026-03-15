@@ -44,7 +44,11 @@ class PublishBundleServiceTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        publishBundleService = new PublishBundleService(new PackagingConfig(new Config()));
+        publishBundleService = new PublishBundleService(
+                new PackagingConfig(new Config()),
+                new WindowsSigningService(),
+                new WindowsSigningConfigFactory()
+        );
 
         // Create a fake JAR file so the bundler has something to reference
         jarFile = new File(tempDir, "app.jar");

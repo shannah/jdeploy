@@ -42,10 +42,18 @@ import static ca.weblite.jdeploy.BundleConstants.*;
 public class PublishBundleService {
 
     private final PackagingConfig packagingConfig;
+    private final WindowsSigningService windowsSigningService;
+    private final WindowsSigningConfigFactory windowsSigningConfigFactory;
 
     @Inject
-    public PublishBundleService(PackagingConfig packagingConfig) {
+    public PublishBundleService(
+            PackagingConfig packagingConfig,
+            WindowsSigningService windowsSigningService,
+            WindowsSigningConfigFactory windowsSigningConfigFactory
+    ) {
         this.packagingConfig = packagingConfig;
+        this.windowsSigningService = windowsSigningService;
+        this.windowsSigningConfigFactory = windowsSigningConfigFactory;
     }
 
     /**
@@ -104,6 +112,7 @@ public class PublishBundleService {
                     // Build GUI bundle
                     BundlerResult result = buildBundle(context, bundleTarget, source, false);
                     if (result != null && result.getOutputFile() != null) {
+                        signWindowsExeIfConfigured(result, context);
                         BundleArtifact guiArtifact = wrapBundle(
                                 result.getOutputFile(), jarOutputDir, fqpn,
                                 platformName, arch, version, false
@@ -117,6 +126,7 @@ public class PublishBundleService {
                     if (hasCliCommands && "win".equals(platformName)) {
                         BundlerResult cliResult = buildBundle(context, bundleTarget, source, true);
                         if (cliResult != null && cliResult.getOutputFile() != null) {
+                            signWindowsExeIfConfigured(cliResult, context);
                             BundleArtifact cliArtifact = wrapBundle(
                                     cliResult.getOutputFile(), jarOutputDir, fqpn,
                                     platformName, arch, version, true
@@ -387,6 +397,25 @@ public class PublishBundleService {
             case "linux-x64": return BUNDLE_LINUX_X64;
             case "linux-arm64": return BUNDLE_LINUX_ARM64;
             default: return null;
+        }
+    }
+
+    private void signWindowsExeIfConfigured(BundlerResult result, PackagingContext context) {
+        File exeFile = result.getOutputFile();
+        if (exeFile == null || !exeFile.exists() || !exeFile.getName().endsWith(".exe")) {
+            return;
+        }
+
+        WindowsSigningConfig config = windowsSigningConfigFactory.createFromEnvironment();
+        if (config == null) {
+            return;
+        }
+
+        try {
+            context.out.println("  Signing " + exeFile.getName() + "...");
+            windowsSigningService.sign(exeFile, config);
+        } catch (Exception e) {
+            context.err.println("Warning: Failed to sign " + exeFile.getName() + ": " + e.getMessage());
         }
     }
 }
