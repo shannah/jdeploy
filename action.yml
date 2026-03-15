@@ -38,7 +38,13 @@ inputs:
     description: Base64-encoded PFX/PKCS12 certificate for Windows Authenticode signing.
     required: false
   win_signing_password:
-    description: Password for the Windows signing keystore.
+    description: Password/PIN for the Windows signing keystore or PKCS#11 token.
+    required: false
+  win_signing_keystore_type:
+    description: 'Keystore type: PKCS12 (default), JKS, or PKCS11.'
+    required: false
+  win_signing_pkcs11_config:
+    description: Path to the PKCS#11 provider configuration file (for HSM signing).
     required: false
   win_signing_key_alias:
     description: Alias of the signing key within the keystore. Defaults to first alias.
@@ -123,12 +129,20 @@ runs:
         echo "JDEPLOY_REGISTRY_URL=${{ inputs.jdeploy_registry_url }}" >> $GITHUB_ENV
 
     - name: Set Up Windows Authenticode Signing
-      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.win_signing_certificate != '' }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && (inputs.win_signing_certificate != '' || inputs.win_signing_pkcs11_config != '') }}
       shell: bash
       run: |
-        CERT_PATH="${{ runner.temp }}/jdeploy-win-certificate.pfx"
-        echo "${{ inputs.win_signing_certificate }}" | base64 -d > "$CERT_PATH"
-        echo "JDEPLOY_WIN_KEYSTORE_PATH=$CERT_PATH" >> $GITHUB_ENV
+        if [ -n "${{ inputs.win_signing_certificate }}" ]; then
+          CERT_PATH="${{ runner.temp }}/jdeploy-win-certificate.pfx"
+          echo "${{ inputs.win_signing_certificate }}" | base64 -d > "$CERT_PATH"
+          echo "JDEPLOY_WIN_KEYSTORE_PATH=$CERT_PATH" >> $GITHUB_ENV
+        fi
+        if [ -n "${{ inputs.win_signing_keystore_type }}" ]; then
+          echo "JDEPLOY_WIN_KEYSTORE_TYPE=${{ inputs.win_signing_keystore_type }}" >> $GITHUB_ENV
+        fi
+        if [ -n "${{ inputs.win_signing_pkcs11_config }}" ]; then
+          echo "JDEPLOY_WIN_PKCS11_CONFIG=${{ inputs.win_signing_pkcs11_config }}" >> $GITHUB_ENV
+        fi
         echo "JDEPLOY_WIN_KEYSTORE_PASSWORD=${{ inputs.win_signing_password }}" >> $GITHUB_ENV
         if [ -n "${{ inputs.win_signing_key_alias }}" ]; then
           echo "JDEPLOY_WIN_KEY_ALIAS=${{ inputs.win_signing_key_alias }}" >> $GITHUB_ENV
