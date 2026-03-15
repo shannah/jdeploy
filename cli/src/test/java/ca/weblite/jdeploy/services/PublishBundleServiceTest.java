@@ -4,8 +4,11 @@ import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.appbundler.BundlerResult;
 import ca.weblite.jdeploy.models.BundleArtifact;
 import ca.weblite.jdeploy.models.BundleManifest;
+import ca.weblite.jdeploy.config.Config;
+import ca.weblite.jdeploy.packaging.PackagingConfig;
 import ca.weblite.jdeploy.packaging.PackagingContext;
 import ca.weblite.jdeploy.publishing.BundleChecksumWriter;
+import com.codename1.io.JSONParser;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,7 +44,7 @@ class PublishBundleServiceTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        publishBundleService = new PublishBundleService();
+        publishBundleService = new PublishBundleService(new PackagingConfig(new Config()));
 
         // Create a fake JAR file so the bundler has something to reference
         jarFile = new File(tempDir, "app.jar");
@@ -179,6 +182,67 @@ class PublishBundleServiceTest {
         Map<String, Object> packageJson = createPackageJson(false, "mac-arm64");
         PackagingContext context = createContext(packageJson);
         assertTrue(publishBundleService.isEnabled(context));
+    }
+
+    @Test
+    @DisplayName("JSONParser parses JSON boolean true as String 'true' by default")
+    void jsonParser_parsesBooleanTrueAsString() throws IOException {
+        String json = "{\"artifacts\":{\"mac-arm64\":{\"enabled\":true}}}";
+        JSONParser parser = new JSONParser();
+        Map<String, Object> parsed = parser.parseJSON(new StringReader(json));
+
+        Map<String, Object> artifacts = (Map<String, Object>) parsed.get("artifacts");
+        Map<String, Object> macEntry = (Map<String, Object>) artifacts.get("mac-arm64");
+        Object enabled = macEntry.get("enabled");
+
+        // This is the root cause of the bundle publishing bug:
+        // JSONParser returns String "true", not Boolean.TRUE
+        assertEquals(String.class, enabled.getClass(),
+                "JSONParser should parse JSON true as String by default (not Boolean)");
+        assertEquals("true", enabled,
+                "JSONParser should parse JSON true as the String \"true\"");
+        assertFalse(Boolean.TRUE.equals(enabled),
+                "Boolean.TRUE.equals(String \"true\") must be false — this was the bug");
+    }
+
+    @Test
+    @DisplayName("isEnabled handles String 'true' from JSONParser (default boolean parsing)")
+    void isEnabled_returnsTrue_whenEnabledIsStringTrue() {
+        Map<String, Object> packageJson = new HashMap<>();
+        packageJson.put("name", "test-app");
+        packageJson.put("version", "1.0.0");
+        Map<String, Object> jdeploy = new HashMap<>();
+        jdeploy.put("jar", jarFile.getAbsolutePath());
+        Map<String, Object> artifacts = new HashMap<>();
+        Map<String, Object> entry = new HashMap<>();
+        // JSONParser parses JSON true as String "true" by default
+        entry.put("enabled", "true");
+        artifacts.put("mac-arm64", entry);
+        jdeploy.put("artifacts", artifacts);
+        packageJson.put("jdeploy", jdeploy);
+
+        PackagingContext context = createContext(packageJson);
+        assertTrue(publishBundleService.isEnabled(context),
+                "isEnabled should handle String 'true' from JSONParser");
+    }
+
+    @Test
+    @DisplayName("isEnabled returns false when enabled is String 'false'")
+    void isEnabled_returnsFalse_whenEnabledIsStringFalse() {
+        Map<String, Object> packageJson = new HashMap<>();
+        packageJson.put("name", "test-app");
+        packageJson.put("version", "1.0.0");
+        Map<String, Object> jdeploy = new HashMap<>();
+        jdeploy.put("jar", jarFile.getAbsolutePath());
+        Map<String, Object> artifacts = new HashMap<>();
+        Map<String, Object> entry = new HashMap<>();
+        entry.put("enabled", "false");
+        artifacts.put("mac-arm64", entry);
+        jdeploy.put("artifacts", artifacts);
+        packageJson.put("jdeploy", jdeploy);
+
+        PackagingContext context = createContext(packageJson);
+        assertFalse(publishBundleService.isEnabled(context));
     }
 
     // -- buildBundles tests --
@@ -319,9 +383,9 @@ class PublishBundleServiceTest {
     }
 
     @Test
-    @DisplayName("Artifact filenames follow expected convention")
-    void buildBundles_artifactFilenames_followConvention() throws IOException {
-        Map<String, Object> packageJson = createPackageJson(true, "win-x64");
+    @DisplayName("All artifact filenames use .tar.gz extension")
+    void buildBundles_artifactFilenames_useTarGz() throws IOException {
+        Map<String, Object> packageJson = createPackageJson(true, "win-x64", "mac-arm64", "linux-x64");
         writePackageJson(packageJson);
         PackagingContext context = createContext(packageJson);
 
@@ -330,22 +394,58 @@ class PublishBundleServiceTest {
 
             BundleManifest manifest = publishBundleService.buildBundles(context, null);
 
-            assertEquals(2, manifest.getArtifacts().size(), "Should have GUI + CLI for Windows");
+            // Windows produces GUI + CLI; Mac and Linux produce GUI only
+            assertEquals(4, manifest.getArtifacts().size(),
+                    "Should have win GUI + win CLI + mac GUI + linux GUI");
 
-            BundleArtifact gui = manifest.getArtifacts().stream()
-                    .filter(a -> !a.isCli()).findFirst().orElseThrow(() -> new RuntimeException("GUI artifact not found"));
-            BundleArtifact cli = manifest.getArtifacts().stream()
-                    .filter(BundleArtifact::isCli).findFirst().orElseThrow(() -> new RuntimeException("CLI artifact not found"));
+            for (BundleArtifact artifact : manifest.getArtifacts()) {
+                assertTrue(artifact.getFilename().endsWith(".tar.gz"),
+                        "All bundle filenames should use .tar.gz: " + artifact.getFilename());
+                assertNotNull(artifact.getSha256());
+                assertEquals(64, artifact.getSha256().length(), "SHA-256 should be 64 hex chars");
+            }
 
-            assertTrue(gui.getFilename().contains("-win-x64-1.0.0.jar"),
-                    "GUI filename should contain platform-arch-version: " + gui.getFilename());
-            assertTrue(cli.getFilename().contains("-win-x64-1.0.0-cli.jar"),
-                    "CLI filename should contain platform-arch-version-cli: " + cli.getFilename());
+            BundleArtifact winGui = manifest.getArtifacts().stream()
+                    .filter(a -> "win".equals(a.getPlatform()) && !a.isCli()).findFirst()
+                    .orElseThrow(() -> new RuntimeException("Windows GUI artifact not found"));
+            BundleArtifact winCli = manifest.getArtifacts().stream()
+                    .filter(a -> "win".equals(a.getPlatform()) && a.isCli()).findFirst()
+                    .orElseThrow(() -> new RuntimeException("Windows CLI artifact not found"));
 
-            assertNotNull(gui.getSha256());
-            assertEquals(64, gui.getSha256().length(), "SHA-256 should be 64 hex chars");
-            assertNotNull(cli.getSha256());
-            assertEquals(64, cli.getSha256().length(), "SHA-256 should be 64 hex chars");
+            assertTrue(winGui.getFilename().contains("-win-x64-1.0.0.tar.gz"),
+                    "Windows GUI filename: " + winGui.getFilename());
+            assertTrue(winCli.getFilename().contains("-win-x64-1.0.0-cli.tar.gz"),
+                    "Windows CLI filename: " + winCli.getFilename());
+        }
+    }
+
+    @Test
+    @DisplayName("buildBundles works with String 'true' enabled values (as parsed by JSONParser)")
+    void buildBundles_worksWithStringEnabled() throws IOException {
+        Map<String, Object> packageJson = new HashMap<>();
+        packageJson.put("name", "test-app");
+        packageJson.put("version", "1.0.0");
+        Map<String, Object> jdeploy = new HashMap<>();
+        jdeploy.put("jar", jarFile.getAbsolutePath());
+        jdeploy.put("title", "Test App");
+        Map<String, Object> artifacts = new LinkedHashMap<>();
+        Map<String, Object> entry = new HashMap<>();
+        entry.put("enabled", "true");  // String, not Boolean
+        artifacts.put("linux-x64", entry);
+        jdeploy.put("artifacts", artifacts);
+        packageJson.put("jdeploy", jdeploy);
+
+        writePackageJson(packageJson);
+        PackagingContext context = createContext(packageJson);
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            mockBundlerRunit(bundlerMock, null);
+
+            BundleManifest manifest = publishBundleService.buildBundles(context, null);
+
+            assertEquals(1, manifest.getArtifacts().size(),
+                    "Should build bundles even when enabled is String 'true'");
+            assertEquals("linux-x64", manifest.getArtifacts().get(0).getPlatformKey());
         }
     }
 
@@ -441,6 +541,204 @@ class PublishBundleServiceTest {
         assertTrue(resultWin.getBoolean("enabled"), "enabled field should be preserved");
         assertEquals("https://example.com/win.jar", resultWin.getString("url"));
         assertEquals("def456", resultWin.getString("sha256"));
+    }
+
+    // -- App URL resolution tests (icon.png co-location) --
+
+    @Test
+    @DisplayName("buildBundles uses jdeploy-bundle jar when it exists (for icon resolution)")
+    void buildBundles_usesJdeployBundleJar_whenAvailable() throws IOException {
+        // Simulate a project where jar is in target/ subdirectory
+        File targetDir = new File(tempDir, "target");
+        targetDir.mkdirs();
+        File targetJar = new File(targetDir, "myapp.jar");
+        targetJar.createNewFile();
+
+        // Create jdeploy-bundle with the jar AND icon.png (as PackageService.bundleIcon does)
+        File jdeployBundleDir = new File(tempDir, "jdeploy-bundle");
+        jdeployBundleDir.mkdirs();
+        File bundledJar = new File(jdeployBundleDir, "myapp.jar");
+        bundledJar.createNewFile();
+        File bundledIcon = new File(jdeployBundleDir, "icon.png");
+        bundledIcon.createNewFile();
+
+        // Create package.json with jar pointing to target/myapp.jar
+        Map<String, Object> packageJson = new HashMap<>();
+        packageJson.put("name", "test-app");
+        packageJson.put("version", "1.0.0");
+        Map<String, Object> jdeploy = new HashMap<>();
+        jdeploy.put("jar", "target/myapp.jar");
+        jdeploy.put("title", "Test App");
+        Map<String, Object> artifacts = new LinkedHashMap<>();
+        Map<String, Object> entry = new HashMap<>();
+        entry.put("enabled", true);
+        artifacts.put("linux-x64", entry);
+        jdeploy.put("artifacts", artifacts);
+        packageJson.put("jdeploy", jdeploy);
+
+        File pjFile = new File(tempDir, "package.json");
+        FileUtils.writeStringToFile(pjFile, new JSONObject(packageJson).toString(2), "UTF-8");
+        PackagingContext context = createContext(packageJson);
+
+        // Capture the AppInfo URL passed to Bundler.runit
+        List<String> capturedUrls = new ArrayList<>();
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            bundlerMock.when(() -> Bundler.runit(
+                    any(), any(), anyString(), anyString(), anyString(), anyString()
+            )).thenAnswer(invocation -> {
+                String url = invocation.getArgument(2);
+                capturedUrls.add(url);
+
+                BundlerResult result = new BundlerResult(invocation.getArgument(3));
+                String destDir = invocation.getArgument(4);
+                File outputFile = new File(destDir, "fake-bundle.bin");
+                outputFile.getParentFile().mkdirs();
+                outputFile.createNewFile();
+                result.setOutputFile(outputFile);
+                return result;
+            });
+
+            publishBundleService.buildBundles(context, null);
+
+            // Verify the app URL points to the jdeploy-bundle jar, not target/myapp.jar
+            assertFalse(capturedUrls.isEmpty(), "Bundler.runit should have been called");
+            String appUrl = capturedUrls.get(0);
+            assertTrue(appUrl.contains("jdeploy-bundle"),
+                    "App URL should point to jdeploy-bundle dir for icon resolution, was: " + appUrl);
+            assertFalse(appUrl.contains("/target/"),
+                    "App URL should NOT point to target/ dir, was: " + appUrl);
+        }
+    }
+
+    @Test
+    @DisplayName("buildBundles copies icon.png next to jar when jdeploy-bundle doesn't exist")
+    void buildBundles_copiesIcon_whenNoJdeployBundle() throws IOException {
+        // Simulate a project where jar is in target/ subdirectory
+        File targetDir = new File(tempDir, "target");
+        targetDir.mkdirs();
+        File targetJar = new File(targetDir, "myapp.jar");
+        targetJar.createNewFile();
+
+        // Put icon.png in project root only (NOT next to the jar)
+        File projectIcon = new File(tempDir, "icon.png");
+        FileUtils.writeStringToFile(projectIcon, "fake-icon-data", "UTF-8");
+
+        // Do NOT create jdeploy-bundle directory
+
+        Map<String, Object> packageJson = new HashMap<>();
+        packageJson.put("name", "test-app");
+        packageJson.put("version", "1.0.0");
+        Map<String, Object> jdeploy = new HashMap<>();
+        jdeploy.put("jar", "target/myapp.jar");
+        jdeploy.put("title", "Test App");
+        Map<String, Object> artifacts = new LinkedHashMap<>();
+        Map<String, Object> entry = new HashMap<>();
+        entry.put("enabled", true);
+        artifacts.put("linux-x64", entry);
+        jdeploy.put("artifacts", artifacts);
+        packageJson.put("jdeploy", jdeploy);
+
+        File pjFile = new File(tempDir, "package.json");
+        FileUtils.writeStringToFile(pjFile, new JSONObject(packageJson).toString(2), "UTF-8");
+        PackagingContext context = createContext(packageJson);
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            mockBundlerRunit(bundlerMock, null);
+
+            publishBundleService.buildBundles(context, null);
+
+            // Verify icon.png was copied next to the jar
+            File copiedIcon = new File(targetDir, "icon.png");
+            assertTrue(copiedIcon.exists(),
+                    "icon.png should be copied to target/ dir when jdeploy-bundle doesn't exist");
+        }
+    }
+
+    @Test
+    @DisplayName("buildBundles sets default registry URL on AppInfo for app.xml generation")
+    void buildBundles_setsDefaultRegistryUrl() throws IOException {
+        Map<String, Object> packageJson = createPackageJson(false, "linux-x64");
+        writePackageJson(packageJson);
+        PackagingContext context = createContext(packageJson);
+
+        // Create jdeploy-bundle with the jar so loadAppInfo succeeds
+        File jdeployBundleDir = new File(tempDir, "jdeploy-bundle");
+        jdeployBundleDir.mkdirs();
+        File bundledJar = new File(jdeployBundleDir, jarFile.getName());
+        bundledJar.createNewFile();
+
+        List<ca.weblite.jdeploy.app.AppInfo> capturedAppInfos = new ArrayList<>();
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            bundlerMock.when(() -> Bundler.runit(
+                    any(), any(), anyString(), anyString(), anyString(), anyString()
+            )).thenAnswer(invocation -> {
+                ca.weblite.jdeploy.app.AppInfo appInfo = invocation.getArgument(1);
+                capturedAppInfos.add(appInfo);
+
+                BundlerResult result = new BundlerResult(invocation.getArgument(3));
+                String destDir = invocation.getArgument(4);
+                File outputFile = new File(destDir, "fake-bundle.bin");
+                outputFile.getParentFile().mkdirs();
+                outputFile.createNewFile();
+                result.setOutputFile(outputFile);
+                return result;
+            });
+
+            publishBundleService.buildBundles(context, null);
+
+            assertFalse(capturedAppInfos.isEmpty(), "Bundler.runit should have been called");
+            String registryUrl = capturedAppInfos.get(0).getJdeployRegistryUrl();
+            assertNotNull(registryUrl,
+                    "AppInfo.jdeployRegistryUrl must not be null (causes registry-url='null' in app.xml)");
+            assertEquals("https://www.jdeploy.com/", registryUrl,
+                    "Default registry URL should be https://www.jdeploy.com/");
+        }
+    }
+
+    @Test
+    @DisplayName("buildBundles uses custom registry URL from package.json when specified")
+    void buildBundles_usesCustomRegistryUrl() throws IOException {
+        Map<String, Object> packageJson = createPackageJson(false, "linux-x64");
+        // Add custom jdeployRegistryUrl inside the jdeploy section
+        // (mirrors how PackageService reads it from context.mj())
+        @SuppressWarnings("unchecked")
+        Map<String, Object> jdeploySection = (Map<String, Object>) packageJson.get("jdeploy");
+        jdeploySection.put("jdeployRegistryUrl", "https://custom.registry.example.com/");
+        writePackageJson(packageJson);
+        PackagingContext context = createContext(packageJson);
+
+        File jdeployBundleDir = new File(tempDir, "jdeploy-bundle");
+        jdeployBundleDir.mkdirs();
+        File bundledJar = new File(jdeployBundleDir, jarFile.getName());
+        bundledJar.createNewFile();
+
+        List<ca.weblite.jdeploy.app.AppInfo> capturedAppInfos = new ArrayList<>();
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            bundlerMock.when(() -> Bundler.runit(
+                    any(), any(), anyString(), anyString(), anyString(), anyString()
+            )).thenAnswer(invocation -> {
+                ca.weblite.jdeploy.app.AppInfo appInfo = invocation.getArgument(1);
+                capturedAppInfos.add(appInfo);
+
+                BundlerResult result = new BundlerResult(invocation.getArgument(3));
+                String destDir = invocation.getArgument(4);
+                File outputFile = new File(destDir, "fake-bundle.bin");
+                outputFile.getParentFile().mkdirs();
+                outputFile.createNewFile();
+                result.setOutputFile(outputFile);
+                return result;
+            });
+
+            publishBundleService.buildBundles(context, null);
+
+            assertFalse(capturedAppInfos.isEmpty(), "Bundler.runit should have been called");
+            assertEquals("https://custom.registry.example.com/",
+                    capturedAppInfos.get(0).getJdeployRegistryUrl(),
+                    "Should use custom registry URL from package.json");
+        }
     }
 
     /**

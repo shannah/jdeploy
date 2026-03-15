@@ -3,12 +3,12 @@ package ca.weblite.jdeploy.models;
 import java.io.File;
 
 /**
- * Represents a single pre-built bundle artifact (JAR-wrapped native bundle)
+ * Represents a single pre-built bundle artifact (native bundle wrapped in JAR or tar.gz)
  * ready for upload during publish.
  */
 public class BundleArtifact {
 
-    private final File jarFile;
+    private final File file;
     private final String platform;
     private final String arch;
     private final String version;
@@ -18,7 +18,7 @@ public class BundleArtifact {
     private String url;
 
     public BundleArtifact(
-            File jarFile,
+            File file,
             String platform,
             String arch,
             String version,
@@ -26,7 +26,7 @@ public class BundleArtifact {
             String sha256,
             String filename
     ) {
-        this.jarFile = jarFile;
+        this.file = file;
         this.platform = platform;
         this.arch = arch;
         this.version = version;
@@ -35,8 +35,8 @@ public class BundleArtifact {
         this.filename = filename;
     }
 
-    public File getJarFile() {
-        return jarFile;
+    public File getFile() {
+        return file;
     }
 
     public String getPlatform() {

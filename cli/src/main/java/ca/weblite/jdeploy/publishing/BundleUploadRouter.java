@@ -100,7 +100,7 @@ public class BundleUploadRouter {
         for (BundleArtifact artifact : manifest.getArtifacts()) {
             // Copy JAR to release files directory so it gets uploaded with the release
             File destFile = new File(releaseFilesDir, artifact.getFilename());
-            FileUtils.copyFile(artifact.getJarFile(), destFile);
+            FileUtils.copyFile(artifact.getFile(), destFile);
 
             // Construct the GitHub release download URL
             String downloadUrl = repositoryUrl + "/releases/download/" + version + "/" + artifact.getFilename();

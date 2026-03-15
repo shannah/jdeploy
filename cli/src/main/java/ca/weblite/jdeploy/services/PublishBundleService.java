@@ -7,9 +7,15 @@ import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.jdeploy.models.BundleArtifact;
 import ca.weblite.jdeploy.models.BundleManifest;
+import ca.weblite.jdeploy.packaging.PackagingConfig;
 import ca.weblite.jdeploy.packaging.PackagingContext;
 import ca.weblite.jdeploy.models.CommandSpecParser;
+import ca.weblite.tools.io.FileUtil;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.json.JSONObject;
 
 import javax.inject.Inject;
@@ -19,8 +25,6 @@ import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
-import java.util.jar.JarEntry;
-import java.util.jar.JarOutputStream;
 
 import static ca.weblite.jdeploy.BundleConstants.*;
 
@@ -37,8 +41,11 @@ import static ca.weblite.jdeploy.BundleConstants.*;
 @Singleton
 public class PublishBundleService {
 
+    private final PackagingConfig packagingConfig;
+
     @Inject
-    public PublishBundleService() {
+    public PublishBundleService(PackagingConfig packagingConfig) {
+        this.packagingConfig = packagingConfig;
     }
 
     /**
@@ -97,7 +104,7 @@ public class PublishBundleService {
                     // Build GUI bundle
                     BundlerResult result = buildBundle(context, bundleTarget, source, false);
                     if (result != null && result.getOutputFile() != null) {
-                        BundleArtifact guiArtifact = wrapInJar(
+                        BundleArtifact guiArtifact = wrapBundle(
                                 result.getOutputFile(), jarOutputDir, fqpn,
                                 platformName, arch, version, false
                         );
@@ -110,7 +117,7 @@ public class PublishBundleService {
                     if (hasCliCommands && "win".equals(platformName)) {
                         BundlerResult cliResult = buildBundle(context, bundleTarget, source, true);
                         if (cliResult != null && cliResult.getOutputFile() != null) {
-                            BundleArtifact cliArtifact = wrapInJar(
+                            BundleArtifact cliArtifact = wrapBundle(
                                     cliResult.getOutputFile(), jarOutputDir, fqpn,
                                     platformName, arch, version, true
                             );
@@ -155,7 +162,7 @@ public class PublishBundleService {
             Object value = entry.getValue();
             if (value instanceof Map) {
                 Object enabled = ((Map) value).get("enabled");
-                if (Boolean.TRUE.equals(enabled)) {
+                if (Boolean.TRUE.equals(enabled) || "true".equals(String.valueOf(enabled))) {
                     keys.add(entry.getKey());
                 }
             }
@@ -223,24 +230,51 @@ public class PublishBundleService {
                 )
         );
 
+        // Set jDeploy registry URL (used in app.xml embedded in native launchers)
+        if (context.mj().containsKey("jdeployRegistryUrl")) {
+            appInfo.setJdeployRegistryUrl((String) context.mj().get("jdeployRegistryUrl"));
+        } else {
+            appInfo.setJdeployRegistryUrl(packagingConfig.getJdeployRegistry());
+        }
+
         // Parse CLI commands
         JSONObject jdeployJson = new JSONObject(context.mj());
         appInfo.setCommands(CommandSpecParser.parseCommands(jdeployJson));
 
         String jarPath = context.getString("jar", null);
-        if (jarPath != null) {
-            appInfo.setAppURL(new File(jarPath).toURI().toURL());
-        } else {
+        if (jarPath == null) {
             throw new IOException("Cannot load app info: no jar configured");
+        }
+
+        // Use the jar from the jdeploy-bundle directory, which contains icon.png
+        // alongside it (placed there by PackageService.bundleIcon during makePackage).
+        // The Bundler resolves icon.png relative to the app URL, so using the
+        // jdeploy-bundle jar ensures the icon is found.
+        File jdeployBundleDir = context.getJdeployBundleDir();
+        String jarFilename = new File(jarPath).getName();
+        File bundledJar = new File(jdeployBundleDir, jarFilename);
+        if (bundledJar.exists()) {
+            appInfo.setAppURL(bundledJar.toURI().toURL());
+        } else {
+            // Fallback: use the original jar path but ensure icon.png exists next to it
+            File jarFile = new File(context.directory, jarPath);
+            File iconFile = new File(jarFile.getAbsoluteFile().getParentFile(), "icon.png");
+            if (!iconFile.exists()) {
+                File projectIcon = new File(context.directory, "icon.png");
+                if (projectIcon.exists()) {
+                    FileUtils.copyFile(projectIcon, iconFile);
+                }
+            }
+            appInfo.setAppURL(jarFile.toURI().toURL());
         }
     }
 
     /**
-     * Wraps a bundle output file (or directory like .app) into a JAR.
+     * Wraps a bundle in tar.gz format, preserving POSIX file permissions.
      */
-    private BundleArtifact wrapInJar(
+    private BundleArtifact wrapBundle(
             File bundleFile,
-            File jarOutputDir,
+            File outputDir,
             String fqpn,
             String platform,
             String arch,
@@ -248,43 +282,40 @@ public class PublishBundleService {
             boolean isCli
     ) throws IOException {
         String cliSuffix = isCli ? "-cli" : "";
-        String jarFilename = fqpn + "-" + platform + "-" + arch + "-" + version + cliSuffix + ".jar";
-        File jarFile = new File(jarOutputDir, jarFilename);
+        String filename = fqpn + "-" + platform + "-" + arch + "-" + version + cliSuffix + ".tar.gz";
+        File tarGzFile = new File(outputDir, filename);
 
-        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(jarFile))) {
-            if (bundleFile.isDirectory()) {
-                // For .app bundles, add the entire directory tree
-                addDirectoryToJar(jos, bundleFile, bundleFile.getName());
-            } else {
-                // For .exe and Linux binaries, add single file
-                JarEntry entry = new JarEntry(bundleFile.getName());
-                jos.putNextEntry(entry);
-                Files.copy(bundleFile.toPath(), jos);
-                jos.closeEntry();
-            }
+        try (TarArchiveOutputStream taos = new TarArchiveOutputStream(
+                new GzipCompressorOutputStream(new FileOutputStream(tarGzFile)))) {
+            taos.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_STAR);
+            taos.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);
+            taos.setAddPaxHeadersForNonAsciiNames(true);
+
+            addToTarGz(taos, bundleFile, ".");
         }
 
-        String sha256 = computeSha256(jarFile);
-
-        return new BundleArtifact(jarFile, platform, arch, version, isCli, sha256, jarFilename);
+        String sha256 = computeSha256(tarGzFile);
+        return new BundleArtifact(tarGzFile, platform, arch, version, isCli, sha256, filename);
     }
 
-    private void addDirectoryToJar(JarOutputStream jos, File dir, String basePath) throws IOException {
-        File[] files = dir.listFiles();
-        if (files == null) return;
-
-        for (File file : files) {
-            String entryName = basePath + "/" + file.getName();
-            if (file.isDirectory()) {
-                JarEntry dirEntry = new JarEntry(entryName + "/");
-                jos.putNextEntry(dirEntry);
-                jos.closeEntry();
-                addDirectoryToJar(jos, file, entryName);
-            } else {
-                JarEntry entry = new JarEntry(entryName);
-                jos.putNextEntry(entry);
-                Files.copy(file.toPath(), jos);
-                jos.closeEntry();
+    private void addToTarGz(TarArchiveOutputStream taos, File file, String basePath) throws IOException {
+        String entryName = basePath + "/" + file.getName();
+        if (file.isFile()) {
+            TarArchiveEntry entry = new TarArchiveEntry(file, entryName);
+            if (FileUtil.isPosix()) {
+                entry.setMode(FileUtil.getPosixFilePermissions(file));
+            }
+            taos.putArchiveEntry(entry);
+            try (FileInputStream fis = new FileInputStream(file)) {
+                IOUtils.copy(fis, taos);
+            }
+            taos.closeArchiveEntry();
+        } else if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    addToTarGz(taos, child, entryName);
+                }
             }
         }
     }
