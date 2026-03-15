@@ -44,7 +44,11 @@ class PublishBundleServiceTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        publishBundleService = new PublishBundleService(new PackagingConfig(new Config()));
+        publishBundleService = new PublishBundleService(
+                new PackagingConfig(new Config()),
+                new WindowsSigningService(),
+                new WindowsSigningConfigFactory()
+        );
 
         // Create a fake JAR file so the bundler has something to reference
         jarFile = new File(tempDir, "app.jar");
@@ -738,6 +742,184 @@ class PublishBundleServiceTest {
             assertEquals("https://custom.registry.example.com/",
                     capturedAppInfos.get(0).getJdeployRegistryUrl(),
                     "Should use custom registry URL from package.json");
+        }
+    }
+
+    // -- Windows Authenticode signing tests --
+
+    @Test
+    @DisplayName("buildBundles signs Windows exe bundles when signing is configured")
+    void buildBundles_signsWindowsExe_whenSigningConfigured() throws Exception {
+        WindowsSigningService mockSigningService = mock(WindowsSigningService.class);
+        WindowsSigningConfigFactory mockConfigFactory = mock(WindowsSigningConfigFactory.class);
+        WindowsSigningConfig signingConfig = new WindowsSigningConfig();
+        signingConfig.setKeystorePath("/fake/cert.pfx");
+        signingConfig.setKeystorePassword("password");
+        when(mockConfigFactory.createFromEnvironment()).thenReturn(signingConfig);
+
+        PublishBundleService service = new PublishBundleService(
+                new PackagingConfig(new Config()),
+                mockSigningService,
+                mockConfigFactory
+        );
+
+        Map<String, Object> packageJson = createPackageJson(true, "win-x64", "win-arm64");
+        writePackageJson(packageJson);
+        PackagingContext context = createContext(packageJson);
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            mockBundlerRunit(bundlerMock, null);
+            service.buildBundles(context, null);
+
+            // win-x64 GUI + win-x64 CLI + win-arm64 GUI + win-arm64 CLI = 4 signing calls
+            verify(mockSigningService, times(4)).sign(
+                    argThat(file -> file.getName().endsWith(".exe")),
+                    eq(signingConfig)
+            );
+        }
+    }
+
+    @Test
+    @DisplayName("buildBundles does not sign non-Windows bundles")
+    void buildBundles_doesNotSign_nonWindowsBundles() throws Exception {
+        WindowsSigningService mockSigningService = mock(WindowsSigningService.class);
+        WindowsSigningConfigFactory mockConfigFactory = mock(WindowsSigningConfigFactory.class);
+        WindowsSigningConfig signingConfig = new WindowsSigningConfig();
+        signingConfig.setKeystorePath("/fake/cert.pfx");
+        signingConfig.setKeystorePassword("password");
+        when(mockConfigFactory.createFromEnvironment()).thenReturn(signingConfig);
+
+        PublishBundleService service = new PublishBundleService(
+                new PackagingConfig(new Config()),
+                mockSigningService,
+                mockConfigFactory
+        );
+
+        Map<String, Object> packageJson = createPackageJson(false, "mac-arm64", "linux-x64");
+        writePackageJson(packageJson);
+        PackagingContext context = createContext(packageJson);
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            // Mock Bundler to produce non-.exe output files for non-Windows platforms
+            bundlerMock.when(() -> Bundler.runit(
+                    any(), any(), anyString(), anyString(), anyString(), anyString()
+            )).thenAnswer(invocation -> {
+                String target = invocation.getArgument(3);
+                BundlerResult result = new BundlerResult(target);
+                String destDir = invocation.getArgument(4);
+                // Mac produces .app directories, Linux produces binaries without .exe
+                String suffix = target.startsWith("mac") ? ".app" : ".bin";
+                File outputFile = new File(destDir, "fake-bundle" + suffix);
+                outputFile.getParentFile().mkdirs();
+                outputFile.createNewFile();
+                result.setOutputFile(outputFile);
+                return result;
+            });
+
+            service.buildBundles(context, null);
+
+            verify(mockSigningService, never()).sign(any(), any());
+        }
+    }
+
+    @Test
+    @DisplayName("buildBundles skips signing when no signing configuration is present")
+    void buildBundles_skipsSigning_whenNoConfig() throws Exception {
+        WindowsSigningService mockSigningService = mock(WindowsSigningService.class);
+        WindowsSigningConfigFactory mockConfigFactory = mock(WindowsSigningConfigFactory.class);
+        when(mockConfigFactory.createFromEnvironment()).thenReturn(null);
+
+        PublishBundleService service = new PublishBundleService(
+                new PackagingConfig(new Config()),
+                mockSigningService,
+                mockConfigFactory
+        );
+
+        Map<String, Object> packageJson = createPackageJson(true, "win-x64");
+        writePackageJson(packageJson);
+        PackagingContext context = createContext(packageJson);
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            mockBundlerRunit(bundlerMock, null);
+            service.buildBundles(context, null);
+
+            verify(mockSigningService, never()).sign(any(), any());
+        }
+    }
+
+    @Test
+    @DisplayName("buildBundles signs both GUI and CLI Windows bundles")
+    void buildBundles_signsBothGuiAndCli_windowsBundles() throws Exception {
+        WindowsSigningService mockSigningService = mock(WindowsSigningService.class);
+        WindowsSigningConfigFactory mockConfigFactory = mock(WindowsSigningConfigFactory.class);
+        WindowsSigningConfig signingConfig = new WindowsSigningConfig();
+        signingConfig.setKeystorePath("/fake/cert.pfx");
+        signingConfig.setKeystorePassword("password");
+        when(mockConfigFactory.createFromEnvironment()).thenReturn(signingConfig);
+
+        PublishBundleService service = new PublishBundleService(
+                new PackagingConfig(new Config()),
+                mockSigningService,
+                mockConfigFactory
+        );
+
+        // Include commands to trigger CLI bundle creation for Windows
+        Map<String, Object> packageJson = createPackageJson(true, "win-x64");
+        writePackageJson(packageJson);
+        PackagingContext context = createContext(packageJson);
+
+        List<File> signedFiles = new ArrayList<>();
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            mockBundlerRunit(bundlerMock, null);
+
+            doAnswer(invocation -> {
+                signedFiles.add(invocation.getArgument(0));
+                return null;
+            }).when(mockSigningService).sign(any(), any());
+
+            service.buildBundles(context, null);
+
+            assertEquals(2, signedFiles.size(),
+                    "Should sign both GUI and CLI exe files");
+            assertTrue(signedFiles.stream().anyMatch(f -> !f.getName().contains("-cli")),
+                    "Should sign the GUI exe");
+            assertTrue(signedFiles.stream().anyMatch(f -> f.getName().contains("-cli")),
+                    "Should sign the CLI exe");
+        }
+    }
+
+    @Test
+    @DisplayName("buildBundles continues when signing fails (non-fatal)")
+    void buildBundles_continuesOnSigningFailure() throws Exception {
+        WindowsSigningService mockSigningService = mock(WindowsSigningService.class);
+        WindowsSigningConfigFactory mockConfigFactory = mock(WindowsSigningConfigFactory.class);
+        WindowsSigningConfig signingConfig = new WindowsSigningConfig();
+        signingConfig.setKeystorePath("/fake/cert.pfx");
+        signingConfig.setKeystorePassword("password");
+        when(mockConfigFactory.createFromEnvironment()).thenReturn(signingConfig);
+        doThrow(new Exception("Signing failed: keystore not found"))
+                .when(mockSigningService).sign(any(), any());
+
+        PublishBundleService service = new PublishBundleService(
+                new PackagingConfig(new Config()),
+                mockSigningService,
+                mockConfigFactory
+        );
+
+        Map<String, Object> packageJson = createPackageJson(false, "win-x64");
+        writePackageJson(packageJson);
+        PackagingContext context = createContext(packageJson);
+
+        try (MockedStatic<Bundler> bundlerMock = mockStatic(Bundler.class)) {
+            mockBundlerRunit(bundlerMock, null);
+
+            // Should not throw — signing failure is non-fatal
+            BundleManifest manifest = service.buildBundles(context, null);
+
+            assertFalse(manifest.isEmpty(),
+                    "Bundles should still be produced even when signing fails");
+            assertEquals(1, manifest.getArtifacts().size());
         }
     }
 
