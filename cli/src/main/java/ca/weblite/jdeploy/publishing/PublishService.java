@@ -6,6 +6,7 @@ import ca.weblite.jdeploy.packaging.PackagingContext;
 import ca.weblite.jdeploy.publishTargets.PublishTargetInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetServiceInterface;
 import ca.weblite.jdeploy.publishTargets.PublishTargetType;
+import ca.weblite.jdeploy.publishing.cloud.JDeployCloudPublishDriver;
 import ca.weblite.jdeploy.publishing.github.GitHubPublishDriver;
 import ca.weblite.jdeploy.publishing.npm.NPMPublishDriver;
 import ca.weblite.jdeploy.services.VersionCleaner;
@@ -36,13 +37,15 @@ public class PublishService {
             ResourceUploader resourceUploader,
             PublishTargetServiceInterface publishTargetService,
             NPMPublishDriver npmPublishDriver,
-            GitHubPublishDriver gitHubPublishDriver
+            GitHubPublishDriver gitHubPublishDriver,
+            JDeployCloudPublishDriver jdeployCloudPublishDriver
     ) {
         this.packageService = packageService;
         this.resourceUploader = resourceUploader;
         this.publishTargetService = publishTargetService;
         publishDrivers.put(PublishTargetType.NPM, npmPublishDriver);
         publishDrivers.put(PublishTargetType.GITHUB, gitHubPublishDriver);
+        publishDrivers.put(PublishTargetType.JDEPLOY_CLOUD, jdeployCloudPublishDriver);
     }
 
     public void publish(PublishingContext context) throws IOException {
