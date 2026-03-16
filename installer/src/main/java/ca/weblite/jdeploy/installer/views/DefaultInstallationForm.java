@@ -412,6 +412,67 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
     }
 
     @Override
+    public boolean showCertificateTrustPrompt(ca.weblite.jdeploy.installer.win.AuthenticodeSignatureChecker.SignatureCheckResult result) {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        JLabel headerLabel = new JLabel("<html><b>This application is signed with a certificate that is not in your trust store.</b></html>");
+        headerLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(headerLabel);
+
+        panel.add(Box.createVerticalStrut(15));
+
+        JLabel detailsHeader = new JLabel("Certificate Details:");
+        detailsHeader.setFont(detailsHeader.getFont().deriveFont(Font.BOLD));
+        detailsHeader.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(detailsHeader);
+
+        panel.add(Box.createVerticalStrut(5));
+
+        String subject = result.getSubject() != null ? result.getSubject() : "Unknown";
+        String issuer = result.getIssuer() != null ? result.getIssuer() : "Unknown";
+        String thumbprint = result.getThumbprint() != null ? result.getThumbprint() : "Unknown";
+        String validFrom = result.getValidFrom() != null ? result.getValidFrom() : "Unknown";
+        String validTo = result.getValidTo() != null ? result.getValidTo() : "Unknown";
+
+        JLabel certInfo = new JLabel("<html>" +
+                "<b>Subject:</b> " + escapeHtml(subject) + "<br>" +
+                "<b>Issuer:</b> " + escapeHtml(issuer) + "<br>" +
+                "<b>Thumbprint:</b> " + escapeHtml(thumbprint) + "<br>" +
+                "<b>Valid from:</b> " + escapeHtml(validFrom) + " <b>to:</b> " + escapeHtml(validTo) +
+                "</html>");
+        certInfo.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        certInfo.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(certInfo);
+
+        panel.add(Box.createVerticalStrut(15));
+
+        JLabel questionLabel = new JLabel("<html>Would you like to add this certificate to your trust store?<br>" +
+                "<i>(This only affects your user account and does not require admin privileges.)</i></html>");
+        questionLabel.setFont(questionLabel.getFont().deriveFont(Font.PLAIN, 11f));
+        questionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(questionLabel);
+
+        int choice = JOptionPane.showOptionDialog(
+                this,
+                panel,
+                "Trust Certificate?",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                new Object[]{"Yes, Trust This Certificate", "No, Skip"},
+                "No, Skip"
+        );
+
+        return choice == 0;
+    }
+
+    private static String escapeHtml(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    @Override
     public void setEventDispatcher(InstallationFormEventDispatcher dispatcher) {
         this.dispatcher = dispatcher;
     }
