@@ -6,7 +6,7 @@ Implemented (PR #436)
 
 ## Summary
 
-jDeploy supports building and publishing pre-built native application bundles (.exe, .app, Linux binary) at publish time. These bundles are uploaded as downloadable artifacts (to GitHub Releases or S3) and their download URLs and SHA-256 checksums are recorded in the published `package.json`. This RFC defines the canonical `package.json` schema that clients and external tools should use to discover and verify pre-built bundles.
+jDeploy supports building and publishing pre-built native application bundles (.exe, .app, Linux binary) at publish time. These bundles are wrapped in `.tar.gz` archives (to preserve POSIX file permissions) and uploaded as downloadable artifacts (to GitHub Releases or S3). Their download URLs and SHA-256 checksums are recorded in the published `package.json`. This RFC defines the canonical `package.json` schema that clients and external tools should use to discover and verify pre-built bundles.
 
 ## Motivation
 
@@ -55,26 +55,26 @@ After a successful publish, jDeploy merges `url` and `sha256` fields into each e
     "artifacts": {
       "mac-arm64": {
         "enabled": true,
-        "url": "https://github.com/user/repo/releases/download/v1.0.0/my-app-mac-arm64-1.0.0.jar",
+        "url": "https://github.com/user/repo/releases/download/v1.0.0/my-app-mac-arm64-1.0.0.tar.gz",
         "sha256": "a1b2c3d4e5f6..."
       },
       "mac-x64": {
         "enabled": true,
-        "url": "https://github.com/user/repo/releases/download/v1.0.0/my-app-mac-x64-1.0.0.jar",
+        "url": "https://github.com/user/repo/releases/download/v1.0.0/my-app-mac-x64-1.0.0.tar.gz",
         "sha256": "f6e5d4c3b2a1..."
       },
       "win-x64": {
         "enabled": true,
-        "url": "https://s3.us-east-1.amazonaws.com/bucket/jdeploy-bundles/my-app-win-x64-1.0.0.jar",
+        "url": "https://s3.us-east-1.amazonaws.com/bucket/jdeploy-bundles/my-app-win-x64-1.0.0.tar.gz",
         "sha256": "1a2b3c4d5e6f...",
         "cli": {
-          "url": "https://s3.us-east-1.amazonaws.com/bucket/jdeploy-bundles/my-app-win-x64-1.0.0-cli.jar",
+          "url": "https://s3.us-east-1.amazonaws.com/bucket/jdeploy-bundles/my-app-win-x64-1.0.0-cli.tar.gz",
           "sha256": "6f5e4d3c2b1a..."
         }
       },
       "linux-x64": {
         "enabled": true,
-        "url": "https://github.com/user/repo/releases/download/v1.0.0/my-app-linux-x64-1.0.0.jar",
+        "url": "https://github.com/user/repo/releases/download/v1.0.0/my-app-linux-x64-1.0.0.tar.gz",
         "sha256": "abcdef012345..."
       }
     }
@@ -89,11 +89,11 @@ After a successful publish, jDeploy merges `url` and `sha256` fields into each e
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `enabled` | boolean | Yes (in source) | Must be `true` for the platform to be built at publish time. |
-| `url` | string | Set at publish | Download URL for the GUI bundle JAR. |
-| `sha256` | string | Set at publish | SHA-256 hex digest of the GUI bundle JAR. |
+| `url` | string | Set at publish | Download URL for the GUI bundle tar.gz. |
+| `sha256` | string | Set at publish | SHA-256 hex digest of the GUI bundle tar.gz. |
 | `cli` | object | Set at publish (conditional) | Present only when a CLI variant was built for this platform. |
-| `cli.url` | string | Set at publish | Download URL for the CLI bundle JAR. |
-| `cli.sha256` | string | Set at publish | SHA-256 hex digest of the CLI bundle JAR. |
+| `cli.url` | string | Set at publish | Download URL for the CLI bundle tar.gz. |
+| `cli.sha256` | string | Set at publish | SHA-256 hex digest of the CLI bundle tar.gz. |
 
 #### Valid Platform Keys
 
@@ -137,12 +137,12 @@ function getCliBundleUrl(packageJson, platformKey):
     return artifacts?[platformKey]?.cli?.url
 ```
 
-## Bundle JAR Naming Convention
+## Bundle Naming Convention
 
-Bundle JARs follow this naming pattern:
+Bundle archives use `.tar.gz` format (not JAR) to preserve POSIX file permissions, which is critical for macOS and Linux executables. They follow this naming pattern:
 
 ```
-{fqpn}-{platform}-{arch}-{version}[-cli].jar
+{fqpn}-{platform}-{arch}-{version}[-cli].tar.gz
 ```
 
 Where:
@@ -154,19 +154,19 @@ Where:
 
 Examples:
 ```
-my-app-mac-arm64-1.0.0.jar
-my-app-win-x64-1.0.0.jar
-my-app-linux-x64-1.0.0-cli.jar
-a1b2c3d4.my-app-mac-x64-2.1.0.jar
+my-app-mac-arm64-1.0.0.tar.gz
+my-app-win-x64-1.0.0.tar.gz
+my-app-linux-x64-1.0.0-cli.tar.gz
+a1b2c3d4.my-app-mac-x64-2.1.0.tar.gz
 ```
 
-## Bundle JAR Contents
+## Bundle Archive Contents
 
-Each bundle JAR is a standard Java JAR file containing a single native application bundle. The internal structure varies by platform.
+Each bundle archive is a `.tar.gz` file containing a single native application bundle. The tar.gz format is used instead of JAR because JAR files do not preserve POSIX file permissions, which are required for executable binaries on macOS and Linux. The internal structure varies by platform.
 
-### macOS Bundle JAR
+### macOS Bundle Archive
 
-The JAR contains the full `.app` directory tree as recursive JAR entries, preserving the standard macOS application bundle structure:
+The archive contains the full `.app` directory tree, preserving the standard macOS application bundle structure and file permissions:
 
 ```
 AppName.app/
@@ -184,11 +184,11 @@ AppName.app/
     └── app.xml                       # jDeploy app manifest (name, package, version, icon data URI, etc.)
 ```
 
-The macOS CLI binary (`Client4JLauncher-cli`) is included **inside** the `.app` bundle when CLI commands are configured, so no separate CLI JAR is produced for macOS.
+The macOS CLI binary (`Client4JLauncher-cli`) is included **inside** the `.app` bundle when CLI commands are configured, so no separate CLI archive is produced for macOS.
 
-### Windows Bundle JAR
+### Windows Bundle Archive
 
-The JAR contains a single `.exe` file entry:
+The archive contains a single `.exe` file entry:
 
 ```
 AppName.exe                           # Native launcher executable (x64 or ARM64 PE binary)
@@ -196,17 +196,17 @@ AppName.exe                           # Native launcher executable (x64 or ARM64
 
 The `.exe` is a self-contained native Windows PE executable. The jDeploy app manifest (`app.xml`) is embedded at the end of the binary using a byte-inversion encoding scheme with a 32-byte trailer for detection.
 
-When CLI commands are configured, a separate CLI variant JAR is also produced:
+When CLI commands are configured, a separate CLI variant archive is also produced:
 
 ```
 AppName-cli.exe                       # CLI-mode launcher executable
 ```
 
-CLI variant JARs are **only** built for Windows.
+CLI variant archives are **only** built for Windows.
 
-### Linux Bundle JAR
+### Linux Bundle Archive
 
-The JAR contains a single binary executable entry:
+The archive contains a single binary executable entry:
 
 ```
 app-name                              # Native launcher executable (x64 or ARM64 ELF binary)
@@ -237,10 +237,10 @@ For macOS, `app.xml` is a standalone file inside `Contents/`. For Windows and Li
 
 ### GitHub Releases (default for GitHub publish target)
 
-Bundle JARs are added to the version-specific GitHub release. URLs follow the pattern:
+Bundle archives are added to the version-specific GitHub release. URLs follow the pattern:
 
 ```
-https://github.com/{owner}/{repo}/releases/download/{tag}/{filename}.jar
+https://github.com/{owner}/{repo}/releases/download/{tag}/{filename}.tar.gz
 ```
 
 ### S3 (optional)
@@ -248,7 +248,7 @@ https://github.com/{owner}/{repo}/releases/download/{tag}/{filename}.jar
 When configured via environment variables, bundles upload to S3 instead. URLs follow:
 
 ```
-https://{bucket}.s3.{region}.amazonaws.com/{prefix}/{filename}.jar
+https://{bucket}.s3.{region}.amazonaws.com/{prefix}/{filename}.tar.gz
 ```
 
 #### S3 Environment Variables
@@ -272,9 +272,9 @@ https://{bucket}.s3.{region}.amazonaws.com/{prefix}/{filename}.jar
 
 ## Integrity Verification
 
-All SHA-256 hashes are computed over the complete JAR file (not the inner bundle contents). Clients should:
+All SHA-256 hashes are computed over the complete `.tar.gz` file (not the inner bundle contents). Clients should:
 
-1. Download the JAR from the `url`.
+1. Download the `.tar.gz` from the `url`.
 2. Compute the SHA-256 hex digest of the downloaded file.
 3. Compare against the `sha256` value in `package.json`.
 4. Reject the bundle if the hashes do not match.

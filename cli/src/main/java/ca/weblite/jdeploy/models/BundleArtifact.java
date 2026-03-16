@@ -3,7 +3,7 @@ package ca.weblite.jdeploy.models;
 import java.io.File;
 
 /**
- * Represents a single pre-built bundle artifact (native bundle wrapped in JAR or tar.gz)
+ * Represents a single pre-built bundle artifact (native bundle wrapped in tar.gz)
  * ready for upload during publish.
  */
 public class BundleArtifact {
