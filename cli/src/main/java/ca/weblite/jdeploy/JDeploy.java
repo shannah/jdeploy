@@ -533,6 +533,135 @@ public class JDeploy implements BundleConstants {
         return out;
     }
 
+    private void archive(PackagingContext context) throws IOException {
+        PublishingContext publishingContext = PublishingContext.builder()
+                .setPackagingContext(context)
+                .setNPM(getNPM())
+                .build();
+
+        // First, create the jdeploy bundle (package step)
+        DIContext.get(PackageService.class).createJdeployBundle(context);
+
+        // Copy package.json to publish dir for the archive
+        File publishDir = publishingContext.getPublishDir();
+        if (publishDir.exists()) {
+            FileUtils.deleteDirectory(publishDir);
+        }
+        publishDir.mkdirs();
+        FileUtils.copyFile(context.packageJsonFile, publishingContext.getPublishPackageJsonFile());
+
+        // Run npm pack to create the universal tarball
+        File universalTarball = null;
+        File npmPackDir = new File(context.directory, "jdeploy");
+        String packageName = context.getName();
+        String version = context.getVersion();
+
+        // Look for existing tarballs or create one via npm pack
+        File expectedTarball = new File(npmPackDir, packageName + "-" + version + ".tgz");
+        if (expectedTarball.exists()) {
+            universalTarball = expectedTarball;
+        }
+
+        File archiveFile = DIContext.get(ca.weblite.jdeploy.archive.JDeployArchiveGenerator.class)
+                .generate(publishingContext, universalTarball, null, null, null);
+
+        // Validate the generated archive
+        ca.weblite.jdeploy.archive.JDeployArchiveValidator.ValidationResult result =
+                DIContext.get(ca.weblite.jdeploy.archive.JDeployArchiveValidator.class).validate(archiveFile);
+
+        if (!result.isValid()) {
+            out.println("Archive validation errors:");
+            for (String error : result.getErrors()) {
+                out.println("  ERROR: " + error);
+            }
+        }
+        for (String warning : result.getWarnings()) {
+            out.println("  WARNING: " + warning);
+        }
+        if (result.isValid()) {
+            out.println("Archive is valid: " + archiveFile.getAbsolutePath());
+        }
+    }
+
+    private void archiveInspect(String archivePath) throws IOException {
+        File archiveFile = new File(archivePath);
+        if (!archiveFile.exists()) {
+            out.println("Archive file not found: " + archivePath);
+            return;
+        }
+
+        try (ca.weblite.jdeploy.archive.JDeployArchiveReader reader =
+                     new ca.weblite.jdeploy.archive.JDeployArchiveReader(archiveFile)) {
+            out.println("=== jDeploy Archive: " + archiveFile.getName() + " ===");
+            out.println();
+            out.println("Package:    " + reader.getPackageName());
+            out.println("Version:    " + reader.getPackageVersion());
+            out.println("Prerelease: " + reader.isPrerelease());
+            out.println("Created:    " + reader.getCreatedAt());
+            out.println("CLI Ver:    " + (reader.getCliVersion() != null ? reader.getCliVersion() : "n/a"));
+            out.println();
+
+            if (reader.hasPlatformBundles()) {
+                out.println("Platforms: " + String.join(", ", reader.getPlatforms()));
+            }
+            out.println("Has platform bundles: " + reader.hasPlatformBundles());
+            out.println("Has prebuilt bundles: " + reader.hasPrebuiltBundles());
+            out.println("Has installers:       " + reader.hasInstallers());
+            out.println();
+
+            out.println("--- Bundles ---");
+            for (String name : reader.getBundleNames()) {
+                out.println("  " + name);
+            }
+
+            List<String> prebuilt = reader.getPrebuiltBundleNames();
+            if (!prebuilt.isEmpty()) {
+                out.println();
+                out.println("--- Pre-built Bundles ---");
+                for (String name : prebuilt) {
+                    out.println("  " + name);
+                }
+            }
+
+            List<String> installers = reader.getInstallerNames();
+            if (!installers.isEmpty()) {
+                out.println();
+                out.println("--- Installers ---");
+                for (String name : installers) {
+                    out.println("  " + name);
+                }
+            }
+
+            out.println();
+            out.println("--- All Entries ---");
+            for (ca.weblite.jdeploy.archive.JDeployArchiveReader.EntryInfo entry : reader.listAllEntries()) {
+                out.println(String.format("  %-50s %s", entry.getPath(), formatSize(entry.getSize())));
+            }
+        }
+
+        // Validate
+        ca.weblite.jdeploy.archive.JDeployArchiveValidator.ValidationResult result =
+                DIContext.get(ca.weblite.jdeploy.archive.JDeployArchiveValidator.class).validate(archiveFile);
+        out.println();
+        if (result.isValid()) {
+            out.println("Validation: PASSED");
+        } else {
+            out.println("Validation: FAILED");
+            for (String error : result.getErrors()) {
+                out.println("  ERROR: " + error);
+            }
+        }
+        for (String warning : result.getWarnings()) {
+            out.println("  WARNING: " + warning);
+        }
+    }
+
+    private String formatSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        else if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
+        else return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
+    }
+
     private void scan(PackagingContext context) throws IOException {
         File[] jars = findJarCandidates(context);
         out.println("Found "+jars.length+" jars: "+Arrays.toString(jars));
@@ -579,6 +708,8 @@ public class JDeploy implements BundleConstants {
                 + "  debug --port=5006 : Use custom debug port (default: 5005)\n"
                 + "  debug --no-suspend : Don't wait for debugger to attach\n"
                 + "  publish : Publishes to NPM\n"
+                + "  archive : Generates a .jdeploy archive from the current project\n"
+                + "  archive-inspect <file> : Inspects a .jdeploy archive and validates it\n"
                 + "  generate: Generates a new project\n"
                 + "  github init -n <repo-name>:  Initializes commits, and pushes to github\n"
                 + "  verify-installation : Verify an app is properly installed\n"
@@ -1151,6 +1282,14 @@ public class JDeploy implements BundleConstants {
                 prog.verifyInstallation(verifyPackageJson, verifyProjectCode, verifyPackage, verifySource, verboseFlag);
             } else if ("verify-uninstallation".equals(args[0])) {
                 prog.verifyUninstallation(verifyPackageJson, verifyProjectCode, verifyPackage, verifySource, verboseFlag);
+            } else if ("archive".equals(args[0])) {
+                prog.archive(context);
+            } else if ("archive-inspect".equals(args[0])) {
+                if (args.length < 2) {
+                    System.err.println("Usage: jdeploy archive-inspect <file.jdeploy>");
+                    System.exit(1);
+                }
+                prog.archiveInspect(args[1]);
             } else {
                 prog.help(opts);
                 System.exit(1);
