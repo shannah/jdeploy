@@ -2,6 +2,7 @@ package ca.weblite.jdeploy.installer.win;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStreamReader;
 
 /**
@@ -65,39 +66,47 @@ public class AuthenticodeSignatureChecker {
      * Checks the Authenticode signature of a Windows executable.
      *
      * @param exeFile the executable file to check
-     * @return the signature check result, or null if the check could not be performed
+     * @return the signature check result (never null)
+     * @throws IllegalArgumentException if exeFile is null, does not exist, or is not an .exe file
+     * @throws IOException if the PowerShell process fails or returns a non-zero exit code
      */
-    public SignatureCheckResult checkSignature(File exeFile) {
-        if (exeFile == null || !exeFile.exists() || !exeFile.getName().endsWith(".exe")) {
-            return null;
+    public SignatureCheckResult checkSignature(File exeFile) throws IOException {
+        if (exeFile == null) {
+            throw new IllegalArgumentException("exeFile must not be null");
+        }
+        if (!exeFile.exists()) {
+            throw new IllegalArgumentException("File does not exist: " + exeFile.getAbsolutePath());
+        }
+        if (!exeFile.getName().endsWith(".exe")) {
+            throw new IllegalArgumentException("File is not an .exe: " + exeFile.getName());
+        }
+
+        String script = buildPowerShellScript(exeFile);
+        ProcessBuilder pb = new ProcessBuilder(
+                "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script
+        );
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+
+        StringBuilder output = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
         }
 
         try {
-            String script = buildPowerShellScript(exeFile);
-            ProcessBuilder pb = new ProcessBuilder(
-                    "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script
-            );
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-
-            StringBuilder output = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    output.append(line).append("\n");
-                }
-            }
-
             int exitCode = process.waitFor();
             if (exitCode != 0) {
-                return null;
+                throw new IOException("PowerShell Get-AuthenticodeSignature failed with exit code " + exitCode + ": " + output);
             }
-
-            return parseResult(output.toString());
-        } catch (Exception e) {
-            System.err.println("Failed to check Authenticode signature: " + e.getMessage());
-            return null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while waiting for PowerShell process", e);
         }
+
+        return parseResult(output.toString());
     }
 
     private String buildPowerShellScript(File exeFile) {
@@ -164,52 +173,60 @@ public class AuthenticodeSignatureChecker {
      * Exports the signing certificate from an exe to a temporary .cer file.
      *
      * @param exeFile the signed executable
-     * @return the temporary .cer file, or null on failure
+     * @return the temporary .cer file (never null)
+     * @throws IllegalArgumentException if exeFile is null or does not exist
+     * @throws IOException if the certificate could not be exported
      */
-    public File exportCertificate(File exeFile) {
-        if (exeFile == null || !exeFile.exists()) {
-            return null;
+    public File exportCertificate(File exeFile) throws IOException {
+        if (exeFile == null) {
+            throw new IllegalArgumentException("exeFile must not be null");
+        }
+        if (!exeFile.exists()) {
+            throw new IllegalArgumentException("File does not exist: " + exeFile.getAbsolutePath());
+        }
+
+        File certFile = File.createTempFile("jdeploy_cert_", ".cer");
+        certFile.deleteOnExit();
+
+        String escapedExePath = exeFile.getAbsolutePath().replace("'", "''");
+        String escapedCertPath = certFile.getAbsolutePath().replace("'", "''");
+
+        String script = "$sig = Get-AuthenticodeSignature -FilePath '" + escapedExePath + "'; " +
+                "if ($sig.SignerCertificate -ne $null) { " +
+                "  [System.IO.File]::WriteAllBytes('" + escapedCertPath + "', $sig.SignerCertificate.RawData); " +
+                "  Write-Output 'OK' " +
+                "} else { " +
+                "  Write-Output 'NO_CERT' " +
+                "}";
+
+        ProcessBuilder pb = new ProcessBuilder(
+                "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script
+        );
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+
+        StringBuilder output = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line);
+            }
         }
 
         try {
-            File certFile = File.createTempFile("jdeploy_cert_", ".cer");
-            certFile.deleteOnExit();
-
-            String escapedExePath = exeFile.getAbsolutePath().replace("'", "''");
-            String escapedCertPath = certFile.getAbsolutePath().replace("'", "''");
-
-            String script = "$sig = Get-AuthenticodeSignature -FilePath '" + escapedExePath + "'; " +
-                    "if ($sig.SignerCertificate -ne $null) { " +
-                    "  [System.IO.File]::WriteAllBytes('" + escapedCertPath + "', $sig.SignerCertificate.RawData); " +
-                    "  Write-Output 'OK' " +
-                    "} else { " +
-                    "  Write-Output 'NO_CERT' " +
-                    "}";
-
-            ProcessBuilder pb = new ProcessBuilder(
-                    "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script
-            );
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-
-            StringBuilder output = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    output.append(line);
-                }
-            }
-
-            int exitCode = process.waitFor();
-            if (exitCode == 0 && output.toString().trim().equals("OK") && certFile.length() > 0) {
-                return certFile;
-            }
-
+            process.waitFor();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             certFile.delete();
-            return null;
-        } catch (Exception e) {
-            System.err.println("Failed to export certificate: " + e.getMessage());
-            return null;
+            throw new IOException("Interrupted while waiting for PowerShell process", e);
         }
+
+        if (output.toString().trim().equals("OK") && certFile.length() > 0) {
+            return certFile;
+        }
+
+        certFile.delete();
+        throw new IOException("Failed to export certificate from " + exeFile.getName()
+                + ": " + output.toString().trim());
     }
 }

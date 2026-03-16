@@ -1098,7 +1098,7 @@ public class Main implements Runnable, Constants {
             if (installedApp != null && installedApp.exists() && installedApp.getName().endsWith(".exe")) {
                 AuthenticodeSignatureChecker checker = new AuthenticodeSignatureChecker();
                 AuthenticodeSignatureChecker.SignatureCheckResult result = checker.checkSignature(installedApp);
-                if (result != null && result.isSignedButUntrusted()) {
+                if (result.isSignedButUntrusted()) {
                     // Show dialog on EDT and wait for result
                     final boolean[] userChoice = {false};
                     try {
@@ -1110,16 +1110,14 @@ public class Main implements Runnable, Constants {
                     }
                     if (userChoice[0]) {
                         File certFile = checker.exportCertificate(installedApp);
-                        if (certFile != null) {
-                            try {
-                                CertificateTrustService trustService = new CertificateTrustService();
-                                boolean added = trustService.addToUserTrustStore(certFile);
-                                if (!added) {
-                                    System.err.println("Failed to add certificate to user trust store.");
-                                }
-                            } finally {
-                                certFile.delete();
+                        try {
+                            CertificateTrustService trustService = new CertificateTrustService();
+                            boolean added = trustService.addToUserTrustStore(certFile);
+                            if (!added) {
+                                System.err.println("Failed to add certificate to user trust store.");
                             }
+                        } finally {
+                            certFile.delete();
                         }
                     }
                 }
