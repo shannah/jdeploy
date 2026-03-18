@@ -5,10 +5,6 @@ import java.nio.file.*;
 public class MacOSFileHandler {
 
     public static void copyOrExtract(String sourcePath, String destinationPath) throws IOException {
-        if (!isMacOS()) {
-            throw new UnsupportedOperationException("This function can only be executed on MacOS.");
-        }
-
         Path source = Paths.get(sourcePath);
         Path destination = Paths.get(destinationPath);
 
@@ -34,7 +30,12 @@ public class MacOSFileHandler {
     }
 
     private static void copyDirectory(Path source, Path destination) throws IOException {
-        ProcessBuilder pb = new ProcessBuilder("ditto", source.toString(), destination.toString());
+        ProcessBuilder pb;
+        if (isMacOS()) {
+            pb = new ProcessBuilder("ditto", source.toString(), destination.toString());
+        } else {
+            pb = new ProcessBuilder("cp", "-a", source.toString(), destination.toString());
+        }
         Process process = pb.start();
         try {
             if (process.waitFor() != 0) {
@@ -47,7 +48,13 @@ public class MacOSFileHandler {
     }
 
     private static void extractZip(Path source, Path destination) throws IOException {
-        ProcessBuilder pb = new ProcessBuilder("ditto", "-xk", source.toString(), destination.toString());
+        ProcessBuilder pb;
+        if (isMacOS()) {
+            pb = new ProcessBuilder("ditto", "-xk", source.toString(), destination.toString());
+        } else {
+            Files.createDirectories(destination);
+            pb = new ProcessBuilder("unzip", "-o", source.toString(), "-d", destination.toString());
+        }
         Process process = pb.start();
         try {
             if (process.waitFor() != 0) {
