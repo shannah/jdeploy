@@ -203,6 +203,24 @@ public class MacBundler {
                     }
                 }
             }
+        } else if (app.isMacCodeSigningEnabled() && RcodesignConfig.canSign()) {
+            // Fallback: use rcodesign for code signing on non-macOS platforms
+            System.out.println("Not running on macOS. Using rcodesign for signing: " + appDir.getAbsolutePath());
+
+            File entitlementsFile = new File("jdeploy.mac.bundle.entitlements");
+            if (!entitlementsFile.exists()) {
+                entitlementsFile = File.createTempFile("jdeploy.mac.bundle", ".entitlements");
+                entitlementsFile.deleteOnExit();
+                FileUtils.copyInputStreamToFile(
+                        MacBundler.class.getResourceAsStream("mac.bundle.entitlements"),
+                        entitlementsFile
+                );
+            }
+            RcodesignSigner signer = new RcodesignSigner();
+            // Sign the app.xml individually first
+            signer.sign(new File(appDir, "Contents/app.xml").getAbsolutePath(), entitlementsFile);
+            // Then sign the entire .app bundle
+            signer.sign(appDir.getAbsolutePath(), entitlementsFile);
         }
 
         File releaseDestDir = new File(releaseDir + "/" + OSNAME_WITH_ARCH);
@@ -212,6 +230,7 @@ public class MacBundler {
         releaseDestDir.mkdirs();
         Util.compressAsTarGz(releaseFile, appDir);
 
+        boolean notarized = false;
         if (Platform.getSystemPlatform().isMac() && app.isMacCodeSigningEnabled() && app.isMacNotarizationEnabled()) {
             System.out.println("Attempting to notarize app.");
 
@@ -225,10 +244,7 @@ public class MacBundler {
                             app.getMacNotarizationPassword(),
                             app.getMacDeveloperTeamID()
                     );
-                    if (releaseFile.exists()) {
-                        releaseFile.delete();
-                    }
-                    Util.compressAsTarGz(releaseFile, appDir);
+                    notarized = true;
                 } else {
                     ProcessBuilder pb = new ProcessBuilder("/usr/bin/xcrun",
                             "altool",
@@ -248,9 +264,26 @@ public class MacBundler {
                     if (exitCode != 0) {
                         throw new RuntimeException("Notarization failed with exit code "+exitCode);
                     }
+                    notarized = true;
                 }
 
             }
+        } else if (!Platform.getSystemPlatform().isMac()
+                && app.isMacCodeSigningEnabled()
+                && app.isMacNotarizationEnabled()
+                && RcodesignConfig.canNotarize()) {
+            // Fallback: use rcodesign for notarization on non-macOS platforms
+            System.out.println("Not running on macOS. Attempting to notarize app via rcodesign.");
+            RcodesignNotaryTool rcodesignNotaryTool = new RcodesignNotaryTool();
+            rcodesignNotaryTool.notarizeApp(appDir.getAbsolutePath());
+            notarized = true;
+        }
+
+        if (notarized) {
+            if (releaseFile.exists()) {
+                releaseFile.delete();
+            }
+            Util.compressAsTarGz(releaseFile, appDir);
         }
         out.addReleaseFile(releaseFile);
         
