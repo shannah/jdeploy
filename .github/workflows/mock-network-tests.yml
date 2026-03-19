@@ -141,7 +141,7 @@ jobs:
         run: cd shared && mvn clean install -DskipTests -q
 
       - name: Build installer module
-        run: cd installer && mvn clean package -DskipTests -q
+        run: cd installer && mvn clean install -DskipTests -q
 
       - name: Run mock network publishing tests (CLI)
         env:

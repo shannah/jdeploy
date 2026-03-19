@@ -37,6 +37,8 @@ import ca.weblite.jdeploy.installer.win.InstallWindowsRegistry;
 import ca.weblite.jdeploy.installer.win.JnaRegistryOperations;
 import ca.weblite.jdeploy.installer.win.RegistryOperations;
 import ca.weblite.jdeploy.installer.win.UninstallWindows;
+import ca.weblite.jdeploy.installer.win.AuthenticodeSignatureChecker;
+import ca.weblite.jdeploy.installer.win.CertificateTrustService;
 
 import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 import ca.weblite.jdeploy.models.CommandSpec;
@@ -1060,7 +1062,11 @@ public class Main implements Runnable, Constants {
             try {
                 install();
                 invokeLater(()->evt.getInstallationForm().setInProgress(false, ""));
-                invokeLater(()-> evt.getInstallationForm().showInstallationCompleteDialog());
+                if (Platform.getSystemPlatform().isWindows()) {
+                    promptToTrustCertificateIfNeeded(evt.getInstallationForm());
+                } else {
+                    invokeLater(()-> evt.getInstallationForm().showInstallationCompleteDialog());
+                }
             } catch (Exception ex) {
                 invokeLater(()->evt.getInstallationForm().setInProgress(false, ""));
                 ex.printStackTrace(System.err);
@@ -1077,6 +1083,49 @@ public class Main implements Runnable, Constants {
                 serviceLifecycleProgressCallback = null;
             }
         }).start();
+    }
+
+    /**
+     * On Windows, checks if the installed exe is signed with an untrusted certificate.
+     * If so, shows the user certificate details and offers to add it to their trust store.
+     * Regardless of the outcome, proceeds to show the installation complete dialog.
+     *
+     * This method should be called from a background thread. It runs the signature check
+     * on the background thread and dispatches UI dialogs to the EDT.
+     */
+    private void promptToTrustCertificateIfNeeded(InstallationForm form) {
+        try {
+            if (installedApp != null && installedApp.exists() && installedApp.getName().endsWith(".exe")) {
+                AuthenticodeSignatureChecker checker = new AuthenticodeSignatureChecker();
+                AuthenticodeSignatureChecker.SignatureCheckResult result = checker.checkSignature(installedApp);
+                if (result.isSignedButUntrusted()) {
+                    // Show dialog on EDT and wait for result
+                    final boolean[] userChoice = {false};
+                    try {
+                        javax.swing.SwingUtilities.invokeAndWait(() -> {
+                            userChoice[0] = form.showCertificateTrustPrompt(result);
+                        });
+                    } catch (Exception e) {
+                        System.err.println("Failed to show certificate trust dialog: " + e.getMessage());
+                    }
+                    if (userChoice[0]) {
+                        File certFile = checker.exportCertificate(installedApp);
+                        try {
+                            CertificateTrustService trustService = new CertificateTrustService();
+                            boolean added = trustService.addToUserTrustStore(certFile);
+                            if (!added) {
+                                System.err.println("Failed to add certificate to user trust store.");
+                            }
+                        } finally {
+                            certFile.delete();
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Certificate trust check failed: " + e.getMessage());
+        }
+        invokeLater(() -> form.showInstallationCompleteDialog());
     }
 
     private void onVisitSoftwareHomepage(InstallationFormEvent evt) {

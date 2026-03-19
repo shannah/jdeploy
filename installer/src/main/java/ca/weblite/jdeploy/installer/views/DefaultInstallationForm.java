@@ -412,6 +412,107 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
     }
 
     @Override
+    public boolean showCertificateTrustPrompt(ca.weblite.jdeploy.installer.win.AuthenticodeSignatureChecker.SignatureCheckResult result) {
+        String subject = result.getSubject() != null ? result.getSubject() : "";
+        String displayName = extractCN(subject);
+        String orgName = extractField(subject, "O");
+
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        // Friendly header with signer name
+        String signerText = displayName.isEmpty() ? "an unknown publisher" : escapeHtml(displayName);
+        if (!orgName.isEmpty() && !orgName.equals(displayName)) {
+            signerText += " (" + escapeHtml(orgName) + ")";
+        }
+        JLabel headerLabel = new JLabel("<html>This app is signed by <b>" + signerText + "</b>.</html>");
+        headerLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(headerLabel);
+
+        panel.add(Box.createVerticalStrut(8));
+
+        // Simple question with info link
+        JPanel questionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        questionRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel questionLabel = new JLabel("Would you like to trust this publisher?");
+        questionRow.add(questionLabel);
+
+        questionRow.add(Box.createHorizontalStrut(6));
+
+        // Info button for certificate details
+        JButton infoButton = new JButton("\u24D8");
+        infoButton.setFont(infoButton.getFont().deriveFont(Font.PLAIN, 13f));
+        infoButton.setBorderPainted(false);
+        infoButton.setContentAreaFilled(false);
+        infoButton.setFocusPainted(false);
+        infoButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        infoButton.setToolTipText("View certificate details");
+        infoButton.setMargin(new Insets(0, 0, 0, 0));
+        infoButton.addActionListener(e -> {
+            String issuer = result.getIssuer() != null ? result.getIssuer() : "Unknown";
+            String thumbprint = result.getThumbprint() != null ? result.getThumbprint() : "Unknown";
+            String validFrom = result.getValidFrom() != null ? result.getValidFrom() : "Unknown";
+            String validTo = result.getValidTo() != null ? result.getValidTo() : "Unknown";
+
+            String details = "<html>" +
+                    "<b>Subject:</b> " + escapeHtml(subject) + "<br>" +
+                    "<b>Issuer:</b> " + escapeHtml(issuer) + "<br>" +
+                    "<b>Thumbprint:</b> " + escapeHtml(thumbprint) + "<br>" +
+                    "<b>Valid:</b> " + escapeHtml(validFrom) + " to " + escapeHtml(validTo) +
+                    "</html>";
+
+            JOptionPane.showMessageDialog(
+                    DefaultInstallationForm.this,
+                    details,
+                    "Certificate Details",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+        });
+        questionRow.add(infoButton);
+        panel.add(questionRow);
+
+        int choice = JOptionPane.showOptionDialog(
+                this,
+                panel,
+                "Trust Publisher?",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                new Object[]{"Trust", "Skip"},
+                "Skip"
+        );
+
+        return choice == 0;
+    }
+
+    /**
+     * Extracts the CN (Common Name) value from an X.500 distinguished name string.
+     */
+    private static String extractCN(String dn) {
+        return extractField(dn, "CN");
+    }
+
+    /**
+     * Extracts a field value from an X.500 distinguished name string.
+     */
+    private static String extractField(String dn, String fieldName) {
+        if (dn == null || dn.isEmpty()) return "";
+        String prefix = fieldName + "=";
+        int start = dn.indexOf(prefix);
+        if (start < 0) return "";
+        start += prefix.length();
+        int end = dn.indexOf(',', start);
+        if (end < 0) end = dn.length();
+        return dn.substring(start, end).trim();
+    }
+
+    private static String escapeHtml(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    @Override
     public void setEventDispatcher(InstallationFormEventDispatcher dispatcher) {
         this.dispatcher = dispatcher;
     }

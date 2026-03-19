@@ -183,6 +183,8 @@ class WindowsSigningPkcs11IntegrationTest {
                         "-keysize", "2048",
                         "-validity", "1",
                         "-dname", "CN=PKCS11 Test Signing, O=Test, C=US",
+                        "-ext", "BC=ca:false",
+                        "-ext", "KU=digitalSignature",
                         "-ext", "EKU=codeSigning",
                         "-storetype", "PKCS11",
                         "-providerClass", "sun.security.pkcs11.SunPKCS11",
