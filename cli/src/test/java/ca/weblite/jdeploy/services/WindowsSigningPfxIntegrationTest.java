@@ -121,6 +121,8 @@ class WindowsSigningPfxIntegrationTest {
                 "-keysize", "2048",
                 "-validity", "1",
                 "-dname", "CN=Test Code Signing, O=Test, L=Test, ST=Test, C=US",
+                "-ext", "BC=ca:false",
+                "-ext", "KU=digitalSignature",
                 "-ext", "EKU=codeSigning",
                 "-storetype", "PKCS12",
                 "-keystore", keystoreFile.getAbsolutePath(),

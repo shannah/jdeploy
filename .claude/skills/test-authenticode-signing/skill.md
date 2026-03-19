@@ -84,11 +84,22 @@ Generate a self-signed certificate and set as GitHub secrets:
 
 ```bash
 cd /tmp
+
+# Create an extensions file for code signing
+cat > code-signing-ext.cnf << 'EOF'
+[v3_code_signing]
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature
+extendedKeyUsage = critical, codeSigning
+EOF
+
 openssl req -x509 -newkey rsa:2048 \
   -keyout test-signing-key.pem \
   -out test-signing-cert.pem \
-  -days 365 -nodes \
-  -subj "/CN=jDeploy Test Signing/O=jDeploy Test/C=US"
+  -days 730 -nodes \
+  -subj "/CN=jDeploy Test Signing/O=jDeploy Test/C=US" \
+  -extensions v3_code_signing \
+  -config <(cat /etc/ssl/openssl.cnf code-signing-ext.cnf)
 
 openssl pkcs12 -export \
   -out test-signing.pfx \
@@ -192,12 +203,22 @@ jobs:
           # Initialize the token
           softhsm2-util --init-token --slot 0 --label "jdeploy-test" --pin 1234 --so-pin 5678
 
+          # Create extensions file for code signing
+          cat > $HOME/softhsm/code-signing-ext.cnf << 'EXTEOF'
+          [v3_code_signing]
+          basicConstraints = critical, CA:FALSE
+          keyUsage = critical, digitalSignature
+          extendedKeyUsage = critical, codeSigning
+          EXTEOF
+
           # Generate a key pair AND self-signed certificate with OpenSSL
           openssl req -x509 -newkey rsa:2048 \
             -keyout $HOME/softhsm/signing-key.pem \
             -out $HOME/softhsm/signing-cert.pem \
-            -days 365 -nodes \
-            -subj "/CN=jDeploy Test PKCS11/O=jDeploy Test/C=US"
+            -days 730 -nodes \
+            -subj "/CN=jDeploy Test PKCS11/O=jDeploy Test/C=US" \
+            -extensions v3_code_signing \
+            -config <(cat /etc/ssl/openssl.cnf $HOME/softhsm/code-signing-ext.cnf)
 
           # Convert private key to DER
           openssl rsa -in $HOME/softhsm/signing-key.pem -outform DER -out $HOME/softhsm/signing-key.der
@@ -319,5 +340,6 @@ Or right-click the `.exe` → Properties → Digital Signatures tab.
 | `SignerCertificate is null` | Update jsign dependency - older versions had issues with OpenSSL 3.x certificates |
 | `No signature found` | Check GitHub Actions log for signing errors |
 | Signature shows "untrusted" | Expected for self-signed certificates - real CA certificates won't have this issue |
+| `0x80096019` basic constraint error | Certificate was generated without proper extensions; regenerate with `basicConstraints=CA:FALSE`, `keyUsage=digitalSignature`, `extendedKeyUsage=codeSigning` |
 | PKCS#11 key mismatch | Ensure private key and certificate are generated together and imported with same ID |
 | SoftHSM config error | Use `$HOME` not `$ENV:HOME` in config paths |
