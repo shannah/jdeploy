@@ -160,7 +160,11 @@ public class MacBundler {
         }
 
         // Code signing
-        if (Platform.getSystemPlatform().isMac() && app.isMacCodeSigningEnabled()) {
+        // Use native codesign on macOS unless JDEPLOY_FORCE_RCODESIGN is set
+        boolean useNativeCodesign = Platform.getSystemPlatform().isMac()
+                && app.isMacCodeSigningEnabled()
+                && !RcodesignConfig.isForceRcodesign();
+        if (useNativeCodesign) {
             System.out.println("Signing "+appDir.getAbsolutePath());
 
             File entitlementsFile = new File("jdeploy.mac.bundle.entitlements");
@@ -204,8 +208,9 @@ public class MacBundler {
                 }
             }
         } else if (app.isMacCodeSigningEnabled() && RcodesignConfig.canSign()) {
-            // Fallback: use rcodesign for code signing on non-macOS platforms
-            System.out.println("Not running on macOS. Using rcodesign for signing: " + appDir.getAbsolutePath());
+            // Use rcodesign for code signing (non-macOS platforms or forced via env var)
+            String reason = RcodesignConfig.isForceRcodesign() ? "JDEPLOY_FORCE_RCODESIGN is set" : "not running on macOS";
+            System.out.println("Using rcodesign for signing (" + reason + "): " + appDir.getAbsolutePath());
 
             File entitlementsFile = new File("jdeploy.mac.bundle.entitlements");
             if (!entitlementsFile.exists()) {
@@ -217,9 +222,8 @@ public class MacBundler {
                 );
             }
             RcodesignSigner signer = new RcodesignSigner();
-            // Sign the app.xml individually first
-            signer.sign(new File(appDir, "Contents/app.xml").getAbsolutePath(), entitlementsFile);
-            // Then sign the entire .app bundle
+            // Sign the entire .app bundle (rcodesign doesn't support signing individual non-Mach-O files)
+            // The app.xml will be included as a sealed resource in the bundle signature
             signer.sign(appDir.getAbsolutePath(), entitlementsFile);
         }
 
@@ -231,7 +235,12 @@ public class MacBundler {
         Util.compressAsTarGz(releaseFile, appDir);
 
         boolean notarized = false;
-        if (Platform.getSystemPlatform().isMac() && app.isMacCodeSigningEnabled() && app.isMacNotarizationEnabled()) {
+        // Use native notarization on macOS unless JDEPLOY_FORCE_RCODESIGN is set
+        boolean useNativeNotarization = Platform.getSystemPlatform().isMac()
+                && app.isMacCodeSigningEnabled()
+                && app.isMacNotarizationEnabled()
+                && !RcodesignConfig.isForceRcodesign();
+        if (useNativeNotarization) {
             System.out.println("Attempting to notarize app.");
 
             // Notarization can only be enabled if the app is signed.
@@ -268,12 +277,13 @@ public class MacBundler {
                 }
 
             }
-        } else if (!Platform.getSystemPlatform().isMac()
-                && app.isMacCodeSigningEnabled()
+        } else if (app.isMacCodeSigningEnabled()
                 && app.isMacNotarizationEnabled()
-                && RcodesignConfig.canNotarize()) {
-            // Fallback: use rcodesign for notarization on non-macOS platforms
-            System.out.println("Not running on macOS. Attempting to notarize app via rcodesign.");
+                && RcodesignConfig.canNotarize()
+                && (!Platform.getSystemPlatform().isMac() || RcodesignConfig.isForceRcodesign())) {
+            // Use rcodesign for notarization (non-macOS platforms or forced via env var)
+            String reason = RcodesignConfig.isForceRcodesign() ? "JDEPLOY_FORCE_RCODESIGN is set" : "not running on macOS";
+            System.out.println("Using rcodesign for notarization (" + reason + ").");
             RcodesignNotaryTool rcodesignNotaryTool = new RcodesignNotaryTool();
             rcodesignNotaryTool.notarizeApp(appDir.getAbsolutePath());
             notarized = true;

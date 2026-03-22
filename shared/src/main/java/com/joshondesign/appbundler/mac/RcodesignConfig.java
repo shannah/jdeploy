@@ -17,6 +17,7 @@ import java.io.IOException;
  *   <li>{@code JDEPLOY_RCODESIGN_API_KEY_PATH} - Path to App Store Connect API key JSON file for notarization</li>
  *   <li>{@code JDEPLOY_RCODESIGN_API_ISSUER} - App Store Connect API issuer UUID (alternative to API key file)</li>
  *   <li>{@code JDEPLOY_RCODESIGN_API_KEY} - App Store Connect API key ID (alternative to API key file)</li>
+ *   <li>{@code JDEPLOY_FORCE_RCODESIGN} - Set to "true" to force using rcodesign even on macOS (for testing)</li>
  * </ul>
  */
 public class RcodesignConfig {
@@ -26,6 +27,7 @@ public class RcodesignConfig {
     static final String ENV_API_KEY_PATH = "JDEPLOY_RCODESIGN_API_KEY_PATH";
     static final String ENV_API_ISSUER = "JDEPLOY_RCODESIGN_API_ISSUER";
     static final String ENV_API_KEY = "JDEPLOY_RCODESIGN_API_KEY";
+    static final String ENV_FORCE_RCODESIGN = "JDEPLOY_FORCE_RCODESIGN";
 
     private RcodesignConfig() {
     }
@@ -102,6 +104,15 @@ public class RcodesignConfig {
         String apiKey = getApiKey();
         return apiIssuer != null && !apiIssuer.isEmpty()
                 && apiKey != null && !apiKey.isEmpty();
+    }
+
+    /**
+     * Whether rcodesign should be forced even on macOS.
+     * Set JDEPLOY_FORCE_RCODESIGN=true to enable.
+     */
+    public static boolean isForceRcodesign() {
+        String value = getEnv(ENV_FORCE_RCODESIGN);
+        return "true".equalsIgnoreCase(value) || "1".equals(value);
     }
 
     /**

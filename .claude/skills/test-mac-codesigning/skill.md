@@ -471,6 +471,7 @@ The macOS code signing feature:
 |----------|---------|--------------|
 | `JDEPLOY_RCODESIGN_P12_FILE` | Path to PKCS#12 (.p12) certificate file | rcodesign signing |
 | `JDEPLOY_RCODESIGN_P12_PASSWORD` | Password to unlock the P12 file | rcodesign signing (optional) |
+| `JDEPLOY_FORCE_RCODESIGN` | Set to "true" to force rcodesign even on macOS | Testing rcodesign path on macOS |
 
 ### Notarization Configuration (NOT tested by this skill)
 
@@ -489,5 +490,5 @@ The macOS code signing feature:
 | `rcodesign sign` fails with P12 error | Verify P12 file path and password are correct |
 | Signature verification warns "untrusted" | Expected for self-signed certificates — real Developer ID certificates won't have this |
 | `isMacCodeSigningEnabled()` returns false | Ensure both `"codesign": true` in package.json AND `JDEPLOY_MAC_DEVELOPER_CERTIFICATE_NAME` env var are set |
-| rcodesign path not triggered on macOS | The code prefers native codesign on macOS; rcodesign is the fallback for non-macOS platforms |
+| rcodesign path not triggered on macOS | Set `JDEPLOY_FORCE_RCODESIGN=true` to force using rcodesign on macOS for testing |
 | Bundle files not found after `github-prepare-release` | Check the `jdeploy/` output directory for release files |
