@@ -251,6 +251,13 @@ public class PublishBundleService {
         JSONObject jdeployJson = new JSONObject(context.mj());
         appInfo.setCommands(CommandSpecParser.parseCommands(jdeployJson));
 
+        // Set code signing settings
+        if (context.rj().getAsBoolean("codesign") && context.rj().getAsBoolean("notarize")) {
+            appInfo.setCodeSignSettings(AppInfo.CodeSignSettings.CodeSignAndNotarize);
+        } else if (context.rj().getAsBoolean("codesign")) {
+            appInfo.setCodeSignSettings(AppInfo.CodeSignSettings.CodeSign);
+        }
+
         String jarPath = context.getString("jar", null);
         if (jarPath == null) {
             throw new IOException("Cannot load app info: no jar configured");
