@@ -19,6 +19,7 @@ import java.util.logging.Logger;
  * <ul>
  *   <li>Local keystores: PFX/PKCS12 and JKS</li>
  *   <li>PKCS#11 HSM tokens (SafeNet, YubiKey, etc.)</li>
+ *   <li>DigiCert ONE / KeyLocker cloud HSM</li>
  * </ul>
  *
  * Uses the jsign library for Authenticode signing.
@@ -85,16 +86,26 @@ public class WindowsSigningService {
     private KeyStore buildKeyStore(WindowsSigningConfig config) throws Exception {
         KeyStoreBuilder builder = new KeyStoreBuilder();
 
-        if (config.isPkcs11()) {
+        if (config.isDigiCertOne()) {
+            builder.storetype("DIGICERTONE");
+            // jsign DIGICERTONE keystore format: API_KEY|CLIENT_CERT_PATH|CLIENT_CERT_PASSWORD
+            String keystoreValue = config.getSmApiKey()
+                    + "|" + config.getSmClientCertFile()
+                    + "|" + config.getSmClientCertPassword();
+            builder.keystore(keystoreValue);
+            builder.storepass(config.getSmApiKey());
+        } else if (config.isPkcs11()) {
             builder.storetype("PKCS11");
             builder.keystore(config.getPkcs11ConfigPath());
+            if (config.getKeystorePassword() != null) {
+                builder.storepass(config.getKeystorePassword());
+            }
         } else {
             builder.storetype(config.getKeystoreType());
             builder.keystore(config.getKeystorePath());
-        }
-
-        if (config.getKeystorePassword() != null) {
-            builder.storepass(config.getKeystorePassword());
+            if (config.getKeystorePassword() != null) {
+                builder.storepass(config.getKeystorePassword());
+            }
         }
 
         return builder.build();

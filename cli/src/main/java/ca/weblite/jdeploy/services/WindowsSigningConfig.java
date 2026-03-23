@@ -3,8 +3,8 @@ package ca.weblite.jdeploy.services;
 /**
  * Configuration for Windows Authenticode signing.
  *
- * Supports local keystores (PFX/JKS), PKCS#11 HSM tokens, and is designed
- * to be extended for cloud HSM services (Azure Key Vault, AWS CloudHSM, etc.).
+ * Supports local keystores (PFX/JKS), PKCS#11 HSM tokens, and
+ * DigiCert ONE / KeyLocker cloud HSM signing.
  */
 public class WindowsSigningConfig {
 
@@ -22,6 +22,12 @@ public class WindowsSigningConfig {
     private String pkcs11ConfigPath;
     private String description;
     private String url;
+
+    // DigiCert ONE / KeyLocker fields
+    private String smApiKey;
+    private String smClientCertFile;
+    private String smClientCertPassword;
+    private String smHost;
 
     public String getKeystorePath() {
         return keystorePath;
@@ -107,24 +113,80 @@ public class WindowsSigningConfig {
         return "PKCS11".equalsIgnoreCase(keystoreType);
     }
 
+    public boolean isDigiCertOne() {
+        return "DIGICERTONE".equalsIgnoreCase(keystoreType);
+    }
+
+    public String getSmApiKey() {
+        return smApiKey;
+    }
+
+    public void setSmApiKey(String smApiKey) {
+        this.smApiKey = smApiKey;
+    }
+
+    public String getSmClientCertFile() {
+        return smClientCertFile;
+    }
+
+    public void setSmClientCertFile(String smClientCertFile) {
+        this.smClientCertFile = smClientCertFile;
+    }
+
+    public String getSmClientCertPassword() {
+        return smClientCertPassword;
+    }
+
+    public void setSmClientCertPassword(String smClientCertPassword) {
+        this.smClientCertPassword = smClientCertPassword;
+    }
+
+    public String getSmHost() {
+        return smHost;
+    }
+
+    public void setSmHost(String smHost) {
+        this.smHost = smHost;
+    }
+
     /**
      * Validates that the minimum required configuration is present.
      *
      * @throws IllegalStateException if required fields are missing
      */
     public void validate() {
-        if (isPkcs11()) {
-            if (pkcs11ConfigPath == null || pkcs11ConfigPath.isEmpty()) {
+        if (isDigiCertOne()) {
+            if (isEmpty(smApiKey)) {
+                throw new IllegalStateException(
+                        "SM_API_KEY is required when keystoreType is DIGICERTONE"
+                );
+            }
+            if (isEmpty(smClientCertFile)) {
+                throw new IllegalStateException(
+                        "SM_CLIENT_CERT_FILE is required when keystoreType is DIGICERTONE"
+                );
+            }
+            if (isEmpty(smClientCertPassword)) {
+                throw new IllegalStateException(
+                        "SM_CLIENT_CERT_PASSWORD is required when keystoreType is DIGICERTONE"
+                );
+            }
+        } else if (isPkcs11()) {
+            if (isEmpty(pkcs11ConfigPath)) {
                 throw new IllegalStateException(
                         "PKCS#11 config path is required when keystoreType is PKCS11"
                 );
             }
         } else {
-            if (keystorePath == null || keystorePath.isEmpty()) {
+            if (isEmpty(keystorePath)) {
                 throw new IllegalStateException(
                         "Keystore path is required for keystore type " + keystoreType
                 );
             }
         }
+    }
+
+    private static boolean isEmpty(String s) {
+        return s == null || s.isEmpty();
     }
 }

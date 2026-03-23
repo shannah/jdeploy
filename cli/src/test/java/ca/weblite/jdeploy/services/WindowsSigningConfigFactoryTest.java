@@ -97,4 +97,33 @@ class WindowsSigningConfigFactoryTest {
         assertNotNull(config);
         assertEquals("http://timestamp.digicert.com", config.getTimestampUrl());
     }
+
+    @Test
+    void createFromEnvironment_returnsDigiCertOneConfig() {
+        Map<String, String> env = new HashMap<>();
+        env.put("JDEPLOY_WIN_KEYSTORE_TYPE", "DIGICERTONE");
+        env.put("SM_API_KEY", "test-api-key");
+        env.put("SM_CLIENT_CERT_FILE", "/path/to/client.p12");
+        env.put("SM_CLIENT_CERT_PASSWORD", "certpass");
+        env.put("SM_HOST", "https://clientauth.one.digicert.com");
+        env.put("JDEPLOY_WIN_KEY_ALIAS", "thumb123");
+
+        WindowsSigningConfig config = createFactory(env).createFromEnvironment();
+
+        assertNotNull(config);
+        assertTrue(config.isDigiCertOne());
+        assertEquals("test-api-key", config.getSmApiKey());
+        assertEquals("/path/to/client.p12", config.getSmClientCertFile());
+        assertEquals("certpass", config.getSmClientCertPassword());
+        assertEquals("https://clientauth.one.digicert.com", config.getSmHost());
+        assertEquals("thumb123", config.getAlias());
+    }
+
+    @Test
+    void createFromEnvironment_returnsNull_digiCertOneWithoutApiKey() {
+        Map<String, String> env = new HashMap<>();
+        env.put("JDEPLOY_WIN_KEYSTORE_TYPE", "DIGICERTONE");
+
+        assertNull(createFactory(env).createFromEnvironment());
+    }
 }

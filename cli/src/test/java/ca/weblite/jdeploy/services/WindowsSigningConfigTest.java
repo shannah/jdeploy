@@ -48,6 +48,56 @@ class WindowsSigningConfigTest {
     }
 
     @Test
+    void isDigiCertOne_returnsTrue_whenTypeIsDIGICERTONE() {
+        WindowsSigningConfig config = new WindowsSigningConfig();
+        config.setKeystoreType("DIGICERTONE");
+        assertTrue(config.isDigiCertOne());
+    }
+
+    @Test
+    void isDigiCertOne_returnsFalse_whenTypeIsPKCS12() {
+        WindowsSigningConfig config = new WindowsSigningConfig();
+        assertFalse(config.isDigiCertOne());
+    }
+
+    @Test
+    void validate_digiCertOneWithAllFields_succeeds() {
+        WindowsSigningConfig config = new WindowsSigningConfig();
+        config.setKeystoreType("DIGICERTONE");
+        config.setSmApiKey("api-key");
+        config.setSmClientCertFile("/path/to/cert.p12");
+        config.setSmClientCertPassword("certpass");
+        assertDoesNotThrow(config::validate);
+    }
+
+    @Test
+    void validate_digiCertOneWithoutApiKey_throws() {
+        WindowsSigningConfig config = new WindowsSigningConfig();
+        config.setKeystoreType("DIGICERTONE");
+        config.setSmClientCertFile("/path/to/cert.p12");
+        config.setSmClientCertPassword("certpass");
+        assertThrows(IllegalStateException.class, config::validate);
+    }
+
+    @Test
+    void validate_digiCertOneWithoutClientCert_throws() {
+        WindowsSigningConfig config = new WindowsSigningConfig();
+        config.setKeystoreType("DIGICERTONE");
+        config.setSmApiKey("api-key");
+        config.setSmClientCertPassword("certpass");
+        assertThrows(IllegalStateException.class, config::validate);
+    }
+
+    @Test
+    void validate_digiCertOneWithoutClientCertPassword_throws() {
+        WindowsSigningConfig config = new WindowsSigningConfig();
+        config.setKeystoreType("DIGICERTONE");
+        config.setSmApiKey("api-key");
+        config.setSmClientCertFile("/path/to/cert.p12");
+        assertThrows(IllegalStateException.class, config::validate);
+    }
+
+    @Test
     void defaults_areCorrect() {
         WindowsSigningConfig config = new WindowsSigningConfig();
         assertEquals("PKCS12", config.getKeystoreType());
