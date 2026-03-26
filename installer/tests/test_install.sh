@@ -67,9 +67,8 @@ function install_windows_x64() {
     cp "$CWD/../mock_launcher/mock_launcher_win_x64.exe" "$CWD/mock_launcher_win_x64.exe"
     "$CWD/mock_launcher_win_x64.exe" install
 
-    echo "The uninstaller was written to the ~/.jdeploy/uninstallers directory."
-    echo "You should test out the installer by going to Add/Remove programs and attempting to uninstall the application."
-    echo "After running the uninstaller, you can check the results in the ~/.jdeploy/log/jdeploy-installer.log file."
+    echo "Installation complete."
+    echo "You can test uninstall via Add/Remove Programs or by running the app launcher with --jdeploy:uninstall."
 }
 
 function install_windows_arm64() {
@@ -77,9 +76,8 @@ function install_windows_arm64() {
     cp "$CWD/../mock_launcher/mock_launcher_win_arm64.exe" "$CWD/mock_launcher_win_arm64.exe"
     "$CWD/mock_launcher_win_arm64.exe" install
 
-    echo "The uninstaller was written to the ~/.jdeploy/uninstallers directory."
-    echo "You should test out the installer by going to Add/Remove programs and attempting to uninstall the application."
-    echo "After running the uninstaller, you can check the results in the ~/.jdeploy/log/jdeploy-installer.log file."
+    echo "Installation complete."
+    echo "You can test uninstall via Add/Remove Programs or by running the app launcher with --jdeploy:uninstall."
 }
 
 function install_non_windows() {

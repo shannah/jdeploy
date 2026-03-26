@@ -120,39 +120,8 @@ function smoke_test() {
 
 function smoke_test_windows() {
   echo "Running Smoke Test..."
-  local UNINSTALLERS_PATH="$HOME/.jdeploy/uninstallers"
-  local PROJECT_UNINSTALLER_PATH="$UNINSTALLERS_PATH/$QUALIFIED_PROJECT_NAME"
-  if [ ! -d "$PROJECT_UNINSTALLER_PATH" ]; then
-    echo "Smoke Test Failure: Uninstaller for $QUALIFIED_PROJECT_NAME not found at $PROJECT_UNINSTALLER_PATH"
-    exit 1
-  else
-    echo "Found uninstaller for $QUALIFIED_PROJECT_NAME at $PROJECT_UNINSTALLER_PATH"
-  fi
 
-  local UNINSTALLER_FILES="$PROJECT_UNINSTALLER_PATH/.jdeploy-files"
-  if [ ! -d "$UNINSTALLER_FILES" ]; then
-    echo "Smoke Test Failure: Uninstaller files not found at $UNINSTALLER_FILES"
-    exit 1
-  else
-    echo "Found uninstaller files at $UNINSTALLER_FILES"
-  fi
-
-  local expectedFiles=(
-    "$PROJECT_UNINSTALLER_PATH/.jdeploy-files/app.xml"
-    "$PROJECT_UNINSTALLER_PATH/.jdeploy-files/icon.png"
-    "$PROJECT_UNINSTALLER_PATH/.jdeploy-files/installsplash.png"
-    "$PROJECT_UNINSTALLER_PATH/$PROJECT_NAME-uninstall.exe"
-  )
-
-  for file in "${expectedFiles[@]}"; do
-    if [ ! -f "$file" ]; then
-      echo "Smoke Test Failure: Expected File $file not found"
-      exit 1
-    else
-      echo "Found $file created successfully"
-    fi
-  done
-
+  # Verify app files were installed (the app launcher is now also the uninstaller)
   local expectedAppFiles=(
     "$HOME/.jdeploy/apps/$QUALIFIED_PROJECT_NAME/icon.ico"
     "$HOME/.jdeploy/apps/$QUALIFIED_PROJECT_NAME/icon.png"
@@ -177,6 +146,15 @@ function smoke_test_windows() {
       echo "Found $file created successfully"
     fi
   done
+
+  # Verify uninstall manifest was created
+  local MANIFEST_PATH="$HOME/.jdeploy/manifests/x64/$QUALIFIED_PROJECT_NAME/uninstall-manifest.xml"
+  if [ ! -f "$MANIFEST_PATH" ]; then
+    echo "Smoke Test Failure: Uninstall manifest not found at $MANIFEST_PATH"
+    exit 1
+  else
+    echo "Found uninstall manifest at $MANIFEST_PATH"
+  fi
 
   echo "Smoke Test Passed"
 }
@@ -209,21 +187,20 @@ function uninstall_project() {
 
 function uninstall_project_windows() {
   echo "Uninstalling $QUALIFIED_PROJECT_NAME"
-  local UNINSTALLERS_PATH="$HOME/.jdeploy/uninstallers"
-  local PROJECT_UNINSTALLER_PATH="$UNINSTALLERS_PATH/$QUALIFIED_PROJECT_NAME"
-  if [ ! -d "$PROJECT_UNINSTALLER_PATH" ]; then
-    echo "Uninstaller for $QUALIFIED_PROJECT_NAME not found at $PROJECT_UNINSTALLER_PATH"
+  local APP_PATH="$HOME/.jdeploy/apps/$QUALIFIED_PROJECT_NAME"
+  local APP_EXE="$APP_PATH/$PROJECT_TITLE.exe"
+
+  if [ "$USE_PRIVATE_JRE" == "true" ]; then
+    APP_EXE="$APP_PATH/bin/$PROJECT_TITLE.exe"
+  fi
+
+  if [ ! -f "$APP_EXE" ]; then
+    echo "App launcher for $QUALIFIED_PROJECT_NAME not found at $APP_EXE"
     exit 1
   fi
 
-  local UNINSTALLER_FILES="$PROJECT_UNINSTALLER_PATH/.jdeploy-files"
-  if [ ! -d "$UNINSTALLER_FILES" ]; then
-    echo "Uninstaller files not found at $UNINSTALLER_FILES"
-    exit 1
-  fi
-
-  echo "Uninstalling $QUALIFIED_PROJECT_NAME"
-  "$PROJECT_UNINSTALLER_PATH/$PROJECT_NAME-uninstall.exe" uninstall
+  echo "Uninstalling $QUALIFIED_PROJECT_NAME via app launcher"
+  "$APP_EXE" --jdeploy:uninstall --jdeploy:interactive=false
 }
 
 function uninstall_project_mac() {
