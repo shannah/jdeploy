@@ -8,12 +8,15 @@ import ca.weblite.jdeploy.installer.cli.WindowsCliCommandInstaller;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
 import ca.weblite.tools.io.MD5;
+import com.izforge.izpack.util.os.ShellLink;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 public class UninstallWindows {
 
@@ -71,7 +74,24 @@ public class UninstallWindows {
         return PackagePathResolver.resolvePackagePath(packageName, version, source);
     }
 
-    private File getStartMenuPath() {
+    /**
+     * Resolves the actual Windows Shell folder path for a given link type using the
+     * Windows Shell API via ShellLink. Returns null if resolution fails.
+     */
+    private String resolveShellFolderPath(int linkType) {
+        try {
+            ShellLink link = new ShellLink(linkType, "probe");
+            String path = link.getLinkPath(ShellLink.CURRENT_USER);
+            if (path != null && !path.isEmpty()) {
+                return path;
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Could not resolve shell folder path for type " + linkType + ": " + e.getMessage());
+        }
+        return null;
+    }
+
+    private File getHardcodedStartMenuPath() {
         return new File(System.getProperty("user.home") + File.separator +
                 "AppData" + File.separator +
                 "Roaming" + File.separator +
@@ -80,23 +100,48 @@ public class UninstallWindows {
                 "Start Menu");
     }
 
-    private File getStartMenuLink(String suffix) {
-        return new File(getStartMenuPath(), new File(appFileName + suffix).getName() + ".lnk");
+    private File getHardcodedDesktopPath() {
+        return new File(System.getProperty("user.home") + File.separator + "Desktop");
     }
 
-    private File getProgramsMenuPath() {
-        return new File(getStartMenuPath(), "Programs");
+    /**
+     * Returns all possible Desktop directory paths where a shortcut might exist.
+     * Includes both the Windows Shell API-resolved path and the hardcoded fallback.
+     */
+    private Set<File> getDesktopPaths() {
+        Set<File> paths = new LinkedHashSet<>();
+        String resolved = resolveShellFolderPath(ShellLink.DESKTOP);
+        if (resolved != null) {
+            paths.add(new File(resolved));
+        }
+        paths.add(getHardcodedDesktopPath());
+        return paths;
     }
 
-    private File getProgramsMenuLink(String suffix) {
-        return new File(getProgramsMenuPath(), new File(appFileName + suffix).getName() + ".lnk");
+    /**
+     * Returns all possible Start Menu directory paths where a shortcut might exist.
+     */
+    private Set<File> getStartMenuPaths() {
+        Set<File> paths = new LinkedHashSet<>();
+        String resolved = resolveShellFolderPath(ShellLink.START_MENU);
+        if (resolved != null) {
+            paths.add(new File(resolved));
+        }
+        paths.add(getHardcodedStartMenuPath());
+        return paths;
     }
 
-    private File getDesktopLink(String suffix) {
-        return new File(
-                System.getProperty("user.home") + File.separator +
-                        "Desktop" + File.separator + new File(appFileName + suffix).getName() + ".lnk"
-        );
+    /**
+     * Returns all possible Programs Menu directory paths where a shortcut might exist.
+     */
+    private Set<File> getProgramsMenuPaths() {
+        Set<File> paths = new LinkedHashSet<>();
+        String resolved = resolveShellFolderPath(ShellLink.PROGRAM_MENU);
+        if (resolved != null) {
+            paths.add(new File(resolved));
+        }
+        paths.add(new File(getHardcodedStartMenuPath(), "Programs"));
+        return paths;
     }
 
     private File getAppDirPath() {
@@ -271,12 +316,16 @@ public class UninstallWindows {
 
     private void removeDesktopAlias() {
         for (String suffix : new String[]{"", InstallWindows.RUN_AS_ADMIN_SUFFIX}) {
-            if (getDesktopLink(suffix).exists()) {
-                System.out.println("Deleting desktop link: "+getDesktopLink(suffix).getAbsolutePath());
-                getDesktopLink(suffix).delete();
-                if (installationLogger != null) {
-                    installationLogger.logShortcut(InstallationLogger.FileOperation.DELETED,
-                        getDesktopLink(suffix).getAbsolutePath(), null);
+            String linkName = new File(appFileName + suffix).getName() + ".lnk";
+            for (File desktopDir : getDesktopPaths()) {
+                File link = new File(desktopDir, linkName);
+                if (link.exists()) {
+                    System.out.println("Deleting desktop link: " + link.getAbsolutePath());
+                    link.delete();
+                    if (installationLogger != null) {
+                        installationLogger.logShortcut(InstallationLogger.FileOperation.DELETED,
+                            link.getAbsolutePath(), null);
+                    }
                 }
             }
         }
@@ -284,12 +333,16 @@ public class UninstallWindows {
 
     private void removeStartMenuLink() {
         for (String suffix : new String[]{"", InstallWindows.RUN_AS_ADMIN_SUFFIX}) {
-            if (getStartMenuLink(suffix).exists()) {
-                System.out.println("Deleting start menu link: " + getStartMenuLink(suffix).getAbsolutePath());
-                getStartMenuLink(suffix).delete();
-                if (installationLogger != null) {
-                    installationLogger.logShortcut(InstallationLogger.FileOperation.DELETED,
-                        getStartMenuLink(suffix).getAbsolutePath(), null);
+            String linkName = new File(appFileName + suffix).getName() + ".lnk";
+            for (File startMenuDir : getStartMenuPaths()) {
+                File link = new File(startMenuDir, linkName);
+                if (link.exists()) {
+                    System.out.println("Deleting start menu link: " + link.getAbsolutePath());
+                    link.delete();
+                    if (installationLogger != null) {
+                        installationLogger.logShortcut(InstallationLogger.FileOperation.DELETED,
+                            link.getAbsolutePath(), null);
+                    }
                 }
             }
         }
@@ -297,12 +350,16 @@ public class UninstallWindows {
 
     private void removeProgramsMenuLink() {
         for (String suffix : new String[]{"", InstallWindows.RUN_AS_ADMIN_SUFFIX}) {
-            if (getProgramsMenuLink(suffix).exists()) {
-                System.out.println("Deleting programs menu link: " + getProgramsMenuLink(suffix).getAbsolutePath());
-                getProgramsMenuLink(suffix).delete();
-                if (installationLogger != null) {
-                    installationLogger.logShortcut(InstallationLogger.FileOperation.DELETED,
-                        getProgramsMenuLink(suffix).getAbsolutePath(), null);
+            String linkName = new File(appFileName + suffix).getName() + ".lnk";
+            for (File programsDir : getProgramsMenuPaths()) {
+                File link = new File(programsDir, linkName);
+                if (link.exists()) {
+                    System.out.println("Deleting programs menu link: " + link.getAbsolutePath());
+                    link.delete();
+                    if (installationLogger != null) {
+                        installationLogger.logShortcut(InstallationLogger.FileOperation.DELETED,
+                            link.getAbsolutePath(), null);
+                    }
                 }
             }
         }
