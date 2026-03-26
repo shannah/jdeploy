@@ -371,9 +371,9 @@ public class ProjectGenerator {
 
     private String getReleasesUrl(ProjectGeneratorRequest request) {
         if (request.isPrivateRepository()) {
-            return GITHUB_URL + getReleasesRepository(request) + "/releases";
+            return GITHUB_URL + getReleasesRepository(request);
         } else {
-            return GITHUB_URL + request.getGithubRepository() + "/releases";
+            return GITHUB_URL + request.getGithubRepository();
         }
     }
 }
