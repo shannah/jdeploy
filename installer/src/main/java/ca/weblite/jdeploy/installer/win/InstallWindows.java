@@ -465,19 +465,26 @@ public class InstallWindows {
             link.setRunAsAdministrator(true);
         }
         link.save();
-        
-        // Compute and return the shortcut file path based on type
+
+        // Return the actual shortcut file path using ShellLink's resolved path,
+        // which correctly handles redirected folders (e.g., OneDrive Desktop)
+        String resolvedPath = link.getLinkPath(ShellLink.CURRENT_USER);
+        if (resolvedPath != null && !resolvedPath.isEmpty()) {
+            return new File(resolvedPath, appTitle + ".lnk");
+        }
+
+        // Fallback to hardcoded paths if ShellLink path resolution fails
         String userHome = System.getProperty("user.home");
         String appData = System.getenv("APPDATA");
-        
+
         switch (type) {
             case ShellLink.DESKTOP:
                 return new File(userHome, "Desktop" + File.separator + appTitle + ".lnk");
             case ShellLink.PROGRAM_MENU:
-                return new File(appData, "Microsoft" + File.separator + "Windows" + File.separator + 
+                return new File(appData, "Microsoft" + File.separator + "Windows" + File.separator +
                                "Start Menu" + File.separator + "Programs" + File.separator + appTitle + ".lnk");
             case ShellLink.START_MENU:
-                return new File(appData, "Microsoft" + File.separator + "Windows" + File.separator + 
+                return new File(appData, "Microsoft" + File.separator + "Windows" + File.separator +
                                "Start Menu" + File.separator + appTitle + ".lnk");
             default:
                 return null;
