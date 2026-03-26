@@ -112,6 +112,7 @@ public class MacBundler {
         signingRequest.setCodesign(app.isMacCodeSigningEnabled());
         signingRequest.setNotarize(app.isMacNotarizationEnabled());
         signingRequest.setBundleId(app.getMacBundleId());
+        // Remove macOS extended attributes (quarantine flags, etc.) — only applicable on macOS
         if (Platform.getSystemPlatform().isMac()) {
             try {
                 System.out.println("Removing extended attributes from "+appDir);
@@ -127,82 +128,103 @@ public class MacBundler {
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
+        }
 
-            if (app.getBundleJre() != null && app.getBundleJre().exists()) {
-                MacOSFileHandler.copyOrExtract(
-                        app.getBundleJre().getAbsolutePath(),
-                        Paths.get(contentsDir.getPath(), "jre").toString()
+        // Bundle JRE if configured (cross-platform)
+        if (app.getBundleJre() != null && app.getBundleJre().exists()) {
+            MacOSFileHandler.copyOrExtract(
+                    app.getBundleJre().getAbsolutePath(),
+                    Paths.get(contentsDir.getPath(), "jre").toString()
+            );
+        }
+
+        // Copy JCEF frameworks if provided (cross-platform)
+        if (app.getJcefFrameworksPath() != null && !app.getJcefFrameworksPath().isEmpty()) {
+            File jcefSourceDir = new File(app.getJcefFrameworksPath());
+            if (jcefSourceDir.exists() && jcefSourceDir.isDirectory()) {
+                File frameworksDir = new File(contentsDir, "Frameworks");
+
+                // Clean existing JCEF files if they exist, or create directory if it doesn't exist
+                if (frameworksDir.exists()) {
+                    cleanExistingJcefFrameworks(frameworksDir);
+                } else {
+                    if (!frameworksDir.mkdirs()) {
+                        throw new IOException("Failed to create Frameworks directory at " + frameworksDir.getAbsolutePath());
+                    }
+                }
+
+                // Copy JCEF frameworks
+                System.out.println("Copying JCEF frameworks from " + jcefSourceDir.getAbsolutePath());
+                copyJcefFrameworks(jcefSourceDir, frameworksDir);
+            }
+        }
+
+        // Code signing
+        // Use native codesign on macOS unless JDEPLOY_FORCE_RCODESIGN is set
+        boolean useNativeCodesign = Platform.getSystemPlatform().isMac()
+                && app.isMacCodeSigningEnabled()
+                && !RcodesignConfig.isForceRcodesign();
+        if (useNativeCodesign) {
+            System.out.println("Signing "+appDir.getAbsolutePath());
+
+            File entitlementsFile = new File("jdeploy.mac.bundle.entitlements");
+            if (!entitlementsFile.exists()) {
+                entitlementsFile = File.createTempFile("jdeploy.mac.bundle", ".entitlements");
+                entitlementsFile.deleteOnExit();
+                FileUtils.copyInputStreamToFile(
+                        MacBundler.class.getResourceAsStream("mac.bundle.entitlements"),
+                        entitlementsFile
                 );
             }
-
-            // Copy JCEF frameworks if provided (for JBR with JCEF variant)
-            if (app.getJcefFrameworksPath() != null && !app.getJcefFrameworksPath().isEmpty()) {
-                File jcefSourceDir = new File(app.getJcefFrameworksPath());
-                if (jcefSourceDir.exists() && jcefSourceDir.isDirectory()) {
-                    File frameworksDir = new File(contentsDir, "Frameworks");
-
-                    // Clean existing JCEF files if they exist, or create directory if it doesn't exist
-                    if (frameworksDir.exists()) {
-                        cleanExistingJcefFrameworks(frameworksDir);
-                    } else {
-                        if (!frameworksDir.mkdirs()) {
-                            throw new IOException("Failed to create Frameworks directory at " + frameworksDir.getAbsolutePath());
-                        }
-                    }
-
-                    // Copy JCEF frameworks
-                    System.out.println("Copying JCEF frameworks from " + jcefSourceDir.getAbsolutePath());
-                    copyJcefFrameworks(jcefSourceDir, frameworksDir);
+            {
+                ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign",
+                        "--verbose=4",
+                        "-f",
+                        "--options", "runtime",
+                        "-s", app.getMacCertificateName(),
+                        "--entitlements", entitlementsFile.getAbsolutePath(),
+                        new File(appDir, "Contents/app.xml").getAbsolutePath());
+                pb.inheritIO();
+                Process p = pb.start();
+                int exitCode = p.waitFor();
+                if (exitCode != 0) {
+                    throw new RuntimeException("Codesign failed with exit code " + exitCode);
                 }
             }
-
-            if (app.isMacCodeSigningEnabled()) {
-                System.out.println("Signing "+appDir.getAbsolutePath());
-
-                File entitlementsFile = new File("jdeploy.mac.bundle.entitlements");
-                if (!entitlementsFile.exists()) {
-                    entitlementsFile = File.createTempFile("jdeploy.mac.bundle", ".entitlements");
-                    entitlementsFile.deleteOnExit();
-                    FileUtils.copyInputStreamToFile(
-                            MacBundler.class.getResourceAsStream("mac.bundle.entitlements"),
-                            entitlementsFile
-                    );
-                }
-                {
-                    ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign",
-
-                            "--verbose=4",
-                            "-f",
-                            "--options", "runtime",
-                            "-s", app.getMacCertificateName(),
-                            "--entitlements", entitlementsFile.getAbsolutePath(),
-                            new File(appDir, "Contents/app.xml").getAbsolutePath());
-                    pb.inheritIO();
-                    Process p = pb.start();
-                    int exitCode = p.waitFor();
-                    if (exitCode != 0) {
-                        throw new RuntimeException("Codesign failed with exit code " + exitCode);
-                    }
-                }
-                {
-                    ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign",
-                            "--deep",
-                            "--verbose=4",
-                            "-f",
-                            "--options", "runtime",
-                            "-s", app.getMacCertificateName(),
-                            "--entitlements", entitlementsFile.getAbsolutePath(),
-                            appDir.getAbsolutePath());
-
-
-                    pb.inheritIO();
-                    Process p = pb.start();
-                    int exitCode = p.waitFor();
-                    if (exitCode != 0) {
-                        throw new RuntimeException("Codesign failed with exit code " + exitCode);
-                    }
+            {
+                ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign",
+                        "--deep",
+                        "--verbose=4",
+                        "-f",
+                        "--options", "runtime",
+                        "-s", app.getMacCertificateName(),
+                        "--entitlements", entitlementsFile.getAbsolutePath(),
+                        appDir.getAbsolutePath());
+                pb.inheritIO();
+                Process p = pb.start();
+                int exitCode = p.waitFor();
+                if (exitCode != 0) {
+                    throw new RuntimeException("Codesign failed with exit code " + exitCode);
                 }
             }
+        } else if (app.isMacCodeSigningEnabled() && RcodesignConfig.canSign()) {
+            // Use rcodesign for code signing (non-macOS platforms or forced via env var)
+            String reason = RcodesignConfig.isForceRcodesign() ? "JDEPLOY_FORCE_RCODESIGN is set" : "not running on macOS";
+            System.out.println("Using rcodesign for signing (" + reason + "): " + appDir.getAbsolutePath());
+
+            File entitlementsFile = new File("jdeploy.mac.bundle.entitlements");
+            if (!entitlementsFile.exists()) {
+                entitlementsFile = File.createTempFile("jdeploy.mac.bundle", ".entitlements");
+                entitlementsFile.deleteOnExit();
+                FileUtils.copyInputStreamToFile(
+                        MacBundler.class.getResourceAsStream("mac.bundle.entitlements"),
+                        entitlementsFile
+                );
+            }
+            RcodesignSigner signer = new RcodesignSigner();
+            // Sign the entire .app bundle (rcodesign doesn't support signing individual non-Mach-O files)
+            // The app.xml will be included as a sealed resource in the bundle signature
+            signer.sign(appDir.getAbsolutePath(), entitlementsFile);
         }
 
         File releaseDestDir = new File(releaseDir + "/" + OSNAME_WITH_ARCH);
@@ -212,7 +234,13 @@ public class MacBundler {
         releaseDestDir.mkdirs();
         Util.compressAsTarGz(releaseFile, appDir);
 
-        if (Platform.getSystemPlatform().isMac() && app.isMacCodeSigningEnabled() && app.isMacNotarizationEnabled()) {
+        boolean notarized = false;
+        // Use native notarization on macOS unless JDEPLOY_FORCE_RCODESIGN is set
+        boolean useNativeNotarization = Platform.getSystemPlatform().isMac()
+                && app.isMacCodeSigningEnabled()
+                && app.isMacNotarizationEnabled()
+                && !RcodesignConfig.isForceRcodesign();
+        if (useNativeNotarization) {
             System.out.println("Attempting to notarize app.");
 
             // Notarization can only be enabled if the app is signed.
@@ -225,10 +253,7 @@ public class MacBundler {
                             app.getMacNotarizationPassword(),
                             app.getMacDeveloperTeamID()
                     );
-                    if (releaseFile.exists()) {
-                        releaseFile.delete();
-                    }
-                    Util.compressAsTarGz(releaseFile, appDir);
+                    notarized = true;
                 } else {
                     ProcessBuilder pb = new ProcessBuilder("/usr/bin/xcrun",
                             "altool",
@@ -248,9 +273,27 @@ public class MacBundler {
                     if (exitCode != 0) {
                         throw new RuntimeException("Notarization failed with exit code "+exitCode);
                     }
+                    notarized = true;
                 }
 
             }
+        } else if (app.isMacCodeSigningEnabled()
+                && app.isMacNotarizationEnabled()
+                && RcodesignConfig.canNotarize()
+                && (!Platform.getSystemPlatform().isMac() || RcodesignConfig.isForceRcodesign())) {
+            // Use rcodesign for notarization (non-macOS platforms or forced via env var)
+            String reason = RcodesignConfig.isForceRcodesign() ? "JDEPLOY_FORCE_RCODESIGN is set" : "not running on macOS";
+            System.out.println("Using rcodesign for notarization (" + reason + ").");
+            RcodesignNotaryTool rcodesignNotaryTool = new RcodesignNotaryTool();
+            rcodesignNotaryTool.notarizeApp(appDir.getAbsolutePath());
+            notarized = true;
+        }
+
+        if (notarized) {
+            if (releaseFile.exists()) {
+                releaseFile.delete();
+            }
+            Util.compressAsTarGz(releaseFile, appDir);
         }
         out.addReleaseFile(releaseFile);
         
@@ -901,15 +944,15 @@ public class MacBundler {
 
     /**
      * Copies JCEF frameworks from source directory to destination directory.
-     * Uses ditto on macOS to preserve extended attributes and directory structure.
+     * Uses ditto on macOS to preserve extended attributes; falls back to cp -a on other platforms.
      */
     private static void copyJcefFrameworks(File sourceDir, File destDir) throws IOException {
-        if (!Platform.getSystemPlatform().isMac()) {
-            throw new UnsupportedOperationException("JCEF framework copying is only supported on macOS");
+        ProcessBuilder pb;
+        if (Platform.getSystemPlatform().isMac()) {
+            pb = new ProcessBuilder("ditto", sourceDir.getAbsolutePath(), destDir.getAbsolutePath());
+        } else {
+            pb = new ProcessBuilder("cp", "-a", sourceDir.getAbsolutePath() + "/.", destDir.getAbsolutePath());
         }
-
-        // Use ditto to copy the entire Frameworks directory contents
-        ProcessBuilder pb = new ProcessBuilder("ditto", sourceDir.getAbsolutePath(), destDir.getAbsolutePath());
         pb.inheritIO();
         try {
             Process p = pb.start();
