@@ -216,22 +216,25 @@ function uninstall_project_linux() {
 
 function uninstall_smoke_test_windows() {
   echo "Running Uninstall Smoke Test..."
-  local UNINSTALLERS_PATH="$HOME/.jdeploy/uninstallers"
-  local PROJECT_UNINSTALLER_PATH="$UNINSTALLERS_PATH/$QUALIFIED_PROJECT_NAME"
   local APP_PATH="$HOME/.jdeploy/apps/$QUALIFIED_PROJECT_NAME"
 
-  # The uninstaller won't have been removed in this test because it runs delayed via the cmd command
-  # and for some reason this doesn't work in the tests.  You need to manually uninstall via Add/Remove Programs
-  # to test that the uninstaller is removed
+  # The Go launcher schedules deferred file cleanup via PowerShell with a 2-second delay.
+  # Wait up to 10 seconds for the cleanup to complete.
+  local MAX_WAIT=10
+  local WAITED=0
+  while [ -d "$APP_PATH" ] && [ $WAITED -lt $MAX_WAIT ]; do
+    echo "Waiting for deferred cleanup of $APP_PATH... (${WAITED}s/${MAX_WAIT}s)"
+    sleep 1
+    WAITED=$((WAITED + 1))
+  done
 
   # Verify that the app directory was removed
   if [ -d "$APP_PATH" ]; then
-    echo "Uninstall Smoke Test Failure: App directory $APP_PATH still exists"
+    echo "Uninstall Smoke Test Failure: App directory $APP_PATH still exists after ${MAX_WAIT}s"
     exit 1
   else
     echo "App directory $APP_PATH was removed"
   fi
-
 
   echo "Uninstall Smoke Test Passed"
 
