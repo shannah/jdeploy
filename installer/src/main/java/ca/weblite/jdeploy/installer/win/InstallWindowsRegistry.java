@@ -1042,9 +1042,15 @@ public class InstallWindowsRegistry {
         registryOps.setLongValue(getUninstallKey(), 1);
         registryOps.setStringValue(getUninstallKey(), "Publisher", appInfo.getVendor());
         logRegistryValueSet(getUninstallKey(), "Publisher", appInfo.getVendor());
-        String uninstallString = "\"" + getUninstallerPath().getAbsolutePath() + "\" uninstall";
+        // Use the app launcher with --jdeploy:uninstall flag for uninstall via Add/Remove Programs.
+        // The Go-based launcher handles uninstall natively using the uninstall manifest,
+        // without requiring a JVM. Use --jdeploy:interactive=false since ARP doesn't provide a console.
+        String uninstallString = "\"" + exe.getAbsolutePath() + "\" --jdeploy:uninstall --jdeploy:interactive=false";
         registryOps.setStringValue(getUninstallKey(), "UninstallString", uninstallString);
         logRegistryValueSet(getUninstallKey(), "UninstallString", uninstallString);
+        // Also register QuietUninstallString for silent uninstall support
+        registryOps.setStringValue(getUninstallKey(), "QuietUninstallString", uninstallString);
+        logRegistryValueSet(getUninstallKey(), "QuietUninstallString", uninstallString);
 
         if (!skipWinRegistryOperations) {
             registry.notifyFileAssociationsChanged();
