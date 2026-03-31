@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.npm;
 
+import ca.weblite.jdeploy.installer.jpm.JpmPackageInfoLoader;
 import ca.weblite.jdeploy.installer.util.DebugLogger;
 import ca.weblite.tools.io.IOUtil;
 import ca.weblite.tools.io.URLUtil;
@@ -30,8 +31,34 @@ public class NPMRegistry {
      * @return NPMPackage containing version information
      * @throws IOException if loading fails
      */
+    private static final String JPM_PREFIX = "jpm:";
+
     public NPMPackage loadPackage(String packageName, String source, String successfulReleaseTag) throws IOException {
-        if (source.startsWith(GITHUB_URL)) {
+        if (source.startsWith(JPM_PREFIX)) {
+            // Extract owner and repo from jpm:owner/repo
+            String repoPath = source.substring(JPM_PREFIX.length());
+            if (repoPath.startsWith("/")) {
+                repoPath = repoPath.substring(1);
+            }
+            String[] parts = repoPath.split("/", 2);
+
+            if (parts.length < 2 || parts[0].isEmpty() || parts[1].isEmpty()) {
+                throw new IOException("Invalid JPM source URL: " + source + ". Expected format: jpm:owner/repo");
+            }
+
+            String owner = parts[0];
+            String repo = parts[1];
+
+            // Read optional config from system properties or environment
+            String jpmBaseUrl = System.getProperty("jpm.base.url", System.getenv("JPM_BASE_URL"));
+            String jpmAuthToken = System.getProperty("jpm.auth.token", System.getenv("JPM_AUTH_TOKEN"));
+
+            JpmPackageInfoLoader loader = new JpmPackageInfoLoader(
+                    owner, repo, successfulReleaseTag, jpmBaseUrl, jpmAuthToken
+            );
+            JSONObject packageInfo = loader.loadPackageInfo();
+            return new NPMPackage(packageInfo);
+        } else if (source.startsWith(GITHUB_URL)) {
             // Extract owner and repo from GitHub URL
             String repoPath = source.substring(GITHUB_URL.length());
             // Remove trailing slash and .git

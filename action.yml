@@ -7,8 +7,8 @@ branding:
 
 inputs:
   deploy_target:
-    description: Target deployment destination (npm or github).
-    # Options are github or npm
+    description: Target deployment destination (npm, github, or jpm).
+    # Options are github, npm, or jpm
     default: github
   github_token:
     description: Github token
@@ -27,6 +27,13 @@ inputs:
     description: Optional target repository where to publish releases.
     required: false
     default: ${{ github.repository }}
+  jpm_api_key:
+    description: JPM API key for publishing to jDeploy Package Manager.
+    required: false
+  jpm_base_url:
+    description: JPM base URL
+    required: false
+    default: 'https://packages.jdeploy.com'
   require_existing_jdeploy_tag:
     description: |
       Fail if jdeploy tag doesn't exist (strict mode for established projects).
@@ -92,7 +99,7 @@ runs:
         echo "Branch/tag name '$REF_NAME' is valid."
         echo "JDEPLOY_SKIP_EXECUTION=false" >> $GITHUB_ENV
     - name: Check Deploy Target
-      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target != 'github' && inputs.deploy_target != 'npm' }}
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target != 'github' && inputs.deploy_target != 'npm' && inputs.deploy_target != 'jpm' }}
       shell: bash
       run: |
         echo "Unsupported jdeploy deploy_target: ${{ inputs.deploy_target }}"
@@ -108,6 +115,12 @@ runs:
       shell: bash
       run: |
         echo "jdeploy action missing npm_token parameter"
+        exit 1
+    - name: Check JPM Deployment Inputs
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'jpm' && inputs.jpm_api_key == '' }}
+      shell: bash
+      run: |
+        echo "jdeploy action missing jpm_api_key parameter"
         exit 1
     - name: Set up Git Config
       if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' }}
@@ -413,6 +426,46 @@ runs:
         fi
         npm pkg set jdeploy.commitHash="$GITHUB_SHA"
         $jdeploy_exec publish
+
+    - name: Setup JPM Environment
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'jpm' }}
+      shell: bash
+      run: |
+        echo "JPM_API_KEY=${{ inputs.jpm_api_key }}" >> $GITHUB_ENV
+        echo "JPM_BASE_URL=${{ inputs.jpm_base_url }}" >> $GITHUB_ENV
+
+    - name: Prepare JPM Release for Branch
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'jpm' && github.ref_type == 'branch' }}
+      shell: bash
+      run: |
+        npm pkg set version="0.0.0-${{ github.ref_name }}"
+        if [[ "${{ startsWith(inputs.jdeploy_version, 'git://') }}" == "true" ]]; then
+          npm pkg set jdeploy.jdeployVersion='latest'
+        else
+          npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
+        fi
+        npm pkg set jdeploy.commitHash="$GITHUB_SHA"
+        $jdeploy_exec jpm-publish
+      env:
+        JPM_API_KEY: ${{ inputs.jpm_api_key }}
+        JPM_BASE_URL: ${{ inputs.jpm_base_url }}
+
+    - name: Prepare JPM Release for Tag
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'jpm' && github.ref_type == 'tag' }}
+      shell: bash
+      run: |
+        npm pkg set version="$TAG_VERSION"
+        if [[ "${{ startsWith(inputs.jdeploy_version, 'git://') }}" == "true" ]]; then
+          npm pkg set jdeploy.jdeployVersion='latest'
+        else
+          npm pkg set jdeploy.jdeployVersion='${{ inputs.jdeploy_version }}'
+        fi
+        npm pkg set jdeploy.commitHash="$GITHUB_SHA"
+        npm pkg set jdeploy.gitTag="${{ github.ref_name }}"
+        $jdeploy_exec jpm-publish
+      env:
+        JPM_API_KEY: ${{ inputs.jpm_api_key }}
+        JPM_BASE_URL: ${{ inputs.jpm_base_url }}
 
     - name: Clean Up Windows Signing Certificate
       if: ${{ always() && env.JDEPLOY_WIN_KEYSTORE_PATH != '' }}

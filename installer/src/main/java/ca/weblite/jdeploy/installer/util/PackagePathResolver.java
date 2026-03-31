@@ -40,6 +40,8 @@ public class PackagePathResolver {
     public static File resolvePackagePath(String packageName, String version, String source) {
         if (source == null || source.isEmpty()) {
             return resolveNpmPackagePath(packageName, version);
+        } else if (source.startsWith("jpm:")) {
+            return resolveJpmPackagePath(packageName, version, source);
         } else {
             return resolveGhPackagePath(packageName, version, source);
         }
@@ -57,6 +59,8 @@ public class PackagePathResolver {
     public static File getInstallPackagePath(String packageName, String version, String source) {
         if (source == null || source.isEmpty()) {
             return getNpmPackagePathForInstall(packageName, version);
+        } else if (source.startsWith("jpm:")) {
+            return getJpmPackagePathForInstall(packageName, version, source);
         } else {
             return getGhPackagePathForInstall(packageName, version, source);
         }
@@ -188,6 +192,72 @@ public class PackagePathResolver {
     }
 
     /**
+     * Resolves JPM package path (from jpm: source).
+     * Checks architecture-specific path first, falls back to legacy.
+     *
+     * @param packageName The NPM package name
+     * @param version The version (can be null)
+     * @param source The JPM source (format: jpm:owner/repo)
+     * @return The resolved path
+     */
+    private static File resolveJpmPackagePath(String packageName, String version, String source) {
+        // Try architecture-specific path first
+        File archSpecificPath = getJpmPackagePathForInstall(packageName, version, source);
+        if (archSpecificPath.exists()) {
+            return archSpecificPath;
+        }
+
+        // Fall back to legacy path
+        return getLegacyJpmPackagePath(packageName, version, source);
+    }
+
+    /**
+     * Gets the architecture-specific JPM package path for installation.
+     *
+     * @param packageName The NPM package name
+     * @param version The version (can be null)
+     * @param source The JPM source (format: jpm:owner/repo)
+     * @return The architecture-specific path
+     */
+    private static File getJpmPackagePathForInstall(String packageName, String version, String source) {
+        String archSuffix = ArchitectureUtil.getArchitectureSuffix();
+        String jpmPath = source.startsWith("jpm:") ? source.substring("jpm:".length()) : source;
+        String sourceHash = MD5.getMd5(source);
+        String qualifiedName = sourceHash + "." + packageName;
+
+        if (version == null) {
+            return new File(getJDeployHome(), "jpm-packages" + archSuffix + File.separator + qualifiedName);
+        } else {
+            return new File(
+                    getJDeployHome(),
+                    "jpm-packages" + archSuffix + File.separator + qualifiedName + File.separator + new File(version).getName()
+            );
+        }
+    }
+
+    /**
+     * Gets the legacy (non-architecture-specific) JPM package path.
+     *
+     * @param packageName The NPM package name
+     * @param version The version (can be null)
+     * @param source The JPM source (format: jpm:owner/repo)
+     * @return The legacy path
+     */
+    private static File getLegacyJpmPackagePath(String packageName, String version, String source) {
+        String sourceHash = MD5.getMd5(source);
+        String qualifiedName = sourceHash + "." + packageName;
+
+        if (version == null) {
+            return new File(getJDeployHome(), "jpm-packages" + File.separator + qualifiedName);
+        } else {
+            return new File(
+                    getJDeployHome(),
+                    "jpm-packages" + File.separator + qualifiedName + File.separator + new File(version).getName()
+            );
+        }
+    }
+
+    /**
      * Gets all possible package paths for a given package (for cleanup/uninstall operations).
      * Returns both architecture-specific and legacy paths.
      *
@@ -202,6 +272,8 @@ public class PackagePathResolver {
 
         if (source == null || source.isEmpty()) {
             legacyPath = getLegacyNpmPackagePath(packageName, version);
+        } else if (source.startsWith("jpm:")) {
+            legacyPath = getLegacyJpmPackagePath(packageName, version, source);
         } else {
             legacyPath = getLegacyGhPackagePath(packageName, version, source);
         }
