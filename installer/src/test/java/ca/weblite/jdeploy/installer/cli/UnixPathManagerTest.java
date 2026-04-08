@@ -1092,4 +1092,113 @@ public class UnixPathManagerTest {
         assertTrue(bashrcContent.contains(binDir.getAbsolutePath()),
                 ".bashrc should contain the PATH export");
     }
+
+    // ==================== Blank Line Cleanup Tests ====================
+
+    @Test
+    public void testRemovePathCollapsesConsecutiveBlankLines() throws IOException {
+        File bashrc = new File(homeDir, ".bashrc");
+        String existingPath = binDir.getAbsolutePath();
+        // Simulate a file with blank lines around jDeploy entries (from repeated install/uninstall)
+        String originalContent = "# Some config\nexport FOO=bar\n\n\n\n\n# Added by jDeploy installer\nexport PATH=\"" + existingPath + ":$PATH\"\n\n\n\n\nexport BAZ=qux\n";
+        Files.write(bashrc.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean removed = UnixPathManager.removePathFromConfigFile(bashrc, binDir, homeDir);
+
+        assertTrue(removed, "Should return true when entry was removed");
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
+        assertFalse(content.contains(existingPath), "PATH entry should be removed");
+        assertFalse(content.contains("\n\n\n"), "Should not have more than one consecutive blank line");
+        assertTrue(content.contains("export FOO=bar"), "Other content should be preserved");
+        assertTrue(content.contains("export BAZ=qux"), "Other content should be preserved");
+    }
+
+    @Test
+    public void testRemovePathRemovesOrphanedComments() throws IOException {
+        File bashrc = new File(homeDir, ".bashrc");
+        String existingPath = binDir.getAbsolutePath();
+        // Simulate orphaned comments (comment not followed by export PATH line)
+        String originalContent = "# Some config\nexport FOO=bar\n# Added by jDeploy installer\n\n# Added by jDeploy installer\n# Added by jDeploy installer\nexport PATH=\"" + existingPath + ":$PATH\"\nexport BAZ=qux\n";
+        Files.write(bashrc.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean removed = UnixPathManager.removePathFromConfigFile(bashrc, binDir, homeDir);
+
+        assertTrue(removed, "Should return true when entries were removed");
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
+        assertFalse(content.contains("# Added by jDeploy installer"), "All jDeploy comments should be removed");
+        assertFalse(content.contains(existingPath), "PATH entry should be removed");
+        assertTrue(content.contains("export FOO=bar"), "Other content should be preserved");
+        assertTrue(content.contains("export BAZ=qux"), "Other content should be preserved");
+    }
+
+    @Test
+    public void testRemovePathRemovesOrphanedCommentAtEndOfFile() throws IOException {
+        File bashrc = new File(homeDir, ".bashrc");
+        String existingPath = binDir.getAbsolutePath();
+        // Orphaned comment at end of file
+        String originalContent = "# Some config\nexport FOO=bar\n# Added by jDeploy installer\nexport PATH=\"" + existingPath + ":$PATH\"\n# Added by jDeploy installer\n";
+        Files.write(bashrc.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean removed = UnixPathManager.removePathFromConfigFile(bashrc, binDir, homeDir);
+
+        assertTrue(removed, "Should return true when entries were removed");
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
+        assertFalse(content.contains("# Added by jDeploy installer"), "All jDeploy comments should be removed");
+        assertFalse(content.contains(existingPath), "PATH entry should be removed");
+        assertTrue(content.contains("export FOO=bar"), "Other content should be preserved");
+    }
+
+    @Test
+    public void testRemovePathPreservesCommentsForOtherApps() throws IOException {
+        File bashrc = new File(homeDir, ".bashrc");
+        String existingPath = binDir.getAbsolutePath();
+        // Comment+export for a different app should be preserved
+        String originalContent = "# Some config\n# Added by jDeploy installer\nexport PATH=\"" + existingPath + ":$PATH\"\n# Added by jDeploy installer\nexport PATH=\"/some/other/app:$PATH\"\nexport FOO=bar\n";
+        Files.write(bashrc.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean removed = UnixPathManager.removePathFromConfigFile(bashrc, binDir, homeDir);
+
+        assertTrue(removed, "Should return true when entry was removed");
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
+        assertFalse(content.contains(existingPath), "Our PATH entry should be removed");
+        assertTrue(content.contains("# Added by jDeploy installer"), "Comment for other app should be preserved");
+        assertTrue(content.contains("/some/other/app"), "Other app's PATH should be preserved");
+        assertTrue(content.contains("export FOO=bar"), "Other content should be preserved");
+    }
+
+    @Test
+    public void testRemovePathTrimsTrailingBlankLines() throws IOException {
+        File bashrc = new File(homeDir, ".bashrc");
+        String existingPath = binDir.getAbsolutePath();
+        // Entry at end of file followed by blank lines
+        String originalContent = "# Some config\nexport FOO=bar\n# Added by jDeploy installer\nexport PATH=\"" + existingPath + ":$PATH\"\n\n\n\n";
+        Files.write(bashrc.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
+
+        boolean removed = UnixPathManager.removePathFromConfigFile(bashrc, binDir, homeDir);
+
+        assertTrue(removed, "Should return true when entry was removed");
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
+        assertFalse(content.contains(existingPath), "PATH entry should be removed");
+        assertTrue(content.endsWith("\n"), "Should end with a single newline");
+        assertFalse(content.endsWith("\n\n"), "Should not end with multiple newlines");
+    }
+
+    @Test
+    public void testAddPathDoesNotAccumulateBlankLines() throws IOException {
+        File bashrc = new File(homeDir, ".bashrc");
+        String existingPath = binDir.getAbsolutePath();
+        // Simulate existing content with trailing blank lines
+        String originalContent = "# Some config\nexport FOO=bar\n\n\n\n";
+        Files.write(bashrc.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
+
+        // Add path entry
+        String shell = "/bin/bash";
+        String pathEnv = "/usr/bin:/bin";
+        UnixPathManager.addToPath(binDir, shell, pathEnv, homeDir);
+
+        String content = IOUtil.readToString(new FileInputStream(bashrc));
+        assertFalse(content.contains("\n\n\n"), "Should not have more than one consecutive blank line");
+        assertTrue(content.contains("# Added by jDeploy installer"), "Should have jDeploy comment");
+        assertTrue(content.contains(existingPath), "Should have PATH entry");
+    }
 }
