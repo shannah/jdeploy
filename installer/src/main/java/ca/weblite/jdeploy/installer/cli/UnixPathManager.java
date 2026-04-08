@@ -187,10 +187,15 @@ public class UnixPathManager {
             }
 
             // Append PATH export to the config file (always at the end)
+            // Read current content to ensure clean trailing whitespace before appending
             DebugLogger.log("Writing PATH export to: " + configFile.getAbsolutePath());
-            String pathExport = "\n# Added by jDeploy installer\nexport PATH=\"" + pathExportString + ":$PATH\"\n";
-            try (FileOutputStream fos = new FileOutputStream(configFile, true)) {
-                fos.write(pathExport.getBytes(StandardCharsets.UTF_8));
+            String currentContent = IOUtil.readToString(new FileInputStream(configFile));
+            String trimmedContent = currentContent.replaceAll("\\s+$", "");
+            // Use a blank line separator only when there's existing content
+            String separator = trimmedContent.isEmpty() ? "" : "\n\n";
+            String pathExport = separator + "# Added by jDeploy installer\nexport PATH=\"" + pathExportString + ":$PATH\"\n";
+            try (FileOutputStream fos = new FileOutputStream(configFile)) {
+                fos.write((trimmedContent + pathExport).getBytes(StandardCharsets.UTF_8));
             }
 
             System.out.println("Added " + displayPath + " to PATH in " + configFile.getName());
@@ -299,13 +304,22 @@ public class UnixPathManager {
                     // Look ahead to see if the next line is an export for our binDir
                     if (i + 1 < lines.length) {
                         String nextLine = lines[i + 1].trim();
-                        if (nextLine.startsWith("export PATH=\"") && 
+                        if (nextLine.startsWith("export PATH=\"") &&
                             (nextLine.contains(pathExportString) || nextLine.contains(absolutePath))) {
                             // Skip this comment line and mark to skip the export line
                             skipNextExport = true;
                             removed = true;
                             continue;
                         }
+                        // Orphaned comment: not followed by any export PATH line
+                        if (!nextLine.startsWith("export PATH=\"")) {
+                            removed = true;
+                            continue;
+                        }
+                    } else {
+                        // Comment at end of file with no following line - orphaned
+                        removed = true;
+                        continue;
                     }
                 }
                 
@@ -335,8 +349,12 @@ public class UnixPathManager {
             
             if (removed) {
                 // Write back the modified content
-                // Preserve trailing newline if original had one
                 String newContent = result.toString();
+                // Collapse multiple consecutive blank lines into at most one
+                newContent = newContent.replaceAll("\n{3,}", "\n\n");
+                // Trim trailing blank lines, keeping at most one trailing newline
+                newContent = newContent.replaceAll("\n{2,}$", "\n");
+                // Preserve trailing newline if original had one
                 if (content.endsWith("\n") && !newContent.endsWith("\n")) {
                     newContent += "\n";
                 }
