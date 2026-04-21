@@ -85,7 +85,9 @@ class NPMPublishDriverPlatformBundlesTest {
                 projectFactory,
                 mock(ca.weblite.jdeploy.services.PublishBundleService.class),
                 mock(ca.weblite.jdeploy.publishing.BundleUploadRouter.class),
-                mock(ca.weblite.jdeploy.publishing.BundleChecksumWriter.class)
+                mock(ca.weblite.jdeploy.publishing.BundleChecksumWriter.class),
+                mock(ca.weblite.jdeploy.services.BundleCodeService.class),
+                new ca.weblite.jdeploy.services.PackageNameService()
         );
 
         // Set up test directories and files
