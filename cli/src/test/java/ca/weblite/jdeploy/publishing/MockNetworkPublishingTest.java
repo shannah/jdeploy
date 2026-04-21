@@ -346,10 +346,15 @@ class MockNetworkPublishingTest extends BaseMockNetworkPublishingTest {
         PublishBundleService publishBundleService = mock(PublishBundleService.class);
         BundleUploadRouter bundleUploadRouter = mock(BundleUploadRouter.class);
         BundleChecksumWriter bundleChecksumWriter = mock(BundleChecksumWriter.class);
+        ca.weblite.jdeploy.services.BundleCodeService bundleCodeService =
+                mock(ca.weblite.jdeploy.services.BundleCodeService.class);
+        ca.weblite.jdeploy.services.PackageNameService packageNameService =
+                new ca.weblite.jdeploy.services.PackageNameService();
 
         NPMPublishDriver npmDriver = new NPMPublishDriver(
                 baseDriver, platformBundleGenerator, defaultBundleService, projectFactory,
-                publishBundleService, bundleUploadRouter, bundleChecksumWriter
+                publishBundleService, bundleUploadRouter, bundleChecksumWriter,
+                bundleCodeService, packageNameService
         );
         npmDriver.setRegistryUrl(getNpmRegistry());
 

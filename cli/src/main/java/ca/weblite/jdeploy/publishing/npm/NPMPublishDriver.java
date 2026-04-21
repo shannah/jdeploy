@@ -12,6 +12,8 @@ import ca.weblite.jdeploy.publishing.PublishDriverInterface;
 import ca.weblite.jdeploy.publishing.PublishingContext;
 import ca.weblite.jdeploy.models.JDeployProject;
 import ca.weblite.jdeploy.models.Platform;
+import ca.weblite.jdeploy.services.BundleCodeService;
+import ca.weblite.jdeploy.services.PackageNameService;
 import ca.weblite.jdeploy.services.PackageSigningService;
 import ca.weblite.jdeploy.services.PlatformBundleGenerator;
 import ca.weblite.jdeploy.services.PublishBundleService;
@@ -48,6 +50,8 @@ public class NPMPublishDriver implements PublishDriverInterface {
     private final PublishBundleService publishBundleService;
     private final BundleUploadRouter bundleUploadRouter;
     private final BundleChecksumWriter bundleChecksumWriter;
+    private final BundleCodeService bundleCodeService;
+    private final PackageNameService packageNameService;
 
     @Inject
     public NPMPublishDriver(
@@ -57,7 +61,9 @@ public class NPMPublishDriver implements PublishDriverInterface {
             JDeployProjectFactory projectFactory,
             PublishBundleService publishBundleService,
             BundleUploadRouter bundleUploadRouter,
-            BundleChecksumWriter bundleChecksumWriter
+            BundleChecksumWriter bundleChecksumWriter,
+            BundleCodeService bundleCodeService,
+            PackageNameService packageNameService
     ) {
         this.basePublishDriver = basePublishDriver;
         this.platformBundleGenerator = platformBundleGenerator;
@@ -66,6 +72,8 @@ public class NPMPublishDriver implements PublishDriverInterface {
         this.publishBundleService = publishBundleService;
         this.bundleUploadRouter = bundleUploadRouter;
         this.bundleChecksumWriter = bundleChecksumWriter;
+        this.bundleCodeService = bundleCodeService;
+        this.packageNameService = packageNameService;
     }
 
     public void setRegistryUrl(String registryUrl) {
@@ -253,6 +261,16 @@ public class NPMPublishDriver implements PublishDriverInterface {
 
         // Build and upload pre-built bundles if enabled
         maybePublishBundles(context, target);
+
+        // Register the package name with jdeploy.com so the download page can resolve a
+        // bundle code. Without this, a fresh npm-only publish leaves jdeploy.com with no
+        // bundles row for the package and /download fails with "No code found for package".
+        bundleCodeService.fetchJdeployBundleCode(
+                packageNameService.getFullPackageName(
+                        target,
+                        context.packagingContext.getName()
+                )
+        );
     }
 
     /**
