@@ -207,7 +207,9 @@ install_project() {
 
     cd "$project_dir"
 
-    if run_jdeploy install -y 2>&1 | tee -a "$project_log"; then
+    # --native: this test exercises the full headless install flow
+    # (verify-installation below relies on its on-disk layout).
+    if run_jdeploy install --native -y 2>&1 | tee -a "$project_log"; then
         log "Project installed successfully"
         cd "$SCRIPT_DIR"
         return 0

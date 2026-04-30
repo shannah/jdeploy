@@ -60,9 +60,11 @@ cd "$APP_DIR"
 # Ensure DISPLAY is set for GUI apps
 export DISPLAY=:1
 
-# Run jdeploy install first
-log "Running: jdeploy install"
-jdeploy install 2>&1 | tee -a "$LOG_FILE"
+# Run jdeploy install first.
+# --native is required so that the headless installer produces the
+# native launcher layout that 'jdeploy run' below expects.
+log "Running: jdeploy install --native"
+jdeploy install --native 2>&1 | tee -a "$LOG_FILE"
 
 log "Installation complete. Now launching the app..."
 

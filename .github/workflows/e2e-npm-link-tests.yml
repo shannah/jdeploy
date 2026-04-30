@@ -1,0 +1,83 @@
+name: E2E NPM Link Tests
+
+on:
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  e2e-npm-link-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configure npm prefix to user-writable dir
+        run: |
+          mkdir -p "$HOME/.npm-global"
+          npm config set prefix "$HOME/.npm-global"
+          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+
+      - name: Build jdeploy
+        run: mvn clean install -DskipTests -q
+
+      - name: Run npm-link install E2E test
+        run: |
+          chmod +x tests/e2e/e2e-npm-link-test.sh
+          tests/e2e/e2e-npm-link-test.sh --verbose
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-npm-link-results-linux
+          path: tests/e2e/results-npm-link/
+
+  e2e-npm-link-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configure npm prefix to user-writable dir
+        run: |
+          mkdir -p "$HOME/.npm-global"
+          npm config set prefix "$HOME/.npm-global"
+          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+
+      - name: Build jdeploy
+        run: mvn clean install -DskipTests -q
+
+      - name: Run npm-link install E2E test
+        run: |
+          chmod +x tests/e2e/e2e-npm-link-test.sh
+          tests/e2e/e2e-npm-link-test.sh --verbose
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-npm-link-results-macos
+          path: tests/e2e/results-npm-link/

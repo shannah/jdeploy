@@ -214,7 +214,9 @@ function Install-Project {
 
     Push-Location $ProjectDir
     try {
-        $output = Invoke-Jdeploy -Arguments @("install", "-y")
+        # --native: this test exercises the full headless install flow
+        # (verify-installation below relies on its on-disk layout).
+        $output = Invoke-Jdeploy -Arguments @("install", "--native", "-y")
         $output | Out-File -FilePath $projectLog -Append
 
         if ($LASTEXITCODE -eq 0) {

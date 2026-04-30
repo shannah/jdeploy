@@ -109,9 +109,10 @@ cd "$APP_DIR"
 # Ensure DISPLAY is set for GUI apps
 export DISPLAY=:1
 
-# Run jdeploy install first
-log "Running: java -jar $JDEPLOY_JAR install"
-java -jar "$JDEPLOY_JAR" install 2>&1 | tee -a "$LOG_FILE"
+# Run jdeploy install first.
+# --native is required so 'jdeploy run' below can find the launcher.
+log "Running: java -jar $JDEPLOY_JAR install --native"
+java -jar "$JDEPLOY_JAR" install --native 2>&1 | tee -a "$LOG_FILE"
 
 log "Installation complete. Now launching the app..."
 
