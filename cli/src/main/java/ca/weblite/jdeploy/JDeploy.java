@@ -561,9 +561,9 @@ public class JDeploy implements BundleConstants {
                 + "Commands:\n"
                 + "  init : Initialize the project\n"
                 + "  package : Prepare for install.  This copies necessary files into bin directory.\n"
-                + "  install : Installs the app locally with native launchers, CLI commands, etc.\n"
-                + "  install --ai-tools=claude-code,cursor : Also configure MCP server for specified AI tools\n"
-                + "  install --npm : Use npm link instead of native installation (legacy behavior)\n"
+                + "  install : Installs the app locally using npm link (so its CLI commands are on $PATH)\n"
+                + "  install --native : Full native install (native launchers, GUI integration, services, AI tool MCP, etc.)\n"
+                + "  install --native --ai-tools=claude-code,cursor : Native install plus configure MCP server for specified AI tools\n"
                 + "  uninstall : Uninstalls the app locally\n"
                 + "  uninstall --package=<name> --source=<url> : Uninstall by package name\n"
                 + "  run : Launch the installed GUI application\n"
@@ -675,12 +675,15 @@ public class JDeploy implements BundleConstants {
     }
 
     private void _run(PackagingContext context, String commandName, String[] commandArgs,
-                       boolean installFirst, boolean npmInstallFlag,
+                       boolean installFirst,
                        java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> aiTools) {
         try {
             if (installFirst) {
                 out.println("Running install before run...");
-                install(context, npmInstallFlag, aiTools);
+                // run/debug rely on the native install layout located by
+                // LocalRunService, so install --install always uses the
+                // headless installer (never npm link).
+                install(context, false, aiTools);
             }
 
             LocalRunService runService = DIContext.get(LocalRunService.class);
@@ -708,12 +711,13 @@ public class JDeploy implements BundleConstants {
     }
 
     private void _debug(PackagingContext context, String commandName, String[] commandArgs,
-                         int port, boolean suspend, boolean installFirst, boolean npmInstallFlag,
+                         int port, boolean suspend, boolean installFirst,
                          java.util.Set<ca.weblite.jdeploy.ai.models.AIToolType> aiTools) {
         try {
             if (installFirst) {
                 out.println("Running install before debug...");
-                install(context, npmInstallFlag, aiTools);
+                // See _run: native install is required for LocalRunService.
+                install(context, false, aiTools);
             }
 
             LocalRunService runService = DIContext.get(LocalRunService.class);
@@ -904,7 +908,8 @@ public class JDeploy implements BundleConstants {
             opts.addOption("t", "tag", true, "Optional tag for publish.");
             opts.addOption("y", "no-prompt", false,"Indicates not to prompt_ user ");
             opts.addOption("W", "no-workflow", false,"Indicates not to create a github workflow if true");
-            opts.addOption("N", "npm", false, "Use npm link instead of native installation (legacy behavior)");
+            opts.addOption("N", "npm", false, "Use npm link to install the app's CLI commands (default behavior, kept for back-compat)");
+            opts.addOption(null, "native", false, "Use the full native install (headless installer with native launchers, GUI integration, services, etc.) instead of npm link");
             opts.addOption("A", "ai-tools", true, "Comma-separated list of AI tools to configure for MCP server (e.g., claude-code,cursor,claude-desktop)");
             opts.addOption("p", "port", true, "Debug port for 'jdeploy debug' command (default: 5005)");
             opts.addOption("S", "no-suspend", false, "Don't wait for debugger to attach (default: wait)");
@@ -928,7 +933,9 @@ public class JDeploy implements BundleConstants {
                     .build());
             boolean noPromptFlag = false;
             boolean noWorkflowFlag = false;
-            boolean npmInstallFlag = false;
+            // jdeploy install: default to npm link. --native opts into the
+            // headless installer flow used for local GUI testing.
+            boolean npmInstallFlag = true;
             boolean runInstallFirst = false;
             String distTag = null;
             int debugPort = LocalRunService.getDefaultDebugPort();
@@ -967,7 +974,11 @@ public class JDeploy implements BundleConstants {
                 args = line.getArgs();
                 noPromptFlag = line.hasOption("no-prompt");
                 noWorkflowFlag = line.hasOption("no-workflow");
-                npmInstallFlag = line.hasOption("npm");
+                if (line.hasOption("native")) {
+                    npmInstallFlag = false;
+                } else if (line.hasOption("npm")) {
+                    npmInstallFlag = true;
+                }
                 distTag = line.getOptionValue("tag", null);
                 String aiToolsStr = line.getOptionValue("ai-tools", null);
                 if (aiToolsStr != null && !aiToolsStr.isEmpty()) {
@@ -1140,11 +1151,11 @@ public class JDeploy implements BundleConstants {
                     prog.runOnLinux(context, linuxMode, commandArgs);
                 } else {
                     String commandName = args.length > 1 ? args[1] : null;
-                    prog._run(context, commandName, commandArgs, runInstallFirst, npmInstallFlag, aiTools);
+                    prog._run(context, commandName, commandArgs, runInstallFirst, aiTools);
                 }
             } else if ("debug".equals(args[0])) {
                 String commandName = args.length > 1 ? args[1] : null;
-                prog._debug(context, commandName, commandArgs, debugPort, debugSuspend, runInstallFirst, npmInstallFlag, aiTools);
+                prog._debug(context, commandName, commandArgs, debugPort, debugSuspend, runInstallFirst, aiTools);
             } else if ("help".equals(args[0])) {
                 prog.help(opts);
             } else if ("verify-installation".equals(args[0])) {

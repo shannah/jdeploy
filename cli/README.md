@@ -51,12 +51,16 @@ This will generate a package.json file with settings to allow you to publish the
 $ jdeploy install
 ~~~~
 
-This performs a full native installation with native launchers, CLI commands, etc.
+This uses `npm link` to install the app's CLI commands locally so the commands
+declared in `package.json` are available on your `$PATH`. This is the fastest
+way to dogfood the published install behavior of an npm-distributed CLI.
 
-To use legacy npm link behavior instead:
+For a full native installation with native launchers, GUI integration, and
+service registration (the same flow used to test desktop apps before
+publishing):
 
 ~~~~
-$ jdeploy install --npm
+$ jdeploy install --native
 ~~~~
 
 **Publish App to NPM**

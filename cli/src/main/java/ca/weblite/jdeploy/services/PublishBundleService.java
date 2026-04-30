@@ -4,6 +4,7 @@ import ca.weblite.jdeploy.appbundler.BundlerResult;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
 import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.app.AppInfo;
+import ca.weblite.jdeploy.helpers.NpmPackageUtils;
 import ca.weblite.jdeploy.installer.util.CliCommandBinDirResolver;
 import ca.weblite.jdeploy.models.BundleArtifact;
 import ca.weblite.jdeploy.models.BundleManifest;
@@ -236,7 +237,10 @@ public class PublishBundleService {
         appInfo.setMacAppBundleId(context.getString("macAppBundleId", null));
         appInfo.setTitle(
                 context.getString("displayName",
-                        context.getString("title", appInfo.getNpmPackage())
+                        context.getString(
+                                "title",
+                                NpmPackageUtils.deriveDefaultTitle(appInfo.getNpmPackage())
+                        )
                 )
         );
 
