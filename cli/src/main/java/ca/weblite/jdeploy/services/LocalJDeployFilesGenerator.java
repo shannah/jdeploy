@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.services;
 
 import ca.weblite.jdeploy.JDeploy;
+import ca.weblite.jdeploy.helpers.NpmPackageUtils;
 import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 
@@ -182,7 +183,7 @@ public class LocalJDeployFilesGenerator {
 
     /**
      * Gets the application title from package.json.
-     * Priority: jdeploy.title > name
+     * Priority: jdeploy.title > displayName > name (with npm scope stripped)
      */
     private String getTitle(JSONObject packageJson) {
         if (packageJson.has("jdeploy")) {
@@ -191,7 +192,10 @@ public class LocalJDeployFilesGenerator {
                 return jdeploy.getString("title");
             }
         }
-        return packageJson.getString("name");
+        if (packageJson.has("displayName")) {
+            return packageJson.getString("displayName");
+        }
+        return NpmPackageUtils.deriveDefaultTitle(packageJson.getString("name"));
     }
 
     /**

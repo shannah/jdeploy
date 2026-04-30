@@ -4,6 +4,7 @@ import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.app.permissions.PermissionRequest;
 import ca.weblite.jdeploy.appbundler.Bundler;
 import ca.weblite.jdeploy.appbundler.BundlerSettings;
+import ca.weblite.jdeploy.helpers.NpmPackageUtils;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.installer.events.InstallationFormEvent;
 import ca.weblite.jdeploy.installer.events.InstallationFormEventDispatcher;
@@ -451,7 +452,11 @@ public class Main implements Runnable, Constants {
         appInfo(new AppInfo());
         appInfo().setJdeployRegistryUrl(JDEPLOY_REGISTRY_URL);
         appInfo().setAppURL(appXml.toURI().toURL());
-        appInfo().setTitle(ifEmpty(root.getAttribute("title"), root.getAttribute("package"), null));
+        appInfo().setTitle(ifEmpty(
+                root.getAttribute("title"),
+                NpmPackageUtils.deriveDefaultTitle(root.getAttribute("package")),
+                null
+        ));
         appInfo().setNpmPackage(ifEmpty(root.getAttribute("package"), null));
         String fullyQualifiedPackageName = appInfo().getNpmPackage();
         if (root.hasAttribute("source")) {

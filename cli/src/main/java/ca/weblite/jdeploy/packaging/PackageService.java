@@ -10,6 +10,7 @@ import ca.weblite.jdeploy.app.permissions.PermissionRequestService;
 import ca.weblite.jdeploy.appbundler.*;
 import ca.weblite.jdeploy.appbundler.mac.DmgCreator;
 import ca.weblite.jdeploy.environment.Environment;
+import ca.weblite.jdeploy.helpers.NpmPackageUtils;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.services.BundleCodeService;
 import ca.weblite.jdeploy.services.ProjectBuilderService;
@@ -879,7 +880,10 @@ public class PackageService implements BundleConstants {
         appInfo.setTitle(
                 context.getString(
                         "displayName",
-                        context.getString("title", appInfo.getNpmPackage())
+                        context.getString(
+                                "title",
+                                NpmPackageUtils.deriveDefaultTitle(appInfo.getNpmPackage())
+                        )
                 )
         );
 
