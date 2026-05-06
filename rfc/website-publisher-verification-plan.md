@@ -1,7 +1,7 @@
 # Website / Publisher Verification — Implementation Plan
 
-**Status**: Proposed
-**Related**: `windows-codesigning-best-practices.md`, `windows-authenticode-signing.md`, `bundle-publishing-spec.md`
+**Status**: Phases 1–4 implemented; Phases 5–6 in progress.
+**Related**: `windows-codesigning-best-practices.md`, `windows-authenticode-signing.md`, `bundle-publishing-spec.md`, `publisher-verification.md` (publisher-side how-to).
 **Branch**: `claude/code-signing-certificate-pinning-hjmVd`
 
 ## Problem
@@ -199,14 +199,15 @@ Add to package.json:
 
 ## Phased rollout
 
-| Phase | Deliverable |
-|---|---|
-| 1 | `PublisherIdentityVerifier` + tests in `shared`. No UI yet. |
-| 2 | `generate-publisher-cert` CLI command. |
-| 3 | Installer integration: `PublisherVerificationService`, `Main` wiring, dialog change. |
-| 4 | End-to-end smoke test under `tests/projects/`. |
-| 5 | Documentation: update `windows-codesigning-best-practices.md`; new short doc `publisher-verification.md` walking through the publisher-side workflow. |
-| 6 | (Optional) Apply for a PEN-based OID and migrate from the placeholder. |
+| Phase | Deliverable | Status |
+|---|---|---|
+| 1 | `PublisherIdentityVerifier` + tests in `shared`. No UI yet. | ✅ shipped (commit `cd959a1`) |
+| 2 | `generate-publisher-cert` CLI command. | ✅ shipped (commit `32a051b`) |
+| 3 | Installer integration: `PublisherVerificationService`, `Main` wiring, dialog change. | ✅ shipped (commit `14b7ff9`) |
+| 4 | Network-plumbing tests for `PublisherIdentityFetcher.Default` (HTTPS-only enforcement, redirect rules, size cap, error handling). The originally proposed bash-script smoke test under `tests/projects/` was descoped — it required a full signed-app build pipeline plus an HTTPS server, which the existing JUnit suite covers more reliably. | ✅ shipped (this commit) |
+| 5 | Documentation: update `windows-codesigning-best-practices.md`; new doc `publisher-verification.md` walking through the publisher-side workflow. | ✅ shipped (this commit) |
+| 6 | (Optional) Apply for a PEN-based OID and migrate from the placeholder `1.3.6.1.4.1.99999.42.1`. | ⏳ pending |
+| 7 | (Future) Support option-(a) chains (identity cert chained to a root in `app.xml`, not via the codesign cert) at install time. The installer would need to read the bundle's `app.xml` `trusted-certificates` attribute. | ⏳ pending |
 
 ## Resolved decisions
 

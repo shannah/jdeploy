@@ -266,7 +266,7 @@ At launch, with pinning on:
 - **No CRL/OCSP.** A leaked codesign key cannot be revoked in a way the launcher will honour. Mitigation: short codesign cert lifetimes (1–2 years), and rotate proactively. A future enhancement could fetch a revocation list URL from the bundle.
 - **No timestamping for bundle signatures.** Authenticode signatures are RFC-3161 timestamped, but `FileSigner` is not — once the codesign cert expires, fresh installs of that bundle will fail validity check. Mitigation: bundles are tied to a release; users on old releases keep their already-extracted bundle. New verification on disk does still re-check `cert.checkValidity(timestamp)` against the manifest's embedded timestamp, so a not-yet-expired-at-build bundle stays valid for the lifetime of the cert. We may add RFC-3161 timestamping to bundle signatures later.
 - **SmartScreen reputation isn't fixable here.** Only OV/EV certs from a Microsoft-trusted CA build SmartScreen reputation. Self-managed PKI gives you integrity + identity-continuity, not silent SmartScreen acceptance.
-- **No publisher website verification yet.** A user trusting an unknown root has no easy way to confirm it actually belongs to the developer they think it does. The companion-cert / `.well-known` URL flow described in `website-publisher-verification-plan.md` will close this gap.
+- **Publisher website verification is opt-in.** The companion-cert / `.well-known` URL flow lets the install-time trust prompt display "✓ Verified publisher: `<your-domain>`" instead of just a raw certificate fingerprint, so users have something to evaluate beyond the cert subject. See `publisher-verification.md` for the publisher-side how-to. Without opting in, users see only the certificate metadata.
 
 ---
 
@@ -287,4 +287,5 @@ At launch, with pinning on:
 
 - `windows-authenticode-signing.md` — env-var reference for the .exe signer.
 - `bundle-publishing-spec.md` — bundle layout + integrity model.
-- `website-publisher-verification-plan.md` — implementation plan for publisher-domain verification (proposed).
+- `publisher-verification.md` — how to host a publisher identity cert so the install-time trust prompt shows "✓ Verified publisher: `<your-domain>`".
+- `website-publisher-verification-plan.md` — design and implementation status for the publisher verification feature.
