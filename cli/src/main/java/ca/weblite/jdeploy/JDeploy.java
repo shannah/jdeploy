@@ -897,6 +897,14 @@ public class JDeploy implements BundleConstants {
                 prog._verify(args);
                 return;
             }
+            if (args.length > 0 && "generate-publisher-cert".equals(args[0])) {
+                String[] subArgs = new String[args.length - 1];
+                System.arraycopy(args, 1, subArgs, 0, subArgs.length);
+                int code = ca.weblite.jdeploy.cli.controllers.GeneratePublisherIdentityCertCliController.run(
+                        subArgs, System.out, System.err);
+                System.exit(code);
+                return;
+            }
             if (args.length > 0 && "github".equals(args[0]) && args.length> 1 && "init".equals(args[1])) {
                 String[] githubInitArgs = new String[args.length-2];
                 System.arraycopy(args, 2, githubInitArgs, 0, githubInitArgs.length);
