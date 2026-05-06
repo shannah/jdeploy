@@ -40,8 +40,10 @@ The chain can be any of:
   Codesign    Publisher Identity Cert       ← (a) signed by root, OR
    Cert        ├── Subject CN: Acme Corp     ← (b) signed by the codesign cert
    (signs      ├── SAN URI: https://acme.example.com/.well-known/jdeploy-publisher.cer
-   .exe +      ├── SAN URI: https://github.com/acme/widget    (optional, multi-binding)
-   bundle)     └── EKU: id-kp-1.3.6.1.4.1.<jdeploy-OID>.publisher
+   .exe +      ├── SAN URI: https://github.com/acme/widget    (optional; canonical form — the
+   bundle)     │                                              installer extrapolates the actual
+               │                                              raw.githubusercontent.com fetch URL)
+               └── EKU: id-kp-1.3.6.1.4.1.<jdeploy-OID>.publisher
 ```
 
 - Whatever signs the identity cert must have `basicConstraints=CA:TRUE` (and `keyUsage=keyCertSign`). If signing with the codesign cert (option b), that cert must therefore have been issued as a sub-CA — see updated `codesign.ext` recommendation in `windows-codesigning-best-practices.md`.
@@ -56,24 +58,28 @@ Default location:
 ```
 https://<publisher-domain>/.well-known/jdeploy-publisher.cer
 ```
-Encoded as PEM. The publisher may also/instead host the cert at a GitHub raw URL:
+Encoded as PEM. The publisher may also/instead host the cert in a GitHub repo. The **canonical SAN form** embedded in the cert is the repo URL:
+```
+https://github.com/<owner>/<repo>
+```
+…and the installer extrapolates the actual fetch URL to:
 ```
 https://raw.githubusercontent.com/<owner>/<repo>/<ref>/.well-known/jdeploy-publisher.cer
 ```
-…with `<ref>` either `main`, a tag, or a commit SHA pinned by the publisher.
+…with `<ref>` either `main`, a tag, or a commit SHA pinned by the publisher (default `main` unless the publisher's `publisherVerificationUrls` overrides it). Keeping the SAN as `github.com/<owner>/<repo>` means the cert binding survives branch renames and ref changes; the installer accepts a fetch from any equivalent-resolving `raw.githubusercontent.com` URL whose `<owner>/<repo>` matches the SAN.
 
 ### Verification flow at install time
 
 When the installer encounters a signed-but-untrusted Windows .exe (see `Main.promptToTrustCertificateIfNeeded()`), and **before** showing the trust prompt:
 
-1. **Discover candidate URLs.** Read `app.xml` for a new `publisher-verification-urls` attribute (comma-separated). Fallback: parse the `homepage` from the bundle's package.json, append `/.well-known/jdeploy-publisher.cer`.
+1. **Discover candidate URLs.** Read `package.json` for a new `jdeploy.publisherVerificationUrls` field (array of strings) — package.json is what the installer can read both for codesigned exes (where it ships alongside the bundle) and for installer-generated exes (where app.xml is generated, not authoritative). Fallback: take the `homepage` field from package.json and append `/.well-known/jdeploy-publisher.cer`.
 2. For each URL:
    1. HTTPS fetch (timeout 10s, follow redirects only on same origin).
    2. Parse PEM → X.509 cert(s). The fetched file MAY be a concatenation of identity cert + intermediates so the verifier can build the chain offline.
    3. **Build chain to root**: identity cert (leaf), then any intermediates from the response, then the pinned root from `app.xml`. Intermediates from the bundle's `jdeploy.cer` (e.g. the codesign cert if it was the issuer) are also added to the candidate set so option-(b) chains work without re-shipping the codesign cert in the well-known file.
    4. PKIX-validate. Reject if anything doesn't chain.
    5. Confirm the leaf cert has the jDeploy publisher EKU (custom OID, see below).
-   6. **Confirm the URL match**: the URL we just fetched from must appear in the cert's SAN URI list. This is the anti-spoof check — copying the file to a different domain produces a SAN/URL mismatch.
+   6. **Confirm the URL match**: the URL we just fetched from must appear in the cert's SAN URI list. For GitHub fetches, a `raw.githubusercontent.com/<owner>/<repo>/<ref>/...` URL matches a SAN of `https://github.com/<owner>/<repo>` (canonical form) — the installer canonicalises both sides before comparing. This is the anti-spoof check — copying the file to a different domain produces a SAN/URL mismatch.
    7. Confirm the cert is currently valid (`checkValidity()`).
    8. Confirm the codesign cert (extracted from the .exe via `AuthenticodeSignatureChecker.exportCertificate()`) chains to the *same* root the identity cert chains to.
 3. If any URL succeeds → `PublisherVerificationResult.VERIFIED(url, displayName)`.
@@ -121,7 +127,7 @@ The OID will be checked by the verifier and is what allows the same root to issu
 | `shared` | `tools/security/PublisherIdentityVerifier.java` | Stateless: given (URL, identity cert PEM, pinned root, codesign cert), runs the full check and returns a `PublisherIdentityResult`. |
 | `shared` | `tools/security/PublisherIdentityResult.java` | `enum status` + `String url`, `String displayName`, `String failureReason`. |
 | `shared` | `tools/security/PublisherIdentityFetcher.java` | HTTP(S) fetch of the `.well-known/jdeploy-publisher.cer` with sane timeouts; extracted to allow mocking in tests. |
-| `installer` | `installer/win/PublisherVerificationService.java` | Orchestrates discovery (urls from app.xml + homepage), calls `PublisherIdentityVerifier`, returns to `Main`. |
+| `installer` | `installer/win/PublisherVerificationService.java` | Orchestrates discovery (urls from `package.json` `jdeploy.publisherVerificationUrls` + `homepage` fallback), calls `PublisherIdentityVerifier`, returns to `Main`. |
 | `cli` | `services/GeneratePublisherIdentityCertService.java` | New CLI subcommand: `jdeploy generate-publisher-cert --domain acme.example.com --root-key root.key --root-cert root.crt`. |
 
 ### Modifications
@@ -130,7 +136,7 @@ The OID will be checked by the verifier and is what allows the same root to issu
 |---|---|
 | `installer/.../Main.java` `promptToTrustCertificateIfNeeded()` | Call `PublisherVerificationService` before invoking `form.showCertificateTrustPrompt(result)`. Pass `PublisherIdentityResult` into the form. |
 | `installer/.../views/InstallationForm.java` `showCertificateTrustPrompt()` | New overload taking `PublisherIdentityResult`; render verified/unverified banner. |
-| `shared/.../models/AppManifest.java` (or app.xml schema) | Read new optional attribute `publisher-verification-urls`. |
+| `installer/.../NPMPackageVersion.java` (or wherever `package.json` is parsed in the installer) | Read new optional `jdeploy.publisherVerificationUrls` field (array of strings). |
 | `cli/.../JDeploy.java` | Wire up `generate-publisher-cert` subcommand. |
 | `rfc/windows-codesigning-best-practices.md` | Once shipped: replace "No publisher website verification yet" caveat with a pointer to the new flow. |
 
@@ -166,9 +172,13 @@ Output: a single PEM-encoded cert file the user uploads to `https://acme.example
 Upload the file to:  https://acme.example.com/.well-known/jdeploy-publisher.cer
                      https://raw.githubusercontent.com/acme/widget/main/.well-known/jdeploy-publisher.cer
 
-Add to app.xml:
-   publisher-verification-urls="https://acme.example.com/.well-known/jdeploy-publisher.cer,
-                                https://raw.githubusercontent.com/acme/widget/main/.well-known/jdeploy-publisher.cer"
+Add to package.json:
+   "jdeploy": {
+     "publisherVerificationUrls": [
+       "https://acme.example.com/.well-known/jdeploy-publisher.cer",
+       "https://raw.githubusercontent.com/acme/widget/main/.well-known/jdeploy-publisher.cer"
+     ]
+   }
 ```
 
 ### Test strategy
@@ -198,10 +208,13 @@ Add to app.xml:
 | 5 | Documentation: update `windows-codesigning-best-practices.md`; new short doc `publisher-verification.md` walking through the publisher-side workflow. |
 | 6 | (Optional) Apply for a PEN-based OID and migrate from the placeholder. |
 
+## Resolved decisions
+
+- **URL list location.** Lives in `package.json` (`jdeploy.publisherVerificationUrls`). The installer can read package.json in both the codesigned-exe case (it's shipped in the bundle) and the unsigned-exe case (the installer generates the exe itself). app.xml is unsuitable: signed exes don't expose it, and unsigned exes have it generated *by* the installer. The cert's SAN remains authoritative for binding (anti-spoof). A future tool that inspects an exe to surface its publisher could also embed the list in app.xml, but that's not needed for the installer flow.
+- **No verification-result caching in v1.** Fetch is cheap; freshness matters more than throughput.
+- **GitHub canonical URL form.** SAN URI uses `https://github.com/<owner>/<repo>`; the installer extrapolates the actual `raw.githubusercontent.com/<owner>/<repo>/<ref>/.well-known/jdeploy-publisher.cer` fetch URL on its own. This keeps the cert binding stable across ref/branch changes.
+- **Codesign cert and publisher EKU strictly separated.** Two distinct certs, mirroring the `id-kp-codeSigning` precedent. The codesign cert never carries the publisher EKU.
+
 ## Open questions
 
-1. **Where should the URL list live — `app.xml`, `package.json`, or the cert itself?** Leaning toward "all three": cert SAN is authoritative for *binding*, but a discoverable list in `app.xml` lets the installer know which URLs to attempt before fetching anything. Discuss before Phase 3.
-2. **Should we cache verification results across installs?** Probably not in v1 — fetch is cheap, freshness matters more than throughput.
-3. **GitHub repo URL canonicalisation.** `github.com/owner/repo` vs `raw.githubusercontent.com/owner/repo/main/...` — settle on one form to embed in SAN; verifier accepts equivalent-resolving fetches.
-4. **Should the codesign cert *also* be issued with the publisher EKU, or strictly separated?** Strictly separated is cleaner and matches the precedent of `id-kp-codeSigning` vs other EKUs; recommend keeping them as two distinct certs.
-5. **If the codesign cert acts as an issuing CA (option b), should it be allowed to also carry `id-kp-codeSigning`?** Some validators are picky about combining `keyCertSign` with `digitalSignature` + `codeSigning` EKU. Recommend testing against `signtool verify`, `Get-AuthenticodeSignature`, and the launcher's `SimpleCertificateVerifier` before committing.
+1. **If the codesign cert acts as an issuing CA (option b), should it be allowed to also carry `id-kp-codeSigning`?** Some validators are picky about combining `keyCertSign` with `digitalSignature` + `codeSigning` EKU. Recommend testing against `signtool verify`, `Get-AuthenticodeSignature`, and the launcher's `SimpleCertificateVerifier` before committing.
