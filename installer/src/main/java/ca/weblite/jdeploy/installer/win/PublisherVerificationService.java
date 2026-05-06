@@ -1,5 +1,6 @@
 package ca.weblite.jdeploy.installer.win;
 
+import ca.weblite.tools.security.CertificateUtil;
 import ca.weblite.tools.security.PublisherIdentityFetcher;
 import ca.weblite.tools.security.PublisherIdentityResult;
 import ca.weblite.tools.security.PublisherIdentityVerifier;
@@ -25,14 +26,19 @@ import java.util.Set;
  * delegates the cryptographic checks to
  * {@link PublisherIdentityVerifier}.
  *
- * <p><b>Trust anchor model (v1).</b> At install time the only certificate the
- * installer is guaranteed to have is the code-signing leaf cert, exported
- * from the .exe via {@link AuthenticodeSignatureChecker#exportCertificate}.
- * v1 therefore treats that codesign cert as the trust anchor and only
- * accepts identity certs that chain via {@code Codesign &rarr; Identity}
- * (option-b in the RFC). The simpler {@code Root &rarr; Identity} (option-a)
- * chain will be supported in a future revision once the installer can read
- * the bundle's {@code app.xml} {@code trusted-certificates} list.
+ * <p><b>Trust anchors.</b> Two sources are accepted:
+ * <ul>
+ *   <li>The leaf code-signing cert exported from the .exe via
+ *       {@link AuthenticodeSignatureChecker#exportCertificate}, supporting
+ *       option-(b) chains where the codesign cert is the issuer of the
+ *       identity cert.</li>
+ *   <li>Any trusted roots declared in the bundle's {@code app.xml}
+ *       {@code trusted-certificates} attribute, supporting option-(a)
+ *       chains where the identity cert is signed directly by the pinned
+ *       root.</li>
+ * </ul>
+ * Either chain shape will verify; both are added to the trust anchor set
+ * passed to {@link PublisherIdentityVerifier}.
  */
 public class PublisherVerificationService {
 
@@ -57,6 +63,9 @@ public class PublisherVerificationService {
      *                       {@code /.well-known/jdeploy-publisher.cer} fallback URL when
      *                       no explicit URL list is configured. May be null.
      * @param codesignCert   the leaf code-signing cert extracted from the running .exe.
+     * @param pinnedRoots    optional roots from the bundle's {@code app.xml} that should
+     *                       also be accepted as trust anchors (option-(a) chains).
+     *                       May be null/empty.
      * @return a non-null result. Returns
      *         {@link PublisherIdentityResult.FailureReason#NO_URLS_CONFIGURED} when
      *         neither configured URLs nor a usable homepage fallback exist.
@@ -64,7 +73,8 @@ public class PublisherVerificationService {
     public PublisherIdentityResult verify(
             List<String> configuredUrls,
             String homepageUrl,
-            X509Certificate codesignCert
+            X509Certificate codesignCert,
+            List<X509Certificate> pinnedRoots
     ) {
         if (codesignCert == null) {
             return PublisherIdentityResult.notVerified(
@@ -81,22 +91,46 @@ public class PublisherVerificationService {
             );
         }
 
+        // Build a deduplicated trust-anchor set: codesign cert (option-b) plus any
+        // pinned roots from app.xml (option-a). PKIX builds whichever path applies.
+        List<X509Certificate> anchors = new ArrayList<>();
+        anchors.add(codesignCert);
+        if (pinnedRoots != null) {
+            for (X509Certificate r : pinnedRoots) {
+                if (r != null && !anchors.contains(r)) anchors.add(r);
+            }
+        }
+
         return verifier.verify(
                 candidateUrls,
-                Collections.singletonList(codesignCert),   // codesign cert acts as the pinned anchor
-                Collections.singletonList(codesignCert)    // and as the codesign chain
+                anchors,
+                Collections.singletonList(codesignCert)
         );
+    }
+
+    /** Backwards-compatible overload that omits the {@code pinnedRoots} parameter. */
+    public PublisherIdentityResult verify(
+            List<String> configuredUrls,
+            String homepageUrl,
+            X509Certificate codesignCert
+    ) {
+        return verify(configuredUrls, homepageUrl, codesignCert, Collections.emptyList());
     }
 
     /**
      * Convenience overload that loads the codesign cert from a {@code .cer} file
      * (typically the temp file produced by
-     * {@link AuthenticodeSignatureChecker#exportCertificate(File)}).
+     * {@link AuthenticodeSignatureChecker#exportCertificate(File)}) and the pinned
+     * roots from the bundle's {@code app.xml}.
+     *
+     * @param codesignCertFile the {@code .cer} file holding the leaf codesign cert.
+     * @param appXmlFile       the bundle's {@code app.xml}; may be null.
      */
     public PublisherIdentityResult verify(
             List<String> configuredUrls,
             String homepageUrl,
-            File codesignCertFile
+            File codesignCertFile,
+            File appXmlFile
     ) throws Exception {
         if (codesignCertFile == null || !codesignCertFile.exists()) {
             return PublisherIdentityResult.notVerified(
@@ -105,11 +139,23 @@ public class PublisherVerificationService {
             );
         }
         byte[] bytes = java.nio.file.Files.readAllBytes(codesignCertFile.toPath());
+        X509Certificate cert;
         try (ByteArrayInputStream in = new ByteArrayInputStream(bytes)) {
-            X509Certificate cert = (X509Certificate) CertificateFactory.getInstance("X.509")
-                    .generateCertificate(in);
-            return verify(configuredUrls, homepageUrl, cert);
+            cert = (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(in);
         }
+        List<X509Certificate> roots = (appXmlFile != null && appXmlFile.exists())
+                ? CertificateUtil.loadTrustedCertificatesListFromAppXml(appXmlFile.getAbsolutePath())
+                : Collections.<X509Certificate>emptyList();
+        return verify(configuredUrls, homepageUrl, cert, roots);
+    }
+
+    /** Backwards-compatible overload that omits the {@code appXmlFile} parameter. */
+    public PublisherIdentityResult verify(
+            List<String> configuredUrls,
+            String homepageUrl,
+            File codesignCertFile
+    ) throws Exception {
+        return verify(configuredUrls, homepageUrl, codesignCertFile, null);
     }
 
     /**

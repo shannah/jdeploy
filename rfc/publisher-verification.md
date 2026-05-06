@@ -153,7 +153,7 @@ Useful when an app has both a corporate-domain landing page and a GitHub project
 - **HTTPS only.** The fetcher refuses plaintext and cross-origin redirects. If your hosting requires a redirect (e.g. www → apex), make sure both endpoints are on the same origin or the SAN URI matches the post-redirect URL.
 - **No verification at runtime.** This flow runs at *install* time. The launcher's certificate pinning (`packageCertificatePinningEnabled`) is independent and runs every launch.
 - **No revocation.** If a hosted identity cert is compromised, the only mitigation is to re-issue and re-upload; expired or replaced certs simply stop verifying. No CRL or OCSP support in v1.
-- **Trust anchor at install time.** v1 chains the identity cert to the codesign cert extracted from the .exe (option-(b) in the plan doc). Identity certs that chain only to a separate root in `app.xml` (option-(a)) without going through the codesign cert will currently fail with `CHAIN_INVALID`. This is a Phase 4+ enhancement.
+- **Trust anchors at install time.** Both chain shapes work: `Codesign → Identity` (option-b, where the codesign cert in your .exe is the issuer of the identity cert) and `Root → Identity` (option-a, where the identity cert is signed directly by a root that's pinned in your bundle's `app.xml` `trusted-certificates` attribute). Pick whichever is operationally easier. If neither chain reaches a recognised anchor, you'll see `CHAIN_INVALID`.
 
 ## See also
 

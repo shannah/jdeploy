@@ -1165,7 +1165,9 @@ public class Main implements Runnable, Constants {
             }
             ca.weblite.jdeploy.installer.win.PublisherVerificationService svc =
                     new ca.weblite.jdeploy.installer.win.PublisherVerificationService();
-            ca.weblite.tools.security.PublisherIdentityResult r = svc.verify(urls, homepage, codesignCertFile);
+            File appXmlFile = findAppXmlFile();
+            ca.weblite.tools.security.PublisherIdentityResult r =
+                    svc.verify(urls, homepage, codesignCertFile, appXmlFile);
             // Treat NO_URLS_CONFIGURED as "not attempted" so the prompt doesn't warn the user
             // about absent verification when the publisher simply hasn't opted in.
             if (r != null && !r.isVerified()

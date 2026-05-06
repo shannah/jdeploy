@@ -1,6 +1,6 @@
 # Website / Publisher Verification — Implementation Plan
 
-**Status**: Phases 1–4 implemented; Phases 5–6 in progress.
+**Status**: Phases 1–5 and 7 implemented; Phase 6 (PEN-rooted EKU OID) pending IANA assignment.
 **Related**: `windows-codesigning-best-practices.md`, `windows-authenticode-signing.md`, `bundle-publishing-spec.md`, `publisher-verification.md` (publisher-side how-to).
 **Branch**: `claude/code-signing-certificate-pinning-hjmVd`
 
@@ -207,7 +207,7 @@ Add to package.json:
 | 4 | Network-plumbing tests for `PublisherIdentityFetcher.Default` (HTTPS-only enforcement, redirect rules, size cap, error handling). The originally proposed bash-script smoke test under `tests/projects/` was descoped — it required a full signed-app build pipeline plus an HTTPS server, which the existing JUnit suite covers more reliably. | ✅ shipped (this commit) |
 | 5 | Documentation: update `windows-codesigning-best-practices.md`; new doc `publisher-verification.md` walking through the publisher-side workflow. | ✅ shipped (this commit) |
 | 6 | (Optional) Apply for a PEN-based OID and migrate from the placeholder `1.3.6.1.4.1.99999.42.1`. | ⏳ pending |
-| 7 | (Future) Support option-(a) chains (identity cert chained to a root in `app.xml`, not via the codesign cert) at install time. The installer would need to read the bundle's `app.xml` `trusted-certificates` attribute. | ⏳ pending |
+| 7 | Support option-(a) chains (identity cert chained to a root in `app.xml`, not via the codesign cert) at install time. The installer reads the bundle's `app.xml` `trusted-certificates` attribute and adds the parsed roots to the trust anchor set alongside the codesign cert. New `CertificateUtil.loadTrustedCertificatesListFromAppXml`; `PublisherVerificationService.verify` overloads accept a `pinnedRoots` list or an `appXmlFile`; `Main.runPublisherVerification` now passes `findAppXmlFile()`. | ✅ shipped (this commit) |
 
 ## Resolved decisions
 

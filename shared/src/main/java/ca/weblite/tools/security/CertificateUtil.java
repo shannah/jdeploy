@@ -221,6 +221,53 @@ public class CertificateUtil {
         );
     }
 
+    /**
+     * Reads the {@code trusted-certificates} attribute from a bundle's {@code app.xml}
+     * and returns the parsed X.509 certificates as a list. Returns an empty list when
+     * the file is missing, the attribute is absent, or no parseable certificates are
+     * found.
+     *
+     * <p>Used by the install-time publisher verification flow
+     * (see {@code rfc/website-publisher-verification-plan.md}) to surface pinned roots
+     * as additional trust anchors so identity certs that chain {@code Root -> Identity}
+     * (option-a) — without going through the codesign cert — also verify.
+     */
+    public static java.util.List<java.security.cert.X509Certificate>
+            loadTrustedCertificatesListFromAppXml(String appXmlPath) {
+        java.util.List<java.security.cert.X509Certificate> out = new java.util.ArrayList<>();
+        if (appXmlPath == null) return out;
+        String pem = AppXmlTrustedCertificatesExtractor.extractTrustedCertificates(appXmlPath);
+        if (pem == null || pem.trim().isEmpty()) return out;
+        // Embedding PEM in an XML attribute normalises whitespace to spaces, so we can't
+        // rely on CertificateFactory.generateCertificates' line-aware parser. Mirror the
+        // logic used in loadCertificatesFromPEM: split per BEGIN marker, strip whitespace,
+        // base64-decode each block.
+        try {
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            String[] blocks = pem.split("(?=-----BEGIN CERTIFICATE-----)");
+            for (String block : blocks) {
+                String stripped = block
+                        .replaceAll("\\s", "")
+                        .replace("-----BEGINCERTIFICATE-----", "")
+                        .replace("-----ENDCERTIFICATE-----", "");
+                if (stripped.isEmpty()) continue;
+                try {
+                    byte[] decoded = Base64.getDecoder().decode(stripped);
+                    java.security.cert.Certificate c =
+                            cf.generateCertificate(new ByteArrayInputStream(decoded));
+                    if (c instanceof java.security.cert.X509Certificate) {
+                        out.add((java.security.cert.X509Certificate) c);
+                    }
+                } catch (IllegalArgumentException | java.security.cert.CertificateException ignored) {
+                    // skip malformed block, keep going
+                }
+            }
+        } catch (Exception e) {
+            // Swallow: callers treat an empty list as "no pinned roots available".
+        }
+        return out;
+    }
+
     public static KeyStore loadCertificatesFromPEM(
             String pemEncodedCertificates,
             CertificateAliasProvider aliasProvider
