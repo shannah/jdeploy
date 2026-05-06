@@ -313,4 +313,37 @@ public class NPMPackageVersion {
         JSONObject platformArtifact = artifacts.optJSONObject(platformKey);
         return PrebuiltArtifactInfo.fromJson(platformArtifact);
     }
+
+    /**
+     * Returns the {@code homepage} field from package.json, or null if absent or empty.
+     */
+    public String getHomepage() {
+        String h = packageJson.optString("homepage", null);
+        return (h == null || h.isEmpty()) ? null : h;
+    }
+
+    /**
+     * Returns publisher identity certificate URLs declared in
+     * {@code jdeploy.publisherVerificationUrls} (string or array of strings).
+     * Used by the install-time publisher verification flow.
+     *
+     * @return immutable list of URLs (never null; empty if not configured)
+     */
+    public List<String> getPublisherVerificationUrls() {
+        JSONObject jd = jdeploy();
+        if (!jd.has("publisherVerificationUrls")) return Collections.emptyList();
+        Object raw = jd.get("publisherVerificationUrls");
+        List<String> out = new ArrayList<>();
+        if (raw instanceof String) {
+            String s = ((String) raw).trim();
+            if (!s.isEmpty()) out.add(s);
+        } else if (raw instanceof JSONArray) {
+            JSONArray arr = (JSONArray) raw;
+            for (int i = 0; i < arr.length(); i++) {
+                String s = arr.optString(i, null);
+                if (s != null && !s.trim().isEmpty()) out.add(s.trim());
+            }
+        }
+        return Collections.unmodifiableList(out);
+    }
 }

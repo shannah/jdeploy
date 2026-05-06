@@ -16,6 +16,7 @@ import ca.weblite.jdeploy.installer.services.ServiceDescriptorService;
 import ca.weblite.jdeploy.installer.services.ServiceDescriptorServiceFactory;
 import ca.weblite.jdeploy.models.CommandSpec;
 import ca.weblite.tools.platform.Platform;
+import ca.weblite.tools.security.PublisherIdentityResult;
 
 import javax.swing.*;
 import java.awt.*;
@@ -413,6 +414,14 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
 
     @Override
     public boolean showCertificateTrustPrompt(ca.weblite.jdeploy.installer.win.AuthenticodeSignatureChecker.SignatureCheckResult result) {
+        return showCertificateTrustPrompt(result, null);
+    }
+
+    @Override
+    public boolean showCertificateTrustPrompt(
+            ca.weblite.jdeploy.installer.win.AuthenticodeSignatureChecker.SignatureCheckResult result,
+            PublisherIdentityResult publisherVerification
+    ) {
         String subject = result.getSubject() != null ? result.getSubject() : "";
         String displayName = extractCN(subject);
         String orgName = extractField(subject, "O");
@@ -429,6 +438,11 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         JLabel headerLabel = new JLabel("<html>This app is signed by <b>" + signerText + "</b>.</html>");
         headerLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(headerLabel);
+
+        if (publisherVerification != null) {
+            panel.add(Box.createVerticalStrut(6));
+            panel.add(buildPublisherVerificationBanner(publisherVerification));
+        }
 
         panel.add(Box.createVerticalStrut(8));
 
@@ -485,6 +499,28 @@ public class DefaultInstallationForm extends JFrame implements InstallationForm 
         );
 
         return choice == 0;
+    }
+
+    private static JComponent buildPublisherVerificationBanner(PublisherIdentityResult r) {
+        JLabel label = new JLabel();
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        if (r.isVerified()) {
+            String domain = r.getDisplayName() != null ? r.getDisplayName() : "";
+            label.setText("<html><span style='color:#117733'>&#x2713; Verified publisher: <b>"
+                    + escapeHtml(domain) + "</b></span><br>"
+                    + "<span style='color:#555;font-size:smaller'>"
+                    + "The publisher has proven they control this address.</span></html>");
+        } else {
+            label.setText("<html><span style='color:#996600'>&#9888; Publisher domain could not be verified.</span><br>"
+                    + "<span style='color:#555;font-size:smaller'>"
+                    + "Trusting this publisher relies on the certificate details below.</span></html>");
+            label.setToolTipText(
+                    r.getFailureReason() == null
+                            ? r.getDetail()
+                            : ("Reason: " + r.getFailureReason()
+                                    + (r.getDetail() != null ? " (" + r.getDetail() + ")" : "")));
+        }
+        return label;
     }
 
     /**

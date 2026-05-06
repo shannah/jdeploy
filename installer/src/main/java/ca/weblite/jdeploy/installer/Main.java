@@ -1104,26 +1104,38 @@ public class Main implements Runnable, Constants {
                 AuthenticodeSignatureChecker checker = new AuthenticodeSignatureChecker();
                 AuthenticodeSignatureChecker.SignatureCheckResult result = checker.checkSignature(installedApp);
                 if (result.isSignedButUntrusted()) {
-                    // Show dialog on EDT and wait for result
+                    File certFile = null;
+                    ca.weblite.tools.security.PublisherIdentityResult publisherVerification = null;
+                    try {
+                        certFile = checker.exportCertificate(installedApp);
+                        publisherVerification = runPublisherVerification(certFile);
+                    } catch (Exception e) {
+                        System.err.println("Publisher verification skipped: " + e.getMessage());
+                    }
+
+                    final ca.weblite.tools.security.PublisherIdentityResult finalVerification = publisherVerification;
                     final boolean[] userChoice = {false};
                     try {
                         javax.swing.SwingUtilities.invokeAndWait(() -> {
-                            userChoice[0] = form.showCertificateTrustPrompt(result);
+                            userChoice[0] = form.showCertificateTrustPrompt(result, finalVerification);
                         });
                     } catch (Exception e) {
                         System.err.println("Failed to show certificate trust dialog: " + e.getMessage());
                     }
-                    if (userChoice[0]) {
-                        File certFile = checker.exportCertificate(installedApp);
-                        try {
+
+                    try {
+                        if (userChoice[0]) {
+                            if (certFile == null || !certFile.exists()) {
+                                certFile = checker.exportCertificate(installedApp);
+                            }
                             CertificateTrustService trustService = new CertificateTrustService();
                             boolean added = trustService.addToUserTrustStore(certFile);
                             if (!added) {
                                 System.err.println("Failed to add certificate to user trust store.");
                             }
-                        } finally {
-                            certFile.delete();
                         }
+                    } finally {
+                        if (certFile != null) certFile.delete();
                     }
                 }
             }
@@ -1131,6 +1143,41 @@ public class Main implements Runnable, Constants {
             System.err.println("Certificate trust check failed: " + e.getMessage());
         }
         invokeLater(() -> form.showInstallationCompleteDialog());
+    }
+
+    /**
+     * Runs the publisher identity verification flow (rfc/website-publisher-verification-plan.md).
+     *
+     * <p>Returns null when neither {@code jdeploy.publisherVerificationUrls} nor a usable
+     * {@code homepage} is configured — callers treat null as "verification not attempted"
+     * and the trust prompt suppresses any banner. Returns a NOT_VERIFIED result for any
+     * other failure (fetch error, expired cert, swapped domain, etc.) so the prompt can
+     * surface a warning.
+     */
+    private ca.weblite.tools.security.PublisherIdentityResult runPublisherVerification(File codesignCertFile) {
+        try {
+            java.util.List<String> urls = java.util.Collections.emptyList();
+            String homepage = null;
+            ca.weblite.jdeploy.installer.npm.NPMPackageVersion pkg = npmPackageVersion();
+            if (pkg != null) {
+                urls = pkg.getPublisherVerificationUrls();
+                homepage = pkg.getHomepage();
+            }
+            ca.weblite.jdeploy.installer.win.PublisherVerificationService svc =
+                    new ca.weblite.jdeploy.installer.win.PublisherVerificationService();
+            ca.weblite.tools.security.PublisherIdentityResult r = svc.verify(urls, homepage, codesignCertFile);
+            // Treat NO_URLS_CONFIGURED as "not attempted" so the prompt doesn't warn the user
+            // about absent verification when the publisher simply hasn't opted in.
+            if (r != null && !r.isVerified()
+                    && r.getFailureReason() == ca.weblite.tools.security.PublisherIdentityResult
+                            .FailureReason.NO_URLS_CONFIGURED) {
+                return null;
+            }
+            return r;
+        } catch (Exception e) {
+            System.err.println("Publisher verification error: " + e.getMessage());
+            return null;
+        }
     }
 
     private void onVisitSoftwareHomepage(InstallationFormEvent evt) {
