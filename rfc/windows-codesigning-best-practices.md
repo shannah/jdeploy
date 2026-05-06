@@ -77,6 +77,18 @@ subjectKeyIdentifier   = hash
 authorityKeyIdentifier = keyid:always
 ```
 
+> **Optional — issuing-CA codesign cert.** If you also want to be able to issue **publisher identity certs** (see `website-publisher-verification-plan.md`) without unlocking the offline root every time, instead use:
+>
+> ```
+> basicConstraints = critical, CA:TRUE, pathlen:0
+> keyUsage         = critical, digitalSignature, keyCertSign
+> extendedKeyUsage = codeSigning
+> subjectKeyIdentifier   = hash
+> authorityKeyIdentifier = keyid:always
+> ```
+>
+> This makes the codesign cert a constrained sub-CA: it can sign the .exe + bundle as before, *and* can issue short-lived identity certs that chain `root → codesign → identity`. Trade-off: a wider blast radius if the codesign key leaks (an attacker could mint identity certs for any domain) — only do this if your codesign key lives in an HSM or is otherwise well protected.
+
 Then issue the cert (2-year validity is a reasonable default):
 
 ```bash

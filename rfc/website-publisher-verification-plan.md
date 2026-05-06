@@ -23,22 +23,32 @@ Let a publisher prove "this code-signing cert belongs to me, the operator of `ht
 
 ### Companion certificate (a.k.a. "publisher identity certificate")
 
-The publisher generates a second X.509 certificate — a **publisher identity cert** — that is **signed by their root CA** (the same root that signs the codesign cert). The identity cert binds a specific URL (or GitHub repo) into the certificate itself, so it cannot be moved.
+The publisher generates a second X.509 certificate — a **publisher identity cert** — that **chains to the pinned root**. The identity cert binds a specific URL (or GitHub repo) into the certificate itself, so it cannot be moved.
+
+The chain can be any of:
+
+```
+   (a) Root → Identity Cert                       (signed directly by root)
+   (b) Root → Codesign Cert → Identity Cert       (codesign acts as issuing CA)
+   (c) Root → Issuing-CA → Identity Cert          (separate issuing intermediate)
+```
 
 ```
        Root CA  (offline, pinned in app.xml)
        /     \
       /       \
-  Codesign    Publisher Identity Cert
-   Cert        ├── Subject CN: Acme Corp
-   (signs       ├── SAN URI: https://acme.example.com/.well-known/jdeploy-publisher.cer
+  Codesign    Publisher Identity Cert       ← (a) signed by root, OR
+   Cert        ├── Subject CN: Acme Corp     ← (b) signed by the codesign cert
+   (signs      ├── SAN URI: https://acme.example.com/.well-known/jdeploy-publisher.cer
    .exe +      ├── SAN URI: https://github.com/acme/widget    (optional, multi-binding)
    bundle)     └── EKU: id-kp-1.3.6.1.4.1.<jdeploy-OID>.publisher
 ```
 
-- Issued from the root, **not** from the codesign cert. The root is what's pinned, and we don't want to require a path constraint chain longer than 1.
+- Whatever signs the identity cert must have `basicConstraints=CA:TRUE` (and `keyUsage=keyCertSign`). If signing with the codesign cert (option b), that cert must therefore have been issued as a sub-CA — see updated `codesign.ext` recommendation in `windows-codesigning-best-practices.md`.
 - Validity: short (90–365 days). Cheap to rotate; embeds a fresh proof of liveness.
 - Hosted publicly at the URL embedded in its own SAN.
+
+**Why allow option (b)?** It means publishers can re-issue an identity cert (e.g. when adding a new domain or rotating an expiring one) using a key that already lives on their build machine / CI, without pulling the offline root key out of the safe. Option (a) is still recommended when feasible because it keeps the codesign cert as a leaf — but option (b) is operationally lighter.
 
 ### `.well-known` URL convention
 
@@ -59,8 +69,8 @@ When the installer encounters a signed-but-untrusted Windows .exe (see `Main.pro
 1. **Discover candidate URLs.** Read `app.xml` for a new `publisher-verification-urls` attribute (comma-separated). Fallback: parse the `homepage` from the bundle's package.json, append `/.well-known/jdeploy-publisher.cer`.
 2. For each URL:
    1. HTTPS fetch (timeout 10s, follow redirects only on same origin).
-   2. Parse PEM → X.509 cert.
-   3. **Build chain to root**: identity cert, then any intermediates from the response (PEM may include them), then the pinned root from `app.xml`.
+   2. Parse PEM → X.509 cert(s). The fetched file MAY be a concatenation of identity cert + intermediates so the verifier can build the chain offline.
+   3. **Build chain to root**: identity cert (leaf), then any intermediates from the response, then the pinned root from `app.xml`. Intermediates from the bundle's `jdeploy.cer` (e.g. the codesign cert if it was the issuer) are also added to the candidate set so option-(b) chains work without re-shipping the codesign cert in the well-known file.
    4. PKIX-validate. Reject if anything doesn't chain.
    5. Confirm the leaf cert has the jDeploy publisher EKU (custom OID, see below).
    6. **Confirm the URL match**: the URL we just fetched from must appear in the cert's SAN URI list. This is the anti-spoof check — copying the file to a different domain produces a SAN/URL mismatch.
@@ -126,15 +136,29 @@ The OID will be checked by the verifier and is what allows the same root to issu
 
 ### CLI surface (`jdeploy generate-publisher-cert`)
 
+The issuer can be the root **or** any cert that chains to the pinned root (typically the codesign cert if it was set up with `CA:TRUE`):
+
 ```
+# Issued directly by the root (option a)
 jdeploy generate-publisher-cert \
-    --root-key   ~/jdeploy-pki/root.key \
-    --root-cert  ~/jdeploy-pki/root.crt \
-    --domain     acme.example.com \
-    --github     acme/widget \
+    --issuer-key  ~/jdeploy-pki/root.key \
+    --issuer-cert ~/jdeploy-pki/root.crt \
+    --domain      acme.example.com \
+    --github      acme/widget \
     --validity-days 365 \
-    --out        publisher-identity.cer
+    --out         publisher-identity.cer
+
+# Issued by the codesign cert (option b — no need to unlock the root)
+jdeploy generate-publisher-cert \
+    --issuer-key  ~/jdeploy-pki/codesign.key \
+    --issuer-cert ~/jdeploy-pki/codesign.crt \
+    --chain       ~/jdeploy-pki/root.crt \
+    --domain      acme.example.com \
+    --validity-days 90 \
+    --out         publisher-identity.pem
 ```
+
+`--chain` lets the user concatenate intermediates into the output PEM so the served `.well-known` file lets the verifier build the chain in one fetch.
 
 Output: a single PEM-encoded cert file the user uploads to `https://acme.example.com/.well-known/jdeploy-publisher.cer`. The command also prints:
 
@@ -179,4 +203,5 @@ Add to app.xml:
 1. **Where should the URL list live — `app.xml`, `package.json`, or the cert itself?** Leaning toward "all three": cert SAN is authoritative for *binding*, but a discoverable list in `app.xml` lets the installer know which URLs to attempt before fetching anything. Discuss before Phase 3.
 2. **Should we cache verification results across installs?** Probably not in v1 — fetch is cheap, freshness matters more than throughput.
 3. **GitHub repo URL canonicalisation.** `github.com/owner/repo` vs `raw.githubusercontent.com/owner/repo/main/...` — settle on one form to embed in SAN; verifier accepts equivalent-resolving fetches.
-4. **Should the codesign cert *also* be issued with the publisher EKU, or strictly separated?** Strictly separated is cleaner and matches the precedent of `id-kp-codeSigning` vs other EKUs; recommend keeping them as two distinct certs from the same root.
+4. **Should the codesign cert *also* be issued with the publisher EKU, or strictly separated?** Strictly separated is cleaner and matches the precedent of `id-kp-codeSigning` vs other EKUs; recommend keeping them as two distinct certs.
+5. **If the codesign cert acts as an issuing CA (option b), should it be allowed to also carry `id-kp-codeSigning`?** Some validators are picky about combining `keyCertSign` with `digitalSignature` + `codeSigning` EKU. Recommend testing against `signtool verify`, `Get-AuthenticodeSignature`, and the launcher's `SimpleCertificateVerifier` before committing.
