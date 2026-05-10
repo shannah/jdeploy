@@ -165,7 +165,7 @@ Confirm with the user that each cert shows:
 | Subject | `CN=acme-test.example` (or the SAN host as CN) and `O=` if you passed `--organization` |
 | Issuer  | for `-a.pem`: `CN=Test Root CA, O=Manual-Test, C=US`<br>for `-b.pem`: `CN=Test Codesign Sub-CA, O=Manual-Test, C=US` |
 | `subjectAltName` | exactly the URLs from `--domain` (full `https://...well-known/jdeploy-publisher.cer` form) and `--github` (canonical `https://github.com/<owner>/<repo>` form) |
-| `extendedKeyUsage` | contains `1.3.6.1.4.1.99999.42.1` (the placeholder publisher EKU OID — see `rfc/website-publisher-verification-plan.md` for the migration plan when a real PEN is registered) |
+| `extendedKeyUsage` | contains `1.3.6.1.4.1.65772.1.1` (`id-kp-jdeploy-publisher-identity`, allocated under IANA PEN 65772 — see `rfc/website-publisher-verification-plan.md` § Custom EKU OID) |
 
 If any of these don't match, stop and investigate.
 

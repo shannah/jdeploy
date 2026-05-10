@@ -43,10 +43,18 @@ import java.util.Set;
 public final class PublisherIdentityVerifier {
 
     /**
-     * Provisional OID for the jDeploy publisher identity EKU. Replace with a PEN-rooted
-     * OID once one is allocated; verifier accepts both during the migration window.
+     * EKU OID for the jDeploy publisher identity certificate. Allocated under
+     * IANA Private Enterprise Number 65772 (Web Lite Solutions Corp.):
+     * <ul>
+     *   <li>{@code 1.3.6.1.4.1.65772} &mdash; PEN root</li>
+     *   <li>{@code 1.3.6.1.4.1.65772.1} &mdash; X.509-related OIDs</li>
+     *   <li>{@code 1.3.6.1.4.1.65772.1.1} &mdash; {@code id-kp-jdeploy-publisher-identity} (this OID)</li>
+     * </ul>
+     * <p>Identity certs minted by {@code jdeploy generate-publisher-cert} carry this
+     * OID in their {@code extendedKeyUsage} extension; the verifier rejects certs
+     * that do not carry it (see {@link PublisherIdentityResult.FailureReason#MISSING_EKU}).
      */
-    public static final String PUBLISHER_EKU_OID = "1.3.6.1.4.1.99999.42.1";
+    public static final String PUBLISHER_EKU_OID = "1.3.6.1.4.1.65772.1.1";
 
     private static final String GITHUB_HOST = "github.com";
     private static final String GITHUB_RAW_HOST = "raw.githubusercontent.com";

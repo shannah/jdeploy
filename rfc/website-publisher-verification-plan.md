@@ -1,6 +1,6 @@
 # Website / Publisher Verification — Implementation Plan
 
-**Status**: Phases 1–5 and 7 implemented; Phase 6 (PEN-rooted EKU OID) pending IANA assignment.
+**Status**: Phases 1–7 implemented and complete.
 **Related**: `windows-codesigning-best-practices.md`, `windows-authenticode-signing.md`, `bundle-publishing-spec.md`, `publisher-verification.md` (publisher-side how-to).
 **Branch**: `claude/code-signing-certificate-pinning-hjmVd`
 
@@ -109,12 +109,15 @@ When `NOT_VERIFIED`, the existing prompt is shown, plus a one-line "Publisher do
 
 ### Custom EKU OID
 
-We need a private OID for the publisher EKU. Options, in order of preference:
+The publisher EKU is `1.3.6.1.4.1.65772.1.1` (`id-kp-jdeploy-publisher-identity`), allocated under IANA Private Enterprise Number **65772** (Web Lite Solutions Corp.):
 
-1. Get a PEN (Private Enterprise Number) under `1.3.6.1.4.1.<num>` and use `1.3.6.1.4.1.<num>.1.1` (publisher identity). Free from IANA, ~2 weeks.
-2. Until a PEN is granted: use a placeholder OID under `1.3.6.1.4.1.99999.42.1` (clearly squatted; document as provisional).
+- `1.3.6.1.4.1.65772` &mdash; PEN root.
+- `1.3.6.1.4.1.65772.1` &mdash; X.509-related OIDs subtree.
+- `1.3.6.1.4.1.65772.1.1` &mdash; the publisher identity EKU.
 
-The OID will be checked by the verifier and is what allows the same root to issue *both* a codesign cert (`id-kp-codeSigning`) and a publisher identity cert (jdeploy publisher EKU) without confusion.
+`.1.2`, `.1.3`, &hellip; remain available for future jDeploy-defined EKUs; `.2.x`, `.3.x`, &hellip; for non-EKU OID kinds (extensions, attributes).
+
+The OID is checked by the verifier (`PublisherIdentityResult.FailureReason.MISSING_EKU`) and is what lets the same root cert issue *both* a code-signing cert (`id-kp-codeSigning`) and a publisher identity cert without ambiguity.
 
 ---
 
@@ -206,7 +209,7 @@ Add to package.json:
 | 3 | Installer integration: `PublisherVerificationService`, `Main` wiring, dialog change. | ✅ shipped (commit `14b7ff9`) |
 | 4 | Network-plumbing tests for `PublisherIdentityFetcher.Default` (HTTPS-only enforcement, redirect rules, size cap, error handling). The originally proposed bash-script smoke test under `tests/projects/` was descoped — it required a full signed-app build pipeline plus an HTTPS server, which the existing JUnit suite covers more reliably. | ✅ shipped (this commit) |
 | 5 | Documentation: update `windows-codesigning-best-practices.md`; new doc `publisher-verification.md` walking through the publisher-side workflow. | ✅ shipped (this commit) |
-| 6 | (Optional) Apply for a PEN-based OID and migrate from the placeholder `1.3.6.1.4.1.99999.42.1`. | ⏳ pending |
+| 6 | Apply for an IANA Private Enterprise Number, allocate a real EKU OID under it, and swap the placeholder. PEN **65772** assigned to Web Lite Solutions Corp.; OID is `1.3.6.1.4.1.65772.1.1`. Clean cutover (no transition window) since no certs were minted with the placeholder before this branch shipped. | ✅ shipped (this commit) |
 | 7 | Support option-(a) chains (identity cert chained to a root in `app.xml`, not via the codesign cert) at install time. The installer reads the bundle's `app.xml` `trusted-certificates` attribute and adds the parsed roots to the trust anchor set alongside the codesign cert. New `CertificateUtil.loadTrustedCertificatesListFromAppXml`; `PublisherVerificationService.verify` overloads accept a `pinnedRoots` list or an `appXmlFile`; `Main.runPublisherVerification` now passes `findAppXmlFile()`. | ✅ shipped (this commit) |
 
 ## Resolved decisions
