@@ -507,7 +507,7 @@ public class Main implements Runnable, Constants {
         }
     }
 
-    private static String createUserReadableSemVerForVersion(String version, AutoUpdateSettings updateSettings) {
+    static String createUserReadableSemVerForVersion(String version, AutoUpdateSettings updateSettings) {
         switch (updateSettings) {
             case Stable:
                 return "*";
@@ -550,7 +550,7 @@ public class Main implements Runnable, Constants {
         }
     }
 
-    private static String createSemVerForVersion(String version, AutoUpdateSettings updateSettings) {
+    static String createSemVerForVersion(String version, AutoUpdateSettings updateSettings) {
         if (version.startsWith("0.0.0-")) {
             // Special case for Github branches, in which case the app should stay in sync with
             // the branch
