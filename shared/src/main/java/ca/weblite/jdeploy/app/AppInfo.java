@@ -82,6 +82,8 @@ public class AppInfo  {
      */
     private String initialAppVersion;
 
+    private String appUpdateMode;
+
     private Map<String, String> documentMimetypes;
 
     private Map<String, String> documentTypeIcons;
@@ -1711,5 +1713,16 @@ public class AppInfo  {
 
     public void setInitialAppVersion(String initialAppVersion) {
         this.initialAppVersion = initialAppVersion;
+    }
+
+    /**
+     * The auto-update mode for the launcher ({@code "auto"} or {@code "prompt"}).
+     */
+    public String getAppUpdateMode() {
+        return appUpdateMode;
+    }
+
+    public void setAppUpdateMode(String appUpdateMode) {
+        this.appUpdateMode = appUpdateMode;
     }
 }

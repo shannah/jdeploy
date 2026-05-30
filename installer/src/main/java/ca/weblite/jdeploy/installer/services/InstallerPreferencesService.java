@@ -16,6 +16,7 @@ public class InstallerPreferencesService {
 
     private static final String KEY_VERSION = "version";
     private static final String KEY_PRERELEASE = "prerelease";
+    private static final String KEY_APP_UPDATE_MODE = "app-update-mode";
 
     private final File preferencesFile;
 
@@ -34,9 +35,41 @@ public class InstallerPreferencesService {
      * @param prerelease the prerelease flag
      */
     public void save(String version, boolean prerelease) {
+        save(version, prerelease, null);
+    }
+
+    /**
+     * Saves the version, prerelease and auto-update mode preferences.
+     *
+     * <p>The preferences file is read first so that pre-existing keys are preserved
+     * (read-merge-write). The {@code app-update-mode} key is the value the launcher
+     * reads to decide whether to prompt before updating.</p>
+     *
+     * @param version the computed version string (e.g., "latest", "^1", "~1.2", "1.2.3")
+     * @param prerelease the prerelease flag
+     * @param appUpdateMode the auto-update mode ("auto" or "prompt"). When {@code null}
+     *                      or empty, any existing {@code app-update-mode} value is left
+     *                      untouched.
+     */
+    public void save(String version, boolean prerelease, String appUpdateMode) {
         Properties props = new Properties();
+        if (preferencesFile.exists()) {
+            try (FileInputStream in = new FileInputStream(preferencesFile)) {
+                props.load(in);
+            } catch (IOException e) {
+                System.err.println("Warning: Failed to read existing installer preferences: " + e.getMessage());
+            }
+        }
+
         props.setProperty(KEY_VERSION, version);
         props.setProperty(KEY_PRERELEASE, String.valueOf(prerelease));
+
+        // Only write the mode when the published metadata specifies one. Writing it
+        // explicitly (auto or prompt) means switching modes between releases works;
+        // a null/empty value leaves any existing preference in place.
+        if (appUpdateMode != null && !appUpdateMode.isEmpty()) {
+            props.setProperty(KEY_APP_UPDATE_MODE, appUpdateMode);
+        }
 
         preferencesFile.getParentFile().mkdirs();
         try (FileOutputStream out = new FileOutputStream(preferencesFile)) {

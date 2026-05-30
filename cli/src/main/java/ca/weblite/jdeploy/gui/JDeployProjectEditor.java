@@ -28,6 +28,7 @@ import ca.weblite.jdeploy.gui.tabs.ProjectMetadataPanel;
 import ca.weblite.jdeploy.gui.tabs.PublishSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.RuntimeArgsPanel;
 import ca.weblite.jdeploy.gui.tabs.SplashScreensPanel;
+import ca.weblite.jdeploy.gui.tabs.UpdateSettingsPanel;
 import ca.weblite.jdeploy.gui.tabs.UrlSchemesPanel;
 import ca.weblite.jdeploy.helpers.NPMApplicationHelper;
 import ca.weblite.jdeploy.models.NPMApplication;
@@ -81,6 +82,7 @@ public class JDeployProjectEditor {
     private HelperActionsPanel helperActionsPanel;
     private RuntimeArgsPanel runtimeArgsPanel;
     private CheerpJSettingsPanel cheerpJSettingsPanel;
+    private UpdateSettingsPanel updateSettingsPanel;
     private SplashScreensPanel splashScreensPanel;
     private EditorPanelRegistry registry;
     private PublishActionHandler publishActionHandler;
@@ -638,6 +640,18 @@ public class JDeployProjectEditor {
                 () -> context.shouldDisplayCheerpJPanel()
             ));
         }
+
+        // Update Settings Panel
+        updateSettingsPanel = new UpdateSettingsPanel();
+        registry.register(NavigablePanelAdapter.forJdeployPanel(
+            "Updates",
+            MenuBarBuilder.JDEPLOY_WEBSITE_URL + "docs/help/#updates",
+            FontIcon.of(Material.SYSTEM_UPDATE),
+            updateSettingsPanel.getRoot(),
+            json -> updateSettingsPanel.load(json),
+            json -> updateSettingsPanel.save(json),
+            listener -> updateSettingsPanel.addChangeListener(listener)
+        ));
 
         // Permissions Panel
         permissionsPanel = new PermissionsPanel();

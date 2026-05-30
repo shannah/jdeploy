@@ -64,6 +64,16 @@ public class NPMPackageVersion {
         return version;
     }
 
+    /**
+     * The auto-update mode declared in the package's {@code jdeploy} config.
+     *
+     * @return {@code "prompt"} if the launcher should prompt before updating, otherwise
+     *         {@code "auto"} (the default).
+     */
+    public String getAppUpdateMode() {
+        return jdeploy().optString("appUpdateMode", "auto");
+    }
+
     public String getJavaVersion() {
         if (jdeploy().has("javaVersion")) {
             return jdeploy().getString("javaVersion");
