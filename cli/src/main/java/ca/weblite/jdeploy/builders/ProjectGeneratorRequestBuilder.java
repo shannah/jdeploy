@@ -19,6 +19,9 @@ public class ProjectGeneratorRequestBuilder implements ProjectGeneratorRequest.P
     @CommandLineParser.Help("Whether the repository should be private")
     private boolean privateRepository;
 
+    @CommandLineParser.Help("Whether to create the GitHub repository. If false, the repository is assumed to already exist and is only used as the push target. Defaults to true.")
+    private boolean createGitHubRepository = true;
+
     @CommandLineParser.Help("Whether to use an existing directory")
     private boolean useExistingDirectory;
 
@@ -392,6 +395,18 @@ public class ProjectGeneratorRequestBuilder implements ProjectGeneratorRequest.P
         this.privateRepository = privateRepository;
 
         return this;
+    }
+
+    @Override
+    public ProjectGeneratorRequest.Params setCreateGitHubRepository(boolean createGitHubRepository) {
+        this.createGitHubRepository = createGitHubRepository;
+
+        return this;
+    }
+
+    @Override
+    public boolean isCreateGitHubRepository() {
+        return createGitHubRepository;
     }
 
     public String getGithubRepository() {
