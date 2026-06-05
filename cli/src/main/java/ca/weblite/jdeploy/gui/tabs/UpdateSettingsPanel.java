@@ -52,36 +52,53 @@ public class UpdateSettingsPanel extends JPanel {
     private ActionListener changeListener;
 
     public UpdateSettingsPanel() {
-        setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+        // Anchor the content at the top: BorderLayout.NORTH keeps the sections at
+        // their preferred heights instead of stretching them (and the rows inside
+        // them) to fill the editor's content area.
+        setLayout(new BorderLayout());
         buildUi();
         initializeChangeListeners();
         updateEnabledState();
     }
 
     private void buildUi() {
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
         // --- Auto-update behaviour ---
         JPanel modePanel = new JPanel();
         modePanel.setLayout(new BoxLayout(modePanel, BoxLayout.Y_AXIS));
-        modePanel.setBorder(BorderFactory.createTitledBorder("Auto-Update Behaviour"));
+        modePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        modePanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createTitledBorder("Auto-Update Behaviour"),
+                BorderFactory.createEmptyBorder(4, 8, 8, 8)));
         modePanel.add(wrapLeft(new JLabel(
                 "<html><p style='width:420px'>Choose what happens when an update is available "
                         + "the next time the user launches your app.</p></html>")));
+        modePanel.add(Box.createVerticalStrut(6));
         ButtonGroup modeGroup = new ButtonGroup();
         modeGroup.add(autoUpdateRadio);
         modeGroup.add(promptUpdateRadio);
         modePanel.add(wrapLeft(autoUpdateRadio));
         modePanel.add(wrapLeft(promptUpdateRadio));
-        add(modePanel);
+        content.add(modePanel);
+
+        content.add(Box.createVerticalStrut(10));
 
         // --- Minimum initial app version ---
         JPanel minPanel = new JPanel();
         minPanel.setLayout(new BoxLayout(minPanel, BoxLayout.Y_AXIS));
-        minPanel.setBorder(BorderFactory.createTitledBorder("Minimum Initial App Version"));
+        minPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        minPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createTitledBorder("Minimum Initial App Version"),
+                BorderFactory.createEmptyBorder(4, 8, 8, 8)));
         minPanel.add(wrapLeft(new JLabel(
                 "<html><p style='width:420px'>The initial app version is the version a user "
                         + "first installed. Setting a minimum forces users whose initial app "
                         + "version is older to download a new installer and perform a full update "
                         + "before they can run newer releases.</p></html>")));
+        minPanel.add(Box.createVerticalStrut(6));
         ButtonGroup minGroup = new ButtonGroup();
         minGroup.add(minNoneRadio);
         minGroup.add(minLatestRadio);
@@ -94,7 +111,9 @@ public class UpdateSettingsPanel extends JPanel {
         explicitRow.add(minExplicitField);
         minPanel.add(wrapLeft(explicitRow));
         minPanel.add(wrapLeft(requireLauncherUpdateCheckbox));
-        add(minPanel);
+        content.add(minPanel);
+
+        add(content, BorderLayout.NORTH);
     }
 
     private static JComponent wrapLeft(JComponent c) {
