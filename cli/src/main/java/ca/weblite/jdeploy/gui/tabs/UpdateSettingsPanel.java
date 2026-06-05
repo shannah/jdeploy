@@ -24,6 +24,11 @@ import org.json.JSONObject;
  *       launcher.</li>
  * </ul>
  *
+ * <p>In the UI these are framed as <b>App-Only Updates</b> ({@code appUpdateMode} — updates
+ * that replace only the app's jar files, applied seamlessly on launch) and <b>Full Updates</b>
+ * ({@code minLauncherInitialAppVersion} / {@code requireLauncherUpdate} — updates that run the
+ * installer again to update the native launcher along with the app).</p>
+ *
  * <p>Follows the established remove-when-default convention: keys are only written when
  * they differ from the default, and removed otherwise.</p>
  */
@@ -39,15 +44,39 @@ public class UpdateSettingsPanel extends JPanel {
     static final String MIN_VERSION_MODE_LATEST = "latest";
 
     private final JRadioButton autoUpdateRadio = new JRadioButton("Update automatically on launch (default)");
-    private final JRadioButton promptUpdateRadio = new JRadioButton("Prompt me before updating");
+    private final JRadioButton promptUpdateRadio = new JRadioButton("Prompt the user before updating");
 
-    private final JRadioButton minNoneRadio = new JRadioButton("No minimum");
-    private final JRadioButton minLatestRadio = new JRadioButton("Auto-set to the published version on each publish");
-    private final JRadioButton minExplicitRadio = new JRadioButton("Require at least version:");
-    private final JTextField minExplicitField = new JTextField(12);
+    private final JRadioButton minNoneRadio = new JRadioButton("Never require a full update (default)");
+    private final JRadioButton minLatestRadio = new JRadioButton("Require a full update for every new release");
+    private final JRadioButton minExplicitRadio = new JRadioButton("Require a full update for installations older than:");
+    private final JTextField minExplicitField = new PlaceholderTextField("App version, e.g. 1.2.0", 14);
 
     private final JCheckBox requireLauncherUpdateCheckbox =
-            new JCheckBox("Force a full launcher update for users below the minimum");
+            new JCheckBox("Don't allow the app to run until the full update is completed");
+
+    private static final String APP_ONLY_HELP =
+            "<html><p style='width:400px'>App-only updates replace just your app's jar files, "
+                    + "leaving the native launcher untouched. They are fast, and can be applied "
+                    + "seamlessly in the background when the user launches your app.</p>"
+                    + "<p style='width:400px'>App-only updates are generally sufficient for "
+                    + "distributing new releases. If a release depends on newer jDeploy features, "
+                    + "or on features of your app that require running the installer again, use "
+                    + "Full Updates to require a full update.</p></html>";
+
+    private static final String FULL_UPDATE_HELP =
+            "<html><p style='width:400px'>A full update runs through the installation wizard "
+                    + "again, updating the native launcher (the harness that hosts your app) in "
+                    + "addition to the app's jar files. Full updates are slower than app-only "
+                    + "updates and require interaction from the user, so they should only be "
+                    + "required when necessary.</p>"
+                    + "<p style='width:400px'>A full update is sometimes required — for example, "
+                    + "when a release depends on jDeploy features that weren't available in "
+                    + "previous versions of your app, or when you've added features (such as new "
+                    + "file associations or services) that require a full install.</p>"
+                    + "<p style='width:400px'>The version threshold refers to the version the "
+                    + "user first installed: users whose original installation is older than the "
+                    + "threshold are asked to download a new installer and perform a full update "
+                    + "before they can run newer releases.</p></html>";
 
     private ActionListener changeListener;
 
@@ -66,16 +95,18 @@ public class UpdateSettingsPanel extends JPanel {
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 
-        // --- Auto-update behaviour ---
+        // --- App-only updates (jar files only, applied seamlessly on launch) ---
         JPanel modePanel = new JPanel();
         modePanel.setLayout(new BoxLayout(modePanel, BoxLayout.Y_AXIS));
         modePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         modePanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createTitledBorder("Auto-Update Behaviour"),
+                BorderFactory.createTitledBorder("App-Only Updates"),
                 BorderFactory.createEmptyBorder(4, 8, 8, 8)));
+        modePanel.add(wrapLeft(createHelpLink("App-Only Updates", APP_ONLY_HELP)));
         modePanel.add(wrapLeft(new JLabel(
-                "<html><p style='width:420px'>Choose what happens when an update is available "
-                        + "the next time the user launches your app.</p></html>")));
+                "<html><p style='width:420px'>App-only updates replace your app's jar files, "
+                        + "and can be applied seamlessly when the user launches your app. "
+                        + "Choose what happens when one is available.</p></html>")));
         modePanel.add(Box.createVerticalStrut(6));
         ButtonGroup modeGroup = new ButtonGroup();
         modeGroup.add(autoUpdateRadio);
@@ -86,18 +117,18 @@ public class UpdateSettingsPanel extends JPanel {
 
         content.add(Box.createVerticalStrut(10));
 
-        // --- Minimum initial app version ---
+        // --- Full updates (minimum initial app version + require launcher update) ---
         JPanel minPanel = new JPanel();
         minPanel.setLayout(new BoxLayout(minPanel, BoxLayout.Y_AXIS));
         minPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         minPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createTitledBorder("Minimum Initial App Version"),
+                BorderFactory.createTitledBorder("Full Updates"),
                 BorderFactory.createEmptyBorder(4, 8, 8, 8)));
+        minPanel.add(wrapLeft(createHelpLink("Full Updates", FULL_UPDATE_HELP)));
         minPanel.add(wrapLeft(new JLabel(
-                "<html><p style='width:420px'>The initial app version is the version a user "
-                        + "first installed. Setting a minimum forces users whose initial app "
-                        + "version is older to download a new installer and perform a full update "
-                        + "before they can run newer releases.</p></html>")));
+                "<html><p style='width:420px'>A full update runs the installer again, updating "
+                        + "the native launcher along with the app. Choose when users are "
+                        + "required to perform one.</p></html>")));
         minPanel.add(Box.createVerticalStrut(6));
         ButtonGroup minGroup = new ButtonGroup();
         minGroup.add(minNoneRadio);
@@ -105,6 +136,10 @@ public class UpdateSettingsPanel extends JPanel {
         minGroup.add(minExplicitRadio);
         minPanel.add(wrapLeft(minNoneRadio));
         minPanel.add(wrapLeft(minLatestRadio));
+        minExplicitField.setToolTipText(
+                "<html><p style='width:300px'>The minimum version of <i>your app</i> (not "
+                        + "jDeploy). Users who first installed a version older than this will be "
+                        + "required to perform a full update.</p></html>");
         JPanel explicitRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         explicitRow.add(minExplicitRadio);
         explicitRow.add(Box.createHorizontalStrut(6));
@@ -122,6 +157,28 @@ public class UpdateSettingsPanel extends JPanel {
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
         row.add(c);
         return row;
+    }
+
+    /**
+     * Creates a small link-styled label that pops up a fuller description of a section
+     * when clicked.
+     */
+    private JComponent createHelpLink(String title, String helpHtml) {
+        JLabel link = new JLabel("<html><u>What are " + title.toLowerCase() + "?</u></html>");
+        link.setForeground(new Color(100, 149, 237)); // Cornflower blue
+        link.setFont(link.getFont().deriveFont(link.getFont().getSize2D() - 1f));
+        link.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        link.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                JOptionPane.showMessageDialog(
+                        UpdateSettingsPanel.this,
+                        new JLabel(helpHtml),
+                        title,
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+        return link;
     }
 
     private void initializeChangeListeners() {
@@ -218,6 +275,37 @@ public class UpdateSettingsPanel extends JPanel {
     private void fireChangeEvent() {
         if (changeListener != null) {
             changeListener.actionPerformed(new java.awt.event.ActionEvent(this, 0, "changed"));
+        }
+    }
+
+    /**
+     * A text field that paints a grayed-out placeholder hint while it is empty.
+     */
+    private static class PlaceholderTextField extends JTextField {
+
+        private final String placeholder;
+
+        PlaceholderTextField(String placeholder, int columns) {
+            super(columns);
+            this.placeholder = placeholder;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            if (getText().isEmpty()) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(
+                        RenderingHints.KEY_TEXT_ANTIALIASING,
+                        RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                g2.setColor(Color.GRAY);
+                g2.setFont(getFont().deriveFont(Font.ITALIC));
+                Insets insets = getInsets();
+                FontMetrics fm = g2.getFontMetrics();
+                g2.drawString(placeholder, insets.left + 2,
+                        (getHeight() - fm.getHeight()) / 2 + fm.getAscent());
+                g2.dispose();
+            }
         }
     }
 }
