@@ -1,0 +1,12 @@
+{
+  "name": "jdeploy-js-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Integration tests for the generated jdeploy.js launcher (JVM download/extraction).",
+  "scripts": {
+    "test": "node extract-zip-modes.test.js"
+  },
+  "dependencies": {
+    "yauzl": "^2.10.0"
+  }
+}
