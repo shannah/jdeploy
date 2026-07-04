@@ -160,10 +160,25 @@ function njreWrap() {
               zipFile.openReadStream(entry, (err, readStream) => {
                 if (err) reject(err)
 
+                // Zip entries carry the original Unix mode in the high 16 bits
+                // of externalFileAttributes. Preserve it so executables (java,
+                // jspawnhelper, keytool, ...) keep their execute bit. Without
+                // this, child-process spawning fails on macOS/Windows with
+                // "posix_spawn failed, error: 0" because lib/jspawnhelper is
+                // left non-executable.
+                const mode = (entry.externalFileAttributes >>> 16) & 0o777
+
                 readStream.on('end', () => {
+                  // createWriteStream's mode is still subject to umask, so
+                  // chmod explicitly to guarantee the stored mode is applied.
+                  if (mode) {
+                    try {
+                      fs.chmodSync(entryPath, mode)
+                    } catch (e) {}
+                  }
                   zipFile.readEntry()
                 })
-                readStream.pipe(fs.createWriteStream(entryPath))
+                readStream.pipe(fs.createWriteStream(entryPath, mode ? { mode } : undefined))
               })
             }
           })
