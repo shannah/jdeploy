@@ -26,6 +26,7 @@ import com.codename1.processing.Result;
 import net.lingala.zip4j.ZipFile;
 import net.lingala.zip4j.model.FileHeader;
 import org.apache.commons.io.FileUtils;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.w3c.dom.Document;
 
@@ -1058,6 +1059,9 @@ public class PackageService implements BundleConstants {
     private String processJdeployTemplate(PackagingContext context, String jdeployContents) {
         jdeployContents = jdeployContents.replace("{{JAVA_VERSION}}", String.valueOf(context.getJavaVersion(DEFAULT_JAVA_VERSION)));
         jdeployContents = jdeployContents.replace("{{PORT}}", String.valueOf(context.getPort(0)));
+        // Inject the "jdeploy.args" array as a JSON literal so the launcher can
+        // apply publisher-declared JVM/program args (e.g. --add-opens) at runtime.
+        jdeployContents = jdeployContents.replace("{{JAVA_ARGS}}", toJavaArgsJson(context.getList("args", true)));
         if (context.getWar(null) != null) {
             jdeployContents = jdeployContents.replace("{{WAR_PATH}}", new File(context.getWar(null)).getName());
         } else {
@@ -1083,6 +1087,23 @@ public class PackageService implements BundleConstants {
             throw new RuntimeException("No main class or jar specified.  Cannot fill template");
         }
         return jdeployContents;
+    }
+
+    /**
+     * Serializes the "jdeploy.args" list into a JSON array literal for injection
+     * into the bundled jdeploy.js launcher. Non-string entries are coerced to
+     * their string form; a null or empty list yields "[]".
+     */
+    private String toJavaArgsJson(List args) {
+        JSONArray out = new JSONArray();
+        if (args != null) {
+            for (Object arg : args) {
+                if (arg != null) {
+                    out.put(String.valueOf(arg));
+                }
+            }
+        }
+        return out.toString();
     }
 
     private void bundleJetty(PackagingContext context) throws IOException {

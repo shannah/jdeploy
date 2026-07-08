@@ -8,6 +8,12 @@ var mainClass = "{{MAIN_CLASS}}";
 var classPath = "{{CLASSPATH}}";
 var port = "{{PORT}}";
 var warPath = "{{WAR_PATH}}";
+// JVM/program arguments declared in the "jdeploy.args" array of package.json.
+// Injected at publish time as a JSON array literal (defaults to []).  These are
+// processed at runtime (see processPackageArg/appendPackageArgs) so that
+// platform-conditional args such as "-[mac]--add-opens ..." resolve on the
+// machine the app actually runs on, mirroring the client4j launcher.
+var packageArgs = {{JAVA_ARGS}};
 var javaVersionString = "{{JAVA_VERSION}}";
 var tryJavaHomeFirst = false;
 var javafx = false;
@@ -584,6 +590,112 @@ if (!done) {
 
 
 
+// Resolves the platform-conditional prefix syntax used in package.json
+// "jdeploy.args" entries, mirroring processArg() in the client4j launcher.
+//
+// Supported prefixes (the bracket lists a comma-separated set of conditions
+// that must ALL be satisfied; a condition may itself be a pipe-separated OR
+// group such as "mac|linux"):
+//   -[conditions]<arg>   generic, e.g. "-[mac]--add-opens java.desktop/...=..."
+//   -D[conditions]<rest> becomes "-D<rest>" when the conditions pass
+//   -X[conditions]<rest> becomes "-X<rest>" when the conditions pass
+//
+// Returns the resolved argument string, or '' if the conditions exclude the
+// current platform (in which case the caller drops the argument).
+function processPackageArg(arg) {
+    var isMac = (process.platform === 'darwin');
+    var isWin = (process.platform === 'win32');
+    var isLinux = (process.platform === 'linux');
+
+    if ((arg.indexOf('-D[') === 0 || arg.indexOf('-X[') === 0 || arg.indexOf('-[') === 0) && arg.indexOf(']') >= 0) {
+        var conditionsStr = arg.substring(arg.indexOf('[') + 1, arg.indexOf(']'));
+        var conditions = conditionsStr.split(',');
+        var fulfilled = true;
+        for (var i = 0; i < conditions.length; i++) {
+            var condition = conditions[i].trim();
+            var lcCondition = condition.toLowerCase();
+            if (lcCondition === 'mac' && !isMac) {
+                fulfilled = false;
+                continue;
+            } else if (lcCondition === 'win' && !isWin) {
+                fulfilled = false;
+                continue;
+            } else if (lcCondition === 'linux' && !isLinux) {
+                fulfilled = false;
+                continue;
+            } else if (lcCondition === 'windows' && !isWin) {
+                fulfilled = false;
+                continue;
+            }
+
+            if (condition.indexOf('|') >= 0) {
+                lcCondition = '|' + lcCondition + '|';
+                fulfilled = false;
+                if (isMac && lcCondition.indexOf('|mac|') >= 0) {
+                    fulfilled = true;
+                } else if (isLinux && lcCondition.indexOf('|linux|') >= 0) {
+                    fulfilled = true;
+                } else if (isWin && lcCondition.indexOf('|win|') >= 0) {
+                    fulfilled = true;
+                } else if (isWin && lcCondition.indexOf('|windows|') >= 0) {
+                    fulfilled = true;
+                }
+            }
+        }
+
+        if (!fulfilled) {
+            return '';
+        }
+        if (arg.indexOf('-[') === 0) {
+            arg = arg.substring(arg.indexOf(']') + 1);
+        } else if (arg.indexOf('-D[') === 0) {
+            arg = '-D' + arg.substring(arg.indexOf(']') + 1);
+        } else if (arg.indexOf('-X[') === 0) {
+            arg = '-X' + arg.substring(arg.indexOf(']') + 1);
+        }
+    }
+
+    return arg;
+}
+
+// Categorizes each package.json "jdeploy.args" entry into JVM args (placed
+// before -jar) or program args (placed after the jar), mirroring the relevant
+// part of processRunArgs() in the client4j launcher.  A "--flag value" JVM
+// option (e.g. "--add-opens java.desktop/com.apple.eawt=ALL-UNNAMED") is split
+// into two tokens because the JVM expects the flag and value as separate
+// arguments.  Package args are appended before the user-supplied CLI args.
+function appendPackageArgs(rawArgs, javaArgs, programArgs) {
+    if (!Array.isArray(rawArgs)) {
+        return;
+    }
+    rawArgs.forEach(function(rawArg) {
+        var arg = processPackageArg(rawArg);
+        if (arg === '' || arg === null || typeof arg === 'undefined') {
+            return;
+        }
+        if (arg.indexOf('-D') === 0 || arg.indexOf('-X') === 0) {
+            javaArgs.push(arg);
+        } else if (arg.indexOf('--') === 0) {
+            // JVM module/access options (--add-opens, --add-exports,
+            // --add-modules, --module-path, --enable-preview, ...).  Split off a
+            // value if one is present in the same token.
+            var spaceIdx = arg.indexOf(' ');
+            if (spaceIdx >= 0) {
+                javaArgs.push(arg.substring(0, spaceIdx));
+                javaArgs.push(arg.substring(spaceIdx + 1));
+            } else {
+                javaArgs.push(arg);
+            }
+        } else if (arg.indexOf('-p ') === 0) {
+            // Short form of --module-path.
+            javaArgs.push('-p');
+            javaArgs.push(arg.substring(3));
+        } else {
+            programArgs.push(arg);
+        }
+    });
+}
+
 function run(_javaHome) {
     var fail = reason => {
         console.error(reason);
@@ -608,6 +720,8 @@ function run(_javaHome) {
     javaArgs.push('-Djdeploy.port='+port);
     javaArgs.push('-Djdeploy.war.path='+warPath);
     var programArgs = [];
+    // Args declared in package.json (jdeploy.args) come before the user's CLI args.
+    appendPackageArgs(packageArgs, javaArgs, programArgs);
     userArgs.forEach(function(arg) {
         if (arg.startsWith('-D') || arg.startsWith('-X')) {
             javaArgs.push(arg);
