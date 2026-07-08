@@ -64,7 +64,8 @@ class JDeployIntegrationTest {
                 .replace("{{MAIN_CLASS}}", JAVA_CLASS)
                 .replace("{{JAVA_VERSION}}", "17")  // Using JDK 17
                 .replace("{{JAVAFX}}", "false")
-                .replace("{{JDK}}", "false");
+                .replace("{{JDK}}", "false")
+                .replace("{{JAVA_ARGS}}", "[]"); // No package.json jdeploy.args in this test
         System.out.println("DEBUG: Placeholders replaced successfully");
 
         // Step 3: Save the modified script to a temp file inside jdeploy-bundle
