@@ -33,9 +33,11 @@ jobs:
     - name: Set up Node
       uses: actions/setup-node@v4
       with:
-        node-version: '20.x'
+        node-version: '22.x'
     - name: Upgrade npm for trusted publishing
-      run: npm install -g npm@latest
+      # Pin the npm major version instead of tracking npm@latest so a new npm
+      # release with a higher Node engine requirement can't break this step.
+      run: npm install -g npm@11
     - name: Install PHP
       run: |
         brew update
