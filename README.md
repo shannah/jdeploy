@@ -77,6 +77,10 @@ See [the jDeploy Developer Guide](https://www.jdeploy.com/docs/manual/#_publishi
 | `npm_token`         | The `NPM_TOKEN` for publishing to npm.  Only required if `deploy_target`==`npm`        | `null`                    |`
 | `jdeploy_version`   | The jdeploy version to use for building the installers.                                | `4.0.0-alpha.38`           |
 
+## Development
+
+See the [Local Development Guide](DEVELOPMENT.md) for instructions on building jDeploy from source and manually testing the GUI and installer.
+
 ## License
 
 [Apache2](LICENSE)

@@ -1992,6 +1992,9 @@ public class Main implements Runnable, Constants {
             appInfo().setInitialAppVersion(initialAppVersion);
         }
 
+        // Record the auto-update mode so it can be written to the user's preferences.
+        appInfo().setAppUpdateMode(npmPackageVersion().getAppUpdateMode());
+
         // Configure JCEF frameworks if using JBR with JCEF variant
         JCEFConfigurer.configureJCEF(bundlerSettings, npmPackageVersion());
 
@@ -2355,7 +2358,7 @@ public class Main implements Runnable, Constants {
         // Save installer preferences for future installs
         try {
             new InstallerPreferencesService(fullyQualifiedPackageName)
-                    .save(appInfo().getNpmVersion(), appInfo().isNpmAllowPrerelease());
+                    .save(appInfo().getNpmVersion(), appInfo().isNpmAllowPrerelease(), appInfo().getAppUpdateMode());
         } catch (Exception e) {
             System.err.println("Warning: Failed to save installer preferences: " + e.getMessage());
         }

@@ -143,4 +143,39 @@ public class JDeployProject {
             jdeployConfig.remove("singleton");
         }
     }
+
+    /**
+     * The auto-update mode for the launcher.
+     *
+     * @return {@code "prompt"} if the launcher should prompt before updating, otherwise
+     *         {@code "auto"} (the default — silent update on launch).
+     */
+    public String getAppUpdateMode() {
+        return getJDeployConfig().optString("appUpdateMode", "auto");
+    }
+
+    /**
+     * The minimum initial app version required to run new releases, or empty if none.
+     * Users whose initial app version is below this are forced to perform a full update.
+     */
+    public String getMinLauncherInitialAppVersion() {
+        return getJDeployConfig().optString("minLauncherInitialAppVersion", "");
+    }
+
+    /**
+     * The sentinel mode controlling how the minimum initial app version is resolved at
+     * publish time. A value of {@code "latest"} means jDeploy should substitute the
+     * version being published. Empty when an explicit version (or no minimum) is used.
+     */
+    public String getMinLauncherInitialAppVersionMode() {
+        return getJDeployConfig().optString("minLauncherInitialAppVersionMode", "");
+    }
+
+    /**
+     * Whether users below the minimum initial app version must perform a full launcher
+     * update before they can run newer releases.
+     */
+    public boolean isRequireLauncherUpdate() {
+        return getJDeployConfig().optBoolean("requireLauncherUpdate", false);
+    }
 }

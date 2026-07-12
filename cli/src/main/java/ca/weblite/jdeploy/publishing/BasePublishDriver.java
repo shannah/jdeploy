@@ -84,6 +84,9 @@ public class BasePublishDriver implements PublishDriverInterface {
 
         JSONObject jdeployObj = packageJSON.getJSONObject("jdeploy");
 
+        // Resolve the "auto-set to latest" sentinel for the minimum initial app version.
+        resolveMinInitialAppVersionSentinel(packageJSON, jdeployObj);
+
         File icon = new File(context.packagingContext.directory, "icon.png");
         JSONObject checksums = new JSONObject();
         jdeployObj.put("checksums", checksums);
@@ -163,5 +166,25 @@ public class BasePublishDriver implements PublishDriverInterface {
         }
 
         return versionString;
+    }
+
+    /**
+     * Resolves the "auto-set to latest" sentinel for the minimum initial app version.
+     *
+     * <p>When {@code jdeploy.minLauncherInitialAppVersionMode == "latest"}, the version
+     * being published is stamped into {@code jdeploy.minLauncherInitialAppVersion} (and
+     * the sentinel mode key removed) in the published package.json. The developer's source
+     * package.json is unaffected because this operates on the in-memory copy that is
+     * written to the publish directory.</p>
+     *
+     * @param packageJSON the package.json being published (must contain "version")
+     * @param jdeployObj the "jdeploy" object within {@code packageJSON}
+     */
+    static void resolveMinInitialAppVersionSentinel(JSONObject packageJSON, JSONObject jdeployObj) {
+        if ("latest".equals(jdeployObj.optString("minLauncherInitialAppVersionMode", ""))
+                && packageJSON.has("version")) {
+            jdeployObj.put("minLauncherInitialAppVersion", packageJSON.getString("version"));
+            jdeployObj.remove("minLauncherInitialAppVersionMode");
+        }
     }
 }
