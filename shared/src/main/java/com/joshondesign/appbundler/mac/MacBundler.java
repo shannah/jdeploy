@@ -575,10 +575,33 @@ public class MacBundler {
                 .toFile(new File(contentsDir, "icon-"+size+".png"));
     }
     
-    private static void createThumbnails(File f, File contentsDir) throws IOException {
-        for (int size : new int[]{16, 32, 64, 128, 256, 512, 1024}) {
-            createThumbnail(f, contentsDir, size);
+    /** icns slice types each rendered size fills; the @2x types let one file serve two entries */
+    private static final int[] ICON_SIZES = {16, 32, 64, 128, 256, 512, 1024};
+    private static final IcnsType[][] ICON_TYPES = {
+            {IcnsType.ICNS_16x16_JPEG_PNG_IMAGE},
+            {IcnsType.ICNS_32x32_JPEG_PNG_IMAGE, IcnsType.ICNS_16x16_2X_JPEG_PNG_IMAGE},
+            // no icp6: macOS reads that type as 48x48, and its icon set has no 64pt logical size
+            {IcnsType.ICNS_32x32_2X_JPEG_PNG_IMAGE},
+            {IcnsType.ICNS_128x128_JPEG_PNG_IMAGE},
+            {IcnsType.ICNS_256x256_JPEG_PNG_IMAGE, IcnsType.ICNS_128x128_2X_JPEG_PNG_IMAGE},
+            {IcnsType.ICNS_512x512_JPEG_PNG_IMAGE, IcnsType.ICNS_256x256_2X_JPEG_PNG_IMAGE},
+            {IcnsType.ICNS_1024x1024_2X_JPEG_PNG_IMAGE},
+    };
+
+    private static void createThumbnails(File f, File contentsDir, int maxSize) throws IOException {
+        for (int size : ICON_SIZES) {
+            if (size <= maxSize) createThumbnail(f, contentsDir, size);
         }
+    }
+
+    /** rendered size the given slice type holds, or 0 if it isn't one we generate */
+    private static int getIconSize(String osType) {
+        for (int i = 0; i < ICON_SIZES.length; i++) {
+            for (IcnsType type : ICON_TYPES[i]) {
+                if (type.getOsType().equals(osType)) return ICON_SIZES[i];
+            }
+        }
+        return 0;
     }
     
     private static FileInputStream getThumbnail(File contentsDir, int size) throws IOException {
@@ -737,28 +760,32 @@ public class MacBundler {
         }
        
         
-        //createThumbnails(iconFile, contentsDir);
+        // macOS 26 draws a single-slice icns shrunk onto a grey plate, so write the whole size family
+        int maxSize = getIconSize(osType);
+        if (maxSize > 0) createThumbnails(iconFile, contentsDir, maxSize);
         try (IcnsBuilder builder = IcnsBuilder.getInstance()) {
-            
-            //builder.add("icp4", getThumbnail(contentsDir, 16));
-            //builder.add(IcnsType.ICNS_16x16_2X_JPEG_PNG_IMAGE, getThumbnail(contentsDir, 32));
-            //builder.add("icp5", getThumbnail(contentsDir, 32));
-            //builder.add("icp6", getThumbnail(contentsDir, 64));
-            //builder.add("ic07", getThumbnail(contentsDir, 128));
-            //builder.add(IcnsType.ICNS_128x128_2X_JPEG_PNG_IMAGE, getThumbnail(contentsDir, 256));
-            //builder.add("ic08", getThumbnail(contentsDir, 256));
-            builder.add(osType, new FileInputStream(iconFile));
-            //builder.add("ic10", getThumbnail(contentsDir, 1024));
+            if (maxSize == 0) {
+                builder.add(osType, new FileInputStream(iconFile));
+            } else {
+                // only down to the source size - upscaling would tag a blurry slice as native
+                for (int i = 0; i < ICON_SIZES.length && ICON_SIZES[i] <= maxSize; i++) {
+                    for (IcnsType type : ICON_TYPES[i]) {
+                        try (InputStream in = getThumbnail(contentsDir, ICON_SIZES[i])) {
+                            builder.add(type.getOsType(), in);
+                        }
+                    }
+                }
+            }
             File icnsFile = ext != null ?
                     new File(contentsDir, "Resources/icon."+ext+".icns") :
                     new File(contentsDir, "Resources/icon.icns");
             try (FileOutputStream out = new FileOutputStream(icnsFile)) {
                 builder.build().writeTo(out);
             }
-            
+
         }
         iconFile.delete();
-        //cleanThumbnails(contentsDir);
+        cleanThumbnails(contentsDir);
                     
         
     }
