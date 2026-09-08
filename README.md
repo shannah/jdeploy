@@ -72,7 +72,7 @@ See [the jDeploy Developer Guide](https://www.jdeploy.com/docs/manual/#_publishi
 | Parameter           | Description                                                                            | Default                   |
 |---------------------|----------------------------------------------------------------------------------------|---------------------------|
 | `github_token`      | GitHub Action token, e.g. `"${{ secrets.GITHUB_TOKEN }}"`.                             | `null`                    |
-| `target_repository` | The repository where releases should be published to, if different than the current repo. | `${{ github.repository }}` |
+| `target_repository` | The repository where releases should be published to, if different than the current repo.  When set to a different repository, tag (versioned) releases also get a copy of the installers, and download links, added to the release in the current repo. | `${{ github.repository }}` |
 | `deploy_target`     | The deployment target. "github" or "npm"                                               | `github`                  |
 | `npm_token`         | The `NPM_TOKEN` for publishing to npm.  Only required if `deploy_target`==`npm`        | `null`                    |`
 | `jdeploy_version`   | The jdeploy version to use for building the installers.                                | `4.0.0-alpha.38`           |

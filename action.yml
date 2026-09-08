@@ -332,14 +332,116 @@ runs:
         files: |
           ./jdeploy/github-release-files/*
 
-    - name: Upload files to Github Snapshot Release for Branch
+    - name: Upload files to Github Release in Target Repository
       if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && inputs.target_repository != github.repository }}
       shell: bash
       run: |
+        set -e
+        # Branch builds are snapshots of a moving branch, so they must not be
+        # promoted to "Latest" in the target repository.  Only tag builds are.
+        PRERELEASE_FLAG=()
+        if [[ "${{ github.ref_type }}" == "branch" ]]; then
+          PRERELEASE_FLAG=(--prerelease)
+        fi
         gh release delete -R '${{ inputs.target_repository }}' '${{ github.ref_name }}' || true
-        gh release create -R '${{ inputs.target_repository }}' '${{ github.ref_name }}' -F ./jdeploy/github-release-files/jdeploy-release-notes.md ./jdeploy/github-release-files/*
+        gh release create -R '${{ inputs.target_repository }}' '${{ github.ref_name }}' "${PRERELEASE_FLAG[@]}" -F ./jdeploy/github-release-files/jdeploy-release-notes.md ./jdeploy/github-release-files/*
       env:
         GH_TOKEN: ${{ inputs.github_token }}
+
+    # For versioned (tag) releases we already have a release in the repository
+    # running the workflow, so give it a copy of the installers as well.  Only the
+    # installers: the rest of the release files (platform bundles, package-info.json,
+    # icons, etc..) stay in the target repository, which is the publication channel.
+    - name: Upload Installers to Github Release for Tag in Current Repository
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'tag' && inputs.target_repository != github.repository }}
+      shell: bash
+      env:
+        # Writing to this repository's own release uses the workflow's own token.
+        # inputs.github_token is the credential for the target repository, which here
+        # is a different repository and generally cannot write here - the API answers
+        # an unauthorized write with 404 rather than 403, so this shows up as a
+        # confusing "Not Found" on the releases endpoint.
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -e
+        # The installers are exactly the files github-prepare-release put in
+        # jdeploy/installers, which it copies into the release files with spaces
+        # replaced by dots.  Deriving the list from that directory keeps this step
+        # working with every jdeploy version, rather than depending on a CLI
+        # subcommand that only newer releases have.
+        INSTALLERS=()
+        if [ -d ./jdeploy/installers ]; then
+          for installer in ./jdeploy/installers/*; do
+            [ -f "$installer" ] || continue
+            name=$(basename "$installer")
+            releaseFile="./jdeploy/github-release-files/${name// /.}"
+            if [ ! -f "$releaseFile" ]; then
+              releaseFile="./jdeploy/github-release-files/${name}"
+            fi
+            if [ -f "$releaseFile" ]; then
+              INSTALLERS+=("$releaseFile")
+            else
+              echo "Warning: no release file found for installer $name"
+            fi
+          done
+        fi
+        if [ ${#INSTALLERS[@]} -eq 0 ]; then
+          echo "No installer artifacts found.  Skipping upload to ${{ github.repository }}."
+          exit 0
+        fi
+        echo "Uploading ${#INSTALLERS[@]} installer(s) to ${{ github.repository }} release ${{ github.ref_name }}"
+        # A tag build runs against a release that already exists here, so this only
+        # ever adds assets to it - it never creates one.  The installers are already
+        # published to the target repository, which is the distribution channel, so
+        # anything that stops the copy is reported but does not fail the release.
+        if ! gh release view -R '${{ github.repository }}' '${{ github.ref_name }}' > /dev/null 2>&1; then
+          echo "::warning::No release for ${{ github.ref_name }} in ${{ github.repository }} (or no permission to read it), so the installers were published only to ${{ inputs.target_repository }}. This step reads and writes this repository's own release, so the calling workflow needs 'contents: write' permission."
+          exit 0
+        fi
+        if ! gh release upload -R '${{ github.repository }}' '${{ github.ref_name }}' --clobber "${INSTALLERS[@]}"; then
+          echo "::warning::Could not upload the installers to ${{ github.repository }}, so they were published only to ${{ inputs.target_repository }}. The calling workflow needs 'contents: write' permission."
+          exit 0
+        fi
+
+    - name: Update release body for Tag in Current Repository
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'tag' && inputs.target_repository != github.repository }}
+      shell: bash
+      env:
+        # This repository's own release, so the workflow's own token - see above.
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        set -e
+        # Point the installer download links at this repository, since that is where
+        # the installers were just uploaded.  The CLI installation links keep pointing
+        # at the target repository, which hosts the package metadata - they are
+        # jdeploy.com/gh/<repo> URLs, so this rewrite does not touch them.  The
+        # substitution is a literal bash replacement rather than a regex, so a
+        # repository name containing a dot cannot match the wrong text.
+        NOTES=$(cat ./jdeploy/github-release-files/jdeploy-release-notes.md)
+        DOWNLOAD_PREFIX_FROM="https://github.com/${{ inputs.target_repository }}/releases/download/"
+        DOWNLOAD_PREFIX_TO="https://github.com/${{ github.repository }}/releases/download/"
+        BODY="${NOTES//"$DOWNLOAD_PREFIX_FROM"/"$DOWNLOAD_PREFIX_TO"}"
+        RELEASE_RESULT=$(curl -s \
+        -H "Accept: application/vnd.github+json" \
+        -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }})
+        RELEASE_ID=$( jq -r '.id // empty' <<< "${RELEASE_RESULT}" )
+        if [ -z "$RELEASE_ID" ]; then
+          echo "::warning::No release found for ${{ github.ref_name }} in ${{ github.repository }}, so its release notes were left unchanged."
+          exit 0
+        fi
+        OLD_BODY=$( jq -r '.body // ""' <<< "${RELEASE_RESULT}" )
+        NEW_BODY=$(GITHUB_RELEASE_BODY="$OLD_BODY" JDEPLOY_RELEASE_NOTES="$BODY" $jdeploy_exec github-build-release-body)
+        BODY_JSON="{\"body\": $(echo "$NEW_BODY" | jq -sR .)}"
+        echo "Release ID is ${RELEASE_ID}"
+        curl \
+        -X PATCH \
+        -H "Accept: application/vnd.github+json" \
+        -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        https://api.github.com/repos/${{ github.repository }}/releases/${RELEASE_ID} \
+        -d "$BODY_JSON"
 
     - name: Upload Files to Github Release for Tag
       if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'tag' && inputs.target_repository == github.repository }}
