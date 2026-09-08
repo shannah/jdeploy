@@ -8,6 +8,9 @@ import java.io.File;
 import java.io.PrintStream;
 import java.net.URLEncoder;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -15,6 +18,23 @@ import java.util.regex.Pattern;
 
 public class GithubReleaseNotesMutator implements BundleConstants {
     private static final String JDEPLOY_WEBSITE_URL = MenuBarBuilder.JDEPLOY_WEBSITE_URL;
+
+    /**
+     * The installer bundles, in the order that they are listed in the release notes,
+     * mapped to the label used for their download link.
+     */
+    private static final Map<String, String> INSTALLER_BUNDLE_LABELS;
+    static {
+        Map<String, String> labels = new LinkedHashMap<>();
+        labels.put(BUNDLE_MAC_ARM64, "Mac (Apple Silicon)");
+        labels.put(BUNDLE_MAC_X64, "Mac (Intel)");
+        labels.put(BUNDLE_WIN, "Windows (x64)");
+        labels.put(BUNDLE_WIN_ARM64, "Windows (arm64)");
+        labels.put(BUNDLE_LINUX, "Linux (x64)");
+        labels.put(BUNDLE_LINUX_ARM64, "Linux (arm64)");
+        INSTALLER_BUNDLE_LABELS = Collections.unmodifiableMap(labels);
+    }
+
     private final File directory;
 
     private final PrintStream err;
@@ -58,26 +78,33 @@ public class GithubReleaseNotesMutator implements BundleConstants {
             final boolean hasCommands,
             final String version
     ) {
+        return createGithubReleaseNotes(repo, branchTag, refType, hasCommands, version, null);
+    }
+
+    /**
+     * Creates the jDeploy section of the GitHub release notes.
+     *
+     * @param repo The repository that the release notes belong to.  Used for the CLI installation links.
+     * @param branchTag The branch or tag name of the release.
+     * @param refType Either "branch" or "tag".
+     * @param hasCommands Whether the app defines CLI commands.
+     * @param version The version being released.
+     * @param downloadRepo The repository that hosts the installer assets.  This may differ from
+     *                     {@code repo} when the action publishes its release files to a separate
+     *                     target repository.  If null, {@code repo} is used.
+     * @return The release notes markdown.
+     */
+    public String createGithubReleaseNotes(
+            final String repo,
+            final String branchTag,
+            final String refType,
+            final boolean hasCommands,
+            final String version,
+            final String downloadRepo
+    ) {
         final String releasesPrefix = "/releases/download/";
-        final File releaseFilesDir = getGithubReleaseFilesDir();
-        final Optional<File> macIntelBundle = Arrays.stream(
-                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_MAC_X64) && !name.endsWith(BUNDLE_MAC_X64 + ".tgz")))
-        ).findFirst();
-        final Optional<File> macArmBundle = Arrays.stream(
-                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_MAC_ARM64) && !name.endsWith(BUNDLE_MAC_ARM64 + ".tgz")))
-        ).findFirst();
-        final Optional<File> winBundle = Arrays.stream(
-                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_WIN) && !name.endsWith(BUNDLE_WIN + ".tgz")))
-        ).findFirst();
-        final Optional<File> winArmBundle = Arrays.stream(
-                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_WIN_ARM64) && !name.endsWith(BUNDLE_WIN_ARM64 + ".tgz")))
-        ).findFirst();
-        final Optional<File> linuxBundle = Arrays.stream(
-                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_LINUX) && !name.endsWith(BUNDLE_LINUX + ".tgz")))
-        ).findFirst();
-        final Optional<File> linuxArmBundle = Arrays.stream(
-                Objects.requireNonNull(releaseFilesDir.listFiles((dir, name) -> name.contains(BUNDLE_LINUX_ARM64) && !name.endsWith(BUNDLE_LINUX_ARM64 + ".tgz")))
-        ).findFirst();
+        final String assetRepo = downloadRepo == null ? repo : downloadRepo;
+        final Map<String, File> installerFiles = getInstallerFiles();
         StringBuilder notes = new StringBuilder();
         notes.append("## Application Installers");
         if ("branch".equals(refType)) {
@@ -87,42 +114,19 @@ public class GithubReleaseNotesMutator implements BundleConstants {
         }
         notes.append("\n\n");
 
-        macArmBundle.ifPresent(file -> notes.append("* [Mac (Apple Silicon)](https://github.com/")
-                .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                .append(urlencodeFileNameForGithubRelease(file.getName()))
-                .append(")")
-                .append("<!-- id:").append(BUNDLE_MAC_ARM64).append("-link -->")
-                .append("\n"));
-        macIntelBundle.ifPresent(file -> notes.append("* [Mac (Intel)](https://github.com/")
-                .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                .append(urlencodeFileNameForGithubRelease(file.getName()))
-                .append(")")
-                .append("<!-- id:").append(BUNDLE_MAC_X64).append("-link -->")
-                .append("\n"));
-        winBundle.ifPresent(file -> notes.append("* [Windows (x64)](https://github.com/")
-                .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                .append(urlencodeFileNameForGithubRelease(file.getName()))
-                .append(")")
-                .append("<!-- id:").append(BUNDLE_WIN).append("-link -->")
-                .append("\n"));
-        winArmBundle.ifPresent(file -> notes.append("* [Windows (arm64)](https://github.com/")
-                .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                .append(urlencodeFileNameForGithubRelease(file.getName()))
-                .append(")")
-                .append("<!-- id:").append(BUNDLE_WIN_ARM64).append("-link -->")
-                .append("\n"));
-        linuxBundle.ifPresent(file -> notes.append("* [Linux (x64)](https://github.com/")
-                .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                .append(urlencodeFileNameForGithubRelease(file.getName()))
-                .append(")")
-                .append("<!-- id:").append(BUNDLE_LINUX).append("-link -->")
-                .append("\n"));
-        linuxArmBundle.ifPresent(file -> notes.append("* [Linux (arm64)](https://github.com/")
-                .append(repo).append(releasesPrefix).append(branchTag).append("/")
-                .append(urlencodeFileNameForGithubRelease(file.getName()))
-                .append(")")
-                .append("<!-- id:").append(BUNDLE_LINUX_ARM64).append("-link -->")
-                .append("\n"));
+        for (Map.Entry<String, String> entry : INSTALLER_BUNDLE_LABELS.entrySet()) {
+            final String bundleName = entry.getKey();
+            final File file = installerFiles.get(bundleName);
+            if (file == null) {
+                continue;
+            }
+            notes.append("* [").append(entry.getValue()).append("](https://github.com/")
+                    .append(assetRepo).append(releasesPrefix).append(branchTag).append("/")
+                    .append(urlencodeFileNameForGithubRelease(file.getName()))
+                    .append(")")
+                    .append("<!-- id:").append(bundleName).append("-link -->")
+                    .append("\n");
+        }
 
         // Only show CLI installation section if the app has commands defined
         if (hasCommands) {
@@ -219,6 +223,37 @@ public class GithubReleaseNotesMutator implements BundleConstants {
         matcher.appendTail(updatedReleaseNotes);
 
         return updatedReleaseNotes.toString();
+    }
+
+    /**
+     * Finds the installer artifacts in the github-release-files directory.  These are the
+     * platform installers that end users download, as opposed to the other release files
+     * (platform bundles, package-info.json, icons, etc..).
+     *
+     * @return A map of bundle name (e.g. "mac-arm64") to the installer file for that bundle,
+     * in the order that they are listed in the release notes.  Bundles without an installer
+     * are omitted.
+     */
+    public Map<String, File> getInstallerFiles() {
+        final File releaseFilesDir = getGithubReleaseFilesDir();
+        final Map<String, File> installerFiles = new LinkedHashMap<>();
+        if (!releaseFilesDir.isDirectory()) {
+            return installerFiles;
+        }
+        for (String bundleName : INSTALLER_BUNDLE_LABELS.keySet()) {
+            findInstallerFile(releaseFilesDir, bundleName)
+                    .ifPresent(file -> installerFiles.put(bundleName, file));
+        }
+
+        return installerFiles;
+    }
+
+    private Optional<File> findInstallerFile(final File releaseFilesDir, final String bundleName) {
+        final File[] matches = releaseFilesDir.listFiles(
+                (dir, name) -> name.contains(bundleName) && !name.endsWith(bundleName + ".tgz")
+        );
+
+        return Arrays.stream(Objects.requireNonNull(matches)).findFirst();
     }
 
     private File getGithubReleaseFilesDir() {

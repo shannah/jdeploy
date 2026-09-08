@@ -10,7 +10,9 @@ import java.io.File;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -87,6 +89,80 @@ public class GithubReleaseNotesHelperTest implements BundleConstants {
         assertTrue(updatedNotes.contains("* [Mac (Apple Silicon)](https://github.com/testuser/testrepo/releases/download/v1.0.0/testapp-" + BUNDLE_MAC_ARM64 + ".zip)<!-- id:" + BUNDLE_MAC_ARM64 + "-link -->"));
         assertTrue(updatedNotes.contains("* [Windows (x64)](https://github.com/testuser/testrepo/releases/download/v1.0.0/testapp-" + BUNDLE_WIN + ".exe)<!-- id:" + BUNDLE_WIN + "-link -->"));
         assertTrue(updatedNotes.contains("* [Windows (arm64)](https://github.com/testuser/testrepo/releases/download/v1.0.0/testapp-" + BUNDLE_WIN_ARM64 + ".exe)<!-- id:" + BUNDLE_WIN_ARM64 + "-link -->"));
+    }
+
+    @Test
+    public void testCreateGithubReleaseNotesWithSeparateDownloadRepository() {
+        GithubReleaseNotesMutator helper = new GithubReleaseNotesMutator(tempDirectory, err, testEnv);
+
+        // The CLI installation links point at the repo hosting the package metadata, while the
+        // installer download links point at the repo hosting the assets.
+        String releaseNotes = helper.createGithubReleaseNotes(
+                "testuser/testrepo",
+                "v1.0.0",
+                "tag",
+                true,
+                "1.0.0",
+                "testuser/privaterepo"
+        );
+
+        assertTrue(releaseNotes.contains("* [Mac (Intel)](https://github.com/testuser/privaterepo/releases/download/v1.0.0/testapp-" + BUNDLE_MAC_X64 + ".zip)<!-- id:" + BUNDLE_MAC_X64 + "-link -->"));
+        assertTrue(releaseNotes.contains("* [Windows (arm64)](https://github.com/testuser/privaterepo/releases/download/v1.0.0/testapp-" + BUNDLE_WIN_ARM64 + ".exe)<!-- id:" + BUNDLE_WIN_ARM64 + "-link -->"));
+        assertFalse(releaseNotes.contains("/testuser/testrepo/releases/download/"));
+
+        // CLI installation links still point at the original repository.
+        assertTrue(releaseNotes.contains("gh/testuser/testrepo"));
+        assertFalse(releaseNotes.contains("gh/testuser/privaterepo"));
+    }
+
+    @Test
+    public void testCreateGithubReleaseNotesWithNullDownloadRepositoryFallsBackToRepo() {
+        GithubReleaseNotesMutator helper = new GithubReleaseNotesMutator(tempDirectory, err, testEnv);
+        String releaseNotes = helper.createGithubReleaseNotes(
+                "testuser/testrepo",
+                "v1.0.0",
+                "tag",
+                false,
+                "1.0.0",
+                null
+        );
+
+        assertEquals(helper.createGithubReleaseNotes(), releaseNotes);
+    }
+
+    @Test
+    public void testGetInstallerFiles() throws Exception {
+        File releaseFilesDir = new File(tempDirectory, "jdeploy/github-release-files");
+
+        // Files that are not installers, and so should not be returned.
+        new File(releaseFilesDir, "package-info.json").createNewFile();
+        new File(releaseFilesDir, "jdeploy-release-notes.md").createNewFile();
+        new File(releaseFilesDir, "icon.png").createNewFile();
+        new File(releaseFilesDir, "testapp-" + BUNDLE_MAC_X64 + ".tgz").createNewFile();
+        new File(releaseFilesDir, "testapp-" + BUNDLE_LINUX_ARM64 + ".tgz").createNewFile();
+
+        Map<String, File> installerFiles = helperInstallerFiles();
+
+        assertEquals(4, installerFiles.size());
+        assertEquals("testapp-" + BUNDLE_MAC_ARM64 + ".zip", installerFiles.get(BUNDLE_MAC_ARM64).getName());
+        assertEquals("testapp-" + BUNDLE_MAC_X64 + ".zip", installerFiles.get(BUNDLE_MAC_X64).getName());
+        assertEquals("testapp-" + BUNDLE_WIN + ".exe", installerFiles.get(BUNDLE_WIN).getName());
+        assertEquals("testapp-" + BUNDLE_WIN_ARM64 + ".exe", installerFiles.get(BUNDLE_WIN_ARM64).getName());
+
+        // The bundles with no installer are omitted.
+        assertFalse(installerFiles.containsKey(BUNDLE_LINUX));
+        assertFalse(installerFiles.containsKey(BUNDLE_LINUX_ARM64));
+
+        // Order matches the order that the links appear in the release notes.
+        List<String> bundleNames = installerFiles.keySet().stream().collect(Collectors.toList());
+        assertEquals(
+                java.util.Arrays.asList(BUNDLE_MAC_ARM64, BUNDLE_MAC_X64, BUNDLE_WIN, BUNDLE_WIN_ARM64),
+                bundleNames
+        );
+    }
+
+    private Map<String, File> helperInstallerFiles() {
+        return new GithubReleaseNotesMutator(tempDirectory, err, testEnv).getInstallerFiles();
     }
 
     // Helper method to delete directories recursively

@@ -332,14 +332,82 @@ runs:
         files: |
           ./jdeploy/github-release-files/*
 
-    - name: Upload files to Github Snapshot Release for Branch
+    - name: Upload files to Github Release in Target Repository
       if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && inputs.target_repository != github.repository }}
       shell: bash
       run: |
+        set -e
+        # Branch builds are snapshots of a moving branch, so they must not be
+        # promoted to "Latest" in the target repository.  Only tag builds are.
+        PRERELEASE_FLAG=()
+        if [[ "${{ github.ref_type }}" == "branch" ]]; then
+          PRERELEASE_FLAG=(--prerelease)
+        fi
         gh release delete -R '${{ inputs.target_repository }}' '${{ github.ref_name }}' || true
-        gh release create -R '${{ inputs.target_repository }}' '${{ github.ref_name }}' -F ./jdeploy/github-release-files/jdeploy-release-notes.md ./jdeploy/github-release-files/*
+        gh release create -R '${{ inputs.target_repository }}' '${{ github.ref_name }}' "${PRERELEASE_FLAG[@]}" -F ./jdeploy/github-release-files/jdeploy-release-notes.md ./jdeploy/github-release-files/*
       env:
         GH_TOKEN: ${{ inputs.github_token }}
+
+    # For versioned (tag) releases we already have a release in the repository
+    # running the workflow, so give it a copy of the installers as well.  Only the
+    # installers: the rest of the release files (platform bundles, package-info.json,
+    # icons, etc..) stay in the target repository, which is the publication channel.
+    - name: Upload Installers to Github Release for Tag in Current Repository
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'tag' && inputs.target_repository != github.repository }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        set -e
+        INSTALLER_LIST=$($jdeploy_exec github-installer-files)
+        INSTALLERS=()
+        while IFS= read -r installer; do
+          if [ -n "$installer" ]; then
+            INSTALLERS+=("$installer")
+          fi
+        done <<< "$INSTALLER_LIST"
+        if [ ${#INSTALLERS[@]} -eq 0 ]; then
+          echo "No installer artifacts found.  Skipping upload to ${{ github.repository }}."
+          exit 0
+        fi
+        echo "Uploading ${#INSTALLERS[@]} installer(s) to ${{ github.repository }} release ${{ github.ref_name }}"
+        if ! gh release view -R '${{ github.repository }}' '${{ github.ref_name }}' > /dev/null 2>&1; then
+          gh release create -R '${{ github.repository }}' '${{ github.ref_name }}' --title '${{ github.ref_name }}' --notes ''
+        fi
+        gh release upload -R '${{ github.repository }}' '${{ github.ref_name }}' --clobber "${INSTALLERS[@]}"
+
+    - name: Update release body for Tag in Current Repository
+      if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'tag' && inputs.target_repository != github.repository }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        set -e
+        # Download links must point at this repository, since that is where the
+        # installers were just uploaded, but the CLI installation links must keep
+        # pointing at the target repository, which hosts the package metadata.
+        BODY=$(GITHUB_REPOSITORY='${{ inputs.target_repository }}' \
+          JDEPLOY_RELEASE_NOTES_DOWNLOAD_REPOSITORY='${{ github.repository }}' \
+          GITHUB_REF_NAME='${{ github.ref_name }}' \
+          GITHUB_REF_TYPE='tag' \
+          $jdeploy_exec github-release-notes)
+        RELEASE_RESULT=$(curl -s \
+        -H "Accept: application/vnd.github+json" \
+        -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }})
+        RELEASE_ID=$( jq -r '.id' <<< "${RELEASE_RESULT}" )
+        OLD_BODY=$( jq -r '.body // ""' <<< "${RELEASE_RESULT}" )
+        NEW_BODY=$(GITHUB_RELEASE_BODY="$OLD_BODY" JDEPLOY_RELEASE_NOTES="$BODY" $jdeploy_exec github-build-release-body)
+        BODY_JSON="{\"body\": $(echo "$NEW_BODY" | jq -sR .)}"
+        echo "Release ID is ${RELEASE_ID}"
+        curl \
+        -X PATCH \
+        -H "Accept: application/vnd.github+json" \
+        -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        https://api.github.com/repos/${{ github.repository }}/releases/${RELEASE_ID} \
+        -d "$BODY_JSON"
 
     - name: Upload Files to Github Release for Tag
       if: ${{ env.JDEPLOY_SKIP_EXECUTION != 'true' && inputs.deploy_target == 'github' && github.ref_type == 'tag' && inputs.target_repository == github.repository }}
