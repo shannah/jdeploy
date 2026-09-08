@@ -9,6 +9,7 @@ import org.junit.jupiter.api.io.TempDir;
 import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -100,6 +101,37 @@ public class MacBundlerIconTest {
     }
 
     @Test
+    public void insetsFullBleedArtworkOntoTheIconGrid() throws Exception {
+        MacBundler.writeIcns(squareIcon(1024), contentsDir, "ic10", icnsFile);
+
+        // Apple's macOS template centres an 824x824 body in a 1024x1024 canvas. Artwork drawn
+        // edge to edge renders a quarter wider than every system icon beside it.
+        Rectangle artwork = artworkBoundsOf("ic10");
+        assertEquals(824, artwork.width, 12, "artwork width on the icon grid");
+        assertEquals(824, artwork.height, 12, "artwork height on the icon grid");
+        assertEquals(artwork.x, 1024 - (artwork.x + artwork.width), 2, "artwork is not centred");
+    }
+
+    @Test
+    public void leavesArtworkThatAlreadySitsOnTheGridAlone() throws Exception {
+        // An icon authored to Apple's template already carries the margin; insetting it again
+        // would make it smaller than its neighbours instead of the same size.
+        MacBundler.writeIcns(insetIcon(1024, 700), contentsDir, "ic10", icnsFile);
+
+        Rectangle artwork = artworkBoundsOf("ic10");
+        assertEquals(700, artwork.width, 4, "artwork width should be untouched");
+        assertEquals(700, artwork.height, 4, "artwork height should be untouched");
+    }
+
+    @Test
+    public void removesTheGridFittedSource() throws Exception {
+        MacBundler.writeIcns(squareIcon(1024), contentsDir, "ic10", icnsFile);
+
+        assertFalse(new File(contentsDir, MacBundler.GRID_ICON_NAME).exists(),
+                "left behind " + MacBundler.GRID_ICON_NAME);
+    }
+
+    @Test
     public void removesTheIntermediateThumbnails() throws Exception {
         MacBundler.writeIcns(squareIcon(1024), contentsDir, "ic10", icnsFile);
 
@@ -131,6 +163,53 @@ public class MacBundlerIconTest {
         }
 
         return out.toByteArray();
+    }
+
+    /** Bounds of the non-transparent pixels in the named slice's payload. */
+    private Rectangle artworkBoundsOf(String osType) throws Exception {
+        try (IcnsIcons icons = IcnsIcons.load(icnsFile.toPath())) {
+            for (IcnsIcons.Entry entry : icons.getEntries()) {
+                if (!entry.getOsType().equals(osType)) continue;
+                BufferedImage payload = ImageIO.read(new java.io.ByteArrayInputStream(bytesOf(entry)));
+                assertNotNull(payload, osType + " payload is not a readable image");
+
+                return opaqueBounds(payload);
+            }
+        }
+        throw new AssertionError("no " + osType + " slice in " + icnsFile);
+    }
+
+    private Rectangle opaqueBounds(BufferedImage image) {
+        int minX = image.getWidth();
+        int minY = image.getHeight();
+        int maxX = -1;
+        int maxY = -1;
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                if ((image.getRGB(x, y) >>> 24) < 25) continue;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+            }
+        }
+        assertTrue(maxX >= 0, "payload is fully transparent");
+
+        return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
+    }
+
+    /** An icon whose artwork occupies {@code artworkSize} of a {@code size} canvas, centred. */
+    private File insetIcon(int size, int artworkSize) throws Exception {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        int origin = (size - artworkSize) / 2;
+        g.setColor(Color.YELLOW);
+        g.fillRect(origin, origin, artworkSize, artworkSize);
+        g.dispose();
+        File iconFile = new File(contentsDir, "icon.png");
+        ImageIO.write(image, "png", iconFile);
+
+        return iconFile;
     }
 
     private File squareIcon(int size) throws Exception {

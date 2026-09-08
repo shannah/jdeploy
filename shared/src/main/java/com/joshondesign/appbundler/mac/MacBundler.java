@@ -12,6 +12,10 @@ import com.client4j.publisher.server.SigningRequest;
 import com.github.gino0631.icns.IcnsBuilder;
 import com.github.gino0631.icns.IcnsType;
 import com.joshondesign.xml.XMLWriter;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 
 import java.io.*;
@@ -601,6 +605,96 @@ public class MacBundler {
         }
     }
 
+    /**
+     * Fraction of the icns canvas that a macOS app icon's artwork is meant to fill.  Apple's
+     * macOS icon template centres an 824x824 body in a 1024x1024 canvas, so every icon the
+     * system draws beside ours - in the Dock, the command-tab switcher, Mission Control - leaves
+     * that margin.  Artwork that runs edge to edge renders about a quarter wider than its
+     * neighbours at the same slot size, which reads as "this app's icon is too big".
+     */
+    private static final double ICON_GRID_SCALE = 824.0 / 1024.0;
+
+    /**
+     * How far past the grid the artwork may already reach before we inset it.  A source that is
+     * already drawn on the grid - or close enough that resampling it would cost more sharpness
+     * than the difference is worth - is passed through untouched.
+     */
+    private static final double ICON_GRID_TOLERANCE = 0.02;
+
+    /** Alpha at or above which a pixel counts as artwork rather than as shadow or fringe. */
+    private static final int ICON_GRID_ALPHA_THRESHOLD = 25;
+
+    /** Name of the grid-fitted source; matches the thumbnail pattern so it is cleaned up too. */
+    static final String GRID_ICON_NAME = "icon-grid.png";
+
+    /**
+     * Returns the source to cut slices from, insetting the artwork onto the macOS icon grid
+     * when it fills more of its canvas than the grid allows.
+     *
+     * <p>The artwork is measured by its opaque bounds rather than by the canvas, so a source
+     * that already carries the margin is returned as-is and one that carries part of it is
+     * scaled the rest of the way rather than twice over.  Non-square and unreadable sources are
+     * left alone, as is one that is fully transparent.</p>
+     */
+    private static File fitToIconGrid(File iconFile, File contentsDir) throws IOException {
+        BufferedImage source = ImageIO.read(iconFile);
+        if (source == null || source.getWidth() != source.getHeight()) {
+            return iconFile;
+        }
+        int canvas = source.getWidth();
+        Rectangle artwork = opaqueBounds(source);
+        if (artwork == null) {
+            return iconFile;
+        }
+        int artworkSize = Math.max(artwork.width, artwork.height);
+        if (artworkSize <= canvas * (ICON_GRID_SCALE + ICON_GRID_TOLERANCE)) {
+            return iconFile;
+        }
+
+        double scale = canvas * ICON_GRID_SCALE / artworkSize;
+        AffineTransform placement = new AffineTransform();
+        placement.translate(
+                (canvas - artwork.width * scale) / 2.0 - artwork.x * scale,
+                (canvas - artwork.height * scale) / 2.0 - artwork.y * scale);
+        placement.scale(scale, scale);
+
+        BufferedImage fitted = new BufferedImage(canvas, canvas, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = fitted.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.drawImage(source, placement, null);
+        } finally {
+            g.dispose();
+        }
+
+        File gridFile = new File(contentsDir, GRID_ICON_NAME);
+        ImageIO.write(fitted, "png", gridFile);
+
+        return gridFile;
+    }
+
+    /** Bounds of the artwork in the given image, or null if none of it is opaque enough. */
+    private static Rectangle opaqueBounds(BufferedImage image) {
+        int minX = image.getWidth();
+        int minY = image.getHeight();
+        int maxX = -1;
+        int maxY = -1;
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                if ((image.getRGB(x, y) >>> 24) < ICON_GRID_ALPHA_THRESHOLD) continue;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+            }
+        }
+        if (maxX < 0) return null;
+
+        return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
+    }
+
     /** pixel size of the source icon, from the slice type {@link #getOsType} matched it to */
     private static int getSourceSize(String osType) {
         IcnsType sourceType = IcnsType.of(osType);
@@ -610,16 +704,19 @@ public class MacBundler {
 
     /**
      * Writes the icns for the given source icon, one slice per rendered size at or below the
-     * source's own size - upscaling would tag a blurry slice as a native rendering.
+     * source's own size - upscaling would tag a blurry slice as a native rendering.  Each slice
+     * is cut from artwork sitting on the macOS icon grid, so the bundle's icon is drawn at the
+     * same size as the system's own icons rather than a quarter larger.
      *
      * <p>A source too small to fill any slice we emit (16x16, and 32x32 non-square sources that
-     * {@link #getOsType} resized) falls back to a single slice of its own type: scrambled beats
-     * an icns with no icon in it at all.</p>
+     * {@link #getOsType} resized) falls back to a single slice of its own type, unchanged:
+     * scrambled beats an icns with no icon in it at all, and insetting artwork that small would
+     * leave almost nothing of it.</p>
      */
     static void writeIcns(File iconFile, File contentsDir, String osType, File icnsFile) throws IOException {
         int maxSize = getSourceSize(osType);
         if (maxSize > 0) {
-            createThumbnails(iconFile, contentsDir, maxSize);
+            createThumbnails(fitToIconGrid(iconFile, contentsDir), contentsDir, maxSize);
         }
         try (IcnsBuilder builder = IcnsBuilder.getInstance()) {
             boolean wroteAnySlice = false;
