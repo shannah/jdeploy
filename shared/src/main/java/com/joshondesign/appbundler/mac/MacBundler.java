@@ -575,11 +575,18 @@ public class MacBundler {
                 .toFile(new File(contentsDir, "icon-"+size+".png"));
     }
     
-    /** icns slice types each rendered size fills; the @2x types let one file serve two entries */
-    private static final int[] ICON_SIZES = {16, 32, 64, 128, 256, 512, 1024};
+    /**
+     * icns slice types each rendered size fills; the @2x types let one file serve two entries.
+     *
+     * <p>icp4 (16x16) and icp5 (32x32) are deliberately absent.  macOS reads a PNG payload in
+     * those two slices correctly from a standalone icns, but renders it scrambled when the icns
+     * is an app bundle's icon - which is why the Finder preview pane looked right while the
+     * Finder list view and the Force Quit dialog did not.  ic11 and ic12 carry the small
+     * renderings instead, and macOS interpolates the 16pt/32pt non-retina sizes from them.</p>
+     */
+    private static final int[] ICON_SIZES = {32, 64, 128, 256, 512, 1024};
     private static final IcnsType[][] ICON_TYPES = {
-            {IcnsType.ICNS_16x16_JPEG_PNG_IMAGE},
-            {IcnsType.ICNS_32x32_JPEG_PNG_IMAGE, IcnsType.ICNS_16x16_2X_JPEG_PNG_IMAGE},
+            {IcnsType.ICNS_16x16_2X_JPEG_PNG_IMAGE},
             // no icp6: macOS reads that type as 48x48, and its icon set has no 64pt logical size
             {IcnsType.ICNS_32x32_2X_JPEG_PNG_IMAGE},
             {IcnsType.ICNS_128x128_JPEG_PNG_IMAGE},
@@ -594,14 +601,46 @@ public class MacBundler {
         }
     }
 
-    /** rendered size the given slice type holds, or 0 if it isn't one we generate */
-    private static int getIconSize(String osType) {
-        for (int i = 0; i < ICON_SIZES.length; i++) {
-            for (IcnsType type : ICON_TYPES[i]) {
-                if (type.getOsType().equals(osType)) return ICON_SIZES[i];
+    /** pixel size of the source icon, from the slice type {@link #getOsType} matched it to */
+    private static int getSourceSize(String osType) {
+        IcnsType sourceType = IcnsType.of(osType);
+
+        return sourceType == null ? 0 : sourceType.getWidth();
+    }
+
+    /**
+     * Writes the icns for the given source icon, one slice per rendered size at or below the
+     * source's own size - upscaling would tag a blurry slice as a native rendering.
+     *
+     * <p>A source too small to fill any slice we emit (16x16, and 32x32 non-square sources that
+     * {@link #getOsType} resized) falls back to a single slice of its own type: scrambled beats
+     * an icns with no icon in it at all.</p>
+     */
+    static void writeIcns(File iconFile, File contentsDir, String osType, File icnsFile) throws IOException {
+        int maxSize = getSourceSize(osType);
+        if (maxSize > 0) {
+            createThumbnails(iconFile, contentsDir, maxSize);
+        }
+        try (IcnsBuilder builder = IcnsBuilder.getInstance()) {
+            boolean wroteAnySlice = false;
+            for (int i = 0; i < ICON_SIZES.length && ICON_SIZES[i] <= maxSize; i++) {
+                for (IcnsType type : ICON_TYPES[i]) {
+                    try (InputStream in = getThumbnail(contentsDir, ICON_SIZES[i])) {
+                        builder.add(type.getOsType(), in);
+                    }
+                    wroteAnySlice = true;
+                }
+            }
+            if (!wroteAnySlice) {
+                try (InputStream in = new FileInputStream(iconFile)) {
+                    builder.add(osType, in);
+                }
+            }
+            try (FileOutputStream out = new FileOutputStream(icnsFile)) {
+                builder.build().writeTo(out);
             }
         }
-        return 0;
+        cleanThumbnails(contentsDir);
     }
     
     private static FileInputStream getThumbnail(File contentsDir, int size) throws IOException {
@@ -758,36 +797,13 @@ public class MacBundler {
         if (osType == null) {
             throw new IOException("Failed to determine type of icon file.");
         }
-       
-        
-        // macOS 26 draws a single-slice icns shrunk onto a grey plate, so write the whole size family
-        int maxSize = getIconSize(osType);
-        if (maxSize > 0) createThumbnails(iconFile, contentsDir, maxSize);
-        try (IcnsBuilder builder = IcnsBuilder.getInstance()) {
-            if (maxSize == 0) {
-                builder.add(osType, new FileInputStream(iconFile));
-            } else {
-                // only down to the source size - upscaling would tag a blurry slice as native
-                for (int i = 0; i < ICON_SIZES.length && ICON_SIZES[i] <= maxSize; i++) {
-                    for (IcnsType type : ICON_TYPES[i]) {
-                        try (InputStream in = getThumbnail(contentsDir, ICON_SIZES[i])) {
-                            builder.add(type.getOsType(), in);
-                        }
-                    }
-                }
-            }
-            File icnsFile = ext != null ?
-                    new File(contentsDir, "Resources/icon."+ext+".icns") :
-                    new File(contentsDir, "Resources/icon.icns");
-            try (FileOutputStream out = new FileOutputStream(icnsFile)) {
-                builder.build().writeTo(out);
-            }
 
-        }
+        // macOS 26 draws a single-slice icns shrunk onto a grey plate, so write the whole size family
+        File icnsFile = ext != null ?
+                new File(contentsDir, "Resources/icon."+ext+".icns") :
+                new File(contentsDir, "Resources/icon.icns");
+        writeIcns(iconFile, contentsDir, osType, icnsFile);
         iconFile.delete();
-        cleanThumbnails(contentsDir);
-                    
-        
     }
     
     private static void processInfoPlist(AppDescription app, File contentsDir) throws Exception {
