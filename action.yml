@@ -359,13 +359,27 @@ runs:
         GH_TOKEN: ${{ inputs.github_token }}
       run: |
         set -e
-        INSTALLER_LIST=$($jdeploy_exec github-installer-files)
+        # The installers are exactly the files github-prepare-release put in
+        # jdeploy/installers, which it copies into the release files with spaces
+        # replaced by dots.  Deriving the list from that directory keeps this step
+        # working with every jdeploy version, rather than depending on a CLI
+        # subcommand that only newer releases have.
         INSTALLERS=()
-        while IFS= read -r installer; do
-          if [ -n "$installer" ]; then
-            INSTALLERS+=("$installer")
-          fi
-        done <<< "$INSTALLER_LIST"
+        if [ -d ./jdeploy/installers ]; then
+          for installer in ./jdeploy/installers/*; do
+            [ -f "$installer" ] || continue
+            name=$(basename "$installer")
+            releaseFile="./jdeploy/github-release-files/${name// /.}"
+            if [ ! -f "$releaseFile" ]; then
+              releaseFile="./jdeploy/github-release-files/${name}"
+            fi
+            if [ -f "$releaseFile" ]; then
+              INSTALLERS+=("$releaseFile")
+            else
+              echo "Warning: no release file found for installer $name"
+            fi
+          done
+        fi
         if [ ${#INSTALLERS[@]} -eq 0 ]; then
           echo "No installer artifacts found.  Skipping upload to ${{ github.repository }}."
           exit 0
@@ -383,14 +397,16 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
         set -e
-        # Download links must point at this repository, since that is where the
-        # installers were just uploaded, but the CLI installation links must keep
-        # pointing at the target repository, which hosts the package metadata.
-        BODY=$(GITHUB_REPOSITORY='${{ inputs.target_repository }}' \
-          JDEPLOY_RELEASE_NOTES_DOWNLOAD_REPOSITORY='${{ github.repository }}' \
-          GITHUB_REF_NAME='${{ github.ref_name }}' \
-          GITHUB_REF_TYPE='tag' \
-          $jdeploy_exec github-release-notes)
+        # Point the installer download links at this repository, since that is where
+        # the installers were just uploaded.  The CLI installation links keep pointing
+        # at the target repository, which hosts the package metadata - they are
+        # jdeploy.com/gh/<repo> URLs, so this rewrite does not touch them.  The
+        # substitution is a literal bash replacement rather than a regex, so a
+        # repository name containing a dot cannot match the wrong text.
+        NOTES=$(cat ./jdeploy/github-release-files/jdeploy-release-notes.md)
+        DOWNLOAD_PREFIX_FROM="https://github.com/${{ inputs.target_repository }}/releases/download/"
+        DOWNLOAD_PREFIX_TO="https://github.com/${{ github.repository }}/releases/download/"
+        BODY="${NOTES//"$DOWNLOAD_PREFIX_FROM"/"$DOWNLOAD_PREFIX_TO"}"
         RELEASE_RESULT=$(curl -s \
         -H "Accept: application/vnd.github+json" \
         -H "Authorization: Bearer ${GITHUB_TOKEN}" \

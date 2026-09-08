@@ -10,12 +10,9 @@ import ca.weblite.jdeploy.cli.config.CliConfigLoader;
 import ca.weblite.jdeploy.cli.controllers.*;
 import ca.weblite.jdeploy.cli.services.AppXmlPropertyExtractor;
 import ca.weblite.jdeploy.cli.services.CLIOneTimePasswordProvider;
-import ca.weblite.jdeploy.factories.JDeployProjectFactory;
 import ca.weblite.jdeploy.factories.PublishTargetFactory;
 import ca.weblite.jdeploy.gui.JDeployMainMenu;
 import ca.weblite.jdeploy.gui.JDeployProjectEditor;
-import ca.weblite.jdeploy.helpers.GithubReleaseNotesMutator;
-import ca.weblite.jdeploy.models.JDeployProject;
 import ca.weblite.jdeploy.npm.NPM;
 import ca.weblite.jdeploy.npm.TerminalLoginLauncher;
 import ca.weblite.jdeploy.packaging.JarFinder;
@@ -416,64 +413,6 @@ public class JDeploy implements BundleConstants {
             sb.append(endMarker).append("\n");
         }
         return sb.toString();
-    }
-
-    /**
-     * Regenerates the jDeploy section of the GitHub release notes for the release files that were
-     * created by github-prepare-release.
-     *
-     * <p>The action uses this when the release files were published to a target repository other
-     * than the repository running the workflow: the workflow's own release gets a copy of the
-     * installers, so it needs a set of release notes whose download links point at its own
-     * repository, while the CLI installation links continue to point at the target repository
-     * where the package metadata lives.</p>
-     *
-     * @param context The packaging context.
-     * @param repository The repository used for the CLI installation links.
-     * @param downloadRepository The repository hosting the installer assets.  May be null, in which
-     *                           case {@code repository} is used.
-     * @param refName The branch or tag name of the release.
-     * @param refType Either "branch" or "tag".
-     * @return The release notes markdown.
-     */
-    public String createGithubReleaseNotes(
-            PackagingContext context,
-            String repository,
-            String downloadRepository,
-            String refName,
-            String refType
-    ) {
-        boolean hasCommands = false;
-        try {
-            JDeployProject project = DIContext.get(JDeployProjectFactory.class)
-                    .createProject(context.packageJsonFile.toPath());
-            hasCommands = !project.getCommandSpecs().isEmpty();
-        } catch (Exception e) {
-            context.err.println("Warning: Could not check for CLI commands: " + e.getMessage());
-        }
-
-        return new GithubReleaseNotesMutator(context.directory, context.err).createGithubReleaseNotes(
-                repository,
-                refName,
-                refType,
-                hasCommands,
-                context.getVersion(),
-                downloadRepository
-        );
-    }
-
-    /**
-     * Lists the installer artifacts that github-prepare-release created, one path per line.  These
-     * are the platform installers that end users download, as opposed to the rest of the release
-     * files (platform bundles, package-info.json, icons, etc..).
-     *
-     * @param context The packaging context.
-     */
-    public void printGithubInstallerFiles(PackagingContext context) {
-        for (File installerFile :
-                new GithubReleaseNotesMutator(context.directory, context.err).getInstallerFiles().values()) {
-            context.out.println(installerFile.getPath());
-        }
     }
 
     public int updateReleaseLinks(PackagingContext context, String[] args) {
@@ -1200,21 +1139,6 @@ public class JDeploy implements BundleConstants {
                     System.exit(1);
                 }
                 System.out.println(prog.injectGithubReleaseNotes(oldBody, jdeployReleaseNotes));
-            } else if ("github-release-notes".equals(args[0])) {
-                String repository = System.getenv("GITHUB_REPOSITORY");
-                if (repository == null) {
-                    System.err.println("The github-release-notes action requires the GITHUB_REPOSITORY environment variable to be set");
-                    System.exit(1);
-                }
-                System.out.println(prog.createGithubReleaseNotes(
-                        context,
-                        repository,
-                        System.getenv("JDEPLOY_RELEASE_NOTES_DOWNLOAD_REPOSITORY"),
-                        System.getenv("GITHUB_REF_NAME"),
-                        System.getenv("GITHUB_REF_TYPE")
-                ));
-            } else if ("github-installer-files".equals(args[0])) {
-                prog.printGithubInstallerFiles(context);
             } else if ("github-update-release-links".equals(args[0])) {
                 int result = prog.updateReleaseLinks(context, subArray(args,1 ));
                 System.exit(result);
