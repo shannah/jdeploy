@@ -390,17 +390,16 @@ runs:
           exit 0
         fi
         echo "Uploading ${#INSTALLERS[@]} installer(s) to ${{ github.repository }} release ${{ github.ref_name }}"
-        # The installers are already published to the target repository, which is the
-        # distribution channel, so a failure to also copy them here is reported but
-        # does not fail the release.
+        # A tag build runs against a release that already exists here, so this only
+        # ever adds assets to it - it never creates one.  The installers are already
+        # published to the target repository, which is the distribution channel, so
+        # anything that stops the copy is reported but does not fail the release.
         if ! gh release view -R '${{ github.repository }}' '${{ github.ref_name }}' > /dev/null 2>&1; then
-          if ! gh release create -R '${{ github.repository }}' '${{ github.ref_name }}' --title '${{ github.ref_name }}' --notes ''; then
-            echo "::warning::Could not create a release for ${{ github.ref_name }} in ${{ github.repository }}, so the installers were published only to ${{ inputs.target_repository }}. This step needs 'contents: write' permission in the calling workflow."
-            exit 0
-          fi
+          echo "::warning::No release for ${{ github.ref_name }} in ${{ github.repository }} (or no permission to read it), so the installers were published only to ${{ inputs.target_repository }}. This step reads and writes this repository's own release, so the calling workflow needs 'contents: write' permission."
+          exit 0
         fi
         if ! gh release upload -R '${{ github.repository }}' '${{ github.ref_name }}' --clobber "${INSTALLERS[@]}"; then
-          echo "::warning::Could not upload the installers to ${{ github.repository }}, so they were published only to ${{ inputs.target_repository }}. This step needs 'contents: write' permission in the calling workflow."
+          echo "::warning::Could not upload the installers to ${{ github.repository }}, so they were published only to ${{ inputs.target_repository }}. The calling workflow needs 'contents: write' permission."
           exit 0
         fi
 
