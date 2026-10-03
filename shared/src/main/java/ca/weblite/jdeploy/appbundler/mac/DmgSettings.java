@@ -82,14 +82,14 @@ public class DmgSettings {
             if (!file.isAbsolute()) {
                 file = new File(projectDirectory, (String) configuredPath);
             }
-            if (!file.exists()) {
+            if (!file.isFile()) {
                 throw new IllegalArgumentException("DMG background image not found: " + file);
             }
             return file;
         }
         for (String name : BACKGROUND_FILE_NAMES) {
             File file = new File(projectDirectory, name);
-            if (file.exists()) {
+            if (file.isFile()) {
                 return file;
             }
         }

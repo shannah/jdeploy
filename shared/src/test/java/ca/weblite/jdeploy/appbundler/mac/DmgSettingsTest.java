@@ -72,6 +72,19 @@ public class DmgSettingsTest {
     }
 
     @Test
+    public void testDirectoryBackgroundFails(@TempDir File projectDirectory) {
+        new File(projectDirectory, "art").mkdirs();
+        Map dmg = new HashMap();
+        dmg.put("background", "art");
+        Map jdeploy = new HashMap();
+        jdeploy.put("dmg", dmg);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> DmgSettings.fromPackageJson(jdeploy, projectDirectory)
+        );
+    }
+
+    @Test
     public void testMalformedWindowSizeFails(@TempDir File projectDirectory) {
         Map dmg = new HashMap();
         dmg.put("windowSize", 500.0);

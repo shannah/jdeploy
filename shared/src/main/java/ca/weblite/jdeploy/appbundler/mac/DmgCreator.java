@@ -12,6 +12,10 @@ import java.util.List;
 
 public class DmgCreator {
 
+    // Finder's window bounds include the title bar, so it is added to the configured
+    // window size to keep the whole background image visible.
+    private static final int TITLE_BAR_HEIGHT = 28;
+
     public static void createDmg(String appPath, String dmgPath) throws IOException, InterruptedException {
         createDmg(appPath, dmgPath, new DmgSettings());
     }
@@ -120,7 +124,7 @@ public class DmgCreator {
                             "end tell\n",
                     volumeName,
                     400 + settings.getWindowWidth(),
-                    100 + settings.getWindowHeight(),
+                    100 + settings.getWindowHeight() + TITLE_BAR_HEIGHT,
                     settings.getIconSize(),
                     backgroundImg,
                     appName,
