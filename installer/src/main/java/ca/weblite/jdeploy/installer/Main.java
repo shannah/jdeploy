@@ -599,6 +599,18 @@ public class Main implements Runnable, Constants {
 
     }
 
+    /**
+     * Derives the version to write into the mac Info.plist from the npm range that the launcher
+     * will follow for updates.  The bundle isn't rebuilt on auto-update, so only the part of the
+     * version that can't change is used.  Returns null if no part of the version is fixed.
+     */
+    static String createBundleVersion(String npmRange) {
+        if (npmRange == null || "latest".equals(npmRange) || npmRange.startsWith("0.0.0-")) {
+            return null;
+        }
+        return npmRange.replaceFirst("^[~^]", "").replaceFirst("[-+].*$", "");
+    }
+
     private static String ifEmpty(String... value) {
         for (String s : value) {
             if (s != null && !s.isEmpty()) return s;
@@ -1909,6 +1921,9 @@ public class Main implements Runnable, Constants {
         // Based on the user's settings, let's update the version in the appInfo
         // to correspond with the auto-update settings.
         appInfo().setNpmVersion(createSemVerForVersion(npmPackageVersion().getVersion(), installationSettings.getAutoUpdate()));
+        if (Platform.getSystemPlatform().isMac()) {
+            appInfo().setVersion(createBundleVersion(appInfo().getNpmVersion()));
+        }
         appInfo().setNpmAllowPrerelease(installationSettings.isPrerelease());
         if (PrereleaseHelper.isPrereleaseVersion(npmPackageVersion().getVersion())) {
             appInfo().setNpmAllowPrerelease(true);

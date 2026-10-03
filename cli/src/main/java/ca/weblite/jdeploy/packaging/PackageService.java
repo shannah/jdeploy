@@ -862,9 +862,6 @@ public class PackageService implements BundleConstants {
         appInfo.setNpmPackage((String)context.m().get("name"));
         String packageJsonVersion = context.m().get("version") != null ? context.m().get("version").toString() : "latest";
         appInfo.setNpmVersion(packageJsonVersion);
-        if (context.m().get("version") != null) {
-            appInfo.setVersion(VersionCleaner.cleanVersion(packageJsonVersion));
-        }
         if (context.isPackageSigningEnabled()) {
             try {
                 appInfo.setEnableCertificatePinning(true);
