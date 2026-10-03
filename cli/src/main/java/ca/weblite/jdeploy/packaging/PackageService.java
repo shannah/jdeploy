@@ -9,6 +9,7 @@ import ca.weblite.jdeploy.app.permissions.PermissionRequest;
 import ca.weblite.jdeploy.app.permissions.PermissionRequestService;
 import ca.weblite.jdeploy.appbundler.*;
 import ca.weblite.jdeploy.appbundler.mac.DmgCreator;
+import ca.weblite.jdeploy.appbundler.mac.DmgSettings;
 import ca.weblite.jdeploy.environment.Environment;
 import ca.weblite.jdeploy.helpers.NpmPackageUtils;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
@@ -729,18 +730,19 @@ public class PackageService implements BundleConstants {
     }
 
     private BundlerResult macArmDmg(PackagingContext context, BundlerSettings bundlerSettings, File destDir, String suffix) throws Exception {
-        return dmg(bundlerSettings, destDir, suffix, BUNDLE_MAC_ARM64_DMG, (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
+        return dmg(context, bundlerSettings, destDir, suffix, BUNDLE_MAC_ARM64_DMG, (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
             return macArmBundle(context, bundlerSettings1, bundleDestDir, bundleReleaseDir);
         });
     }
 
     private BundlerResult macIntelDmg(PackagingContext context, BundlerSettings bundlerSettings, File destDir, String suffix) throws Exception {
-        return dmg(bundlerSettings, destDir, suffix, BUNDLE_MAC_X64_DMG, (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
+        return dmg(context, bundlerSettings, destDir, suffix, BUNDLE_MAC_X64_DMG, (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
             return macIntelBundle(context, bundlerSettings1, bundleDestDir, bundleReleaseDir);
         });
     }
 
     private BundlerResult dmg(
+            PackagingContext context,
             BundlerSettings bundlerSettings,
             File destDir,
             String suffix,
@@ -767,7 +769,8 @@ public class PackageService implements BundleConstants {
             File dmgFile = new File(destDir, dmgName);
             DmgCreator.createDmg(
                     bundleResult.getOutputFile().getAbsolutePath(),
-                    dmgFile.getAbsolutePath()
+                    dmgFile.getAbsolutePath(),
+                    DmgSettings.fromPackageJson(context.mj(), context.directory)
             );
             BundlerResult newResult = new BundlerResult(bundleType);
             newResult.setOutputFile(dmgFile);
