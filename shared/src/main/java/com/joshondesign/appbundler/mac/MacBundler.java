@@ -1033,8 +1033,9 @@ public class MacBundler {
         if (app.getMacBundleId() != null && !app.getMacBundleId().isEmpty()) {
             out.start("key").text("CFBundleIdentifier").end().start("string").text(app.getMacBundleId()).end();
         }
-        out.start("key").text("CFBundleVersion").end().start("string").text("1.0.0").end();
-        out.start("key").text("CFBundleShortVersionString").end().start("string").text("1.0.0").end();
+        String bundleVersion = app.getVersion() == null || app.getVersion().isEmpty() ? "1.0.0" : app.getVersion();
+        out.start("key").text("CFBundleVersion").end().start("string").text(bundleVersion).end();
+        out.start("key").text("CFBundleShortVersionString").end().start("string").text(bundleVersion).end();
         out.start("key").text("CFBundleAllowMixedLocalizations").end().start("string").text("true").end();
         out.start("key").text("CFBundleExecutable").end().start("string").text("Client4JLauncher").end();
         out.start("key").text("CFBundleDevelopmentRegion").end().start("string").text("English").end();

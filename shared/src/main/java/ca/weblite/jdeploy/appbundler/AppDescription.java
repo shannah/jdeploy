@@ -21,6 +21,12 @@ public class AppDescription {
     private String npmPackage;
     private String npmVersion;
 
+    /**
+     * The concrete version of the app being bundled (e.g. from package.json), as opposed to the
+     * npm version *expression* that the launcher uses to find updates (which may be "latest").
+     */
+    private String version;
+
     private String npmSource = "";
     private boolean npmPrerelease;
     private boolean fork;
@@ -467,6 +473,14 @@ public class AppDescription {
 
     public void setNpmVersion(String npmVersion) {
         this.npmVersion = npmVersion;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
     }
 
     public String getIconDataURI() {
