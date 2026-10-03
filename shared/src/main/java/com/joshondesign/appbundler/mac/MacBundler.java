@@ -76,15 +76,7 @@ public class MacBundler {
         File resourcesDir = new File(contentsDir, "Resources");
         resourcesDir.mkdir();
         processIcon(app, contentsDir);
-        for(String ext : app.getExtensions()) {
-            String exticon = app.getExtensionIcon(ext);
-            if(exticon != null) {
-                File ifile = new File(exticon);
-                if(ifile.exists()) {
-                    processIcon(app, contentsDir, ext, ifile);
-                }
-            }
-        }
+        processDocumentTypeIcons(app, contentsDir);
         processInfoPlist(app,contentsDir);
         processAppXml(app, contentsDir);
         Bundler.copyStream(
@@ -627,6 +619,9 @@ public class MacBundler {
     /** Name of the grid-fitted source; matches the thumbnail pattern so it is cleaned up too. */
     static final String GRID_ICON_NAME = "icon-grid.png";
 
+    /** Key the directory association's icon is written under: Resources/icon.directory.icns. */
+    private static final String DIRECTORY_ICON_KEY = "directory";
+
     /**
      * Returns the source to cut slices from, insetting the artwork onto the macOS icon grid
      * when it fills more of its canvas than the grid allows.
@@ -855,17 +850,52 @@ public class MacBundler {
         processIcon(app, contentsDir, null, null);
     }
     
-    private static void processIcon(AppDescription app, File contentsDir, String ext, File iconFile) throws Exception {
+    /**
+     * Writes Resources/icon.&lt;ext&gt;.icns for each file association that has an icon, and
+     * Resources/icon.directory.icns for the directory association.  A missing icon is reported
+     * and skipped, and the Info.plist then leaves CFBundleTypeIconFile out for that type.
+     */
+    static void processDocumentTypeIcons(AppDescription app, File contentsDir) throws Exception {
+        for (String ext : app.getExtensions()) {
+            processDocumentTypeIcon(app, contentsDir, ext, app.getExtensionIcon(ext));
+        }
+        if (app.hasDirectoryAssociation()) {
+            processDocumentTypeIcon(app, contentsDir, DIRECTORY_ICON_KEY, app.getDirectoryIcon());
+        }
+    }
+
+    private static void processDocumentTypeIcon(AppDescription app, File contentsDir, String key, String iconPath)
+            throws Exception {
+        if (iconPath == null) {
+            return;
+        }
+        File iconFile = new File(iconPath);
+        if (!iconFile.isFile()) {
+            System.err.println("Warning: document type icon " + iconFile.getAbsolutePath()
+                    + " for '" + key + "' does not exist; the bundle will use the default document icon.");
+            return;
+        }
+        processIcon(app, contentsDir, key, iconFile);
+    }
+
+    /** Name of the icns written for the given document type key, relative to Resources. */
+    private static String getDocumentTypeIconName(String key) {
+        return "icon." + key + ".icns";
+    }
+
+    private static void processIcon(AppDescription app, File contentsDir, String ext, File sourceIconFile) throws Exception {
+        // Always convert a working copy inside the bundle: the conversion below rewrites the file
+        // in place and then deletes it, so it must never operate on the caller's source icon.
+        File iconFile = ext != null ?
+                new File(contentsDir, "icon." + ext + ".png") :
+                new File(contentsDir, "icon.png");
         URL iconUrl;
-        if (iconFile == null) {
-            iconFile = ext != null ?
-                    new File(contentsDir, "icon." + ext + ".png") :
-                    new File(contentsDir, "icon.png");
+        if (sourceIconFile == null) {
             iconUrl = ext != null ?
                     URLUtil.url(new URL(app.getUrl()), "icon."+ext+".png") :
                     URLUtil.url(new URL(app.getUrl()), "icon.png");
         } else {
-            iconUrl = iconFile.toURI().toURL();
+            iconUrl = sourceIconFile.toURI().toURL();
         }
 
         try (InputStream in = URLUtil.openStream(iconUrl)) {
@@ -897,13 +927,25 @@ public class MacBundler {
 
         // macOS 26 draws a single-slice icns shrunk onto a grey plate, so write the whole size family
         File icnsFile = ext != null ?
-                new File(contentsDir, "Resources/icon."+ext+".icns") :
+                new File(contentsDir, "Resources/" + getDocumentTypeIconName(ext)) :
                 new File(contentsDir, "Resources/icon.icns");
         writeIcns(iconFile, contentsDir, osType, icnsFile);
         iconFile.delete();
     }
     
-    private static void processInfoPlist(AppDescription app, File contentsDir) throws Exception {
+    /**
+     * Points CFBundleTypeIconFile at the icns {@link #processDocumentTypeIcons} wrote for the
+     * given type, if it wrote one; naming a file that is not in Resources gets no icon at all.
+     */
+    private static void writeDocumentTypeIconFile(XMLWriter out, File contentsDir, String key) {
+        String iconName = getDocumentTypeIconName(key);
+        if (new File(contentsDir, "Resources/" + iconName).isFile()) {
+            out.start("key").text("CFBundleTypeIconFile").end();
+            out.start("string").text(iconName).end();
+        }
+    }
+
+    static void processInfoPlist(AppDescription app, File contentsDir) throws Exception {
         p("Processing the info plist");
 
         XMLWriter out = new XMLWriter(new File(contentsDir,"Info.plist"));
@@ -911,14 +953,21 @@ public class MacBundler {
         out.start("plist","version","1.0");
         out.start("dict");
 
+        // Emit a single CFBundleDocumentTypes key: a plist dict must not repeat a key, and
+        // parsers keep only the last occurrence, which would drop all but one association.
+        boolean hasDocumentTypes = !app.getExtensions().isEmpty() || app.hasDirectoryAssociation();
+        if (hasDocumentTypes) {
+            out.start("key").text("CFBundleDocumentTypes").end();
+            out.start("array");
+        }
+
         for(String ext : app.getExtensions()) {
             //file extensions
             String role = "Viewer";
             if (app.isEditableExtension(ext)) {
                 role = "Editor";
             }
-            out.start("key").text("CFBundleDocumentTypes").end();
-            out.start("array").start("dict");
+            out.start("dict");
                 out.start("key").text("CFBundleTypeExtensions").end();
                 out.start("array").start("string").text(ext).end().end();
                 out.start("key").text("CFBundleTypeName").end();
@@ -927,23 +976,15 @@ public class MacBundler {
                 out.start("array").start("string").text(app.getExtensionMimetype(ext)).end().end();
                 out.start("key").text("CFBundleTypeRole").end();
                 out.start("string").text(role).end();
-                String icon = app.getExtensionIcon(ext);
-
-                if(icon != null) {
-                    out.start("key").text("CFBundleTypeIconFile").end();
-                    File ifile = new File(icon);
-                    out.start("string").text(ifile.getName()).end();
-                    //copy over the icon
-                }
-            out.end().end();
+                writeDocumentTypeIconFile(out, contentsDir, ext);
+            out.end();
         }
 
         // Directory associations
         if (app.hasDirectoryAssociation()) {
             String role = app.getDirectoryRole();
 
-            out.start("key").text("CFBundleDocumentTypes").end();
-            out.start("array").start("dict");
+            out.start("dict");
                 // Use LSItemContentTypes for folder handling
                 out.start("key").text("LSItemContentTypes").end();
                 out.start("array");
@@ -957,13 +998,12 @@ public class MacBundler {
                 out.start("string").text(role).end();
 
                 // Optional: Custom icon for folders
-                String dirIcon = app.getDirectoryIcon();
-                if (dirIcon != null) {
-                    out.start("key").text("CFBundleTypeIconFile").end();
-                    File ifile = new File(dirIcon);
-                    out.start("string").text(ifile.getName()).end();
-                }
-            out.end().end();
+                writeDocumentTypeIconFile(out, contentsDir, DIRECTORY_ICON_KEY);
+            out.end();
+        }
+
+        if (hasDocumentTypes) {
+            out.end();
         }
 
         if (app.hasUrlSchemes()) {
