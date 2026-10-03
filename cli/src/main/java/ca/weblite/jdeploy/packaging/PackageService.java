@@ -860,6 +860,18 @@ public class PackageService implements BundleConstants {
         );
     }
 
+    /** Resolves a path from package.json against the project directory; null stays null. */
+    private static String resolveProjectPath(PackagingContext context, String path) {
+        if (path == null) {
+            return null;
+        }
+        File file = new File(toNativePath(path));
+        if (!file.isAbsolute()) {
+            file = new File(context.directory, toNativePath(path));
+        }
+        return file.getAbsolutePath();
+    }
+
     private void loadAppInfo(PackagingContext context, AppInfo appInfo) throws IOException {
         appInfo.setNpmPackage((String)context.m().get("name"));
         String packageJsonVersion = context.m().get("version") != null ? context.m().get("version").toString() : "latest";
@@ -951,12 +963,18 @@ public class PackageService implements BundleConstants {
                 DocumentTypeAssociation documentType
                 : FileAssociationsHelper.getDocumentTypeAssociationsFromPackageJSON(context.packageJsonObject())
         ) {
+            // Icon paths in package.json are relative to the project, not the working directory.
+            String iconPath = resolveProjectPath(context, documentType.getIconPath());
             if (documentType.isDirectory()) {
-                appInfo.setDirectoryAssociation(documentType);
+                appInfo.setDirectoryAssociation(
+                        documentType.getRole(),
+                        documentType.getDescription(),
+                        iconPath
+                );
             } else {
                 appInfo.addDocumentMimetype(documentType.getExtension(), documentType.getMimetype());
-                if (documentType.getIconPath() != null) {
-                    appInfo.addDocumentTypeIcon(documentType.getExtension(), documentType.getIconPath());
+                if (iconPath != null) {
+                    appInfo.addDocumentTypeIcon(documentType.getExtension(), iconPath);
                 }
                 if (documentType.isEditor()) {
                     appInfo.setDocumentTypeEditor(documentType.getExtension());
