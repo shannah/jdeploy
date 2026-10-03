@@ -5,11 +5,14 @@ import ca.weblite.jdeploy.JDeploy;
 import ca.weblite.jdeploy.app.AppInfo;
 import ca.weblite.jdeploy.app.JVMSpecification;
 import ca.weblite.jdeploy.models.CommandSpecParser;
+import ca.weblite.jdeploy.models.DocumentTypeAssociation;
 import ca.weblite.jdeploy.app.permissions.PermissionRequest;
 import ca.weblite.jdeploy.app.permissions.PermissionRequestService;
 import ca.weblite.jdeploy.appbundler.*;
 import ca.weblite.jdeploy.appbundler.mac.DmgCreator;
+import ca.weblite.jdeploy.appbundler.mac.DmgSettings;
 import ca.weblite.jdeploy.environment.Environment;
+import ca.weblite.jdeploy.helpers.FileAssociationsHelper;
 import ca.weblite.jdeploy.helpers.NpmPackageUtils;
 import ca.weblite.jdeploy.helpers.PrereleaseHelper;
 import ca.weblite.jdeploy.services.BundleCodeService;
@@ -729,18 +732,19 @@ public class PackageService implements BundleConstants {
     }
 
     private BundlerResult macArmDmg(PackagingContext context, BundlerSettings bundlerSettings, File destDir, String suffix) throws Exception {
-        return dmg(bundlerSettings, destDir, suffix, BUNDLE_MAC_ARM64_DMG, (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
+        return dmg(context, bundlerSettings, destDir, suffix, BUNDLE_MAC_ARM64_DMG, (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
             return macArmBundle(context, bundlerSettings1, bundleDestDir, bundleReleaseDir);
         });
     }
 
     private BundlerResult macIntelDmg(PackagingContext context, BundlerSettings bundlerSettings, File destDir, String suffix) throws Exception {
-        return dmg(bundlerSettings, destDir, suffix, BUNDLE_MAC_X64_DMG, (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
+        return dmg(context, bundlerSettings, destDir, suffix, BUNDLE_MAC_X64_DMG, (bundlerSettings1, bundleDestDir, bundleReleaseDir) -> {
             return macIntelBundle(context, bundlerSettings1, bundleDestDir, bundleReleaseDir);
         });
     }
 
     private BundlerResult dmg(
+            PackagingContext context,
             BundlerSettings bundlerSettings,
             File destDir,
             String suffix,
@@ -767,7 +771,8 @@ public class PackageService implements BundleConstants {
             File dmgFile = new File(destDir, dmgName);
             DmgCreator.createDmg(
                     bundleResult.getOutputFile().getAbsolutePath(),
-                    dmgFile.getAbsolutePath()
+                    dmgFile.getAbsolutePath(),
+                    DmgSettings.fromPackageJson(context.mj(), context.directory)
             );
             BundlerResult newResult = new BundlerResult(bundleType);
             newResult.setOutputFile(dmgFile);
@@ -858,6 +863,18 @@ public class PackageService implements BundleConstants {
         );
     }
 
+    /** Resolves a path from package.json against the project directory; null stays null. */
+    private static String resolveProjectPath(PackagingContext context, String path) {
+        if (path == null) {
+            return null;
+        }
+        File file = new File(toNativePath(path));
+        if (!file.isAbsolute()) {
+            file = new File(context.directory, toNativePath(path));
+        }
+        return file.getAbsolutePath();
+    }
+
     private void loadAppInfo(PackagingContext context, AppInfo appInfo) throws IOException {
         appInfo.setNpmPackage((String)context.m().get("name"));
         String packageJsonVersion = context.m().get("version") != null ? context.m().get("version").toString() : "latest";
@@ -942,6 +959,31 @@ public class PackageService implements BundleConstants {
         // Parse CLI commands from jdeploy config for bundler use (e.g., embedded LaunchAgent plists)
         JSONObject jdeployJson = new JSONObject(context.mj());
         appInfo.setCommands(CommandSpecParser.parseCommands(jdeployJson));
+
+        // File and directory associations from jdeploy.documentTypes, so that bundles declare
+        // the same associations that the installer and jpackage routes already do.
+        for (
+                DocumentTypeAssociation documentType
+                : FileAssociationsHelper.getDocumentTypeAssociationsFromPackageJSON(context.packageJsonObject())
+        ) {
+            // Icon paths in package.json are relative to the project, not the working directory.
+            String iconPath = resolveProjectPath(context, documentType.getIconPath());
+            if (documentType.isDirectory()) {
+                appInfo.setDirectoryAssociation(
+                        documentType.getRole(),
+                        documentType.getDescription(),
+                        iconPath
+                );
+            } else {
+                appInfo.addDocumentMimetype(documentType.getExtension(), documentType.getMimetype());
+                if (iconPath != null) {
+                    appInfo.addDocumentTypeIcon(documentType.getExtension(), iconPath);
+                }
+                if (documentType.isEditor()) {
+                    appInfo.setDocumentTypeEditor(documentType.getExtension());
+                }
+            }
+        }
 
         String jarPath = context.getString("jar", null);
         if (jarPath != null) {

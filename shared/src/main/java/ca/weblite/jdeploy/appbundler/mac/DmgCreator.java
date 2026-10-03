@@ -12,7 +12,19 @@ import java.util.List;
 
 public class DmgCreator {
 
+    // Finder's window bounds include the title bar, so it is added to the configured
+    // window size to keep the whole background image visible.
+    private static final int TITLE_BAR_HEIGHT = 28;
+
     public static void createDmg(String appPath, String dmgPath) throws IOException, InterruptedException {
+        createDmg(appPath, dmgPath, new DmgSettings());
+    }
+
+    public static void createDmg(
+            String appPath,
+            String dmgPath,
+            DmgSettings settings
+    ) throws IOException, InterruptedException {
         File appFile = new File(appPath);
         if (!appFile.exists() || !appFile.isDirectory()) {
             throw new IllegalArgumentException("The provided app path is not valid.");
@@ -29,7 +41,8 @@ public class DmgCreator {
             dmgFile = new File(appFile.getParentFile(), dmgName);
         }
         String tempDir = Files.createTempDirectory("dmg").toString();
-        String backgroundImg = "background.tiff";
+        File customBackground = settings.getBackground();
+        String backgroundImg = customBackground != null ? customBackground.getName() : "background.tiff";
 
         // Create temporary directory structure
         Files.createDirectories(Paths.get(tempDir, ".background"));
@@ -40,10 +53,14 @@ public class DmgCreator {
         // Create alias for /Applications
         runCommand("ln", "-s", "/Applications", Paths.get(tempDir, "Applications").toString());
 
-        copyResourceToDirectory(
-                "/com/joshondesign/appbundler/mac/dmg/background.tiff",
-                Paths.get(tempDir, ".background").toString()
-        );
+        if (customBackground != null) {
+            Files.copy(customBackground.toPath(), Paths.get(tempDir, ".background", backgroundImg));
+        } else {
+            copyResourceToDirectory(
+                    "/com/joshondesign/appbundler/mac/dmg/background.tiff",
+                    Paths.get(tempDir, ".background").toString()
+            );
+        }
 
         // Create the DMG file
         runCommand("hdiutil", "create", "-volname", volumeName, "-srcfolder", tempDir, "-ov", "-format", "UDRW", dmgFile.getPath());
@@ -85,19 +102,19 @@ public class DmgCreator {
                             "        log \"Hiding statusbar\"\n" +
                             "        set statusbar visible of container window to false\n" +
                             "        log \"Setting window bounds\"\n" +
-                            "        set the bounds of container window to {400, 100, 900, 450}\n" +
+                            "        set the bounds of container window to {400, 100, %d, %d}\n" +
                             "        log \"Setting view options\"\n" +
                             "        set viewOptions to the icon view options of container window\n" +
                             "        log \"Setting arrangement to not arranged\"\n" +
                             "        set arrangement of viewOptions to not arranged\n" +
                             "        log \"Setting icon size\"\n" +
-                            "        set icon size of viewOptions to 100\n" +
+                            "        set icon size of viewOptions to %d\n" +
                             "        log \"Setting background picture\"\n" +
                             "        set background picture of viewOptions to file \".background:%s\"\n" +
                             "        log \"Setting position of the app icon\"\n" +
-                            "        set position of item \"%s\" of container window to {100, 150}\n" +
+                            "        set position of item \"%s\" of container window to {%d, %d}\n" +
                             "        log \"Setting position of Applications icon\"\n" +
-                            "        set position of item \"Applications\" of container window to {400, 150}\n" +
+                            "        set position of item \"Applications\" of container window to {%d, %d}\n" +
                             "        log \"Updating window\"\n" +
                             "        update without registering applications\n" +
                             "        log \"Delaying for 5 seconds\"\n" +
@@ -105,7 +122,16 @@ public class DmgCreator {
                             "        log \"AppleScript execution completed\"\n" +
                             "    end tell\n" +
                             "end tell\n",
-                    volumeName, backgroundImg, appName
+                    volumeName,
+                    400 + settings.getWindowWidth(),
+                    100 + settings.getWindowHeight() + TITLE_BAR_HEIGHT,
+                    settings.getIconSize(),
+                    backgroundImg,
+                    appName,
+                    settings.getAppIconX(),
+                    settings.getAppIconY(),
+                    settings.getApplicationsIconX(),
+                    settings.getApplicationsIconY()
             );
             runCommand("osascript", "-e", appleScript);
         } finally {

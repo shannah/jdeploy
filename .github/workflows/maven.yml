@@ -38,10 +38,6 @@ jobs:
       # Pin the npm major version instead of tracking npm@latest so a new npm
       # release with a higher Node engine requirement can't break this step.
       run: npm install -g npm@11
-    - name: Install PHP
-      run: |
-        brew update
-        brew install php
     - name: Install osslsigncode
       run: brew install osslsigncode
     - name: Install MacOS Certificates
