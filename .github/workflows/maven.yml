@@ -38,13 +38,6 @@ jobs:
       # Pin the npm major version instead of tracking npm@latest so a new npm
       # release with a higher Node engine requirement can't break this step.
       run: npm install -g npm@11
-    - name: Install PHP
-      # Use prebuilt PHP instead of `brew install php`, which builds from source
-      # on macos-14 (~20 min) and fails if pear.php.net is unreachable.
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: '8.3'
-        tools: none
     - name: Install osslsigncode
       run: brew install osslsigncode
     - name: Install MacOS Certificates

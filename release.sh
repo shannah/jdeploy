@@ -109,7 +109,6 @@ bash make_installer_templates.sh
 cd ../cli
 
 mvn clean package
-CLI_VERSION=$(../json.php version)
 if [ "$GITHUB_REF_TYPE" == "tag" ]; then
   npm version "$GITHUB_REF_NAME"
   VERSION="$GITHUB_REF_NAME"
@@ -128,7 +127,6 @@ if [ "$GITHUB_REF_TYPE" == "tag" ]; then
 fi
 
 cd ../installer
-INSTALLER_VERSION=$(../json.php version)
 if [ "$GITHUB_REF_TYPE" == "tag" ]; then
   npm version "$GITHUB_REF_NAME"
   VERSION="$GITHUB_REF_NAME"
