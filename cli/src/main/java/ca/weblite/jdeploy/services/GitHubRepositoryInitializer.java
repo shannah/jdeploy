@@ -89,17 +89,24 @@ public class GitHubRepositoryInitializer {
                         "Repository '" + githubRepositoryDto.getFullRepositoryName() + "' created successfully."
                 );
             } else {
-                try (BufferedReader errorReader = new BufferedReader(
-                        new InputStreamReader(connection.getErrorStream()))
-                ) {
-                    StringBuilder errorMessage = new StringBuilder();
-                    String line;
-                    while ((line = errorReader.readLine()) != null) {
-                        errorMessage.append(line);
+                StringBuilder errorMessage = new StringBuilder();
+                if (connection.getErrorStream() != null) {
+                    try (BufferedReader errorReader = new BufferedReader(
+                            new InputStreamReader(connection.getErrorStream()))
+                    ) {
+                        String line;
+                        while ((line = errorReader.readLine()) != null) {
+                            errorMessage.append(line);
+                        }
                     }
-                    throw new IOException("Failed to create the repository. " +
-                            "Response code: " + responseCode + ", Error message: " + errorMessage);
                 }
+                if (responseCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
+                    throw new GitHubAuthenticationException("Failed to create the repository. " +
+                            "GitHub rejected the credentials (HTTP 401). Your GitHub token may be " +
+                            "missing, invalid or expired. Error message: " + errorMessage);
+                }
+                throw new IOException("Failed to create the repository. " +
+                        "Response code: " + responseCode + ", Error message: " + errorMessage);
             }
         } finally {
             connection.disconnect();

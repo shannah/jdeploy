@@ -70,52 +70,66 @@ public class ProjectGenerator {
         if (!request.isUseExistingDirectory() && projectDir.exists() ) {
             throw new Exception("Project directory already exists: " + projectDir.getAbsolutePath());
         }
+        // Track whether we created the directory so we can clean it up if a later
+        // step fails (e.g. a GitHub authentication error), rather than leaving a
+        // half-generated project behind that blocks the user from retrying.
+        boolean projectDirCreated = !request.isUseExistingDirectory();
         projectDir.mkdirs();
         if (!projectDir.exists()) {
             throw new IOException("Failed to create project directory: " + projectDir.getAbsolutePath());
         }
 
-        String templateDirectory = request.getTemplateDirectory();
-        if (templateDirectory == null && request.getTemplateName() != null) {
-            projectTemplateCatalog.update();
-            templateDirectory = projectTemplateCatalog.getProjectTemplate(request.getTemplateName()).getAbsolutePath();
-        }
-        if (templateDirectory == null) {
-            throw new Exception("Template directory is not set");
-        }
-
-        File templateDir = new File(templateDirectory);
-        if ( !templateDir.exists() ) {
-            throw new Exception("Template directory does not exist: " + templateDir.getAbsolutePath());
-        }
-        File[] files = templateDir.listFiles();
-        if (files == null) {
-            throw new IOException("Failed to get files in template directory: " + templateDir.getAbsolutePath());
-        }
-        for ( File file : files) {
-            if ( file.isDirectory() ) {
-                FileUtils.copyDirectory(file, new File(projectDir, file.getName()));
-            } else {
-                FileUtils.copyFileToDirectory(file, projectDir);
+        try {
+            String templateDirectory = request.getTemplateDirectory();
+            if (templateDirectory == null && request.getTemplateName() != null) {
+                projectTemplateCatalog.update();
+                templateDirectory = projectTemplateCatalog.getProjectTemplate(request.getTemplateName()).getAbsolutePath();
             }
-        }
-        if (request.getExtensions() != null) {
-            for (String extension : request.getExtensions()) {
-                File extensionDir = projectTemplateCatalog.getExtensionTemplate(extension);
-                applyExtensionToProject(projectDir, extensionDir);
-
+            if (templateDirectory == null) {
+                throw new Exception("Template directory is not set");
             }
+
+            File templateDir = new File(templateDirectory);
+            if ( !templateDir.exists() ) {
+                throw new Exception("Template directory does not exist: " + templateDir.getAbsolutePath());
+            }
+            File[] files = templateDir.listFiles();
+            if (files == null) {
+                throw new IOException("Failed to get files in template directory: " + templateDir.getAbsolutePath());
+            }
+            for ( File file : files) {
+                if ( file.isDirectory() ) {
+                    FileUtils.copyDirectory(file, new File(projectDir, file.getName()));
+                } else {
+                    FileUtils.copyFileToDirectory(file, projectDir);
+                }
+            }
+            if (request.getExtensions() != null) {
+                for (String extension : request.getExtensions()) {
+                    File extensionDir = projectTemplateCatalog.getExtensionTemplate(extension);
+                    applyExtensionToProject(projectDir, extensionDir);
+
+                }
+            }
+
+            updateFilesInDirectory(projectDir, request);
+            updatePackageJsonWithGithubSettings(projectDir, request);
+
+            if (mavenWrapperInjector.isMavenProject(projectDir.getPath())) {
+                mavenWrapperInjector.installIntoProject(projectDir.getPath());
+            }
+
+            initializeAndPushGitRepository(projectDir, request);
+            return projectDir;
+        } catch (Exception e) {
+            if (projectDirCreated) {
+                FileUtils.deleteQuietly(projectDir);
+                FileUtils.deleteQuietly(
+                        new File(projectDir.getParentFile(), projectDir.getName() + "-releases")
+                );
+            }
+            throw e;
         }
-
-        updateFilesInDirectory(projectDir, request);
-        updatePackageJsonWithGithubSettings(projectDir, request);
-
-        if (mavenWrapperInjector.isMavenProject(projectDir.getPath())) {
-            mavenWrapperInjector.installIntoProject(projectDir.getPath());
-        }
-
-        initializeAndPushGitRepository(projectDir, request);
-        return projectDir;
 
     }
 
@@ -191,7 +205,9 @@ public class ProjectGenerator {
         requestBuilder.setRepoName(request.getGithubRepository())
                 .setProjectPath(projectDirectory.getAbsolutePath())
                 .setPrivate(request.isPrivateRepository());
-        gitHubRepositoryInitializer.createGitHubRepository(requestBuilder.build());
+        if (request.isCreateGitHubRepository()) {
+            gitHubRepositoryInitializer.createGitHubRepository(requestBuilder.build());
+        }
 
         if (request.isPrivateRepository()) {
             addSecretToWorkflow(request);

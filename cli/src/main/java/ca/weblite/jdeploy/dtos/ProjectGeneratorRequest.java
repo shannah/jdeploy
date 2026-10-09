@@ -23,6 +23,8 @@ public class ProjectGeneratorRequest {
 
     private final boolean privateRepository;
 
+    private final boolean createGitHubRepository;
+
     private final boolean useExistingDirectory;
 
     public File getParentDirectory() {
@@ -73,6 +75,10 @@ public class ProjectGeneratorRequest {
         return privateRepository;
     }
 
+    public boolean isCreateGitHubRepository() {
+        return createGitHubRepository;
+    }
+
     public boolean isUseExistingDirectory() {
         return useExistingDirectory;
     }
@@ -85,6 +91,9 @@ public class ProjectGeneratorRequest {
         @CommandLineParser.Help("Whether the repository should be private")
         @CommandLineParser.Alias("p")
         boolean isPrivateRepository();
+
+        @CommandLineParser.Help("Whether to create the GitHub repository. If false, the repository is assumed to already exist and is only used as the push target. Defaults to true.")
+        boolean isCreateGitHubRepository();
 
         @CommandLineParser.Help("Use existing directory")
         @CommandLineParser.Alias("e")
@@ -161,6 +170,8 @@ public class ProjectGeneratorRequest {
 
         Params setPrivateRepository(boolean privateRepository);
 
+        Params setCreateGitHubRepository(boolean createGitHubRepository);
+
         Params setUseExistingDirectory(boolean useExistingDirectory);
 
         Params setExtensions(String[] extensions);
@@ -182,6 +193,7 @@ public class ProjectGeneratorRequest {
         this.extensions = params.getExtensions();
         this.githubRepository = params.getGithubRepository();
         this.privateRepository = params.isPrivateRepository();
+        this.createGitHubRepository = params.isCreateGitHubRepository();
         this.useExistingDirectory = params.isUseExistingDirectory();
     }
 }
