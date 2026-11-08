@@ -189,6 +189,7 @@ public class PublishBundleService {
     ) throws Exception {
         AppInfo appInfo = new AppInfo();
         loadAppInfo(context, appInfo);
+        applyWindowsCertificatePinning(context, target, appInfo);
         if (source != null) {
             appInfo.setNpmSource(source);
         }
@@ -222,6 +223,34 @@ public class PublishBundleService {
             FileUtils.deleteQuietly(tempDir);
             throw e;
         }
+    }
+
+    /**
+     * Pins the package-signing certificates in a pre-built Windows bundle when
+     * packages are signed and Windows (Authenticode) signing is configured.
+     *
+     * <p>The installer replaces the app it builds with this pre-built bundle, so
+     * the pins it carries are what installed Windows apps verify updates
+     * against. They live in the app.xml appended to the launcher, inside the
+     * Authenticode-signed executable, so they cannot be swapped without
+     * breaking that signature; without Windows signing, the bundle is left
+     * unpinned.</p>
+     */
+    void applyWindowsCertificatePinning(PackagingContext context, String target, AppInfo appInfo) throws IOException {
+        if (!BUNDLE_WIN_X64.equals(target) && !BUNDLE_WIN_ARM64.equals(target)) {
+            return;
+        }
+        if (!context.isPackageSigningEnabled() || windowsSigningConfigFactory.createFromEnvironment() == null) {
+            return;
+        }
+        try {
+            appInfo.setEnableCertificatePinning(true);
+            appInfo.setTrustedCertificates(context.keyProvider.getTrustedCertificates());
+        } catch (Exception ex) {
+            throw new IOException("Failed to load the package-signing certificates to pin", ex);
+        }
+        String tsaUrl = System.getenv(ca.weblite.tools.security.FileSigner.TSA_URL_ENV);
+        appInfo.setTimestampRequired(tsaUrl != null && !tsaUrl.trim().isEmpty());
     }
 
     private void loadAppInfo(PackagingContext context, AppInfo appInfo) throws IOException {
