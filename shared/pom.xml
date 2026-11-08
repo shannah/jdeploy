@@ -166,10 +166,6 @@
             <artifactId>jtar</artifactId>
             <version>1.1</version>
         </dependency>
-        <dependency>
-            <groupId>org.json</groupId>
-            <artifactId>json</artifactId>
-        </dependency>
 
         <dependency>
             <groupId>org.codejargon.feather</groupId>
