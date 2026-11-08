@@ -19,7 +19,27 @@ public class FileSigner {
     private static final String CERTIFICATE_FILENAME = "jdeploy.cer";
     private static final String TIMESTAMP_FORMAT = "yyyy-MM-dd'T'HH:mm:ss'Z'";
 
+    /**
+     * The manifest timestamp: UTC, as its trailing 'Z' says. The verifier
+     * parses it the same way, so the time does not shift between machines in
+     * different time zones.
+     */
+    static String formatTimestamp(Date date) {
+        SimpleDateFormat sdf = new SimpleDateFormat(TIMESTAMP_FORMAT);
+        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+        return sdf.format(date);
+    }
+
     public static void signDirectory(String version, String directoryPath, KeyProvider keyProvider) throws Exception {
+        signDirectory(version, directoryPath, keyProvider, new Date());
+    }
+
+    /**
+     * Signs with an explicit signing time, recorded in the manifest's
+     * timestamp. Package-private: only tests need a time other than now.
+     */
+    static void signDirectory(String version, String directoryPath, KeyProvider keyProvider, Date signedAt)
+            throws Exception {
         PrivateKey privateKey = keyProvider.getSigningKey();
         List<Certificate> certificateChain = keyProvider.getSigningCertificateChain();
         if (certificateChain == null || certificateChain.isEmpty()) {
@@ -27,7 +47,7 @@ public class FileSigner {
         }
 
         // Generate the manifest with timestamp
-        String timestamp = new SimpleDateFormat(TIMESTAMP_FORMAT).format(new Date());
+        String timestamp = formatTimestamp(signedAt);
         JSONObject manifest = generateManifest(directoryPath, privateKey, timestamp);
 
         // Save the manifest file

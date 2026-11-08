@@ -73,6 +73,7 @@ class PlatformBundleSigningTest {
 
         certificateVerifier = mock(CertificateVerifier.class);
         when(certificateVerifier.isTrusted(anyList())).thenReturn(true);
+        when(certificateVerifier.isTrusted(anyList(), any())).thenReturn(true);
     }
 
     @Test

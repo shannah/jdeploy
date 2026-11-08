@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
 import java.util.List;
+import java.util.TimeZone;
 
 /**
  * A long-lived root pinned by installers, with shorter-lived signing
@@ -54,7 +55,8 @@ public class RootCertificatePinningTest {
     @BeforeEach
     public void setUp() throws Exception {
         rootKeys = rsa();
-        root = certificate("CN=Test Root", rootKeys, "CN=Test Root", rootKeys, true, 3650);
+        // Valid long before any signing certificate, as a real root is.
+        root = certificate("CN=Test Root", rootKeys, "CN=Test Root", rootKeys, true, -1000, 3650);
         leaf1Keys = rsa();
         leaf1 = certificate("CN=Signing 1", leaf1Keys, "CN=Test Root", rootKeys, false, 365);
         leaf2Keys = rsa();
@@ -119,10 +121,63 @@ public class RootCertificatePinningTest {
         assertEquals(Arrays.asList(leaf1), withoutRoot.getTrustedCertificates());
     }
 
+    @Test
+    public void packageSignedWhileSigningCertificateWasValidVerifiesAfterItExpires() throws Exception {
+        // Valid from 400 days ago until 10 days ago: expired now.
+        KeyPair oldKeys = rsa();
+        X509Certificate expired = certificate("CN=Old Signing", oldKeys, "CN=Test Root", rootKeys, false, -400, -10);
+        KeyProvider provider = envProvider(oldKeys, expired, root);
+        KeyStore pins = trustStore(provider.getTrustedCertificates());
+
+        Date whileValid = new Date(System.currentTimeMillis() - 100 * DAY);
+        assertEquals(VerificationResult.SIGNED_CORRECTLY, signAndVerify("old-release", provider, pins, whileValid));
+    }
+
+    @Test
+    public void packageSignedAfterSigningCertificateExpiredIsUntrusted() throws Exception {
+        KeyPair oldKeys = rsa();
+        X509Certificate expired = certificate("CN=Old Signing", oldKeys, "CN=Test Root", rootKeys, false, -400, -10);
+        KeyProvider provider = envProvider(oldKeys, expired, root);
+        KeyStore pins = trustStore(provider.getTrustedCertificates());
+
+        Date afterExpiry = new Date(System.currentTimeMillis() - 5 * DAY);
+        assertEquals(VerificationResult.UNTRUSTED_CERTIFICATE, signAndVerify("late", provider, pins, afterExpiry));
+        assertEquals(VerificationResult.UNTRUSTED_CERTIFICATE, signAndVerify("now", provider, pins, new Date()));
+    }
+
+    @Test
+    public void packageSignedBeforeSigningCertificateWasValidIsUntrusted() throws Exception {
+        KeyProvider provider = envProvider(leaf1Keys, leaf1, root);  // valid from yesterday
+        KeyStore pins = trustStore(provider.getTrustedCertificates());
+
+        Date beforeValid = new Date(System.currentTimeMillis() - 30 * DAY);
+        assertEquals(VerificationResult.UNTRUSTED_CERTIFICATE, signAndVerify("early", provider, pins, beforeValid));
+    }
+
+    @Test
+    public void timestampIsUtcWhateverTheDefaultTimeZone() throws Exception {
+        TimeZone saved = TimeZone.getDefault();
+        try {
+            Date instant = new Date(1700000000000L);  // 2023-11-14T22:13:20Z
+            TimeZone.setDefault(TimeZone.getTimeZone("America/Vancouver"));
+            String written = FileSigner.formatTimestamp(instant);
+            assertEquals("2023-11-14T22:13:20Z", written);
+            TimeZone.setDefault(TimeZone.getTimeZone("Asia/Tokyo"));
+            assertEquals(instant, FileVerifier.parseTimestamp(written));
+        } finally {
+            TimeZone.setDefault(saved);
+        }
+    }
+
     private VerificationResult signAndVerify(String name, KeyProvider provider, KeyStore pins) throws Exception {
+        return signAndVerify(name, provider, pins, new Date());
+    }
+
+    private VerificationResult signAndVerify(String name, KeyProvider provider, KeyStore pins, Date signedAt)
+            throws Exception {
         Path dir = Files.createDirectories(tempDir.resolve(name));
         Files.write(dir.resolve("app.jar"), ("contents of " + name).getBytes(StandardCharsets.UTF_8));
-        FileSigner.signDirectory(VERSION, dir.toString(), provider);
+        FileSigner.signDirectory(VERSION, dir.toString(), provider, signedAt);
         return FileVerifier.verifyDirectory(VERSION, dir.toString(), new SimpleCertificateVerifier(pins));
     }
 
@@ -161,12 +216,20 @@ public class RootCertificatePinningTest {
     private static X509Certificate certificate(
             String subject, KeyPair subjectKeys, String issuer, KeyPair issuerKeys, boolean ca, int days
     ) throws Exception {
+        return certificate(subject, subjectKeys, issuer, issuerKeys, ca, -1, days);
+    }
+
+    /** A certificate valid from {@code fromDays} to {@code toDays} relative to now. */
+    private static X509Certificate certificate(
+            String subject, KeyPair subjectKeys, String issuer, KeyPair issuerKeys, boolean ca,
+            int fromDays, int toDays
+    ) throws Exception {
         long now = System.currentTimeMillis();
         X509v3CertificateBuilder builder = new JcaX509v3CertificateBuilder(
                 new X500Name(issuer),
                 BigInteger.valueOf(now).add(BigInteger.valueOf(Arrays.hashCode(subjectKeys.getPublic().getEncoded()))).abs(),
-                new Date(now - DAY),
-                new Date(now + days * DAY),
+                new Date(now + fromDays * DAY),
+                new Date(now + toDays * DAY),
                 new X500Name(subject),
                 subjectKeys.getPublic()
         );

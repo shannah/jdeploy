@@ -14,6 +14,15 @@ public class SimpleCertificateVerifier implements CertificateVerifier {
 
     @Override
     public boolean isTrusted(List<Certificate> certificateChain) {
+        return isTrusted(certificateChain, null);
+    }
+
+    /**
+     * Validates the chain to a pinned certificate as of {@code validAt} (the
+     * current time when null).
+     */
+    @Override
+    public boolean isTrusted(List<Certificate> certificateChain, Date validAt) {
         X509Certificate certificate = (X509Certificate) certificateChain.get(0);
         Set<X509Certificate> intermediates = new HashSet<>();
         for (int i = 1; i < certificateChain.size(); i++) {
@@ -24,7 +33,8 @@ public class SimpleCertificateVerifier implements CertificateVerifier {
                     isCertificateTrusted(
                             certificate,
                             intermediates,
-                            keyStore
+                            keyStore,
+                            validAt
                     )
             ) {
                 return true;
@@ -38,7 +48,8 @@ public class SimpleCertificateVerifier implements CertificateVerifier {
     private static boolean isCertificateTrusted(
             X509Certificate certificate,
             Set<X509Certificate> intermediates,
-            KeyStore rootKeyStore) throws Exception {
+            KeyStore rootKeyStore,
+            Date validAt) throws Exception {
         // Create a CertPathValidator instance
         CertPathValidator validator = CertPathValidator.getInstance(CertPathValidator.getDefaultType());
 
@@ -63,6 +74,10 @@ public class SimpleCertificateVerifier implements CertificateVerifier {
         // Create PKIX parameters with the trust anchors and any additional constraints
         PKIXParameters pkixParams = new PKIXParameters(trustAnchors);
         pkixParams.setRevocationEnabled(false);  // Disable CRL checks for simplicity
+        if (validAt != null) {
+            // Check every certificate's validity at signing time, not now.
+            pkixParams.setDate(validAt);
+        }
 
         try {
             // Validate the certificate path

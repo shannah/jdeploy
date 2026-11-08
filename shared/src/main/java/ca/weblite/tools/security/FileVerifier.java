@@ -47,8 +47,12 @@ public class FileVerifier {
             }
         }
 
-        // Check if the certificate chain is trusted
-        if (!certificateVerifier.isTrusted(certificateChain)) {
+        // Check that the chain led to a pinned certificate when the package was
+        // signed, so a release signed while its signing certificate was valid
+        // keeps verifying after that certificate expires. The signing time comes
+        // from the manifest, whose signature is verified below before anything
+        // is accepted, so it cannot be changed without the signing key.
+        if (!certificateVerifier.isTrusted(certificateChain, readSigningTime(directoryPath))) {
             return VerificationResult.UNTRUSTED_CERTIFICATE;
         }
 
@@ -81,9 +85,7 @@ public class FileVerifier {
         JSONObject manifest = new JSONObject(new String(manifestContent));
 
         // Verify the timestamp
-        String timestampStr = manifest.getString("timestamp");
-        SimpleDateFormat sdf = new SimpleDateFormat(TIMESTAMP_FORMAT);
-        Date timestamp = sdf.parse(timestampStr);
+        Date timestamp = parseTimestamp(manifest.getString("timestamp"));
         ((X509Certificate) certificateChain.get(0)).checkValidity(timestamp);
 
         // Verify each file listed in the manifest
@@ -122,6 +124,31 @@ public class FileVerifier {
         }
 
         return VerificationResult.SIGNED_CORRECTLY;
+    }
+
+    /**
+     * The signing time recorded in the manifest, or null (meaning "now") when
+     * there is no readable manifest; the checks that follow reject such a
+     * package anyway.
+     */
+    private static Date readSigningTime(String directoryPath) {
+        try {
+            Path manifestPath = Paths.get(directoryPath, MANIFEST_FILENAME);
+            if (!Files.exists(manifestPath)) {
+                return null;
+            }
+            JSONObject manifest = new JSONObject(new String(Files.readAllBytes(manifestPath)));
+            return parseTimestamp(manifest.getString("timestamp"));
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    /** Parses the manifest timestamp as UTC, matching FileSigner. */
+    static Date parseTimestamp(String timestamp) throws java.text.ParseException {
+        SimpleDateFormat sdf = new SimpleDateFormat(TIMESTAMP_FORMAT);
+        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+        return sdf.parse(timestamp);
     }
 
     private static byte[] hash(byte[] data) throws NoSuchAlgorithmException {
