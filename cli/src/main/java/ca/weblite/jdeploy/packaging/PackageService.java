@@ -883,6 +883,11 @@ public class PackageService implements BundleConstants {
             try {
                 appInfo.setEnableCertificatePinning(true);
                 appInfo.setTrustedCertificates(context.keyProvider.getTrustedCertificates());
+                // Packages signed with a timestamp authority carry an RFC 3161 token;
+                // installers built now refuse any package without one, so a leaked
+                // signing key cannot skip the timestamp and back-date the manifest.
+                String tsaUrl = System.getenv(ca.weblite.tools.security.FileSigner.TSA_URL_ENV);
+                appInfo.setTimestampRequired(tsaUrl != null && !tsaUrl.trim().isEmpty());
             } catch (Exception ex) {
                 throw new IOException("Failed to load private key for package signing", ex);
             }

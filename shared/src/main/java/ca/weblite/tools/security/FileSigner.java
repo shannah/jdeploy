@@ -30,8 +30,24 @@ public class FileSigner {
         return sdf.format(date);
     }
 
+    /** Environment variable naming an RFC 3161 timestamp authority URL. */
+    public static final String TSA_URL_ENV = "JDEPLOY_TSA_URL";
+
+    /**
+     * Signs the directory. When {@code JDEPLOY_TSA_URL} is set, the manifest
+     * signature is also timestamped by that RFC 3161 authority
+     * ({@link TimestampAuthority#TOKEN_FILENAME}), so verifiers take the
+     * authority's time as the signing time rather than the signer's.
+     */
     public static void signDirectory(String version, String directoryPath, KeyProvider keyProvider) throws Exception {
-        signDirectory(version, directoryPath, keyProvider, new Date());
+        String tsaUrl = System.getenv(TSA_URL_ENV);
+        signDirectory(
+                version,
+                directoryPath,
+                keyProvider,
+                new Date(),
+                tsaUrl == null || tsaUrl.trim().isEmpty() ? null : TimestampAuthority.http(tsaUrl.trim())
+        );
     }
 
     /**
@@ -40,6 +56,20 @@ public class FileSigner {
      */
     static void signDirectory(String version, String directoryPath, KeyProvider keyProvider, Date signedAt)
             throws Exception {
+        signDirectory(version, directoryPath, keyProvider, signedAt, null);
+    }
+
+    /**
+     * Signs, and timestamps the manifest signature through {@code tsa} when it
+     * is not null. Package-private: tests pass a local authority.
+     */
+    static void signDirectory(
+            String version,
+            String directoryPath,
+            KeyProvider keyProvider,
+            Date signedAt,
+            TimestampAuthority.Transport tsa
+    ) throws Exception {
         PrivateKey privateKey = keyProvider.getSigningKey();
         List<Certificate> certificateChain = keyProvider.getSigningCertificateChain();
         if (certificateChain == null || certificateChain.isEmpty()) {
@@ -64,6 +94,13 @@ public class FileSigner {
         Path manifestSignaturePath = Paths.get(directoryPath, MANIFEST_SIGNATURE_FILENAME);
         Files.write(manifestSignaturePath, manifestSignature);
 
+        // A token from an earlier signing of this directory no longer matches.
+        Path tokenPath = Paths.get(directoryPath, TimestampAuthority.TOKEN_FILENAME);
+        Files.deleteIfExists(tokenPath);
+        if (tsa != null) {
+            Files.write(tokenPath, TimestampAuthority.requestToken(tsa, manifestSignature));
+        }
+
         // Save the certificate chain file
         Path certificatePath = Paths.get(directoryPath, CERTIFICATE_FILENAME);
         try (FileOutputStream fos = new FileOutputStream(certificatePath.toFile())) {
@@ -83,6 +120,7 @@ public class FileSigner {
                     .filter(path -> !path.getFileName().toString().equals(MANIFEST_FILENAME))
                     .filter(path -> !path.getFileName().toString().equals(MANIFEST_SIGNATURE_FILENAME))
                     .filter(path -> !path.getFileName().toString().equals(CERTIFICATE_FILENAME))
+                    .filter(path -> !path.getFileName().toString().equals(TimestampAuthority.TOKEN_FILENAME))
                     .collect(Collectors.toList());
 
             for (Path filePath : filePaths) {

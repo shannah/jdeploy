@@ -92,6 +92,7 @@ public class Bundler {
             if (appInfo.getTrustedCertificates() != null) {
                 app.setTrustedCertificates(appInfo.getTrustedCertificates());
             }
+            app.setPackageTimestampRequired(appInfo.isTimestampRequired());
         }
         app.setNpmPrerelease(appInfo.isNpmAllowPrerelease());
         app.setName(appInfo.getTitle());
