@@ -10,9 +10,7 @@ import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -50,20 +48,18 @@ public class FileKeyProvider implements KeyProvider {
 
     @Override
     public List<Certificate> getSigningCertificateChain() throws Exception {
-        return Collections.singletonList(getSigningCertificate());
+        return SigningChains.chain(getSigningCertificate(), getRootCertificate());
     }
 
     @Override
     public List<Certificate> getTrustedCertificates() throws Exception {
-        List<Certificate> trustedCerts = new ArrayList<>();
-        trustedCerts.add(getSigningCertificate());
-        if (rootCertificatePath != null) {
-            trustedCerts.add(getRootCertificate());
-        }
-        return Collections.singletonList(getSigningCertificate());
+        return SigningChains.trusted(getSigningCertificate(), getRootCertificate());
     }
 
     private Certificate getRootCertificate() throws Exception {
+        if (rootCertificatePath == null) {
+            return null;
+        }
         String pem = readPemFile(rootCertificatePath);
         byte[] der = decodePem(pem);
         CertificateFactory factory = CertificateFactory.getInstance("X.509");
