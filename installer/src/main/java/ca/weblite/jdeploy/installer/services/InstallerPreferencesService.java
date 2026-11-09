@@ -34,6 +34,13 @@ public class InstallerPreferencesService {
      * @param prerelease the prerelease flag
      */
     public void save(String version, boolean prerelease) {
+        if (isBranchVersion(version)) {
+            // A branch install shares its fully qualified package name (and so this file) with a
+            // stable install of the same package. Recording the branch here would make the stable
+            // app's launcher and installer follow the branch build, so branch installs leave the
+            // preferences untouched.
+            return;
+        }
         Properties props = new Properties();
         props.setProperty(KEY_VERSION, version);
         props.setProperty(KEY_PRERELEASE, String.valueOf(prerelease));
@@ -70,6 +77,11 @@ public class InstallerPreferencesService {
         }
 
         String version = props.getProperty(KEY_VERSION);
+        if (isBranchVersion(version)) {
+            // Written by an older installer for a branch install of the same package. It is not a
+            // choice for this channel: ignore it, and the prerelease flag recorded beside it.
+            return;
+        }
         if (version != null) {
             settings.setAutoUpdate(versionToAutoUpdateSettings(version));
         }
@@ -95,6 +107,13 @@ public class InstallerPreferencesService {
 
     public boolean exists() {
         return preferencesFile.exists();
+    }
+
+    /**
+     * Branch builds are published as {@code 0.0.0-<branch>}.
+     */
+    static boolean isBranchVersion(String version) {
+        return version != null && version.startsWith("0.0.0-");
     }
 
     private static AutoUpdateSettings versionToAutoUpdateSettings(String version) {
