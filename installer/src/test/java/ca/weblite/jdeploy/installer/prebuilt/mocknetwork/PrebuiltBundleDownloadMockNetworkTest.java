@@ -3,6 +3,7 @@ package ca.weblite.jdeploy.installer.prebuilt.mocknetwork;
 import ca.weblite.jdeploy.installer.npm.NPMPackageVersion;
 import ca.weblite.jdeploy.installer.prebuilt.PrebuiltArtifactInfo;
 import ca.weblite.jdeploy.installer.prebuilt.PrebuiltBundleDownloader;
+import ca.weblite.jdeploy.installer.prebuilt.PrebuiltBundleException;
 import ca.weblite.jdeploy.installer.views.InstallationForm;
 import org.json.JSONObject;
 import org.junit.jupiter.api.*;
@@ -271,7 +272,7 @@ class PrebuiltBundleDownloadMockNetworkTest {
 
     @Test
     @Order(30)
-    @DisplayName("Download fails gracefully on SHA-256 mismatch (keeps original)")
+    @DisplayName("SHA-256 mismatch throws and leaves the original untouched")
     void sha256MismatchKeepsOriginal() throws Exception {
         byte[] bundleJar = createBundleJarWithSingleFile("MyApp.exe",
                 "some-binary-content".getBytes(StandardCharsets.UTF_8));
@@ -290,9 +291,9 @@ class PrebuiltBundleDownloadMockNetworkTest {
         NPMPackageVersion version = createPackageVersionWithArtifact("win-x64", fullUrl, wrongSha256);
 
         PrebuiltBundleDownloader downloader = new PrebuiltBundleDownloader();
-        boolean result = downloader.downloadAndReplace(version, "win-x64", installedExe, mockForm());
-
-        assertFalse(result, "Should fail due to SHA-256 mismatch");
+        assertThrows(PrebuiltBundleException.class,
+                () -> downloader.downloadAndReplace(version, "win-x64", installedExe, mockForm()),
+                "A declared pre-built bundle that fails SHA-256 must fail the install");
         assertTrue(installedExe.exists(), "Original exe should still exist");
         assertArrayEquals(originalContent, Files.readAllBytes(installedExe.toPath()),
                 "Original content should be preserved");
@@ -313,9 +314,9 @@ class PrebuiltBundleDownloadMockNetworkTest {
         NPMPackageVersion version = createPackageVersionWithArtifact("win-x64", fullUrl, "abcdef1234567890");
 
         PrebuiltBundleDownloader downloader = new PrebuiltBundleDownloader();
-        boolean result = downloader.downloadAndReplace(version, "win-x64", installedExe, mockForm());
-
-        assertFalse(result, "Should fail on HTTP 404");
+        assertThrows(PrebuiltBundleException.class,
+                () -> downloader.downloadAndReplace(version, "win-x64", installedExe, mockForm()),
+                "A declared pre-built bundle that cannot be downloaded must fail the install");
         assertTrue(installedExe.exists(), "Original exe should still exist");
         assertArrayEquals(originalContent, Files.readAllBytes(installedExe.toPath()),
                 "Original content should be preserved");
@@ -463,9 +464,9 @@ class PrebuiltBundleDownloadMockNetworkTest {
         NPMPackageVersion version = createPackageVersionWithArtifact("win-x64", fullUrl, "abcdef");
 
         PrebuiltBundleDownloader downloader = new PrebuiltBundleDownloader();
-        boolean result = downloader.downloadAndReplace(version, "win-x64", installedExe, mockForm());
-
-        assertFalse(result, "Should fail on HTTP 500");
+        assertThrows(PrebuiltBundleException.class,
+                () -> downloader.downloadAndReplace(version, "win-x64", installedExe, mockForm()),
+                "A declared pre-built bundle that the server cannot serve must fail the install");
         assertArrayEquals(original, Files.readAllBytes(installedExe.toPath()),
                 "Original content should be preserved");
     }

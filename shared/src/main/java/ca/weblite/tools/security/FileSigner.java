@@ -19,7 +19,57 @@ public class FileSigner {
     private static final String CERTIFICATE_FILENAME = "jdeploy.cer";
     private static final String TIMESTAMP_FORMAT = "yyyy-MM-dd'T'HH:mm:ss'Z'";
 
+    /**
+     * The manifest timestamp: UTC, as its trailing 'Z' says. The verifier
+     * parses it the same way, so the time does not shift between machines in
+     * different time zones.
+     */
+    static String formatTimestamp(Date date) {
+        SimpleDateFormat sdf = new SimpleDateFormat(TIMESTAMP_FORMAT);
+        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+        return sdf.format(date);
+    }
+
+    /** Environment variable naming an RFC 3161 timestamp authority URL. */
+    public static final String TSA_URL_ENV = "JDEPLOY_TSA_URL";
+
+    /**
+     * Signs the directory. When {@code JDEPLOY_TSA_URL} is set, the manifest
+     * signature is also timestamped by that RFC 3161 authority
+     * ({@link TimestampAuthority#TOKEN_FILENAME}), so verifiers take the
+     * authority's time as the signing time rather than the signer's.
+     */
     public static void signDirectory(String version, String directoryPath, KeyProvider keyProvider) throws Exception {
+        String tsaUrl = System.getenv(TSA_URL_ENV);
+        signDirectory(
+                version,
+                directoryPath,
+                keyProvider,
+                new Date(),
+                tsaUrl == null || tsaUrl.trim().isEmpty() ? null : TimestampAuthority.http(tsaUrl.trim())
+        );
+    }
+
+    /**
+     * Signs with an explicit signing time, recorded in the manifest's
+     * timestamp. Package-private: only tests need a time other than now.
+     */
+    static void signDirectory(String version, String directoryPath, KeyProvider keyProvider, Date signedAt)
+            throws Exception {
+        signDirectory(version, directoryPath, keyProvider, signedAt, null);
+    }
+
+    /**
+     * Signs, and timestamps the manifest signature through {@code tsa} when it
+     * is not null. Package-private: tests pass a local authority.
+     */
+    static void signDirectory(
+            String version,
+            String directoryPath,
+            KeyProvider keyProvider,
+            Date signedAt,
+            TimestampAuthority.Transport tsa
+    ) throws Exception {
         PrivateKey privateKey = keyProvider.getSigningKey();
         List<Certificate> certificateChain = keyProvider.getSigningCertificateChain();
         if (certificateChain == null || certificateChain.isEmpty()) {
@@ -27,7 +77,7 @@ public class FileSigner {
         }
 
         // Generate the manifest with timestamp
-        String timestamp = new SimpleDateFormat(TIMESTAMP_FORMAT).format(new Date());
+        String timestamp = formatTimestamp(signedAt);
         JSONObject manifest = generateManifest(directoryPath, privateKey, timestamp);
 
         // Save the manifest file
@@ -43,6 +93,13 @@ public class FileSigner {
         // Save the manifest signature file
         Path manifestSignaturePath = Paths.get(directoryPath, MANIFEST_SIGNATURE_FILENAME);
         Files.write(manifestSignaturePath, manifestSignature);
+
+        // A token from an earlier signing of this directory no longer matches.
+        Path tokenPath = Paths.get(directoryPath, TimestampAuthority.TOKEN_FILENAME);
+        Files.deleteIfExists(tokenPath);
+        if (tsa != null) {
+            Files.write(tokenPath, TimestampAuthority.requestToken(tsa, manifestSignature));
+        }
 
         // Save the certificate chain file
         Path certificatePath = Paths.get(directoryPath, CERTIFICATE_FILENAME);
@@ -63,6 +120,7 @@ public class FileSigner {
                     .filter(path -> !path.getFileName().toString().equals(MANIFEST_FILENAME))
                     .filter(path -> !path.getFileName().toString().equals(MANIFEST_SIGNATURE_FILENAME))
                     .filter(path -> !path.getFileName().toString().equals(CERTIFICATE_FILENAME))
+                    .filter(path -> !path.getFileName().toString().equals(TimestampAuthority.TOKEN_FILENAME))
                     .collect(Collectors.toList());
 
             for (Path filePath : filePaths) {

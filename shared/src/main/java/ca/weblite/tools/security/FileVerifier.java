@@ -24,13 +24,34 @@ public class FileVerifier {
             String directoryPath,
             CertificateVerifier certificateVerifier
     ) throws Exception {
-        return verifyDirectory(version, directoryPath, certificateVerifier, false);
+        return verifyDirectory(version, directoryPath, certificateVerifier, false, null, false);
+    }
+
+    /**
+     * Verifies with an RFC 3161 timestamp policy. When the package carries a
+     * timestamp token ({@link TimestampAuthority#TOKEN_FILENAME}), the
+     * authority's time is the signing time; the token must verify and its
+     * authority must chain to {@code tsaTrustAnchors} (null: the JVM's default
+     * trust store). Without a token, {@code requireTimestamp} rejects the
+     * package as {@link VerificationResult#UNTRUSTED_CERTIFICATE}; otherwise the
+     * manifest's own timestamp is the signing time.
+     */
+    public static VerificationResult verifyDirectory(
+            String version,
+            String directoryPath,
+            CertificateVerifier certificateVerifier,
+            boolean requireTimestamp,
+            KeyStore tsaTrustAnchors
+    ) throws Exception {
+        return verifyDirectory(version, directoryPath, certificateVerifier, requireTimestamp, tsaTrustAnchors, false);
     }
 
     private static VerificationResult verifyDirectory(
             String version,
             String directoryPath,
             CertificateVerifier certificateVerifier,
+            boolean requireTimestamp,
+            KeyStore tsaTrustAnchors,
             boolean verbose
     ) throws Exception {
         // Load the certificate chain from the file
@@ -47,8 +68,41 @@ public class FileVerifier {
             }
         }
 
-        // Check if the certificate chain is trusted
-        if (!certificateVerifier.isTrusted(certificateChain)) {
+        // The signing time: a timestamp authority's, when the package carries a
+        // token (it cannot be back-dated by the signer); otherwise the manifest's
+        // own timestamp, whose signature is verified below before anything is
+        // accepted, so it cannot be changed without the signing key.
+        Date signingTime;
+        Path tokenPath = Paths.get(directoryPath, TimestampAuthority.TOKEN_FILENAME);
+        if (Files.exists(tokenPath)) {
+            Path signaturePath = Paths.get(directoryPath, MANIFEST_SIGNATURE_FILENAME);
+            if (!Files.exists(signaturePath)) {
+                return VerificationResult.NOT_SIGNED_AT_ALL;
+            }
+            try {
+                signingTime = TimestampAuthority.verifyToken(
+                        Files.readAllBytes(tokenPath), Files.readAllBytes(signaturePath), tsaTrustAnchors);
+            } catch (TimestampAuthority.TimestampException ex) {
+                if (verbose) {
+                    System.err.println(ex.getMessage());
+                }
+                return ex.isUntrustedAuthority()
+                        ? VerificationResult.UNTRUSTED_CERTIFICATE
+                        : VerificationResult.SIGNATURE_MISMATCH;
+            }
+        } else if (requireTimestamp) {
+            if (verbose) {
+                System.err.println("The package has no timestamp, and one is required");
+            }
+            return VerificationResult.UNTRUSTED_CERTIFICATE;
+        } else {
+            signingTime = readSigningTime(directoryPath);
+        }
+
+        // Check that the chain led to a pinned certificate when the package was
+        // signed, so a release signed while its signing certificate was valid
+        // keeps verifying after that certificate expires.
+        if (!certificateVerifier.isTrusted(certificateChain, signingTime)) {
             return VerificationResult.UNTRUSTED_CERTIFICATE;
         }
 
@@ -81,9 +135,7 @@ public class FileVerifier {
         JSONObject manifest = new JSONObject(new String(manifestContent));
 
         // Verify the timestamp
-        String timestampStr = manifest.getString("timestamp");
-        SimpleDateFormat sdf = new SimpleDateFormat(TIMESTAMP_FORMAT);
-        Date timestamp = sdf.parse(timestampStr);
+        Date timestamp = signingTime != null ? signingTime : parseTimestamp(manifest.getString("timestamp"));
         ((X509Certificate) certificateChain.get(0)).checkValidity(timestamp);
 
         // Verify each file listed in the manifest
@@ -122,6 +174,31 @@ public class FileVerifier {
         }
 
         return VerificationResult.SIGNED_CORRECTLY;
+    }
+
+    /**
+     * The signing time recorded in the manifest, or null (meaning "now") when
+     * there is no readable manifest; the checks that follow reject such a
+     * package anyway.
+     */
+    private static Date readSigningTime(String directoryPath) {
+        try {
+            Path manifestPath = Paths.get(directoryPath, MANIFEST_FILENAME);
+            if (!Files.exists(manifestPath)) {
+                return null;
+            }
+            JSONObject manifest = new JSONObject(new String(Files.readAllBytes(manifestPath)));
+            return parseTimestamp(manifest.getString("timestamp"));
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    /** Parses the manifest timestamp as UTC, matching FileSigner. */
+    static Date parseTimestamp(String timestamp) throws java.text.ParseException {
+        SimpleDateFormat sdf = new SimpleDateFormat(TIMESTAMP_FORMAT);
+        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+        return sdf.parse(timestamp);
     }
 
     private static byte[] hash(byte[] data) throws NoSuchAlgorithmException {

@@ -103,6 +103,7 @@ public class AppInfo  {
     private String packageSigningCertificateChainPath;
 
     private boolean enableCertificatePinning = false;
+    private boolean timestampRequired = false;
 
     private boolean allowRunAsAdmin = false;
 
@@ -570,6 +571,18 @@ public class AppInfo  {
 
     public void setEnableCertificatePinning(boolean enable) {
         this.enableCertificatePinning = enable;
+    }
+
+    /**
+     * Whether installed launchers must refuse a package that carries no RFC 3161
+     * timestamp. Set when packages are signed with a timestamp authority.
+     */
+    public boolean isTimestampRequired() {
+        return timestampRequired;
+    }
+
+    public void setTimestampRequired(boolean timestampRequired) {
+        this.timestampRequired = timestampRequired;
     }
 
     public boolean isUsePrivateJVM() {

@@ -65,6 +65,7 @@ import ca.weblite.jdeploy.installer.ai.models.AiIntegrationInstallResult;
 import ca.weblite.jdeploy.installer.ai.models.AiIntegrationManifestEntry;
 import ca.weblite.jdeploy.installer.ai.services.AiIntegrationInstaller;
 import ca.weblite.jdeploy.installer.prebuilt.PrebuiltBundleDownloader;
+import ca.weblite.jdeploy.installer.prebuilt.PrebuiltBundleException;
 import ca.weblite.tools.io.*;
 import ca.weblite.tools.io.MD5;
 import ca.weblite.tools.platform.Platform;
@@ -2284,7 +2285,10 @@ public class Main implements Runnable, Constants {
             }
         }
 
-        // Attempt to replace the installed bundle with a pre-built (signed/notarized) version
+        // Replace the installed bundle with the pre-built (signed/notarized) version
+        // when the release has one. If it has one but it cannot be installed, the
+        // installation fails: the generated bundle is unsigned and carries no
+        // certificate pins, so it must not be left in its place.
         if (npmPackageVersion() != null && installedApp != null) {
             try {
                 PrebuiltBundleDownloader prebuiltDownloader = new PrebuiltBundleDownloader();
@@ -2297,8 +2301,14 @@ public class Main implements Runnable, Constants {
                 if (replaced) {
                     System.out.println("Installed pre-built bundle for " + target);
                 }
-            } catch (Exception e) {
-                System.err.println("Warning: Pre-built bundle check failed: " + e.getMessage());
+            } catch (PrebuiltBundleException e) {
+                System.err.println("Pre-built bundle could not be installed: " + e.getMessage());
+                FileUtils.deleteQuietly(installedApp);
+                String userMessage = "<html><body style='width:400px'><h3>Installation could not be completed</h3>" +
+                        "<p>The signed application could not be downloaded or did not match its published" +
+                        " checksum, so it was not installed. Check your connection and run the installer again.</p>" +
+                        "</body></html>";
+                throw new UserLangRuntimeException(e.getMessage(), userMessage, e);
             }
         }
 
