@@ -1,6 +1,7 @@
 package ca.weblite.jdeploy.cli.controllers;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -46,13 +48,16 @@ public class ProjectGeneratorCLIControllerTest {
 
         File pomFile = new File(projectDirectory, "pom.xml");
 
-        // Build Maven project
-        ProcessBuilder pb = new ProcessBuilder("mvn", "package")
+        // Build Maven project. Capture its output rather than inheriting the console:
+        // under Surefire the inherited output never reaches the build log, so a failed
+        // build would otherwise give no reason.
+        ProcessBuilder pb = new ProcessBuilder("mvn", "-B", "package")
                 .directory(projectDirectory)
-                .inheritIO();
+                .redirectErrorStream(true);
         Process p = pb.start();
+        String output = IOUtils.toString(p.getInputStream(), StandardCharsets.UTF_8);
         int exitCode = p.waitFor();
-        assertEquals(0, exitCode);
+        assertEquals(0, exitCode, "mvn package failed for the generated project:\n" + output);
     }
 
     @Test

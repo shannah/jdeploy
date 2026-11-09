@@ -174,7 +174,7 @@ public class InstallWindowsRegistryTest {
         String withRemove2 = InstallWindowsRegistry.computePathWithRemoved(withAdd1, bin);
         String withAdd2 = InstallWindowsRegistry.computePathWithAdded(withRemove2, bin);
         
-        assertEquals(withAdd1, withAdd2, "Remove-then-add should be idempotent");
+        assertEquals("Remove-then-add should be idempotent", withAdd1, withAdd2);
     }
 
     @Test
