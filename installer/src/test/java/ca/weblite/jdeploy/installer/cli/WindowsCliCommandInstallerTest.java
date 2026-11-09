@@ -97,8 +97,15 @@ public class WindowsCliCommandInstallerTest {
 
         @Override
         protected InstallWindowsRegistry createRegistryHelper() {
-            // Return a mock that tracks removeFromUserPath calls
+            // Return a mock that never touches the real Windows registry: the real
+            // addToUserPath/removeFromUserPath call Advapi32 through JNA, which throws
+            // UnsatisfiedLinkError on Linux and macOS.
             return new InstallWindowsRegistry(null, null, null, null) {
+                @Override
+                public boolean addToUserPath(File binDir) {
+                    return true;
+                }
+
                 @Override
                 public boolean removeFromUserPath(File binDir) {
                     removeFromPathCalled = true;
@@ -317,10 +324,8 @@ public class WindowsCliCommandInstallerTest {
         // Act
         installer.uninstallCommands(appDir);
 
-        // Assert
-        // Note: Current implementation does not delete metadata file, only uses it
-        // This test documents the current behavior; if deletion is added later, update this test
-        assertTrue("Metadata file still exists after uninstall (by design)", metadataFile.exists());
+        // Assert: uninstall deletes the legacy metadata file once it has used it
+        assertFalse("Metadata file should be deleted after uninstall", metadataFile.exists());
     }
 
     @Test
@@ -545,8 +550,9 @@ public class WindowsCliCommandInstallerTest {
         assertNotNull("sharedBinDir should not be null", sharedBinDir);
         assertNotNull("perAppPathDir should not be null", perAppPathDir);
         
-        assertTrue("sharedBinDir should end with .jdeploy/bin", 
-            sharedBinDir.endsWith(".jdeploy" + File.separator + "bin"));
+        // Since commands paths were unified, the wrappers and the PATH entry share
+        // one per-app directory.
+        assertEquals("sharedBinDir should be the per-app directory", perAppPathDir, sharedBinDir);
         
         String archSuffix = ArchitectureUtil.getArchitectureSuffix();
         assertTrue("perAppPathDir should contain architecture suffix", 
@@ -555,16 +561,15 @@ public class WindowsCliCommandInstallerTest {
 
     @Test
     public void testUninstallReadsDirectoriesFromMetadata() throws IOException {
-        // Arrange
+        // Arrange. Since commands paths were unified, install writes the same per-app
+        // directory to both sharedBinDir and perAppPathDir: the wrappers live in it and
+        // it is the directory added to PATH.
         File appDir = new File(tempBaseDir, "app-uninstall-metadata");
-        File binDir = getBinDir();
-        binDir.mkdirs();
-        
-        // Create a per-app path directory
         String archSuffix = ArchitectureUtil.getArchitectureSuffix();
-        File perAppDir = new File(System.getProperty("user.home"), 
+        File perAppDir = new File(System.getProperty("user.home"),
             ".jdeploy" + File.separator + "bin" + archSuffix + File.separator + "test-app");
         perAppDir.mkdirs();
+        File binDir = perAppDir;
 
         String[] wrapperNames = {"cmd1.cmd", "cmd2.cmd"};
         createWrapperFiles(binDir, wrapperNames);
@@ -597,7 +602,7 @@ public class WindowsCliCommandInstallerTest {
         assertEquals("removeFromPath should use per-app directory", 
             perAppDir.getAbsolutePath(), installer.getRemoveFromPathArg().getAbsolutePath());
         
-        // Wrapper files should be cleaned from shared bin dir
+        // Wrapper files should be cleaned from the per-app bin dir
         for (String name : wrapperNames) {
             assertFalse("Wrapper should be deleted", new File(binDir, name).exists());
         }
