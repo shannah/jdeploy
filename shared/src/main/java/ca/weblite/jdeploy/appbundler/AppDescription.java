@@ -90,6 +90,7 @@ public class AppDescription {
      * in the jdeploy-bundle before launching the app each time.  If verification fails, then the app will not launch.
      */
     private boolean isPackageCertificatePinningEnabled;
+    private boolean isPackageTimestampRequired;
 
     /**
      * This is the certificate used to sign the jdeploy bundle - NOT to be confused with the apple or windows
@@ -238,6 +239,51 @@ public class AppDescription {
 
     public boolean isPackageCertificatePinningEnabled() {
         return isPackageCertificatePinningEnabled;
+    }
+
+    public void setPackageTimestampRequired(boolean required) {
+        this.isPackageTimestampRequired = required;
+    }
+
+    public boolean isPackageTimestampRequired() {
+        return isPackageTimestampRequired;
+    }
+
+    /**
+     * Appends the certificate-pinning attributes of app.xml to {@code atts}
+     * (name, value pairs): {@code certificate-pinning}, {@code
+     * trusted-certificates} (PEM), {@code trusted-sha1-fingerprints} and, when
+     * packages are timestamped, {@code timestamp-required}. Nothing when
+     * pinning is off. Shared by every platform's app.xml writer.
+     */
+    public void addCertificatePinningAttributesTo(java.util.List<String> atts) {
+        if (!isPackageCertificatePinningEnabled) {
+            return;
+        }
+        if (trustedCertificates == null || trustedCertificates.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Certificate pinning is enabled but there are not trusted certificates specified");
+        }
+        StringBuilder pem = new StringBuilder();
+        StringBuilder fingerprints = new StringBuilder();
+        for (Certificate certificate : trustedCertificates) {
+            try {
+                pem.append(ca.weblite.tools.security.CertificateUtil.toPemEncodedString(certificate)).append("\n");
+                fingerprints.append(ca.weblite.tools.security.CertificateUtil.getSHA1Fingerprint(certificate)).append("\n");
+            } catch (java.security.cert.CertificateEncodingException ex) {
+                throw new RuntimeException(ex);
+            }
+        }
+        atts.add("certificate-pinning");
+        atts.add("enabled");
+        atts.add("trusted-certificates");
+        atts.add(pem.toString());
+        atts.add("trusted-sha1-fingerprints");
+        atts.add(fingerprints.toString());
+        if (isPackageTimestampRequired) {
+            atts.add("timestamp-required");
+            atts.add("true");
+        }
     }
 
     public void setMacBundleId(String id) {

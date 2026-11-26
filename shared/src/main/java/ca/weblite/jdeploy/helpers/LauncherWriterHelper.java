@@ -68,6 +68,10 @@ public class LauncherWriterHelper {
             atts.add("registry-url"); atts.add(app.getJDeployRegistryUrl());
             atts.add("fork"); atts.add(""+app.isFork());
 
+            // The same pinning attributes as the macOS app.xml, so Windows and
+            // Linux launchers verify packages too.
+            app.addCertificatePinningAttributesTo(atts);
+
             if (app.getLauncherVersion() != null && !app.getLauncherVersion().isEmpty()) {
                 atts.add("launcher-version");
                 atts.add(app.getLauncherVersion());

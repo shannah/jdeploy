@@ -12,9 +12,7 @@ import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -59,20 +57,26 @@ public class EnvKeyProvider implements KeyProvider {
         return factory.generateCertificate(new java.io.ByteArrayInputStream(certBytes));
     }
 
+    /**
+     * The signing certificate, followed by the root certificate when
+     * {@code JDEPLOY_ROOT_CERTIFICATE} is set. This is the chain written to the
+     * package's jdeploy.cer, so a verifier can build a path from the signing
+     * certificate to a pinned root.
+     */
     @Override
     public List<Certificate> getSigningCertificateChain() throws Exception {
-        return Collections.singletonList(getSigningCertificate());
+        return SigningChains.chain(getSigningCertificate(), getRootCertificate());
     }
 
+    /**
+     * The certificates installers pin: the signing certificate and, when
+     * {@code JDEPLOY_ROOT_CERTIFICATE} is set, the root that issued it. Pinning
+     * the root lets a later release be signed with a new signing certificate
+     * from the same root without breaking updates for existing installs.
+     */
     @Override
     public List<Certificate> getTrustedCertificates() throws Exception {
-        List<Certificate> trustedCerts = new ArrayList<>();
-        trustedCerts.add(getSigningCertificate());
-        Certificate rootCertificate = getRootCertificate();
-        if (rootCertificate != null) {
-            trustedCerts.add(rootCertificate);
-        }
-        return Collections.singletonList(getSigningCertificate());
+        return SigningChains.trusted(getSigningCertificate(), getRootCertificate());
     }
 
     private Certificate getRootCertificate() throws Exception {

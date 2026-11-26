@@ -55,6 +55,7 @@ public class FileVerifierTest {
         // Create a mock CertificateVerifier that trusts the generated certificate
         certificateVerifier = mock(CertificateVerifier.class);
         when(certificateVerifier.isTrusted(Collections.singletonList(certificate))).thenReturn(true);
+        when(certificateVerifier.isTrusted(eq(Collections.singletonList(certificate)), any())).thenReturn(true);
     }
 
     @AfterEach

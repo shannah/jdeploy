@@ -158,7 +158,7 @@ class PrebuiltBundleDownloaderTest {
     }
 
     @Test
-    void testDownloadAndReplace_nullNpmPackageVersion() {
+    void testDownloadAndReplace_nullNpmPackageVersion() throws Exception {
         PrebuiltBundleDownloader downloader = new PrebuiltBundleDownloader();
         File fakeApp = tempDir.resolve("fake.exe").toFile();
 
@@ -166,7 +166,7 @@ class PrebuiltBundleDownloaderTest {
     }
 
     @Test
-    void testDownloadAndReplace_noArtifact() {
+    void testDownloadAndReplace_noArtifact() throws Exception {
         PrebuiltBundleDownloader downloader = new PrebuiltBundleDownloader();
 
         JSONObject packageJson = new JSONObject();
@@ -178,6 +178,34 @@ class PrebuiltBundleDownloaderTest {
         File fakeApp = tempDir.resolve("fake.exe").toFile();
 
         assertFalse(downloader.downloadAndReplace(version, "win-x64", fakeApp, null));
+    }
+
+    @Test
+    void testDownloadAndReplace_declaredArtifactThatCannotBeDownloadedThrows() throws Exception {
+        // The release declares a pre-built (signed) bundle, but it cannot be fetched:
+        // the install must fail instead of keeping the generated, unpinned bundle.
+        JSONObject artifact = new JSONObject();
+        artifact.put("url", "http://127.0.0.1:1/unreachable-bundle.jar");
+        artifact.put("sha256", "0000000000000000000000000000000000000000000000000000000000000000");
+        JSONObject artifacts = new JSONObject();
+        artifacts.put("win-x64", artifact);
+        JSONObject jdeploy = new JSONObject();
+        jdeploy.put("artifacts", artifacts);
+        JSONObject packageJson = new JSONObject();
+        packageJson.put("name", "test-app");
+        packageJson.put("version", "1.0.0");
+        packageJson.put("jdeploy", jdeploy);
+        NPMPackageVersion version = NPMPackageVersion.fromLocalPackageJson(packageJson);
+
+        File installedExe = tempDir.resolve("generated.exe").toFile();
+        byte[] original = "generated".getBytes("UTF-8");
+        java.nio.file.Files.write(installedExe.toPath(), original);
+
+        PrebuiltBundleDownloader downloader = new PrebuiltBundleDownloader();
+        assertThrows(PrebuiltBundleException.class,
+                () -> downloader.downloadAndReplace(version, "win-x64", installedExe, null));
+        assertArrayEquals(original, java.nio.file.Files.readAllBytes(installedExe.toPath()),
+                "The downloader leaves the generated bundle for the caller to remove");
     }
 
     @Test

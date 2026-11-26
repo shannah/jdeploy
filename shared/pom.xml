@@ -116,13 +116,17 @@
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk15on</artifactId>
             <version>1.70</version>
-            <scope>test</scope>
+            <!-- RFC 3161 timestamps (TimestampAuthority). Optional: only the CLI, which already
+                 depends on BouncyCastle, signs or verifies timestamped packages. -->
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcpkix-jdk15on</artifactId>
             <version>1.70</version>
-            <scope>test</scope>
+            <!-- RFC 3161 timestamps (TimestampAuthority). Optional: only the CLI, which already
+                 depends on BouncyCastle, signs or verifies timestamped packages. -->
+            <optional>true</optional>
         </dependency>
 
 

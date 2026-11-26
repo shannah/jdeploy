@@ -30,15 +30,21 @@ public class PrebuiltBundleDownloader {
 
     /**
      * Downloads and replaces the installed app with a pre-built bundle from artifacts.
-     * Returns true if the pre-built bundle was successfully downloaded and installed.
-     * On any failure, the existing installed bundle is left untouched and false is returned.
+     * Returns true if the pre-built bundle was downloaded and installed, and false
+     * when the release declares no pre-built bundle for this platform.
+     *
+     * <p>When one is declared but cannot be downloaded, verified (SHA-256) or
+     * installed, this throws rather than returning false: the pre-built bundle is
+     * the signed one that carries the certificate pins, so keeping the generated
+     * bundle would install an app that pins nothing. The existing installed bundle
+     * is left as it was; the caller decides what to do with it.</p>
      */
     public boolean downloadAndReplace(
             NPMPackageVersion npmPackageVersion,
             String platformKey,
             File installedApp,
             InstallationForm form
-    ) {
+    ) throws PrebuiltBundleException {
         if (npmPackageVersion == null || installedApp == null) {
             return false;
         }
@@ -60,7 +66,9 @@ public class PrebuiltBundleDownloader {
             );
 
             if (!mainReplaced) {
-                return false;
+                throw new PrebuiltBundleException(
+                        "The pre-built bundle for " + platformKey + " could not be downloaded or did not match"
+                                + " its published SHA-256 (" + artifact.getUrl() + ")", null);
             }
 
             // On Windows, also handle the CLI artifact if present
@@ -75,17 +83,20 @@ public class PrebuiltBundleDownloader {
                             "Downloading pre-built CLI bundle..."
                     );
                     if (!cliReplaced) {
-                        System.err.println("Warning: Failed to download pre-built CLI bundle, using generated version");
+                        throw new PrebuiltBundleException(
+                                "The pre-built CLI bundle for " + platformKey + " could not be downloaded or did"
+                                        + " not match its published SHA-256 (" + artifact.getCliUrl() + ")", null);
                     }
                 }
             }
 
             return true;
 
+        } catch (PrebuiltBundleException e) {
+            throw e;
         } catch (Exception e) {
-            System.err.println("Warning: Failed to install pre-built bundle: " + e.getMessage());
-            e.printStackTrace(System.err);
-            return false;
+            throw new PrebuiltBundleException(
+                    "The pre-built bundle for " + platformKey + " could not be installed: " + e.getMessage(), e);
         }
     }
 
