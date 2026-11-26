@@ -201,6 +201,17 @@ rcodesign signs the entire `.app` bundle in one pass. It does not support signin
 
 An entitlements file is embedded in the code signature. jDeploy checks for a project-local override at `jdeploy.mac.bundle.entitlements` in the working directory. If not found, the built-in default is used.
 
+### Provisioning profile
+
+A project can also provide a provisioning profile as `jdeploy.mac.bundle.provisionprofile` in the working directory. Before signing (on both the native codesign and rcodesign paths), jDeploy copies it to `Contents/embedded.provisionprofile`, where macOS looks for it.
+
+A profile is what authorises **restricted** entitlements: `com.apple.application-identifier`, `com.apple.developer.*` and `keychain-access-groups` (needed, for example, to use the data-protection keychain from a Developer ID app). macOS kills a process whose signature claims one of these without an embedded profile that allows it, at launch. So jDeploy refuses to sign when the entitlements claim a restricted entitlement and:
+
+- there is no `jdeploy.mac.bundle.provisionprofile`; or
+- the bundle carries the CLI launcher (`Contents/MacOS/Client4JLauncher-cli`, from `jdeploy.commands`): `--deep` gives it the same entitlements, but the profile covers only the bundle's main executable.
+
+The profile must match the bundle: its application identifier is `<Team ID>.<CFBundleIdentifier>`, so set `jdeploy.macAppBundleId` (the default is the jar's main class, lowercased) and sign with a certificate the profile names.
+
 ### Default Entitlements
 
 ```xml
@@ -347,6 +358,7 @@ steps:
 | `shared/.../appbundler/C4JPublisherSettings.java` | Credential resolution (env → properties → Java Preferences) |
 | `shared/.../appbundler/AppDescription.java` | App metadata including signing flags |
 | `shared/.../mac/mac.bundle.entitlements` | Default entitlements plist |
+| `shared/.../mac/MacProvisioningProfile.java` | Embeds the project's provisioning profile; refuses restricted entitlements it can't authorise |
 | `cli/.../services/PublishBundleService.java` | Reads `codesign`/`notarize` from package.json |
 | `cli/.../app/AppInfo.java` | `CodeSignSettings` enum definition |
 
@@ -361,6 +373,8 @@ steps:
 3. **`--deep` is used for native codesign** — This recursively signs all nested code. While Apple recommends signing from the inside out for production apps, `--deep` is simpler and sufficient for the jDeploy use case where inner components do not need distinct identities.
 
 4. **Entitlements override** — A project can provide its own `jdeploy.mac.bundle.entitlements` file in the working directory to customize entitlements. This is checked before falling back to the built-in default.
+
+4a. **Provisioning profile** — A project can provide `jdeploy.mac.bundle.provisionprofile` in the working directory; it is embedded as `Contents/embedded.provisionprofile`. Restricted entitlements without one fail the build (see "Provisioning profile" above).
 
 5. **Notarization requires signing** — The notarization path is only entered if code signing was also enabled and succeeded.
 
