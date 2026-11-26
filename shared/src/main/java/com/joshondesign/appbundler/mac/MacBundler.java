@@ -172,6 +172,7 @@ public class MacBundler {
                         entitlementsFile
                 );
             }
+            MacProvisioningProfile.prepare(contentsDir, entitlementsFile, new File("."));
             {
                 ProcessBuilder pb = new ProcessBuilder("/usr/bin/codesign",
                         "--verbose=4",
@@ -217,6 +218,7 @@ public class MacBundler {
                         entitlementsFile
                 );
             }
+            MacProvisioningProfile.prepare(contentsDir, entitlementsFile, new File("."));
             RcodesignSigner signer = new RcodesignSigner();
             // Sign the entire .app bundle (rcodesign doesn't support signing individual non-Mach-O files)
             // The app.xml will be included as a sealed resource in the bundle signature
