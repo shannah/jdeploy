@@ -46,6 +46,10 @@ public class GitHubUsernameService {
                 return jsonResponse.getString("login");
             }
         } else {
+            if (responseCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
+                throw new GitHubAuthenticationException("Failed to authenticate with GitHub (HTTP 401). " +
+                        "Your GitHub token may be missing, invalid or expired.");
+            }
             throw new IOException("Failed to retrieve GitHub username. Response code: " + responseCode);
         }
     }
